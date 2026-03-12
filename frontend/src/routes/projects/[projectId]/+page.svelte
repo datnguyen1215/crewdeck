@@ -173,6 +173,8 @@
 			resetForm();
 		} finally {
 			submitting = false;
+			// Decision: no catch block — mock API never throws. When wired to a real API,
+			// add error handling here to surface creation failures to the user.
 		}
 	}
 
