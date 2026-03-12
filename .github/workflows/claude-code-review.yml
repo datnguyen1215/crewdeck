@@ -38,8 +38,9 @@ jobs:
             - Race conditions or concurrency issues (if applicable)
             - Whether the code actually does what it claims
 
-            Post a PR review comment summarizing your findings. Label your comment clearly as "## Correctness Review".
+            Output your review as text, starting with "## Correctness Review".
             Reference specific files and line numbers. If no issues found, say so briefly.
+            Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
 
   simplicity-review:
     runs-on: ubuntu-latest
@@ -70,8 +71,9 @@ jobs:
             - Could a standard library function or built-in replace custom code?
             - Is the diff larger than it needs to be for the stated goal?
 
-            Post a PR review comment summarizing your findings. Label your comment clearly as "## Simplicity Review".
+            Output your review as text, starting with "## Simplicity Review".
             Reference specific files and line numbers. If no issues found, say so briefly.
+            Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
 
   security-review:
     runs-on: ubuntu-latest
@@ -102,5 +104,6 @@ jobs:
             - Sensitive data exposed in logs or responses
             - Newly added dependencies with known vulnerabilities
 
-            Post a PR review comment summarizing your findings. Label your comment clearly as "## Security Review".
+            Output your review as text, starting with "## Security Review".
             Reference specific files and line numbers. If no issues found, say so briefly.
+            Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
