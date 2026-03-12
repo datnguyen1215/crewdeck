@@ -8,7 +8,9 @@
 	let projectId = $derived($page.params.projectId);
 
 	$effect(() => {
-		getCrew(projectId).then((data) => (crew = data));
+		getCrew(projectId)
+			.then((data) => (crew = data))
+			.catch(() => (crew = null));
 	});
 </script>
 

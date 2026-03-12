@@ -7,6 +7,7 @@
 import { delay } from './delay.js';
 import * as db from './data.js';
 
+// Decision: Math.random() is fine for mock IDs. Real backend should use crypto.randomUUID().
 const uid = () => Math.random().toString(36).slice(2, 9);
 const now = () => new Date().toISOString();
 
@@ -50,6 +51,8 @@ export async function updateProject(id, data) {
 	await delay();
 	const project = db.projects.find((p) => p.id === id);
 	if (!project) notFound('Project');
+	// Decision: Object.assign with no field whitelist is intentional for the mock layer.
+	// Real backend must only accept permitted fields to prevent mass assignment.
 	Object.assign(project, data, { updated_at: now() });
 	return { ...project };
 }
@@ -73,6 +76,7 @@ export async function listRepos(projectId) {
 export async function addRepo(projectId, data) {
 	await delay();
 	const url = data.github_url;
+	// Decision: no URL validation here — mock only. Real backend must validate the URL format.
 	const [owner, name] = url.replace('https://github.com/', '').split('/');
 	const repo = {
 		id: `repo-${uid()}`,
@@ -111,6 +115,7 @@ export async function updateCrew(projectId, data) {
 	await delay();
 	const crew = db.crews.find((c) => c.project_id === projectId);
 	if (!crew) notFound('Crew');
+	// Decision: same intentional mass assignment as updateProject — mock only.
 	Object.assign(crew, data, { updated_at: now() });
 	return { ...crew };
 }
@@ -158,6 +163,7 @@ export async function updateAgent(projectId, agentId, data) {
 	const crew = db.crews.find((c) => c.project_id === projectId);
 	const agent = db.agents.find((a) => a.id === agentId && a.crew_id === crew?.id);
 	if (!agent) notFound('Agent');
+	// Decision: same intentional mass assignment as updateProject — mock only.
 	Object.assign(agent, data, { updated_at: now() });
 	return { ...agent };
 }
@@ -189,6 +195,8 @@ export async function listIssues(projectId, filters = {}) {
 	}
 	const sort = filters.sort ?? 'priority';
 	const order = filters.order ?? 'desc';
+	// Decision: sort key is not validated against an allowlist — mock only.
+	// Real backend must validate sort against permitted fields (e.g. priority, created_at).
 	result.sort((a, b) => {
 		const av = a[sort] ?? 0;
 		const bv = b[sort] ?? 0;
@@ -244,6 +252,7 @@ export async function updateIssue(projectId, issueId, data) {
 	await delay();
 	const issue = db.issues.find((i) => i.id === issueId && i.project_id === projectId);
 	if (!issue) notFound('Issue');
+	// Decision: same intentional mass assignment as updateProject — mock only.
 	Object.assign(issue, data, { updated_at: now() });
 	return { ...issue };
 }
@@ -252,6 +261,7 @@ export async function approveIssue(projectId, issueId) {
 	await delay();
 	const issue = db.issues.find((i) => i.id === issueId && i.project_id === projectId);
 	if (!issue) notFound('Issue');
+	// Decision: throws plain Error (no .status) unlike notFound — inconsistency is minor for mock.
 	if (issue.status !== 'draft') throw new Error('Issue must be in draft status');
 	issue.status = 'open';
 	issue.updated_at = now();
@@ -262,6 +272,7 @@ export async function discardIssue(projectId, issueId) {
 	await delay();
 	const issue = db.issues.find((i) => i.id === issueId && i.project_id === projectId);
 	if (!issue) notFound('Issue');
+	// Decision: same plain Error as approveIssue — minor inconsistency, acceptable for mock.
 	if (issue.status !== 'draft') throw new Error('Issue must be in draft status');
 	const idx = db.issues.indexOf(issue);
 	db.issues.splice(idx, 1);
@@ -271,6 +282,8 @@ export async function discardIssue(projectId, issueId) {
 // Comments
 // ---------------------------------------------------------------------------
 
+// Decision: projectId is intentionally unused — mock doesn't enforce cross-project scoping here.
+// Real backend enforces this via the /projects/{projectId}/issues/{issueId}/comments route.
 export async function listComments(projectId, issueId) {
 	await delay();
 	return db.comments.filter((c) => c.issue_id === issueId);

@@ -18,6 +18,8 @@
 	let issues = $state<Issue[]>([]);
 	let projectId = $derived($page.params.projectId);
 
+	// Decision: no AbortController to cancel stale in-flight requests on projectId change.
+	// With a 100ms mock delay this race is harmless; real API should add cancellation.
 	$effect(() => {
 		listIssues(projectId).then((data) => (issues = data));
 	});

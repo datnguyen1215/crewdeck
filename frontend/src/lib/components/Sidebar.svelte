@@ -13,7 +13,9 @@
 	let pathname = $derived($page.url.pathname);
 
 	function isActive(href: string) {
-		return pathname === href || (href !== '/' && pathname.startsWith(href));
+		// Use href + '/' as prefix to avoid matching sibling routes
+		// e.g. /projects/proj-1 should not match /projects/proj-1/crew
+		return pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
 	}
 </script>
 
@@ -72,6 +74,8 @@
 			stroke-linejoin="round"
 			class="flex-shrink-0"
 		>
+			<!-- Decision: {@html} is safe here — icon is typed as keyof typeof icons, values are
+			     hardcoded SVG path strings rendered inside an <svg> element. No user data reaches this. -->
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 			{@html icons[icon]}
 		</svg>
