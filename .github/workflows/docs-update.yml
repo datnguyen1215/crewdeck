@@ -1,0 +1,45 @@
+name: Documentation Update
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  update-docs:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set git author
+        run: |
+          git config user.name "Dat Nguyen"
+          git config user.email "17491799+datnguyen1215@users.noreply.github.com"
+
+      - name: Update documentation
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            A pull request was just merged: #${{ github.event.pull_request.number }} "${{ github.event.pull_request.title }}"
+
+            Your task:
+            1. Read the merged PR diff to understand what changed.
+            2. Check all documentation files (docs/, README.md) to see if any are affected by or out of date with the merged changes.
+            3. If documentation needs updating, create a new branch named "docs/update-from-pr-${{ github.event.pull_request.number }}", make the changes, push the branch, and open a new PR targeting main.
+            4. If no documentation updates are needed, do nothing.
+
+            Rules:
+            - Only update docs that are directly affected by the code changes. Do not rewrite unrelated sections.
+            - Keep doc changes minimal and focused.
+            - The new PR title should be: "docs: update documentation for #${{ github.event.pull_request.number }}"
+            - In the PR body, explain what docs were updated and why.
