@@ -20,7 +20,9 @@ app.listen(config.port, config.host, () => {
 });
 
 // Graceful shutdown
-process.on("SIGTERM", () => {
+function shutdown() {
   db.close();
   process.exit(0);
-});
+}
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
