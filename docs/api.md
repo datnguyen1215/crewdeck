@@ -1,6 +1,6 @@
 ---
 title: CrewDeck API Specification
-version: 0.1.0
+version: 0.2.0
 status: draft
 ---
 
@@ -10,7 +10,13 @@ status: draft
 
 The backend exposes a REST API for CRUD operations and a WebSocket server for real-time events. All REST endpoints return JSON. All request bodies are JSON.
 
-**Base URL:** `http://localhost:<port>/api`
+**Base URL:** `http://localhost:<port>/api/v1`
+
+**Configuration:** Port and other settings are configured via environment variables (`.env` file).
+
+**Validation:** All request bodies are validated with Zod schemas. Invalid requests return a `VALIDATION_ERROR` response.
+
+**CORS:** Enabled for local frontend development (configurable allowed origins).
 
 ## REST API
 
@@ -601,6 +607,97 @@ GET /projects/:projectId/orchestrator/status
   "last_activity": "ISO 8601"
 }
 ```
+
+---
+
+### Internal API (Agent CLI)
+
+These endpoints are used exclusively by the CrewDeck CLI running inside agent tmux sessions. They are not intended for frontend or external use. See [Agent CLI](agent-cli.md) for the full CLI specification.
+
+#### Signal Event
+
+```
+POST /internal/signal
+```
+
+Receives a signal from an agent (work complete, review complete, error, needs help).
+
+**Request Body:**
+```json
+{
+  "session_id": "uuid",
+  "agent_id": "uuid",
+  "issue_id": "uuid",
+  "project_id": "uuid",
+  "event": "work-complete",
+  "data": {}
+}
+```
+
+**Response:** `200 OK`
+
+**Side effects:** Emits event on the event bus. Triggers Orchestrator Manager, WebSocket broadcast, Activity Logger.
+
+#### Post Comment (Internal)
+
+```
+POST /internal/comment
+```
+
+Agent posts a comment on its current issue.
+
+**Request Body:**
+```json
+{
+  "session_id": "uuid",
+  "agent_id": "uuid",
+  "issue_id": "uuid",
+  "project_id": "uuid",
+  "message": "Fixed the bug, added tests"
+}
+```
+
+**Response:** `201 Created`
+
+#### Update Status (Internal)
+
+```
+POST /internal/status
+```
+
+Agent updates its status on the current issue.
+
+**Request Body:**
+```json
+{
+  "session_id": "uuid",
+  "agent_id": "uuid",
+  "issue_id": "uuid",
+  "project_id": "uuid",
+  "state": "active"
+}
+```
+
+**Response:** `200 OK`
+
+#### Report Files (Internal)
+
+```
+POST /internal/files
+```
+
+Agent reports which files were modified.
+
+**Request Body:**
+```json
+{
+  "session_id": "uuid",
+  "project_id": "uuid",
+  "modified": ["src/auth/middleware.ts", "tests/auth.test.ts"]
+}
+```
+
+**Response:** `200 OK`
 
 ---
 
