@@ -16,7 +16,7 @@ import type { IssueFilters } from "../types/entities.js";
 
 // Valid status transitions
 const TRANSITIONS: Record<string, string[]> = {
-  draft: ["open", "deleted"],
+  draft: ["open"],
   open: ["in_progress", "done"],
   in_progress: ["in_review", "done"],
   in_review: ["feedback", "ready", "done"],
@@ -27,7 +27,7 @@ const TRANSITIONS: Record<string, string[]> = {
 
 function assertTransition(from: string, to: string): void {
   const allowed = TRANSITIONS[from] ?? [];
-  // Any status can transition to "done" (manual close)
+  // Intentional: any status can transition to "done" (manual close) as an escape hatch.
   if (to !== "done" && !allowed.includes(to)) {
     throw new InvalidTransitionError(from, to);
   }
@@ -100,6 +100,7 @@ router.delete("/:issueId", (req, res) => {
   res.status(204).send();
 });
 
+// Intentional: dedicated action routes for clarity, even though PATCH could handle these transitions.
 // POST /approve — draft → open
 router.post("/:issueId/approve", (req, res) => {
   const issue = getIssue(req.params.issueId);
@@ -127,7 +128,7 @@ router.post("/:issueId/discard", (req, res) => {
   res.status(204).send();
 });
 
-// POST /create-pr — transition to pr_created and emit event
+// POST /create-pr — ready → pr_created, emit event
 router.post("/:issueId/create-pr", (req, res) => {
   const issue = getIssue(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {

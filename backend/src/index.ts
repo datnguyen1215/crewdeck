@@ -30,6 +30,7 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// TODO: Add authentication middleware before production. All routes are currently unauthenticated.
 const v1 = "/api/v1";
 app.use(`${v1}/projects`, projectsRouter);
 app.use(`${v1}/projects/:projectId/repos`, reposRouter);

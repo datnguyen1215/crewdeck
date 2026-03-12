@@ -1,3 +1,4 @@
+// TODO: These routes need auth (shared secret or network isolation) before production. Currently exposed publicly.
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
@@ -30,15 +31,7 @@ const StatusSchema = z.object({
   agent_id: z.string(),
   issue_id: z.string(),
   project_id: z.string(),
-  session_id: z.string(),
   state: z.string(),
-});
-
-const FilesSchema = z.object({
-  issue_id: z.string(),
-  agent_id: z.string(),
-  project_id: z.string(),
-  files: z.array(z.string()),
 });
 
 // POST /signal — receive agent completion signals
@@ -78,7 +71,7 @@ router.post("/comment", validate(CommentSchema), (req, res) => {
 
 // POST /status — agent updates its working status
 router.post("/status", validate(StatusSchema), (req, res) => {
-  const { agent_id, issue_id, project_id, session_id, state } = req.body;
+  const { agent_id, issue_id, project_id, state } = req.body;
 
   const agent = getAgent(agent_id);
   if (!agent) throw new NotFoundError("Agent not found");
@@ -86,19 +79,12 @@ router.post("/status", validate(StatusSchema), (req, res) => {
   eventBus.emit("agent.status_changed", { agent_id, issue_id, project_id, state });
 
   if (state === "working") {
-    eventBus.emit("agent.working", { agent_id, issue_id, project_id, session_id });
+    eventBus.emit("agent.working", { agent_id, issue_id, project_id });
   } else if (state === "idle") {
     eventBus.emit("agent.idle", { agent_id, project_id });
   }
 
   res.json({ ok: true });
-});
-
-// POST /files — agent reports modified files
-router.post("/files", validate(FilesSchema), (req, res) => {
-  // Acknowledged — caller can subscribe to events if needed.
-  // Currently just echoes back; the orchestrator layer will consume this via events if added.
-  res.json({ ok: true, received: req.body.files.length });
 });
 
 export default router;

@@ -1,7 +1,13 @@
 import { Router } from "express";
+import { z } from "zod";
 import { getProject, updateProject } from "../db/repositories/projects.js";
 import { getSession, createSession, updateSession } from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
+import { validate } from "../middleware/validate.js";
+
+const StartSchema = z.object({
+  context: z.record(z.unknown()).optional(),
+});
 
 const router = Router({ mergeParams: true });
 
@@ -24,7 +30,7 @@ router.get("/status", (req, res) => {
 });
 
 // POST /start — create or resume orchestrator session
-router.post("/start", (req, res) => {
+router.post("/start", validate(StartSchema), (req, res) => {
   const { projectId } = req.params;
   const project = getProject(projectId);
   if (!project) throw new NotFoundError("Project not found");
@@ -42,7 +48,7 @@ router.post("/start", (req, res) => {
     project_id: projectId,
     session_type: "orchestrator",
     status: "running",
-    context: req.body ?? {},
+    context: req.body.context ?? {},
   });
 
   updateProject(projectId, { orchestrator_session_id: session.id });

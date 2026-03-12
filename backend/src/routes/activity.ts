@@ -16,8 +16,22 @@ router.get("/", (req, res) => {
   if (actor_type) filters.actor_type = actor_type;
   if (action) filters.action = action;
   if (since) filters.since = since;
-  if (limit) filters.limit = parseInt(limit, 10);
-  if (offset) filters.offset = parseInt(offset, 10);
+  if (limit) {
+    const parsed = parseInt(limit, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "limit must be a non-negative integer" } });
+      return;
+    }
+    filters.limit = Math.min(parsed, 500);
+  }
+  if (offset) {
+    const parsed = parseInt(offset, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "offset must be a non-negative integer" } });
+      return;
+    }
+    filters.offset = parsed;
+  }
 
   res.json(listActivity(projectId, filters));
 });

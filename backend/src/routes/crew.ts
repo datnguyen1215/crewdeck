@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getCrewWithAgents, updateCrew } from "../db/repositories/crews.js";
+import { getCrew, getCrewWithAgents, updateCrew } from "../db/repositories/crews.js";
 import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
 import { NotFoundError } from "../middleware/errors.js";
@@ -18,6 +18,8 @@ router.get("/", (req, res) => {
 router.patch("/", validate(UpdateCrewSchema), (req, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
+  const existing = getCrew(projectId);
+  if (!existing) throw new NotFoundError("Crew not found");
   const crew = updateCrew(projectId, req.body);
   res.json(crew);
 });
