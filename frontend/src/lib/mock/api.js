@@ -32,13 +32,10 @@ export async function listProjectsWithStats() {
 		const agents = crew ? db.agents.filter((a) => a.crew_id === crew.id) : [];
 		const projectIssues = db.issues.filter((i) => i.project_id === project.id);
 
-		const issueBreakdown = {
-			open: projectIssues.filter((i) => i.status === 'open').length,
-			in_progress: projectIssues.filter((i) => i.status === 'in_progress').length,
-			in_review: projectIssues.filter((i) => i.status === 'in_review').length,
-			ready: projectIssues.filter((i) => i.status === 'ready').length,
-			done: projectIssues.filter((i) => i.status === 'done').length
-		};
+		const issueBreakdown = { open: 0, in_progress: 0, in_review: 0, ready: 0, done: 0 };
+		for (const i of projectIssues) {
+			if (i.status in issueBreakdown) issueBreakdown[i.status]++;
+		}
 
 		const orchSession = project.orchestrator_session_id
 			? db.sessions.find((s) => s.id === project.orchestrator_session_id)

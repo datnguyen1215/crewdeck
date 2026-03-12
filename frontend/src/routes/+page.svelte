@@ -32,24 +32,29 @@
 		if (maxReviewRounds < 1) maxReviewRounds = 1;
 
 		submitting = true;
-		const project = await createProject({
-			name: name.trim(),
-			description: description.trim() || null,
-			max_concurrency: maxConcurrency,
-			max_review_rounds: maxReviewRounds
-		});
-		projects = [
-			...projects,
-			{
-				...project,
-				repo_count: 0,
-				agent_count: 0,
-				issues: { open: 0, in_progress: 0, in_review: 0, ready: 0, done: 0 },
-				orchestrator_status: 'none'
-			}
-		];
-		submitting = false;
-		closeModal();
+		try {
+			const project = await createProject({
+				name: name.trim(),
+				description: description.trim() || null,
+				max_concurrency: maxConcurrency,
+				max_review_rounds: maxReviewRounds
+			});
+			// Optimistic update: a brand-new project always starts with zero repos,
+			// agents, and issues — hard-coding zeros here is correct.
+			projects = [
+				...projects,
+				{
+					...project,
+					repo_count: 0,
+					agent_count: 0,
+					issues: { open: 0, in_progress: 0, in_review: 0, ready: 0, done: 0 },
+					orchestrator_status: 'none'
+				}
+			];
+			closeModal();
+		} finally {
+			submitting = false;
+		}
 	}
 
 	function closeModal() {
@@ -74,6 +79,10 @@
 		{ key: 'done', label: 'Dn', color: 'bg-secondary' }
 	] as const;
 
+	// Decision: only the 5 tracked statuses (open, in_progress, in_review, ready, done) are
+	// counted here. Other statuses (e.g. draft, feedback, pr_created) are not included in
+	// issueBreakdown by listProjectsWithStats(), so they don't appear in this total either.
+	// This is intentional — the dashboard only surfaces the operational pipeline view.
 	function totalIssues(issues: ProjectWithStats['issues']) {
 		return Object.values(issues).reduce((a, b) => a + b, 0);
 	}

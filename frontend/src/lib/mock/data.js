@@ -500,8 +500,6 @@ export const comments = [
 	}
 ];
 
-export const crews_data = crews; // re-export alias for compatibility
-
 export const sessions = [
 	{
 		id: 'sess-orch-api',
