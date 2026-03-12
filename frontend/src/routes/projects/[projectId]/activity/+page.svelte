@@ -1,54 +1,341 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listActivity } from '$lib/mock/api.js';
+	import { listActivity, listIssues } from '$lib/mock/api.js';
 
-	type Activity = Awaited<ReturnType<typeof listActivity>>;
+	type ActivityEntry = Awaited<ReturnType<typeof listActivity>>[number];
+	type Issue = Awaited<ReturnType<typeof listIssues>>[number];
 
-	const ACTION_COLORS: Record<string, string> = {
-		'issue.created': 'text-blue',
-		'issue.status_changed': 'text-amber',
-		'agent.assigned': 'text-purple',
-		'session.started': 'text-cyan',
-		'comment.added': 'text-secondary',
-		'pr.created': 'text-green'
+	const ACTOR_CFG: Record<string, { icon: string; color: string; border: string; glow: string }> = {
+		user: { icon: '○', color: 'text-primary', border: 'border-edge-hi', glow: '' },
+		agent: { icon: '⬡', color: 'text-cyan', border: 'border-cyan', glow: 'var(--glow-cyan)' },
+		orchestrator: {
+			icon: '◈',
+			color: 'text-purple',
+			border: 'border-purple',
+			glow: 'var(--glow-purple)'
+		},
+		system: { icon: '⚙', color: 'text-muted', border: 'border-edge', glow: '' }
 	};
 
-	let entries = $state<Activity>([]);
-	let projectId = $derived($page.params.projectId);
+	const ACTION_LABELS: Record<string, (d: Record<string, unknown>) => string> = {
+		'issue.created': () => 'Created issue',
+		'issue.status_changed': (d) =>
+			`Status: ${String(d.from).replace(/_/g, ' ')} → ${String(d.to).replace(/_/g, ' ')}`,
+		'issue.priority_set': (d) => `Set priority to ${d.priority}`,
+		'agent.assigned': (d) => `Assigned ${d.agent_name} to this issue`,
+		'session.started': (d) => `Started work session${d.agent_name ? ` for ${d.agent_name}` : ''}`,
+		'comment.added': () => 'Posted a comment',
+		'review.requested': (d) => `Requested review from ${d.reviewer_name}`,
+		'review.comment': () => 'Left a review comment',
+		'review.approved': () => 'Approved the changes',
+		'pr.created': (d) => `Created PR #${d.pr_number}`,
+		'pr.merged': (d) => `Merged PR #${d.pr_number}`
+	};
 
-	// Decision: no AbortController — same trade-off as other route pages. Mock delay is short.
+	const ACTION_DISPLAY: Record<string, string> = {
+		'issue.created': 'Issue Created',
+		'issue.status_changed': 'Status Changed',
+		'issue.priority_set': 'Priority Set',
+		'agent.assigned': 'Agent Assigned',
+		'session.started': 'Session Started',
+		'comment.added': 'Comment Added',
+		'review.requested': 'Review Requested',
+		'review.comment': 'Review Comment',
+		'review.approved': 'Review Approved',
+		'pr.created': 'PR Created',
+		'pr.merged': 'PR Merged'
+	};
+
+	const PAGE_SIZE = 50;
+
+	let projectId = $derived($page.params.projectId);
+	let allEntries = $state<ActivityEntry[]>([]);
+	let issues = $state<Issue[]>([]);
+	let loading = $state(true);
+	let visibleCount = $state(PAGE_SIZE);
+
+	let filterActors = $state<string[]>([]);
+	let filterAction = $state('');
+	let filterIssue = $state('');
+	let expanded = $state<Set<string>>(new Set());
+
 	$effect(() => {
-		listActivity(projectId).then((data) => (entries = data));
+		loading = true;
+		visibleCount = PAGE_SIZE;
+		let cancelled = false;
+		Promise.all([listActivity(projectId, { limit: 500 }), listIssues(projectId)]).then(
+			([acts, iss]) => {
+				if (cancelled) return;
+				allEntries = acts;
+				issues = iss;
+				loading = false;
+			}
+		);
+		return () => {
+			cancelled = true;
+		};
 	});
+
+	let filtered = $derived.by(() => {
+		let result = [...allEntries];
+		if (filterActors.length > 0) result = result.filter((e) => filterActors.includes(e.actor_type));
+		if (filterAction) result = result.filter((e) => e.action === filterAction);
+		if (filterIssue) result = result.filter((e) => e.issue_id === filterIssue);
+		return result;
+	});
+
+	let visible = $derived(filtered.slice(0, visibleCount));
+	let hasMore = $derived(filtered.length > visibleCount);
+
+	// Unique action types present in this project's data, for the filter dropdown.
+	let actionTypes = $derived([...new Set(allEntries.map((e) => e.action))].sort());
+	let issueMap = $derived(Object.fromEntries(issues.map((i) => [i.id, i.title])));
+
+	function relTime(dateStr: string): string {
+		const diff = Date.now() - new Date(dateStr).getTime();
+		const mins = Math.floor(diff / 60000);
+		const hours = Math.floor(diff / 3_600_000);
+		const days = Math.floor(diff / 86_400_000);
+		if (days > 0) return `${days}d ago`;
+		if (hours > 0) return `${hours}h ago`;
+		if (mins > 0) return `${mins}m ago`;
+		return 'just now';
+	}
+
+	function actorName(entry: ActivityEntry): string {
+		if (entry.actor_type === 'agent' && entry.actor_id) {
+			const n = String(entry.actor_id).replace('agent-', '');
+			return n.charAt(0).toUpperCase() + n.slice(1);
+		}
+		if (entry.actor_type === 'orchestrator') return 'Orchestrator';
+		if (entry.actor_type === 'system') return 'System';
+		return 'User';
+	}
+
+	function actionLabel(entry: ActivityEntry): string {
+		const fn = ACTION_LABELS[entry.action];
+		return fn ? fn((entry.details as Record<string, unknown>) ?? {}) : entry.action;
+	}
+
+	// Returns whether this entry has detail content worth expanding.
+	function hasExpandable(entry: ActivityEntry): boolean {
+		const d = (entry.details as Record<string, unknown>) ?? {};
+		return !!(d.text || d.comment || d.reason || d.note || d.branch);
+	}
+
+	function toggleActor(actor: string) {
+		filterActors = filterActors.includes(actor)
+			? filterActors.filter((a) => a !== actor)
+			: [...filterActors, actor];
+		visibleCount = PAGE_SIZE;
+	}
+
+	function toggleExpand(id: string) {
+		const next = new Set(expanded);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		expanded = next;
+	}
+
+	function clearFilters() {
+		filterActors = [];
+		filterAction = '';
+		filterIssue = '';
+		visibleCount = PAGE_SIZE;
+	}
+
+	// Entries within the last 2 hours get a subtle glow treatment.
+	function isRecent(dateStr: string): boolean {
+		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
+	}
 </script>
 
-<div class="p-8">
-	<div class="mb-8">
-		<h1 class="text-xl font-bold text-primary uppercase tracking-wide">Activity</h1>
-		<p class="text-secondary text-sm mt-1">Audit trail — most recent first.</p>
+<div class="p-6 h-full overflow-auto">
+	<!-- Header -->
+	<div class="flex items-center justify-between mb-5">
+		<div>
+			<h1 class="text-xl font-bold text-primary uppercase tracking-wide">Activity</h1>
+			<p class="text-muted text-xs mt-0.5">
+				{#if !loading}
+					{filtered.length} event{filtered.length !== 1 ? 's' : ''}{filterActors.length > 0 ||
+					filterAction ||
+					filterIssue
+						? `, filtered from ${allEntries.length}`
+						: ''}
+				{:else}
+					Loading…
+				{/if}
+			</p>
+		</div>
 	</div>
 
-	<div class="flex flex-col max-w-2xl">
-		{#each entries as entry (entry.id)}
-			<div class="flex gap-4 py-3 border-b border-edge last:border-0">
-				<span class="text-xs {ACTION_COLORS[entry.action] ?? 'text-muted'} w-40 flex-shrink-0 pt-0.5">
-					{entry.action}
-				</span>
-				<div class="flex-1 min-w-0">
-					<span class="text-secondary text-xs">{entry.actor_type}</span>
-					{#if entry.actor_id}
-						<span class="text-muted text-xs"> / {entry.actor_id}</span>
-					{/if}
-					{#if entry.issue_id}
-						<span class="text-muted text-xs"> on {entry.issue_id}</span>
-					{/if}
-				</div>
-				<span class="text-muted text-xs flex-shrink-0">
-					{entry.created_at.slice(0, 16).replace('T', ' ')}
-				</span>
+	<!-- Filters -->
+	<div class="mb-6 space-y-2">
+		<!-- Actor type toggle pills -->
+		<div class="flex flex-wrap items-center gap-1.5">
+			<span class="text-xs text-muted uppercase tracking-widest mr-1 flex-shrink-0">Actor:</span>
+			{#each Object.entries(ACTOR_CFG) as [type, cfg] (type)}
+				<button
+					onclick={() => toggleActor(type)}
+					class="px-2 py-0.5 text-xs rounded border transition-colors {filterActors.includes(type)
+						? `${cfg.color} ${cfg.border} bg-surface-hi`
+						: 'text-muted border-edge hover:border-edge-hi hover:text-secondary'}"
+				>
+					{cfg.icon}
+					{type.charAt(0).toUpperCase() + type.slice(1)}
+				</button>
+			{/each}
+		</div>
+
+		<!-- Action + Issue selects -->
+		<div class="flex items-center gap-4 flex-wrap">
+			<div class="flex items-center gap-2">
+				<span class="text-xs text-muted uppercase tracking-widest">Action:</span>
+				<select
+					bind:value={filterAction}
+					onchange={() => (visibleCount = PAGE_SIZE)}
+					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none"
+				>
+					<option value="">All</option>
+					{#each actionTypes as action (action)}
+						<option value={action}>{ACTION_DISPLAY[action] ?? action}</option>
+					{/each}
+				</select>
 			</div>
-		{:else}
-			<p class="text-muted text-sm">No activity yet.</p>
-		{/each}
+
+			<div class="flex items-center gap-2">
+				<span class="text-xs text-muted uppercase tracking-widest">Issue:</span>
+				<select
+					bind:value={filterIssue}
+					onchange={() => (visibleCount = PAGE_SIZE)}
+					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none max-w-[180px]"
+				>
+					<option value="">All</option>
+					{#each issues as issue (issue.id)}
+						<option value={issue.id}>{issue.title}</option>
+					{/each}
+				</select>
+			</div>
+
+			{#if filterActors.length > 0 || filterAction || filterIssue}
+				<button
+					onclick={clearFilters}
+					class="px-2 py-0.5 text-xs text-muted hover:text-secondary border border-transparent hover:border-edge rounded transition-colors"
+				>
+					Clear ×
+				</button>
+			{/if}
+		</div>
 	</div>
+
+	<!-- Timeline -->
+	{#if !loading}
+		{#if filtered.length === 0}
+			<p class="text-muted text-sm py-16 text-center">No activity matches the current filters.</p>
+		{:else}
+			<div class="max-w-2xl relative">
+				<!-- Vertical line down the left -->
+				<div class="absolute left-[19px] top-2 bottom-0 w-px bg-edge pointer-events-none"></div>
+
+				<div class="flex flex-col">
+					{#each visible as entry (entry.id)}
+						{@const cfg = ACTOR_CFG[entry.actor_type] ?? ACTOR_CFG.system}
+						{@const recent = isRecent(entry.created_at)}
+						{@const expandable = hasExpandable(entry)}
+						{@const isExpanded = expanded.has(entry.id)}
+						{@const details = (entry.details as Record<string, unknown>) ?? {}}
+						<div class="flex gap-4 pb-5 relative">
+							<!-- Actor dot on the timeline -->
+							<div class="flex-shrink-0 w-10 flex justify-center pt-0.5 relative z-10">
+								<div
+									class="w-6 h-6 rounded-full bg-base border flex items-center justify-center {cfg.border}"
+									style={recent && cfg.glow ? `box-shadow: ${cfg.glow}` : ''}
+								>
+									<span class="text-[10px] leading-none {cfg.color}">{cfg.icon}</span>
+								</div>
+							</div>
+
+							<!-- Event content -->
+							<div class="flex-1 min-w-0 pt-0.5">
+								<!-- Actor name + timestamp -->
+								<div class="flex items-center gap-2 mb-0.5 flex-wrap">
+									<span class="text-xs font-semibold {cfg.color}">{actorName(entry)}</span>
+									<span
+										class="text-muted text-xs font-mono"
+										title={new Date(entry.created_at).toLocaleString()}
+									>
+										{relTime(entry.created_at)}
+									</span>
+								</div>
+
+								<!-- Action description -->
+								<p class="text-secondary text-sm">{actionLabel(entry)}</p>
+
+								<!-- Related issue link -->
+								{#if entry.issue_id}
+									<a
+										href="/projects/{projectId}/issues/{entry.issue_id}"
+										class="text-xs text-muted hover:text-cyan transition-colors mt-0.5 inline-block font-mono"
+									>
+										#{entry.issue_id}{issueMap[entry.issue_id]
+											? ` — ${issueMap[entry.issue_id]}`
+											: ''}
+									</a>
+								{/if}
+
+								<!-- Expandable details toggle -->
+								{#if expandable}
+									<button
+										onclick={() => toggleExpand(entry.id)}
+										class="mt-1.5 text-xs text-muted hover:text-secondary transition-colors flex items-center gap-1"
+									>
+										<span class="font-mono text-[10px]">{isExpanded ? '▾' : '▸'}</span>
+										<span>{isExpanded ? 'Hide details' : 'Show details'}</span>
+									</button>
+
+									{#if isExpanded}
+										<div
+											class="mt-2 p-2.5 bg-base-hi border border-edge rounded text-xs text-secondary font-mono leading-relaxed"
+										>
+											{#if details.text}
+												<p class="text-primary">"{details.text}"</p>
+											{/if}
+											{#if details.comment}
+												<p class="text-primary">"{details.comment}"</p>
+											{/if}
+											{#if details.reason}
+												<p class="text-muted mt-1">Reason: {details.reason}</p>
+											{/if}
+											{#if details.branch}
+												<p class="text-muted mt-1">Branch: {details.branch}</p>
+											{/if}
+											{#if details.note}
+												<p class="text-muted mt-1">{details.note}</p>
+											{/if}
+										</div>
+									{/if}
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+
+				<!-- Load more -->
+				{#if hasMore}
+					<div class="pl-14 pb-4">
+						<button
+							onclick={() => (visibleCount += PAGE_SIZE)}
+							class="text-xs text-muted hover:text-secondary border border-edge hover:border-edge-hi rounded px-3 py-1.5 transition-colors"
+						>
+							Load more ({filtered.length - visibleCount} remaining)
+						</button>
+					</div>
+				{/if}
+			</div>
+		{/if}
+	{:else}
+		<div class="py-16 text-center">
+			<p class="text-muted text-sm">Loading activity…</p>
+		</div>
+	{/if}
 </div>
