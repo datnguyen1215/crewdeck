@@ -143,7 +143,21 @@ export async function getCrew(projectId) {
 	const crew = db.crews.find((c) => c.project_id === projectId);
 	if (!crew) notFound('Crew');
 	const crewAgents = db.agents.filter((a) => a.crew_id === crew.id);
-	return { ...crew, agents: crewAgents };
+	const agents = crewAgents.map((agent) => {
+		const activeIssue = db.issues.find(
+			(i) =>
+				i.project_id === projectId &&
+				i.assigned_agent_id === agent.id &&
+				['in_progress', 'in_review', 'feedback'].includes(i.status)
+		);
+		const status = !activeIssue
+			? 'idle'
+			: activeIssue.status === 'in_progress'
+				? 'working'
+				: 'reviewing';
+		return { ...agent, status, current_issue: activeIssue ?? null };
+	});
+	return { ...crew, agents };
 }
 
 export async function updateCrew(projectId, data) {
