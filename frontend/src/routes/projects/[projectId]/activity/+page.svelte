@@ -46,6 +46,7 @@
 		'pr.merged': 'PR Merged'
 	};
 
+	// Pagination scaffolding — not triggered by current mock data but needed for production volumes.
 	const PAGE_SIZE = 50;
 
 	let projectId = $derived($page.params.projectId);
@@ -63,7 +64,13 @@
 		loading = true;
 		visibleCount = PAGE_SIZE;
 		let cancelled = false;
-		Promise.all([listActivity(projectId, { limit: 500 }), listIssues(projectId)]).then(
+		// Pass active filters server-side so the limit is applied after filtering,
+		// preventing silent exclusion of matching entries beyond the fetch limit.
+		const actParams: Record<string, unknown> = { limit: 500 };
+		if (filterActors.length > 0) actParams.actor_types = filterActors;
+		if (filterAction) actParams.action = filterAction;
+		if (filterIssue) actParams.issue_id = filterIssue;
+		Promise.all([listActivity(projectId, actParams), listIssues(projectId)]).then(
 			([acts, iss]) => {
 				if (cancelled) return;
 				allEntries = acts;
@@ -76,13 +83,8 @@
 		};
 	});
 
-	let filtered = $derived.by(() => {
-		let result = [...allEntries];
-		if (filterActors.length > 0) result = result.filter((e) => filterActors.includes(e.actor_type));
-		if (filterAction) result = result.filter((e) => e.action === filterAction);
-		if (filterIssue) result = result.filter((e) => e.issue_id === filterIssue);
-		return result;
-	});
+	// Filtering is applied server-side; allEntries already reflects active filters.
+	let filtered = $derived(allEntries);
 
 	let visible = $derived(filtered.slice(0, visibleCount));
 	let hasMore = $derived(filtered.length > visibleCount);
@@ -91,6 +93,7 @@
 	let actionTypes = $derived([...new Set(allEntries.map((e) => e.action))].sort());
 	let issueMap = $derived(Object.fromEntries(issues.map((i) => [i.id, i.title])));
 
+	// Intentional: static relative time — acceptable for a log viewer, not worth a timer.
 	function relTime(dateStr: string): string {
 		const diff = Date.now() - new Date(dateStr).getTime();
 		const mins = Math.floor(diff / 60000);
@@ -109,6 +112,7 @@
 		}
 		if (entry.actor_type === 'orchestrator') return 'Orchestrator';
 		if (entry.actor_type === 'system') return 'System';
+		// TODO: Resolve actor_id to actual user name when multi-user support is added.
 		return 'User';
 	}
 
@@ -145,6 +149,7 @@
 	}
 
 	// Entries within the last 2 hours get a subtle glow treatment.
+	// Note: glow effect only triggers for entries <2h old. Visible with live data, not with static mock timestamps.
 	function isRecent(dateStr: string): boolean {
 		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
 	}
@@ -157,11 +162,7 @@
 			<h1 class="text-xl font-bold text-primary uppercase tracking-wide">Activity</h1>
 			<p class="text-muted text-xs mt-0.5">
 				{#if !loading}
-					{filtered.length} event{filtered.length !== 1 ? 's' : ''}{filterActors.length > 0 ||
-					filterAction ||
-					filterIssue
-						? `, filtered from ${allEntries.length}`
-						: ''}
+					{filtered.length} event{filtered.length !== 1 ? 's' : ''}
 				{:else}
 					Loading…
 				{/if}

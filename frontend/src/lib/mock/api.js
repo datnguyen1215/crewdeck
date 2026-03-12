@@ -375,7 +375,8 @@ export async function listActivity(projectId, filters = {}) {
 	await delay();
 	let result = db.activity.filter((a) => a.project_id === projectId);
 	if (filters.issue_id) result = result.filter((a) => a.issue_id === filters.issue_id);
-	if (filters.actor_type) result = result.filter((a) => a.actor_type === filters.actor_type);
+	if (filters.actor_types?.length) result = result.filter((a) => filters.actor_types.includes(a.actor_type));
+	else if (filters.actor_type) result = result.filter((a) => a.actor_type === filters.actor_type);
 	if (filters.action) result = result.filter((a) => a.action === filters.action);
 	if (filters.since) result = result.filter((a) => a.created_at >= filters.since);
 	result.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
