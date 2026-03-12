@@ -45,8 +45,7 @@
 				repo_count: 0,
 				agent_count: 0,
 				issues: { open: 0, in_progress: 0, in_review: 0, ready: 0, done: 0 },
-				orchestrator_status: 'none',
-				active_issues: 0
+				orchestrator_status: 'none'
 			}
 		];
 		submitting = false;
@@ -220,7 +219,7 @@
 							{/if}
 						</div>
 						<span class="text-muted">
-							<span class="text-secondary">{project.active_issues}</span>/{project.max_concurrency}
+							<span class="text-secondary">{project.issues.in_progress}</span>/{project.max_concurrency}
 							<span class="text-muted ml-1">conc</span>
 						</span>
 					</div>
@@ -373,3 +372,9 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.project-card:hover {
+		box-shadow: 0 4px 24px rgba(34, 211, 238, 0.08);
+	}
+</style>

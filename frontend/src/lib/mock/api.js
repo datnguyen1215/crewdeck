@@ -57,8 +57,7 @@ export async function listProjectsWithStats() {
 			repo_count: repos.length,
 			agent_count: agents.length,
 			issues: issueBreakdown,
-			orchestrator_status: orchestratorStatus,
-			active_issues: issueBreakdown.in_progress
+			orchestrator_status: orchestratorStatus
 		};
 	});
 }

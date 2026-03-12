@@ -38,6 +38,8 @@
 	--glow-blue: 0 0 10px rgba(96, 165, 250, 0.3);
 }
 
+/* Must be global: used via inline style attributes (e.g. style="animation: fade-up ...").
+   Inline styles reference the document stylesheet, not scoped component styles. */
 @keyframes fade-up {
 	from {
 		opacity: 0;
@@ -47,10 +49,6 @@
 		opacity: 1;
 		transform: translateY(0);
 	}
-}
-
-.project-card:hover {
-	box-shadow: 0 4px 24px rgba(34, 211, 238, 0.08);
 }
 
 @layer base {
