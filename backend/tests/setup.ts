@@ -1,18 +1,13 @@
-import Database from "better-sqlite3";
-import { readFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
-import { afterAll } from "vitest";
+import { vi, afterAll } from "vitest";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// Replace the db singleton with an in-memory instance for test isolation
+vi.mock("../src/db/index.js", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../src/db/index.js")>();
+  const db = mod.createDb(":memory:");
+  return { ...mod, db };
+});
 
-// In-memory DB for tests
-export const testDb = new Database(":memory:");
-testDb.pragma("foreign_keys = ON");
-
-const schema = readFileSync(join(__dirname, "../src/db/schema.sql"), "utf8");
-testDb.exec(schema);
-
-afterAll(() => {
-  testDb.close();
+afterAll(async () => {
+  const { db } = await import("../src/db/index.js");
+  db.close();
 });
