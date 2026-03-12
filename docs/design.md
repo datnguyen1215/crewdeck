@@ -1,6 +1,6 @@
 ---
 title: CrewDeck Design Document
-version: 0.1.0
+version: 0.2.0
 status: draft
 ---
 
@@ -125,6 +125,34 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 6. This loop continues until all reviewers approve or the configurable max rounds are reached.
 7. If max rounds are reached, the issue escalates to the human for a decision.
 
+## Technology Decisions
+
+| Component | Choice | Rationale |
+|-----------|--------|-----------|
+| **Backend language** | TypeScript | Type safety, shared types with frontend |
+| **HTTP framework** | Express | Widely adopted, mature ecosystem |
+| **Database** | SQLite via `better-sqlite3` | Synchronous API (performance advantage for SQLite), no async overhead, raw SQL for full control |
+| **Request validation** | Zod | Strict schema validation, self-documenting, TypeScript integration |
+| **WebSocket** | `ws` | Minimal, no abstraction overhead |
+| **Testing** | Vitest | Fast, native TypeScript support, compatible with Vite ecosystem |
+| **Logging** | pino | Fast structured JSON logging |
+| **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate |
+| **CSS** | Tailwind CSS | Utility-first, dark theme, no component library |
+| **Configuration** | Environment variables (`.env`) | Simple, standard approach |
+| **Orchestrator responses** | Structured JSON | Reliable parsing, deterministic action extraction |
+
+## Project Structure
+
+```
+crewdeck/
+├── frontend/          # SvelteKit application
+├── backend/           # Express + TypeScript API server
+├── cli/               # CrewDeck CLI (agent ↔ backend communication)
+└── docs/              # Design documentation
+```
+
+The frontend and backend are separate directories (not a monorepo with workspaces). Each has its own `package.json` and runs independently.
+
 ## Architecture Overview
 
 ```
@@ -143,24 +171,34 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
                      │ WebSocket + REST
                      ▼
 ┌─────────────────────────────────────────────────┐
-│                Backend (Node.js)                 │
+│            Backend (Node.js + TypeScript)         │
 │                                                  │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │   REST   │ │WebSocket │ │  Event Handler   │ │
-│  │   API    │ │  Server  │ │                  │ │
+│  │   REST   │ │WebSocket │ │   Event Bus      │ │
+│  │ API (v1) │ │ Server   │ │  (EventEmitter)  │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
 │  │ Session  │ │  Agent   │ │   Orchestrator   │ │
 │  │ Manager  │ │ Runtime  │ │    Manager       │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
+│  ┌──────────────────────────────────────────────┐ │
+│  │  Centralized Error Handler + Zod Validation  │ │
+│  └──────────────────────────────────────────────┘ │
 └────────────────────┬────────────────────────────┘
                      │
-          ┌──────────┼──────────┐
-          ▼          ▼          ▼
-     ┌────────┐ ┌────────┐ ┌────────┐
-     │ SQLite │ │  tmux  │ │   gh   │
-     │   DB   │ │Sessions│ │  CLI   │
-     └────────┘ └────────┘ └────────┘
+          ┌──────────┼──────────┬──────────┐
+          ▼          ▼          ▼          ▼
+     ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+     │ SQLite │ │  tmux  │ │   gh   │ │crewdeck│
+     │   DB   │ │Sessions│ │  CLI   │ │  CLI   │
+     └────────┘ └────────┘ └────────┘ └────────┘
+                                           ↑
+                                           │ HTTP calls
+                                           │ to backend
+                                      ┌────────────┐
+                                      │ AI Agents  │
+                                      │ (in tmux)  │
+                                      └────────────┘
 ```
 
 ### Component Responsibilities
@@ -171,11 +209,18 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 - Embeds xterm.js for live terminal views of agent tmux sessions.
 - Provides approval buttons for draft issues and PR creation.
 
-**Backend (Node.js)**
-- Exposes REST API for CRUD operations on projects, crews, agents, issues, comments.
-- Runs WebSocket server to push real-time events to the frontend.
+**Backend (Node.js + TypeScript)**
+- Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, crews, agents, issues, comments.
+- All request validation via Zod schemas.
+- Centralized error handling middleware (all errors formatted as `{ error: { code, message, details } }`).
+- Runs WebSocket server (`ws` library) to push real-time events to the frontend.
+- In-process event bus (typed EventEmitter) for decoupled internal communication between components.
 - Handles events (issue approved, agent finished, review posted) by resuming the orchestrator session.
 - Manages agent lifecycle — spawning tmux sessions, tracking output, cleaning up.
+- Graceful shutdown on SIGTERM/SIGINT — saves session state, cleans up tmux sessions.
+- On startup, automatically detects and cleans up orphaned tmux sessions from previous crashes.
+- Structured JSON logging via pino.
+- CORS enabled for local frontend development.
 
 **Session Manager**
 - Tracks all AI session context in SQLite (conversation history, decisions, state).
@@ -188,10 +233,66 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 - Provides a uniform interface so the backend doesn't care which CLI tool is running.
 - See [Agent Runtime](agent-runtime.md) for the full specification.
 
+**CrewDeck CLI (`cli/`)**
+- Lightweight CLI tool that AI agents call from within their tmux sessions to communicate back to the backend.
+- Makes HTTP calls to internal backend API endpoints.
+- Enables agents to report status, post comments, signal completion, and more.
+- Agents are instructed to use this CLI via their system prompt; documentation is kept in a separate file (see [Agent CLI](agent-cli.md)) and referenced from the project's CLAUDE.md.
+- See [Agent CLI](agent-cli.md) for the full specification.
+
+**Event Bus**
+- In-process typed EventEmitter singleton.
+- All internal components communicate through the event bus rather than direct coupling.
+- Producers: REST API handlers, Agent Runtime, Orchestrator Manager, Session Manager, CrewDeck CLI endpoints.
+- Consumers: Orchestrator Manager, WebSocket broadcaster, Session Manager, Activity Logger.
+- Fire-and-forget — emitters do not wait for consumers to finish processing.
+
 **SQLite Database**
 - Stores all persistent state: projects, crews, agents, issues, comments, activity logs, session context.
+- Accessed via `better-sqlite3` with raw SQL (synchronous API).
+- Single `schema.sql` file executed on startup for migrations.
 - Single file, no external dependencies, suitable for local-first operation.
 - See [Data Model](data-model.md) for the full schema.
+
+## Event Bus
+
+The backend uses an in-process typed EventEmitter as the central communication backbone. All internal components communicate through the event bus rather than calling each other directly. This decouples producers from consumers and makes the system easier to extend.
+
+### Event Flow
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                     Event Bus                            │
+│              (typed EventEmitter singleton)               │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Producers:                    Consumers:                │
+│  ├── REST API handlers    ──→  Orchestrator Manager      │
+│  ├── Agent Runtime        ──→  WebSocket broadcaster     │
+│  ├── CrewDeck CLI (HTTP)  ──→  Session Manager           │
+│  ├── Orchestrator Manager ──→  Activity Logger           │
+│  └── Session Manager                                     │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Behavior
+
+- **Fire-and-forget** — producers emit events and move on. Consumers handle errors independently.
+- Events are processed synchronously within the Node.js event loop.
+- Every event bus event maps to a corresponding WebSocket event for frontend notification.
+
+### Example Flow: User Creates an Issue
+
+```
+1. REST API: POST /api/v1/projects/:id/issues
+2. API handler creates issue in DB
+3. API handler emits: bus.emit("issue.created", { issue })
+4. Activity Logger receives event → writes ActivityLog entry
+5. WebSocket broadcaster receives event → sends to connected frontend clients
+6. Orchestrator Manager receives event → resumes orchestrator to evaluate the new issue
+7. API handler returns 201 to the client
+```
 
 ## Real-Time Communication
 
@@ -230,6 +331,31 @@ Each agent works in an isolated git worktree:
 - The orchestrator respects this limit when assigning work.
 - Issues beyond the limit are queued and assigned as slots become available.
 - The orchestrator determines queue priority based on issue analysis.
+
+## Process Lifecycle
+
+### Startup
+
+On startup, the backend:
+
+1. Loads configuration from environment variables (`.env` file).
+2. Initializes SQLite database (runs `schema.sql` if tables don't exist).
+3. Scans for orphaned tmux sessions from previous crashes (sessions prefixed with `crewdeck-`).
+4. Cleans up orphaned sessions: kills tmux sessions, updates Session records to `error` status.
+5. Starts the Express HTTP server.
+6. Starts the WebSocket server.
+7. Logs startup complete via pino.
+
+### Graceful Shutdown
+
+On SIGTERM or SIGINT, the backend:
+
+1. Stops accepting new HTTP connections.
+2. Saves session state for all active agent sessions (captures tmux output, updates Session.context in DB).
+3. Kills all active tmux sessions gracefully (sends exit command, then force-kills after timeout).
+4. Updates all active Session records to `completed` or `error` status.
+5. Closes the SQLite database connection.
+6. Exits the process.
 
 ## Security and Access
 
