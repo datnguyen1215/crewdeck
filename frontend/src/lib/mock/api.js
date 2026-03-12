@@ -143,7 +143,21 @@ export async function getCrew(projectId) {
 	const crew = db.crews.find((c) => c.project_id === projectId);
 	if (!crew) notFound('Crew');
 	const crewAgents = db.agents.filter((a) => a.crew_id === crew.id);
-	return { ...crew, agents: crewAgents };
+	const agents = crewAgents.map((agent) => {
+		const activeIssue = db.issues.find(
+			(i) =>
+				i.project_id === projectId &&
+				i.assigned_agent_id === agent.id &&
+				['in_progress', 'in_review', 'feedback'].includes(i.status)
+		);
+		const status = !activeIssue
+			? 'idle'
+			: activeIssue.status === 'in_progress'
+				? 'working'
+				: 'reviewing';
+		return { ...agent, status, current_issue: activeIssue ?? null };
+	});
+	return { ...crew, agents };
 }
 
 export async function updateCrew(projectId, data) {
@@ -381,7 +395,8 @@ export async function listActivity(projectId, filters = {}) {
 	await delay();
 	let result = db.activity.filter((a) => a.project_id === projectId);
 	if (filters.issue_id) result = result.filter((a) => a.issue_id === filters.issue_id);
-	if (filters.actor_type) result = result.filter((a) => a.actor_type === filters.actor_type);
+	if (filters.actor_types?.length) result = result.filter((a) => filters.actor_types.includes(a.actor_type));
+	else if (filters.actor_type) result = result.filter((a) => a.actor_type === filters.actor_type);
 	if (filters.action) result = result.filter((a) => a.action === filters.action);
 	if (filters.since) result = result.filter((a) => a.created_at >= filters.since);
 	result.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));

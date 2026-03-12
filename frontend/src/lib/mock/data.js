@@ -235,7 +235,7 @@ export const issues = [
 		description: 'Create migration system for schema evolution.',
 		status: 'in_progress',
 		priority: 9,
-		assigned_agent_id: 'agent-charlie',
+		assigned_agent_id: null,
 		created_by: 'user',
 		max_review_rounds: 2,
 		current_review_round: 0,
@@ -251,7 +251,7 @@ export const issues = [
 		project_id: 'proj-api',
 		title: 'OpenAPI spec documentation',
 		description: 'Generate and serve OpenAPI 3.0 spec from route definitions.',
-		status: 'in_progress',
+		status: 'in_review',
 		priority: 6,
 		assigned_agent_id: 'agent-bob',
 		created_by: 'orchestrator',
@@ -817,34 +817,241 @@ export const sessions = [
 ];
 
 export const activity = [
+	// === Full lifecycle of api-8 (Express server setup) ===
 	{
-		id: 'act-1',
+		id: 'act-api8-1',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'user',
+		actor_id: 'user-main',
+		action: 'issue.created',
+		details: { title: 'Express server setup' },
+		created_at: ago(168)
+	},
+	{
+		id: 'act-api8-2',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'orchestrator',
+		actor_id: null,
+		action: 'issue.priority_set',
+		details: { priority: 10, reason: 'Blocking dependency for all other API issues' },
+		created_at: ago(167)
+	},
+	{
+		id: 'act-api8-3',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'orchestrator',
+		actor_id: null,
+		action: 'agent.assigned',
+		details: {
+			agent_id: 'agent-alice',
+			agent_name: 'Alice',
+			reason: 'Best match for backend + Express expertise'
+		},
+		created_at: ago(166)
+	},
+	{
+		id: 'act-api8-4',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'system',
+		actor_id: null,
+		action: 'session.started',
+		details: { session_id: 'sess-alice-8', agent_name: 'Alice' },
+		created_at: ago(165)
+	},
+	{
+		id: 'act-api8-5',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'agent',
+		actor_id: 'agent-alice',
+		action: 'comment.added',
+		details: {
+			text: 'Setting up Express with helmet, cors, and compression middleware. Will use express-validator for input handling.'
+		},
+		created_at: ago(160)
+	},
+	{
+		id: 'act-api8-6',
 		project_id: 'proj-api',
 		issue_id: 'api-8',
 		actor_type: 'agent',
 		actor_id: 'agent-alice',
 		action: 'issue.status_changed',
-		details: { from: 'in_review', to: 'done' },
-		created_at: ago(120)
+		details: { from: 'in_progress', to: 'in_review' },
+		created_at: ago(148)
 	},
 	{
-		id: 'act-2',
+		id: 'act-api8-7',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'orchestrator',
+		actor_id: null,
+		action: 'review.requested',
+		details: {
+			reviewer_id: 'agent-bob',
+			reviewer_name: 'Bob',
+			reason: 'Security review needed for middleware configuration'
+		},
+		created_at: ago(147)
+	},
+	{
+		id: 'act-api8-8',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'agent',
+		actor_id: 'agent-bob',
+		action: 'review.comment',
+		details: {
+			text: 'CORS origin is set to * — this should be restricted to known domains. Also consider adding rate limiting at the middleware level.'
+		},
+		created_at: ago(145)
+	},
+	{
+		id: 'act-api8-9',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'agent',
+		actor_id: 'agent-bob',
+		action: 'issue.status_changed',
+		details: { from: 'in_review', to: 'feedback' },
+		created_at: ago(144)
+	},
+	{
+		id: 'act-api8-10',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'agent',
+		actor_id: 'agent-alice',
+		action: 'comment.added',
+		details: {
+			text: 'Addressed: restricted CORS to ALLOWED_ORIGINS env var, added express-rate-limit as base middleware.'
+		},
+		created_at: ago(138)
+	},
+	{
+		id: 'act-api8-11',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'agent',
+		actor_id: 'agent-alice',
+		action: 'issue.status_changed',
+		details: { from: 'feedback', to: 'in_review' },
+		created_at: ago(137)
+	},
+	{
+		id: 'act-api8-12',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'agent',
+		actor_id: 'agent-bob',
+		action: 'review.approved',
+		details: { comment: 'CORS and rate limiting look good. LGTM.' },
+		created_at: ago(135)
+	},
+	{
+		id: 'act-api8-13',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'orchestrator',
+		actor_id: null,
+		action: 'issue.status_changed',
+		details: { from: 'in_review', to: 'ready' },
+		created_at: ago(134)
+	},
+	{
+		id: 'act-api8-14',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'user',
+		actor_id: 'user-main',
+		action: 'pr.created',
+		details: { pr_number: 8, branch: 'api/issue-8-express', title: 'feat: Express server setup with security middleware' },
+		created_at: ago(131)
+	},
+	{
+		id: 'act-api8-15',
+		project_id: 'proj-api',
+		issue_id: 'api-8',
+		actor_type: 'system',
+		actor_id: null,
+		action: 'pr.merged',
+		details: { pr_number: 8, branch: 'api/issue-8-express' },
+		created_at: ago(120)
+	},
+	// === api-3 (REST API CRUD) — in progress ===
+	{
+		id: 'act-api3-1',
 		project_id: 'proj-api',
 		issue_id: 'api-3',
 		actor_type: 'orchestrator',
 		actor_id: null,
 		action: 'agent.assigned',
-		details: { agent_id: 'agent-alice', agent_name: 'Alice' },
+		details: { agent_id: 'agent-alice', agent_name: 'Alice', reason: 'API design expertise required' },
 		created_at: ago(71)
 	},
 	{
-		id: 'act-3',
+		id: 'act-api3-2',
+		project_id: 'proj-api',
+		issue_id: 'api-3',
+		actor_type: 'system',
+		actor_id: null,
+		action: 'session.started',
+		details: { session_id: 'sess-alice-3', agent_name: 'Alice' },
+		created_at: ago(70)
+	},
+	{
+		id: 'act-api3-3',
+		project_id: 'proj-api',
+		issue_id: 'api-3',
+		actor_type: 'agent',
+		actor_id: 'agent-alice',
+		action: 'comment.added',
+		details: {
+			text: 'Starting with projects CRUD. Will implement RESTful routes with proper error handling and pagination.'
+		},
+		created_at: ago(68)
+	},
+	// === api-5 (OpenAPI spec) — proposed by orchestrator ===
+	{
+		id: 'act-api5-1',
+		project_id: 'proj-api',
+		issue_id: 'api-5',
+		actor_type: 'orchestrator',
+		actor_id: null,
+		action: 'issue.created',
+		details: {
+			title: 'OpenAPI spec documentation',
+			note: 'Proposed based on API maturity analysis — routes are stable enough to document'
+		},
+		created_at: ago(36)
+	},
+	{
+		id: 'act-api5-2',
+		project_id: 'proj-api',
+		issue_id: 'api-5',
+		actor_type: 'orchestrator',
+		actor_id: null,
+		action: 'agent.assigned',
+		details: {
+			agent_id: 'agent-bob',
+			agent_name: 'Bob',
+			reason: 'Strong familiarity with API contracts and security schemas'
+		},
+		created_at: ago(35)
+	},
+	// === mob-2 (Mobile App onboarding) ===
+	{
+		id: 'act-mob2-1',
 		project_id: 'proj-mobile',
 		issue_id: 'mob-2',
 		actor_type: 'orchestrator',
 		actor_id: null,
 		action: 'agent.assigned',
-		details: { agent_id: 'agent-dave', agent_name: 'Dave' },
+		details: { agent_id: 'agent-dave', agent_name: 'Dave', reason: 'React Native specialist' },
 		created_at: ago(72)
 	}
 ];
