@@ -88,7 +88,7 @@
 	}
 </script>
 
-<svelte:window on:keydown={handleModalKeydown} />
+<svelte:window onkeydown={handleModalKeydown} />
 
 <div class="p-8 h-full overflow-auto">
 	<!-- Header -->
