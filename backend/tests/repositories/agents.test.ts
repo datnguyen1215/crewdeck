@@ -11,6 +11,7 @@ import {
   hasActiveIssues,
 } from "../../src/db/repositories/agents.js";
 import { createIssue, updateIssue } from "../../src/db/repositories/issues.js";
+import { createSession } from "../../src/db/repositories/sessions.js";
 
 function clearAll() {
   db.exec("DELETE FROM ActivityLog");
@@ -94,6 +95,18 @@ describe("deleteAgent", () => {
     deleteAgent(agent.id);
     expect(getAgent(agent.id)).toBeNull();
   });
+
+  it("nulls out agent_id on sessions instead of deleting them", () => {
+    const p = createProject({ name: "P" });
+    const crew = getCrew(p.id)!;
+    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    createSession({ project_id: p.id, session_type: "agent", agent_id: agent.id });
+    deleteAgent(agent.id);
+    expect(getAgent(agent.id)).toBeNull();
+    const sessions = db.prepare("SELECT * FROM Session WHERE project_id = ?").all(p.id) as { agent_id: string | null }[];
+    expect(sessions.length).toBe(1);
+    expect(sessions[0].agent_id).toBeNull();
+  });
 });
 
 describe("listAgents", () => {
@@ -129,6 +142,15 @@ describe("hasActiveIssues", () => {
     const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     updateIssue(issue.id, { assigned_agent_id: agent.id, status: "closed" });
+    expect(hasActiveIssues(agent.id)).toBe(false);
+  });
+
+  it("returns false when agent's issue is done", () => {
+    const p = createProject({ name: "P" });
+    const crew = getCrew(p.id)!;
+    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const issue = createIssue(p.id, { title: "T", description: "D" });
+    updateIssue(issue.id, { assigned_agent_id: agent.id, status: "done" });
     expect(hasActiveIssues(agent.id)).toBe(false);
   });
 });

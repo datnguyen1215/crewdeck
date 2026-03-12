@@ -56,7 +56,12 @@ export function updateProject(id: string, input: UpdateProjectInput): Project {
 }
 
 export function deleteProject(id: string): void {
-  // Cascade delete all related data in FK-safe order
+  // Cascade delete all related data in FK-safe order.
+  // Edge case: if another project's issue has an IssuePR pointing at one of this
+  // project's repos, the `DELETE FROM Repo` below will fail with a FK constraint error
+  // because IssuePR.repo_id is NOT NULL. This cross-project scenario is not supported
+  // by the current data model — IssuePRs are expected to reference repos in the same
+  // project as the issue. Not fixing now; enforce at the route layer when repos are created.
   db.transaction(() => {
     db.prepare("DELETE FROM ActivityLog WHERE project_id = ?").run(id);
     db.prepare(

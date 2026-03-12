@@ -62,19 +62,23 @@ export function updateAgent(id: string, input: UpdateAgentInput): Agent {
 }
 
 export function deleteAgent(id: string): void {
-  // IssueAgent.agent_id has a NOT NULL FK to Agent — with foreign_keys=ON this delete
-  // would fail if IssueAgent rows exist, so we clean them up first.
+  // IssueAgent.agent_id is NOT NULL — must delete before the agent.
+  // Session.agent_id is nullable but still has a FK reference — null it out rather than
+  // deleting sessions, since sessions are historical records we want to keep.
   db.transaction(() => {
     db.prepare("DELETE FROM IssueAgent WHERE agent_id = ?").run(id);
+    db.prepare("UPDATE Session SET agent_id = NULL WHERE agent_id = ?").run(id);
     db.prepare("DELETE FROM Agent WHERE id = ?").run(id);
   })();
 }
 
 export function hasActiveIssues(agentId: string): boolean {
+  // 'done' is the terminal status in this system; 'closed'/'cancelled' are included
+  // defensively in case the orchestrator introduces them later.
   const row = db
     .prepare(
       `SELECT COUNT(*) as count FROM Issue
-       WHERE assigned_agent_id = ? AND status NOT IN ('closed', 'cancelled')`
+       WHERE assigned_agent_id = ? AND status NOT IN ('done', 'closed', 'cancelled')`
     )
     .get(agentId) as { count: number };
   return row.count > 0;
