@@ -250,12 +250,18 @@ export async function getIssue(projectId, issueId) {
 		? db.agents.find((a) => a.id === issue.assigned_agent_id)
 		: null;
 	const repo = issue.repo_id ? db.repos.find((r) => r.id === issue.repo_id) : null;
+	const issueAgents = (db.issue_agents ?? [])
+		.filter((ia) => ia.issue_id === issueId)
+		.map((ia) => ({ ...ia, agent: db.agents.find((a) => a.id === ia.agent_id) ?? null }));
+	const issuePRs = (db.issue_prs ?? []).filter((p) => p.issue_id === issueId);
 	return {
 		...issue,
 		assigned_agent: assignedAgent ?? null,
 		repo: repo ?? null,
 		comments: issueComments,
-		activity_log: issueActivity
+		activity_log: issueActivity,
+		issue_agents: issueAgents,
+		issue_prs: issuePRs
 	};
 }
 
