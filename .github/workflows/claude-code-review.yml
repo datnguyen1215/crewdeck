@@ -24,6 +24,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: '--dangerously-skip-permissions'
+          allowed_bots: "claude[bot]"
           prompt: |
             Review this PR for CORRECTNESS. Focus on:
             - Bugs, logic errors, and broken assumptions
@@ -55,6 +56,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: '--dangerously-skip-permissions'
+          allowed_bots: "claude[bot]"
           prompt: |
             Review this PR for OVER-ENGINEERING and unnecessary complexity. Focus on:
             - Is there a shorter/simpler way to achieve the same outcome?
@@ -86,6 +88,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: '--dangerously-skip-permissions'
+          allowed_bots: "claude[bot]"
           prompt: |
             Review this PR for SECURITY vulnerabilities. Focus on:
             - OWASP Top 10: injection, XSS, broken auth, insecure direct object references, etc.
