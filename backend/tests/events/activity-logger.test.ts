@@ -74,6 +74,14 @@ describe("ActivityLogger", () => {
     expect(logs[0].actor_type).toBe("orchestrator");
   });
 
+  it("clamps unknown actor_type to 'unknown' for issue.created", () => {
+    eventBus.emit("issue.created", {
+      issue: { ...baseIssue, created_by: "arbitrary-external-value" },
+    });
+    const logs = getLog();
+    expect(logs[0].actor_type).toBe("unknown");
+  });
+
   it("logs issue.status_changed", () => {
     eventBus.emit("issue.status_changed", {
       issue_id: ISSUE_ID,

@@ -2,6 +2,15 @@ import { randomUUID } from "crypto";
 import { db } from "../db/index.js";
 import { eventBus } from "./bus.js";
 
+// Exhaustive set of actor types written to the audit log.
+// Any value outside this set is clamped to "unknown" to prevent callers
+// from writing arbitrary strings into actor_type (e.g. via issue.created_by).
+const VALID_ACTOR_TYPES = new Set(["user", "agent", "orchestrator", "system"]);
+
+function sanitizeActorType(value: string): string {
+  return VALID_ACTOR_TYPES.has(value) ? value : "unknown";
+}
+
 const insert = db.prepare(`
   INSERT INTO ActivityLog (id, project_id, issue_id, actor_type, actor_id, action, details)
   VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -31,7 +40,7 @@ export function initActivityLogger(): void {
     log({
       project_id: issue.project_id,
       issue_id: issue.id,
-      actor_type: issue.created_by,
+      actor_type: sanitizeActorType(issue.created_by),
       action: "issue.created",
       details: { title: issue.title },
     });
@@ -61,7 +70,7 @@ export function initActivityLogger(): void {
     log({
       project_id,
       issue_id: comment.issue_id,
-      actor_type: comment.author_type,
+      actor_type: sanitizeActorType(comment.author_type),
       actor_id: comment.author_id,
       action: "comment.added",
       details: { content_preview: comment.content.slice(0, 200) },
@@ -69,6 +78,9 @@ export function initActivityLogger(): void {
   });
 
   eventBus.on("session.started", ({ project_id, issue_id, agent_id, tmux_session_name }) => {
+    // tmux_session_name is an internal identifier, but we log it here intentionally for
+    // session correlation in debugging (it ties an ActivityLog entry to a specific Session row).
+    // It is not secret and already stored in the Session table.
     log({
       project_id,
       issue_id,
