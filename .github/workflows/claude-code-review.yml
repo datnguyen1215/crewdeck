@@ -2,7 +2,7 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, ready_for_review]
+    types: [opened, ready_for_review, synchronize]
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
@@ -38,6 +38,11 @@ jobs:
             - Race conditions or concurrency issues (if applicable)
             - Whether the code actually does what it claims
 
+            Before reviewing, read all existing comments and reviews on this PR.
+            Only raise issues that have NOT already been mentioned in previous comments.
+            If all your findings are already covered by existing comments, output only:
+            "## Correctness Review\n\nNo new issues found beyond what has already been flagged."
+
             Output your review as text, starting with "## Correctness Review".
             Reference specific files and line numbers. If no issues found, say so briefly.
             Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
@@ -71,6 +76,11 @@ jobs:
             - Could a standard library function or built-in replace custom code?
             - Is the diff larger than it needs to be for the stated goal?
 
+            Before reviewing, read all existing comments and reviews on this PR.
+            Only raise issues that have NOT already been mentioned in previous comments.
+            If all your findings are already covered by existing comments, output only:
+            "## Simplicity Review\n\nNo new issues found beyond what has already been flagged."
+
             Output your review as text, starting with "## Simplicity Review".
             Reference specific files and line numbers. If no issues found, say so briefly.
             Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
@@ -103,6 +113,11 @@ jobs:
             - Missing authorization/authentication checks
             - Sensitive data exposed in logs or responses
             - Newly added dependencies with known vulnerabilities
+
+            Before reviewing, read all existing comments and reviews on this PR.
+            Only raise issues that have NOT already been mentioned in previous comments.
+            If all your findings are already covered by existing comments, output only:
+            "## Security Review\n\nNo new issues found beyond what has already been flagged."
 
             Output your review as text, starting with "## Security Review".
             Reference specific files and line numbers. If no issues found, say so briefly.
