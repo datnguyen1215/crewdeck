@@ -44,6 +44,7 @@
 	// Agent modal (create / edit)
 	let showModal = $state(false);
 	let editTarget = $state<AgentData | null>(null);
+	// f-prefix distinguishes form state from data model fields (e.g. fname vs agent.name)
 	let fname = $state('');
 	let frole = $state('');
 	let fexpertise = $state<string[]>([]);
@@ -65,6 +66,7 @@
 				loading = false;
 			})
 			.catch(() => {
+				// TODO: Add error state UI. Currently errors are silently swallowed.
 				loading = false;
 			});
 	});
@@ -91,7 +93,10 @@
 
 	function onNameKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter') saveName();
-		if (e.key === 'Escape') editingName = false;
+		if (e.key === 'Escape') {
+			nameInput = crew!.name; // restore original before blur fires
+			editingName = false;
+		}
 	}
 
 	// --- Modal ---
@@ -277,7 +282,8 @@
 		{:else}
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
 				{#each crew.agents as agent (agent.id)}
-					{@const cfg = STATUS_CFG[agent.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.idle}
+					<!-- Defensive fallback — status is always one of idle/working/reviewing from getCrew() -->
+				{@const cfg = STATUS_CFG[agent.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.idle}
 					<div
 						class="agent-card flex flex-col p-4 bg-surface border rounded hover:-translate-y-0.5 transition-all duration-200 {cfg.cardBorder}"
 						style={cfg.cardGlow ? `box-shadow: ${cfg.cardGlow}` : ''}
@@ -433,7 +439,6 @@
 						<input
 							bind:value={tagInput}
 							onkeydown={onTagKeydown}
-							onblur={addTag}
 							placeholder={fexpertise.length === 0 ? 'Type and press Enter…' : ''}
 							class="flex-1 min-w-[120px] bg-transparent text-sm text-primary placeholder:text-muted outline-none"
 						/>
