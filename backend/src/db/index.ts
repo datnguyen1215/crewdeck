@@ -22,3 +22,7 @@ export function createDb(path: string): Database.Database {
 }
 
 export const db = createDb(config.dbPath);
+
+export function withTransaction<T>(fn: () => T): T {
+  return db.transaction(fn)();
+}
