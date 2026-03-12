@@ -27,8 +27,9 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--dangerously-skip-permissions'
+          claude_args: "--dangerously-skip-permissions"
           allowed_bots: "claude[bot]"
+          show_full_output: true
           prompt: |
             Review this PR for CORRECTNESS. Focus on:
             - Bugs, logic errors, and broken assumptions
@@ -65,7 +66,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--dangerously-skip-permissions'
+          claude_args: "--dangerously-skip-permissions"
           allowed_bots: "claude[bot]"
           prompt: |
             Review this PR for OVER-ENGINEERING and unnecessary complexity. Focus on:
@@ -103,7 +104,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--dangerously-skip-permissions'
+          claude_args: "--dangerously-skip-permissions"
           allowed_bots: "claude[bot]"
           prompt: |
             Review this PR for SECURITY vulnerabilities. Focus on:
