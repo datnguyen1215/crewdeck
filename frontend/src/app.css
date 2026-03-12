@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+	/* Monospace font stack — terminal/command-center aesthetic */
+	--font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+
+	/* Background layers — darkest to most elevated */
+	--color-base: #0a0a0f;
+	--color-base-hi: #12121a;
+	--color-surface: #1a1a25;
+	--color-surface-hi: #22222f;
+
+	/* Borders */
+	--color-edge: #2a2a3a;
+	--color-edge-hi: #3a3a4a;
+
+	/* Text */
+	--color-primary: #e4e4e7;
+	--color-secondary: #a1a1aa;
+	--color-muted: #71717a;
+
+	/* Accent colors */
+	--color-cyan: #22d3ee;
+	--color-green: #4ade80;
+	--color-amber: #fbbf24;
+	--color-red: #f87171;
+	--color-purple: #a78bfa;
+	--color-blue: #60a5fa;
+}
+
+/* Glow values for box-shadow/text-shadow use */
+:root {
+	--glow-cyan: 0 0 10px rgba(34, 211, 238, 0.3);
+	--glow-green: 0 0 10px rgba(74, 222, 128, 0.3);
+	--glow-amber: 0 0 10px rgba(251, 191, 36, 0.3);
+	--glow-red: 0 0 10px rgba(248, 113, 113, 0.3);
+	--glow-purple: 0 0 10px rgba(167, 139, 250, 0.3);
+	--glow-blue: 0 0 10px rgba(96, 165, 250, 0.3);
+}
+
+@layer base {
+	html {
+		font-family: var(--font-mono);
+		background-color: var(--color-base);
+		color: var(--color-primary);
+	}
+}
