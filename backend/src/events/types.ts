@@ -1,3 +1,6 @@
+// Issue, Comment, and IssuePR are redeclared here rather than imported from a shared types file
+// because no shared entity types module exists yet. Once one is added (e.g. src/types/entities.ts),
+// these should be replaced with imports or Pick<> aliases from that module to avoid drift.
 export interface Issue {
   id: string;
   project_id: string;

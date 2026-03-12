@@ -16,6 +16,8 @@ export class EventBus {
   }
 
   emit<K extends keyof EventMap>(event: K, data: EventMap[K]): void {
+    // Use rawListeners + manual loop so a throwing handler doesn't abort delivery
+    // to subsequent handlers. emitter.emit() propagates the first uncaught error and stops.
     const listeners = this.emitter.rawListeners(event as string);
     for (const listener of listeners) {
       try {
@@ -25,6 +27,10 @@ export class EventBus {
       }
     }
   }
+
+  // NOTE: We intentionally use composition (private emitter) rather than extending EventEmitter.
+  // This keeps the public API strictly typed to EventMap and prevents callers from bypassing
+  // the type constraints via inherited EventEmitter methods.
 }
 
 export const eventBus = new EventBus();
