@@ -1,6 +1,6 @@
 ---
 title: CrewDeck Agent Runtime
-version: 0.1.0
+version: 0.2.0
 status: draft
 ---
 
@@ -191,16 +191,32 @@ Examples:
 
 ### Detecting Completion
 
-The adapter monitors the tmux session to detect when Claude Code has finished processing:
+Completion is detected through two complementary mechanisms:
 
-1. **Process exit** — the Claude Code process exits (detected via `isAlive`).
-2. **Idle detection** — no new output for a configurable timeout period, indicating the agent is waiting for input (meaning it finished its task and is awaiting the next instruction).
+1. **CrewDeck CLI signal (primary)** — the agent's system prompt instructs it to call `crewdeck signal --event work-complete` when it finishes its task. The CLI makes an HTTP call to the backend's internal API, which emits an event on the event bus. This is the most reliable method because the agent explicitly declares "I'm done."
 
-When completion is detected, the backend:
+2. **Process exit (fallback)** — the Agent Runtime polls `isAlive()` to detect when the Claude Code process exits. This catches cases where the agent crashes or exits without signaling. Claude Code is invoked with `--prompt` (single prompt mode) so it exits after completing the task.
+
+```
+Agent (in tmux)                    CrewDeck CLI              Backend Event Bus
+     │                                  │                          │
+     │  working...                      │                          │
+     │  working...                      │                          │
+     │  calls: crewdeck signal          │                          │
+     │    --event work-complete  ──────→│                          │
+     │                                  │  POST /internal/signal ─→│
+     │                                  │                          │  emit("agent.finished")
+     │  exits                           │                          │
+     │                                  │                          │
+```
+
+When completion is detected (via either mechanism), the backend:
 - Captures the final output.
 - Stores relevant context in the Session table.
-- Emits a `session.ended` WebSocket event.
-- Triggers the orchestrator to handle the next step in the pipeline.
+- Emits events on the event bus (`agent.finished`).
+- The event bus triggers: WebSocket broadcast, Activity Logger, Orchestrator Manager.
+
+See [Agent CLI](agent-cli.md) for the full CLI specification.
 
 ## Tmux Management
 
@@ -377,7 +393,20 @@ function buildOrchestratorPrompt(project, event):
 
 ### Orchestrator Output Parsing
 
-The backend parses the orchestrator's response to extract structured actions:
+The orchestrator is prompted to respond in **structured JSON format**. The backend parses the JSON to extract actions:
+
+```json
+{
+  "action": "assign",
+  "params": {
+    "issue_id": "uuid",
+    "agent_id": "uuid"
+  },
+  "reasoning": "Alice has backend + auth expertise, best match for this issue"
+}
+```
+
+**Supported actions:**
 
 - **assign** — assign an agent to an issue.
 - **route_review** — send an issue to the next reviewer.
@@ -386,7 +415,7 @@ The backend parses the orchestrator's response to extract structured actions:
 - **reorder** — change issue priorities.
 - **no_action** — nothing to do right now.
 
-The backend executes these actions, updates the database, emits WebSocket events, and triggers further processing as needed.
+The backend validates the JSON structure, executes the action, updates the database, and emits events on the event bus. The event bus then triggers WebSocket broadcasts, activity logging, and any follow-up processing.
 
 ## Future Adapters
 
