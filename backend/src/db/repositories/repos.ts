@@ -42,5 +42,10 @@ export function createRepo(projectId: string, input: CreateRepoInput): Repo {
 }
 
 export function deleteRepo(id: string): void {
-  db.prepare("DELETE FROM Repo WHERE id = ?").run(id);
+  // IssuePR.repo_id has a NOT NULL FK to Repo — with foreign_keys=ON this delete
+  // would fail if IssuePR rows exist, so we clean them up first.
+  db.transaction(() => {
+    db.prepare("DELETE FROM IssuePR WHERE repo_id = ?").run(id);
+    db.prepare("DELETE FROM Repo WHERE id = ?").run(id);
+  })();
 }

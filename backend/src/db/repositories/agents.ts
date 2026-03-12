@@ -62,7 +62,12 @@ export function updateAgent(id: string, input: UpdateAgentInput): Agent {
 }
 
 export function deleteAgent(id: string): void {
-  db.prepare("DELETE FROM Agent WHERE id = ?").run(id);
+  // IssueAgent.agent_id has a NOT NULL FK to Agent — with foreign_keys=ON this delete
+  // would fail if IssueAgent rows exist, so we clean them up first.
+  db.transaction(() => {
+    db.prepare("DELETE FROM IssueAgent WHERE agent_id = ?").run(id);
+    db.prepare("DELETE FROM Agent WHERE id = ?").run(id);
+  })();
 }
 
 export function hasActiveIssues(agentId: string): boolean {

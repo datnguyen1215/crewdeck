@@ -1,5 +1,25 @@
 import { z } from "zod";
 
+// NOTE — deliberate decisions on string fields not constrained to enums:
+//
+// - `status` on Issue/IssueAgent/IssuePR/Session: kept as z.string() intentionally.
+//   The state machine lives in the orchestrator layer. Constraining it here would
+//   require keeping two places in sync. Enum enforcement belongs at the route layer
+//   once statuses are stable.
+//
+// - `created_by` / `author_type` / `actor_type`: these should be set server-side by
+//   the request context (auth layer) rather than accepted from the caller. Tracked as
+//   a TODO for when authentication is added — at that point these fields should be
+//   stripped from Create schemas and populated from the session.
+//
+// - `system_prompt` has no max length: no upper bound is enforced here. The LLM layer
+//   should enforce context limits when the prompt is used. Add .max() here once the
+//   target model's context window is decided.
+//
+// - `local_path` / `worktree_path` have no path-traversal validation: these paths
+//   are not used in any fs/shell operation yet. Validate against an allowed base
+//   directory when git/fs operations are introduced.
+
 export const CreateProjectSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),

@@ -23,6 +23,8 @@ export function createDb(path: string): Database.Database {
 
 export const db = createDb(config.dbPath);
 
+// Convenience wrapper for route handlers. Repositories use db.transaction() directly
+// so they can compose within a caller-supplied transaction if needed.
 export function withTransaction<T>(fn: () => T): T {
   return db.transaction(fn)();
 }

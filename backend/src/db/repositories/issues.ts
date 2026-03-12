@@ -31,8 +31,16 @@ export function listIssues(projectId: string, filters: IssueFilters = {}): Issue
     values.push(filters.created_by);
   }
 
-  const sortCol = filters.sort ?? "created_at";
-  const order = filters.order ?? "desc";
+  // Runtime allowlist — TypeScript union types are erased at runtime, so without this
+  // an API layer that passes raw query params would be vulnerable to SQL injection.
+  const SORT_COLS = ["priority", "created_at", "updated_at"] as const;
+  const ORDERS = ["asc", "desc"] as const;
+  const sortCol = SORT_COLS.includes(filters.sort as (typeof SORT_COLS)[number])
+    ? filters.sort!
+    : "created_at";
+  const order = ORDERS.includes(filters.order as (typeof ORDERS)[number])
+    ? filters.order!
+    : "desc";
   const sql = `SELECT * FROM Issue WHERE ${conditions.join(" AND ")} ORDER BY ${sortCol} ${order}`;
 
   return db.prepare(sql).all(...values) as Issue[];
@@ -92,11 +100,14 @@ export function updateIssue(id: string, input: UpdateIssueInput): Issue {
     db.prepare(`UPDATE Issue SET ${fields.join(", ")} WHERE id = ?`).run(...values, id);
   }
 
+  // Note: getIssue(id)! asserts non-null. If called with a non-existent id the update
+  // no-ops and the ! assertion throws. Callers are expected to verify existence first.
   return getIssue(id)!;
 }
 
 export function deleteIssue(id: string): void {
   db.transaction(() => {
+    db.prepare("DELETE FROM ActivityLog WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM IssueAgent WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM IssuePR WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM Comment WHERE issue_id = ?").run(id);
