@@ -1,0 +1,19 @@
+{
+  "name": "crewdeck-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "crewdeck": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.3",
+    "vitest": "^1.4.0"
+  }
+}

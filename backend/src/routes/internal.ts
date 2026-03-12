@@ -3,8 +3,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
-import { getIssue, updateIssue } from "../db/repositories/issues.js";
+import { getIssue } from "../db/repositories/issues.js";
 import { getAgent } from "../db/repositories/agents.js";
+import { getSession, updateSession } from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
 
@@ -15,9 +16,8 @@ const SignalSchema = z.object({
   agent_id: z.string(),
   issue_id: z.string(),
   project_id: z.string(),
-  role: z.string(),
-  signal: z.enum(["finished", "review_completed"]),
-  verdict: z.string().optional(),
+  event: z.enum(["work-complete", "review-complete", "error", "needs-help"]),
+  data: z.record(z.unknown()).optional(),
 });
 
 const CommentSchema = z.object({
@@ -31,22 +31,35 @@ const StatusSchema = z.object({
   agent_id: z.string(),
   issue_id: z.string(),
   project_id: z.string(),
-  state: z.string(),
+  state: z.enum(["active", "done", "error"]),
+});
+
+const FilesSchema = z.object({
+  session_id: z.string(),
+  agent_id: z.string(),
+  issue_id: z.string(),
+  project_id: z.string(),
+  modified: z.array(z.string()).min(1),
 });
 
 // POST /signal — receive agent completion signals
 router.post("/signal", validate(SignalSchema), (req, res) => {
-  const { session_id, agent_id, issue_id, project_id, role, signal, verdict } = req.body;
+  const { session_id, agent_id, issue_id, project_id, event, data } = req.body;
 
-  if (signal === "finished") {
+  if (event === "work-complete") {
+    // Look up the agent's role so the orchestrator can route correctly
+    const agent = getAgent(agent_id);
+    const role = agent?.role ?? "unknown";
     eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role });
-  } else if (signal === "review_completed") {
-    eventBus.emit("review.completed", {
-      issue_id,
-      agent_id,
-      project_id,
-      verdict: verdict ?? "approved",
-    });
+  } else if (event === "review-complete") {
+    const verdict = (data?.verdict as string) ?? "approved";
+    eventBus.emit("review.completed", { issue_id, agent_id, project_id, verdict });
+  } else if (event === "error") {
+    const message = data?.message as string | undefined;
+    eventBus.emit("agent.error", { session_id, agent_id, issue_id, project_id, message });
+  } else if (event === "needs-help") {
+    const message = data?.message as string | undefined;
+    eventBus.emit("agent.needs_help", { session_id, agent_id, issue_id, project_id, message });
   }
 
   res.json({ ok: true });
@@ -78,11 +91,20 @@ router.post("/status", validate(StatusSchema), (req, res) => {
 
   eventBus.emit("agent.status_changed", { agent_id, issue_id, project_id, state });
 
-  if (state === "working") {
-    eventBus.emit("agent.working", { agent_id, issue_id, project_id });
-  } else if (state === "idle") {
-    eventBus.emit("agent.idle", { agent_id, project_id });
-  }
+  res.json({ ok: true });
+});
+
+// POST /files — agent reports which files were modified during the session
+router.post("/files", validate(FilesSchema), (req, res) => {
+  const { session_id, modified } = req.body;
+
+  const session = getSession(session_id);
+  if (!session) throw new NotFoundError("Session not found");
+
+  const existing = (session.context as Record<string, unknown> | null) ?? {};
+  updateSession(session_id, {
+    context: { ...existing, modified_files: modified },
+  });
 
   res.json({ ok: true });
 });

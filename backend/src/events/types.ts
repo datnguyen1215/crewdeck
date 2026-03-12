@@ -63,6 +63,8 @@ export interface EventMap {
     project_id: string;
     role: string;
   };
+  "agent.error": { session_id: string; agent_id: string; issue_id: string; project_id: string; message?: string };
+  "agent.needs_help": { session_id: string; agent_id: string; issue_id: string; project_id: string; message?: string };
   "agent.working": { agent_id: string; issue_id: string; project_id: string; session_id: string };
   "agent.idle": { agent_id: string; project_id: string };
   "agent.status_changed": { agent_id: string; issue_id: string; project_id: string; state: string };
