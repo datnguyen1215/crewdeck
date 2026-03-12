@@ -16,6 +16,7 @@
 	let entries = $state<Activity>([]);
 	let projectId = $derived($page.params.projectId);
 
+	// Decision: no AbortController — same trade-off as other route pages. Mock delay is short.
 	$effect(() => {
 		listActivity(projectId).then((data) => (entries = data));
 	});

@@ -9,7 +9,9 @@
 	let issueId = $derived($page.params.issueId);
 
 	$effect(() => {
-		getIssue(projectId, issueId).then((data) => (issue = data));
+		getIssue(projectId, issueId)
+			.then((data) => (issue = data))
+			.catch(() => (issue = null));
 	});
 </script>
 
