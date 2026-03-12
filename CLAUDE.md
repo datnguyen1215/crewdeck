@@ -17,3 +17,8 @@ Act as a senior software engineer. Write code that is concise, correct, and prod
 
 - Do NOT add `Co-Authored-By` trailers to commit messages.
 - Commit messages should look like a human wrote them — no AI attribution or signatures.
+
+## Pull Requests
+
+- Always create a pull request for your changes — never push directly to the base branch.
+- Include a clear description of what was changed and why.
