@@ -3,6 +3,7 @@ import { db } from "../../src/db/index.js";
 import { createProject } from "../../src/db/repositories/projects.js";
 import {
   listSessions,
+  listRunningSessions,
   getSession,
   createSession,
   updateSession,
@@ -88,5 +89,26 @@ describe("listSessions", () => {
 describe("getSession", () => {
   it("returns null for missing id", () => {
     expect(getSession("missing")).toBeNull();
+  });
+});
+
+describe("listRunningSessions", () => {
+  it("returns only sessions with status running, across all projects", () => {
+    const p1 = createProject({ name: "P1" });
+    const p2 = createProject({ name: "P2" });
+    createSession({ project_id: p1.id, session_type: "agent", status: "running" });
+    createSession({ project_id: p1.id, session_type: "agent", status: "completed" });
+    createSession({ project_id: p2.id, session_type: "orchestrator", status: "running" });
+
+    const running = listRunningSessions();
+    expect(running.length).toBe(2);
+    expect(running.every((s) => s.status === "running")).toBe(true);
+  });
+
+  it("returns empty array when no running sessions", () => {
+    const p = createProject({ name: "P" });
+    createSession({ project_id: p.id, session_type: "agent", status: "completed" });
+
+    expect(listRunningSessions()).toHaveLength(0);
   });
 });

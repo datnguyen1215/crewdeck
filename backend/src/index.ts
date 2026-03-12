@@ -15,6 +15,9 @@ import sessionsRouter from "./routes/sessions.js";
 import activityRouter from "./routes/activity.js";
 import orchestratorRouter from "./routes/orchestrator.js";
 import internalRouter from "./routes/internal.js";
+import { claudeCodeAdapter } from "./agent/adapters/claude-code.js";
+import { ProcessMonitor } from "./agent/process-monitor.js";
+import { cleanupOrphans, gracefulShutdown } from "./agent/orphan-cleanup.js";
 
 const app = express();
 
@@ -46,14 +49,22 @@ app.use(`${v1}/internal`, internalRouter);
 // Centralized error handler — must be last
 app.use(errorHandler);
 
+const processMonitor = new ProcessMonitor(claudeCodeAdapter);
+
 app.listen(config.port, config.host, () => {
   logger.info(`Server started on port ${config.port}`);
+  // Clean up any tmux sessions left over from a previous backend process
+  void cleanupOrphans();
+  // Start background process monitor after cleanup
+  processMonitor.start();
 });
 
 // Graceful shutdown
-function shutdown() {
+async function shutdown() {
+  processMonitor.stop();
+  await gracefulShutdown(claudeCodeAdapter);
   db.close();
   process.exit(0);
 }
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+process.on("SIGTERM", () => { void shutdown(); });
+process.on("SIGINT", () => { void shutdown(); });
