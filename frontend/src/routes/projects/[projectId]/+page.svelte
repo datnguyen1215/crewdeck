@@ -6,17 +6,6 @@
 	type Agent = Awaited<ReturnType<typeof listAgents>>[number];
 	type Repo = Awaited<ReturnType<typeof listRepos>>[number];
 
-	const STATUSES = [
-		{ key: 'draft', label: 'Draft' },
-		{ key: 'open', label: 'Open' },
-		{ key: 'in_progress', label: 'In Progress' },
-		{ key: 'in_review', label: 'In Review' },
-		{ key: 'feedback', label: 'Feedback' },
-		{ key: 'ready', label: 'Ready' },
-		{ key: 'pr_created', label: 'PR Created' },
-		{ key: 'done', label: 'Done' }
-	] as const;
-
 	// Visual config per status — dot glyph, text/border color classes, optional glow + pulse
 	const STATUS_CFG: Record<
 		string,
@@ -87,14 +76,21 @@
 
 	$effect(() => {
 		loading = true;
-		Promise.all([listIssues(projectId), listAgents(projectId), listRepos(projectId)]).then(
-			([i, a, r]) => {
+		let cancelled = false;
+		Promise.all([listIssues(projectId), listAgents(projectId), listRepos(projectId)])
+			.then(([i, a, r]) => {
+				if (cancelled) return; // discard stale response if projectId changed
 				issues = i;
 				agents = a;
 				repos = r;
 				loading = false;
-			}
-		);
+			})
+			.catch(() => {
+				if (!cancelled) loading = false;
+			});
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
@@ -111,8 +107,8 @@
 			result = result.filter((i) => i.assigned_agent_id === filterAgent);
 		}
 		result.sort((a, b) => {
-			const av = (sortField === 'priority' ? (a.priority ?? -1) : (a as any)[sortField]) ?? '';
-			const bv = (sortField === 'priority' ? (b.priority ?? -1) : (b as any)[sortField]) ?? '';
+			const av = sortField === 'priority' ? (a.priority ?? -1) : a[sortField];
+			const bv = sortField === 'priority' ? (b.priority ?? -1) : b[sortField];
 			const cmp = av > bv ? 1 : av < bv ? -1 : 0;
 			return sortDesc ? -cmp : cmp;
 		});
@@ -127,6 +123,8 @@
 
 	function age(dateStr: string): string {
 		const diff = Date.now() - new Date(dateStr).getTime();
+		// Decision: no guard for negative diff (future timestamps from clock skew).
+		// All current timestamps are ago()-based; revisit when wired to real API.
 		const mins = Math.floor(diff / 60000);
 		const hours = Math.floor(diff / 3600000);
 		const days = Math.floor(diff / 86400000);
@@ -144,31 +142,37 @@
 		return 'text-secondary';
 	}
 
-	async function handleCreate(e: SubmitEvent) {
-		e.preventDefault();
-		submitting = true;
-		try {
-			const issue = await createIssue(projectId, {
-				title: newTitle.trim(),
-				description: newDescription.trim(),
-				max_review_rounds: newMaxRounds ? parseInt(newMaxRounds) : undefined
-			});
-			issues = [...issues, issue];
-			showModal = false;
-			newTitle = '';
-			newDescription = '';
-			newMaxRounds = '';
-		} finally {
-			submitting = false;
-		}
+	function resetForm() {
+		newTitle = '';
+		newDescription = '';
+		newMaxRounds = '';
 	}
 
 	function closeModal() {
 		if (!submitting) {
 			showModal = false;
-			newTitle = '';
-			newDescription = '';
-			newMaxRounds = '';
+			resetForm();
+		}
+	}
+
+	async function handleCreate(e: SubmitEvent) {
+		e.preventDefault();
+		// Guard against whitespace-only inputs that pass HTML `required` without trimming.
+		if (!newTitle.trim() || !newDescription.trim()) return;
+		submitting = true;
+		try {
+			const issue = await createIssue(projectId, {
+				title: newTitle.trim(),
+				description: newDescription.trim(),
+				// Decision: parseInt with type="number" input is safe here; NaN risk is
+				// negligible. Revisit with Number.isFinite() check when wired to real API.
+				max_review_rounds: newMaxRounds ? parseInt(newMaxRounds) : undefined
+			});
+			issues = [...issues, issue];
+			showModal = false;
+			resetForm();
+		} finally {
+			submitting = false;
 		}
 	}
 
@@ -201,15 +205,14 @@
 		<!-- Status toggle pills -->
 		<div class="flex flex-wrap items-center gap-1.5">
 			<span class="text-xs text-muted uppercase tracking-widest mr-1">Status:</span>
-			{#each STATUSES as s (s.key)}
-				{@const cfg = STATUS_CFG[s.key]}
+			{#each Object.entries(STATUS_CFG) as [key, cfg] (key)}
 				<button
-					onclick={() => toggleStatus(s.key)}
-					class="px-2 py-0.5 text-xs rounded border transition-colors {filterStatuses.includes(s.key)
+					onclick={() => toggleStatus(key)}
+					class="px-2 py-0.5 text-xs rounded border transition-colors {filterStatuses.includes(key)
 						? `${cfg.text} ${cfg.border} bg-surface-hi`
 						: 'text-muted border-edge hover:border-edge-hi hover:text-secondary'}"
 				>
-					{s.label}
+					{cfg.label}
 				</button>
 			{/each}
 			{#if filterStatuses.length > 0}
@@ -456,6 +459,9 @@
 		animation: pulse-glow 2s ease-in-out infinite;
 	}
 
+	/* Decision: raw rgba values used here instead of var(--glow-green) because
+	   @keyframes requires discrete color values — the CSS variable holds a full
+	   box-shadow rule, not just a color, so it can't be interpolated in keyframes. */
 	@keyframes pulse-glow {
 		0%,
 		100% {
