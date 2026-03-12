@@ -45,7 +45,7 @@
 			<div class="border-t border-edge my-1"></div>
 
 			<!-- Back to all projects -->
-			{@render navItem('/', 'All Projects', 'home', isActive('/') && !projectId)}
+			{@render navItem('/', 'All Projects', 'home', isActive('/'))}
 		{:else}
 			<!-- Root nav -->
 			{@render navItem('/', 'Projects', 'home', isActive('/'))}
@@ -53,7 +53,7 @@
 	</div>
 </nav>
 
-{#snippet navItem(href: string, label: string, icon: string, active: boolean)}
+{#snippet navItem(href: string, label: string, icon: keyof typeof icons, active: boolean)}
 	<a
 		{href}
 		class="flex items-center gap-3 px-3 py-2.5 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap

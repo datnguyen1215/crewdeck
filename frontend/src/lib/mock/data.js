@@ -1,7 +1,6 @@
 /** All mock data. Timestamps relative to now so the UI always looks fresh. */
 
 const ago = (hours) => new Date(Date.now() - hours * 3_600_000).toISOString();
-const uid = () => Math.random().toString(36).slice(2, 9);
 
 export const projects = [
 	{

@@ -5,12 +5,14 @@
 	type Issue = Awaited<ReturnType<typeof listIssues>>[number];
 
 	const STATUS_COLS = [
-		{ key: 'draft', label: 'Draft', color: 'text-muted border-edge' },
-		{ key: 'open', label: 'Open', color: 'text-blue border-blue' },
-		{ key: 'in_progress', label: 'In Progress', color: 'text-amber border-amber' },
-		{ key: 'in_review', label: 'In Review', color: 'text-purple border-purple' },
-		{ key: 'feedback', label: 'Feedback', color: 'text-red border-red' },
-		{ key: 'ready', label: 'Ready', color: 'text-green border-green' }
+		{ key: 'draft', label: 'Draft', textColor: 'text-muted', borderColor: 'border-edge' },
+		{ key: 'open', label: 'Open', textColor: 'text-blue', borderColor: 'border-blue' },
+		{ key: 'in_progress', label: 'In Progress', textColor: 'text-amber', borderColor: 'border-amber' },
+		{ key: 'in_review', label: 'In Review', textColor: 'text-purple', borderColor: 'border-purple' },
+		{ key: 'feedback', label: 'Feedback', textColor: 'text-red', borderColor: 'border-red' },
+		{ key: 'ready', label: 'Ready', textColor: 'text-green', borderColor: 'border-green' },
+		{ key: 'pr_created', label: 'PR Created', textColor: 'text-cyan', borderColor: 'border-cyan' },
+		{ key: 'done', label: 'Done', textColor: 'text-secondary', borderColor: 'border-secondary' }
 	] as const;
 
 	let issues = $state<Issue[]>([]);
@@ -34,8 +36,8 @@
 	<div class="flex gap-4 min-w-max pb-4">
 		{#each STATUS_COLS as col (col.key)}
 			<div class="w-64 flex-shrink-0">
-				<div class="flex items-center gap-2 mb-3 pb-2 border-b {col.color.split(' ')[1]}">
-					<span class="text-xs font-semibold uppercase tracking-widest {col.color.split(' ')[0]}">
+				<div class="flex items-center gap-2 mb-3 pb-2 border-b {col.borderColor}">
+					<span class="text-xs font-semibold uppercase tracking-widest {col.textColor}">
 						{col.label}
 					</span>
 					<span class="text-xs text-muted">({issuesForStatus(col.key).length})</span>

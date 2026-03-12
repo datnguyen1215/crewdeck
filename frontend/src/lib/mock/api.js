@@ -128,7 +128,8 @@ export async function listAgents(projectId) {
 
 export async function getAgent(projectId, agentId) {
 	await delay();
-	const agent = db.agents.find((a) => a.id === agentId);
+	const crew = db.crews.find((c) => c.project_id === projectId);
+	const agent = db.agents.find((a) => a.id === agentId && a.crew_id === crew?.id);
 	if (!agent) notFound('Agent');
 	return { ...agent };
 }
@@ -154,7 +155,8 @@ export async function createAgent(projectId, data) {
 
 export async function updateAgent(projectId, agentId, data) {
 	await delay();
-	const agent = db.agents.find((a) => a.id === agentId);
+	const crew = db.crews.find((c) => c.project_id === projectId);
+	const agent = db.agents.find((a) => a.id === agentId && a.crew_id === crew?.id);
 	if (!agent) notFound('Agent');
 	Object.assign(agent, data, { updated_at: now() });
 	return { ...agent };
@@ -162,7 +164,8 @@ export async function updateAgent(projectId, agentId, data) {
 
 export async function deleteAgent(projectId, agentId) {
 	await delay();
-	const idx = db.agents.findIndex((a) => a.id === agentId);
+	const crew = db.crews.find((c) => c.project_id === projectId);
+	const idx = db.agents.findIndex((a) => a.id === agentId && a.crew_id === crew?.id);
 	if (idx === -1) notFound('Agent');
 	db.agents.splice(idx, 1);
 }
@@ -189,7 +192,7 @@ export async function listIssues(projectId, filters = {}) {
 	result.sort((a, b) => {
 		const av = a[sort] ?? 0;
 		const bv = b[sort] ?? 0;
-		return order === 'desc' ? (bv > av ? 1 : -1) : (av > bv ? 1 : -1);
+		return order === 'desc' ? (bv > av ? 1 : bv < av ? -1 : 0) : (av > bv ? 1 : av < bv ? -1 : 0);
 	});
 	return result;
 }
