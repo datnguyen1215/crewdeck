@@ -30,6 +30,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set git author
+        run: |
+          git config user.name "Dat Nguyen"
+          git config user.email "17491799+datnguyen1215@users.noreply.github.com"
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
