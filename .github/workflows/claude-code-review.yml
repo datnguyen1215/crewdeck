@@ -46,7 +46,6 @@ jobs:
 
             Output your review as text, starting with "## Correctness Review".
             Reference specific files and line numbers. If no issues found, say so briefly.
-            Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
 
   simplicity-review:
     runs-on: ubuntu-latest
@@ -84,7 +83,6 @@ jobs:
 
             Output your review as text, starting with "## Simplicity Review".
             Reference specific files and line numbers. If no issues found, say so briefly.
-            Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
 
   security-review:
     runs-on: ubuntu-latest
@@ -122,4 +120,3 @@ jobs:
 
             Output your review as text, starting with "## Security Review".
             Reference specific files and line numbers. If no issues found, say so briefly.
-            Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
