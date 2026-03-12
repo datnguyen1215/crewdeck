@@ -24,6 +24,45 @@ export async function listProjects() {
 	return [...db.projects];
 }
 
+export async function listProjectsWithStats() {
+	await delay();
+	return db.projects.map((project) => {
+		const repos = db.repos.filter((r) => r.project_id === project.id);
+		const crew = db.crews.find((c) => c.project_id === project.id);
+		const agents = crew ? db.agents.filter((a) => a.crew_id === crew.id) : [];
+		const projectIssues = db.issues.filter((i) => i.project_id === project.id);
+
+		const issueBreakdown = {
+			open: projectIssues.filter((i) => i.status === 'open').length,
+			in_progress: projectIssues.filter((i) => i.status === 'in_progress').length,
+			in_review: projectIssues.filter((i) => i.status === 'in_review').length,
+			ready: projectIssues.filter((i) => i.status === 'ready').length,
+			done: projectIssues.filter((i) => i.status === 'done').length
+		};
+
+		const orchSession = project.orchestrator_session_id
+			? db.sessions.find((s) => s.id === project.orchestrator_session_id)
+			: null;
+
+		const orchestratorStatus = !orchSession
+			? 'none'
+			: orchSession.status === 'running'
+				? 'active'
+				: orchSession.status === 'error'
+					? 'error'
+					: 'idle';
+
+		return {
+			...project,
+			repo_count: repos.length,
+			agent_count: agents.length,
+			issues: issueBreakdown,
+			orchestrator_status: orchestratorStatus,
+			active_issues: issueBreakdown.in_progress
+		};
+	});
+}
+
 export async function getProject(id) {
 	await delay();
 	const project = db.projects.find((p) => p.id === id);
