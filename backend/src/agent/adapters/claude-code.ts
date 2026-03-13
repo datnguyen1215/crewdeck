@@ -9,28 +9,23 @@ import type { AgentAdapter, SpawnOptions, SessionHandle, Unsubscribe } from "../
 const execAsync = promisify(exec);
 
 // POSIX single-quote escaping for shell arguments
-function shellQuote(str: string): string {
+export function shellQuote(str: string): string {
   return "'" + str.replace(/'/g, "'\\''") + "'";
 }
 
 // Build a launch script using base64-encoded prompts to avoid shell escaping issues
 function buildLaunchScript(prompt: string, systemPrompt?: string): string {
   const promptB64 = Buffer.from(prompt).toString("base64");
-  const lines = [
-    "#!/bin/bash",
-    // Decode prompt from base64 to avoid escaping issues
-    `PROMPT=$(printf '%s' ${shellQuote(promptB64)} | base64 -d)`,
-  ];
+  // Decode prompt from base64 to avoid escaping issues
+  const promptLine = `PROMPT=$(printf '%s' ${shellQuote(promptB64)} | base64 -d)`;
 
   if (systemPrompt) {
     const systemB64 = Buffer.from(systemPrompt).toString("base64");
-    lines.push(`SYSTEM_PROMPT=$(printf '%s' ${shellQuote(systemB64)} | base64 -d)`);
-    lines.push(`exec claude --dangerously-skip-permissions --system-prompt "$SYSTEM_PROMPT" --prompt "$PROMPT"`);
-  } else {
-    lines.push(`exec claude --dangerously-skip-permissions --prompt "$PROMPT"`);
+    // NOTE: --dangerously-skip-permissions is required for unattended agent execution. Auth gates access to agent spawning.
+    return `#!/bin/bash\n${promptLine}\nSYSTEM_PROMPT=$(printf '%s' ${shellQuote(systemB64)} | base64 -d)\nexec claude --dangerously-skip-permissions --system-prompt "$SYSTEM_PROMPT" --prompt "$PROMPT"\n`;
   }
-
-  return lines.join("\n") + "\n";
+  // NOTE: --dangerously-skip-permissions is required for unattended agent execution. Auth gates access to agent spawning.
+  return `#!/bin/bash\n${promptLine}\nexec claude --dangerously-skip-permissions --prompt "$PROMPT"\n`;
 }
 
 export class ClaudeCodeAdapter implements AgentAdapter {
@@ -80,6 +75,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     return stdout;
   }
 
+  // TODO: consider tmux pipe-pane or log file for complete output capture —
+  // capture-pane only returns the visible screen buffer and silently drops scrolled-off content.
   streamOutput(sessionName: string, callback: (chunk: string) => void): Unsubscribe {
     let lastOutput = "";
     const timer = setInterval(async () => {

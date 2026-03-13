@@ -51,12 +51,16 @@ app.use(errorHandler);
 
 const processMonitor = new ProcessMonitor(claudeCodeAdapter);
 
+async function startupSequence(): Promise<void> {
+  // Clean up any tmux sessions left over from a previous backend process,
+  // then start the monitor — order matters to avoid a race between cleanup and monitoring.
+  await cleanupOrphans();
+  processMonitor.start();
+}
+
 app.listen(config.port, config.host, () => {
   logger.info(`Server started on port ${config.port}`);
-  // Clean up any tmux sessions left over from a previous backend process
-  void cleanupOrphans();
-  // Start background process monitor after cleanup
-  processMonitor.start();
+  void startupSequence();
 });
 
 // Graceful shutdown

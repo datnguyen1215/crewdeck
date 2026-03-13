@@ -12,25 +12,7 @@ vi.mock("../../src/db/repositories/issues.js", () => ({
 
 import { exec } from "node:child_process";
 import { updateIssue } from "../../src/db/repositories/issues.js";
-
-function mockExecSuccess() {
-  const mockedExec = vi.mocked(exec);
-  mockedExec.mockImplementation((_cmd: unknown, callback: unknown) => {
-    (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
-      null,
-      { stdout: "", stderr: "" }
-    );
-    return {} as ReturnType<typeof exec>;
-  });
-}
-
-function mockExecFail(error: Error) {
-  const mockedExec = vi.mocked(exec);
-  mockedExec.mockImplementation((_cmd: unknown, callback: unknown) => {
-    (callback as (err: Error) => void)(error);
-    return {} as ReturnType<typeof exec>;
-  });
-}
+import { mockExec as mockExecSuccess, mockExecFail } from "../helpers/exec.js";
 
 const repo: Repo = {
   id: "repo-1",

@@ -23,6 +23,13 @@ export interface AgentAdapter {
   kill(sessionName: string): Promise<void>;
 }
 
+export function mergeContext(existing: unknown, extra: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...(typeof existing === "object" && existing !== null ? (existing as Record<string, unknown>) : {}),
+    ...extra,
+  };
+}
+
 export const CREWDECK_SESSION_PREFIX = "crewdeck-";
 
 export function agentSessionName(issueId: string, agentId: string, role: string): string {

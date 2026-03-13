@@ -2,8 +2,8 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { logger } from "../logger.js";
 import { listRunningSessions, updateSession } from "../db/repositories/sessions.js";
-import { CREWDECK_SESSION_PREFIX } from "./types.js";
-import type { AgentAdapter } from "./types.js";
+import { CREWDECK_SESSION_PREFIX, mergeContext, type AgentAdapter } from "./types.js";
+import { shellQuote } from "./adapters/claude-code.js";
 
 const execAsync = promisify(exec);
 
@@ -39,7 +39,7 @@ export async function cleanupOrphans(): Promise<void> {
 
   for (const tmuxName of tmuxSessions) {
     try {
-      await execAsync(`tmux kill-session -t '${tmuxName}'`);
+      await execAsync(`tmux kill-session -t ${shellQuote(tmuxName)}`);
     } catch {
       // Already gone
     }
@@ -77,12 +77,7 @@ export async function gracefulShutdown(adapter: AgentAdapter): Promise<void> {
 
       // Save output snapshot to context
       updateSession(session.id, {
-        context: {
-          ...(typeof session.context === "object" && session.context !== null
-            ? (session.context as Record<string, unknown>)
-            : {}),
-          shutdown_output: output,
-        },
+        context: mergeContext(session.context, { shutdown_output: output }),
       });
 
       // Kill the session (graceful then force)

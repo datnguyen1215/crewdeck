@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { listRunningSessions, updateSession } from "../db/repositories/sessions.js";
 import { eventBus } from "../events/bus.js";
-import type { AgentAdapter } from "./types.js";
+import { mergeContext, type AgentAdapter } from "./types.js";
 
 export class ProcessMonitor {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -37,10 +37,16 @@ export class ProcessMonitor {
         if (this.finished.has(session.id)) return;
         if (!session.tmux_session_name) return;
 
-        const alive = await this.adapter.isAlive(session.tmux_session_name);
-        if (alive) return;
-
+        // Mark finished immediately (before any await) to prevent duplicate events
+        // if overlapping ticks both observe the session as dead.
         this.finished.add(session.id);
+
+        const alive = await this.adapter.isAlive(session.tmux_session_name);
+        if (alive) {
+          // Still running — undo the premature mark so we check again next tick.
+          this.finished.delete(session.id);
+          return;
+        }
 
         // Capture final output before marking complete
         let finalOutput = "";
@@ -52,12 +58,7 @@ export class ProcessMonitor {
 
         updateSession(session.id, {
           status: "completed",
-          context: {
-            ...(typeof session.context === "object" && session.context !== null
-              ? (session.context as Record<string, unknown>)
-              : {}),
-            final_output: finalOutput,
-          },
+          context: mergeContext(session.context, { final_output: finalOutput }),
         });
 
         eventBus.emit("session.ended", {

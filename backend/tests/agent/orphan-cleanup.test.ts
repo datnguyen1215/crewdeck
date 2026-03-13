@@ -22,6 +22,7 @@ import { listRunningSessions, updateSession } from "../../src/db/repositories/se
 import { cleanupOrphans, gracefulShutdown } from "../../src/agent/orphan-cleanup.js";
 import type { AgentAdapter } from "../../src/agent/types.js";
 import type { Session } from "../../src/types/entities.js";
+import { mockExec, mockExecFail } from "../helpers/exec.js";
 
 function makeSession(overrides: Partial<Session> = {}): Session {
   return {
@@ -38,23 +39,6 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     updated_at: "2026-01-01",
     ...overrides,
   };
-}
-
-function mockExec(stdout = "") {
-  vi.mocked(exec).mockImplementation((_cmd: unknown, callback: unknown) => {
-    (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
-      null,
-      { stdout, stderr: "" }
-    );
-    return {} as ReturnType<typeof exec>;
-  });
-}
-
-function mockExecFail(error: Error) {
-  vi.mocked(exec).mockImplementation((_cmd: unknown, callback: unknown) => {
-    (callback as (err: Error) => void)(error);
-    return {} as ReturnType<typeof exec>;
-  });
 }
 
 describe("cleanupOrphans", () => {

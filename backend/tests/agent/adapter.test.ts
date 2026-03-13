@@ -13,26 +13,7 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 import { exec } from "node:child_process";
-
-// Helper to make exec mock return a resolved promise with stdout/stderr
-function mockExec(stdout = "", stderr = "") {
-  const mockedExec = vi.mocked(exec);
-  mockedExec.mockImplementation((_cmd: unknown, callback: unknown) => {
-    (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
-      null,
-      { stdout, stderr }
-    );
-    return {} as ReturnType<typeof exec>;
-  });
-}
-
-function mockExecFail(error: Error) {
-  const mockedExec = vi.mocked(exec);
-  mockedExec.mockImplementation((_cmd: unknown, callback: unknown) => {
-    (callback as (err: Error) => void)(error);
-    return {} as ReturnType<typeof exec>;
-  });
-}
+import { mockExec, mockExecFail } from "../helpers/exec.js";
 
 describe("ClaudeCodeAdapter", () => {
   let adapter: ClaudeCodeAdapter;
