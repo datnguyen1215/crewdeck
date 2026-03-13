@@ -91,7 +91,6 @@ export function subscribeEvents(bus: EventBus): void {
     const buf = outputBuffers.get(session_id);
     if (buf?.timer) clearTimeout(buf.timer);
     flushSessionOutput(session_id, project_id);
-    outputBuffers.delete(session_id);
     broadcast(project_id, "session.ended", { session_id, status });
   });
 
@@ -196,6 +195,9 @@ export function shutdownWebSocket(wss: WebSocketServer): void {
     }
   }
   subscribers.clear();
+  for (const buf of outputBuffers.values()) {
+    if (buf.timer) clearTimeout(buf.timer);
+  }
   outputBuffers.clear();
   wss.close();
 }
