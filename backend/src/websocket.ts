@@ -94,6 +94,9 @@ export function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "session.ended", { session_id, status });
   });
 
+  bus.on("agent.finished", ({ session_id, agent_id, issue_id, project_id, role }) =>
+    broadcast(project_id, "agent.finished", { session_id, agent_id, issue_id, role }));
+
   bus.on("agent.status_changed", ({ agent_id, issue_id, project_id, state }) =>
     broadcast(project_id, "agent.status_changed", { agent_id, issue_id, state }));
 
