@@ -27,25 +27,25 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--dangerously-skip-permissions'
+          claude_args: "--dangerously-skip-permissions"
           allowed_bots: "claude[bot]"
           prompt: |
-            Review this PR for CORRECTNESS. Focus on:
-            - Bugs, logic errors, and broken assumptions
+            You are reviewing PR #${{ github.event.pull_request.number }}.
+
+            First, read all existing comments and reviews on this PR using `gh pr view` and `gh api`.
+            Skip any issues already raised by other reviewers.
+
+            Then review the PR diff for CORRECTNESS:
+            - Bugs, logic errors, broken assumptions
             - Off-by-one errors, null/undefined access, unhandled exceptions
             - Incorrect error path handling
-            - Whether tests cover the new behavior and are meaningful
-            - Race conditions or concurrency issues (if applicable)
+            - Whether tests cover new behavior and are meaningful
+            - Race conditions or concurrency issues
             - Whether the code actually does what it claims
 
-            Before reviewing, read all existing comments and reviews on this PR.
-            Only raise issues that have NOT already been mentioned in previous comments.
-            If all your findings are already covered by existing comments, output only:
-            "## Correctness Review\n\nNo new issues found beyond what has already been flagged."
-
-            Output your review as text, starting with "## Correctness Review".
-            Reference specific files and line numbers. If no issues found, say so briefly.
-            Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
+            Post your review as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
+            Start with "## Correctness Review". Reference specific files and line numbers.
+            If no new issues found, say so briefly.
 
   simplicity-review:
     runs-on: ubuntu-latest
@@ -65,10 +65,15 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--dangerously-skip-permissions'
+          claude_args: "--dangerously-skip-permissions"
           allowed_bots: "claude[bot]"
           prompt: |
-            Review this PR for OVER-ENGINEERING and unnecessary complexity. Focus on:
+            You are reviewing PR #${{ github.event.pull_request.number }}.
+
+            First, read all existing comments and reviews on this PR using `gh pr view` and `gh api`.
+            Skip any issues already raised by other reviewers.
+
+            Then review the PR diff for OVER-ENGINEERING and unnecessary complexity:
             - Is there a shorter/simpler way to achieve the same outcome?
             - Are abstractions justified or premature?
             - Dead code, unused variables, or redundant logic
@@ -76,14 +81,9 @@ jobs:
             - Could a standard library function or built-in replace custom code?
             - Is the diff larger than it needs to be for the stated goal?
 
-            Before reviewing, read all existing comments and reviews on this PR.
-            Only raise issues that have NOT already been mentioned in previous comments.
-            If all your findings are already covered by existing comments, output only:
-            "## Simplicity Review\n\nNo new issues found beyond what has already been flagged."
-
-            Output your review as text, starting with "## Simplicity Review".
-            Reference specific files and line numbers. If no issues found, say so briefly.
-            Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
+            Post your review as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
+            Start with "## Simplicity Review". Reference specific files and line numbers.
+            If no new issues found, say so briefly.
 
   security-review:
     runs-on: ubuntu-latest
@@ -103,22 +103,22 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--dangerously-skip-permissions'
+          claude_args: "--dangerously-skip-permissions"
           allowed_bots: "claude[bot]"
           prompt: |
-            Review this PR for SECURITY vulnerabilities. Focus on:
-            - OWASP Top 10: injection, XSS, broken auth, insecure direct object references, etc.
+            You are reviewing PR #${{ github.event.pull_request.number }}.
+
+            First, read all existing comments and reviews on this PR using `gh pr view` and `gh api`.
+            Skip any issues already raised by other reviewers.
+
+            Then review the PR diff for SECURITY vulnerabilities:
+            - OWASP Top 10: injection, XSS, broken auth, insecure direct object references
             - Secrets or credentials accidentally included in the diff
             - Unsafe deserialization or parsing of user input
             - Missing authorization/authentication checks
             - Sensitive data exposed in logs or responses
             - Newly added dependencies with known vulnerabilities
 
-            Before reviewing, read all existing comments and reviews on this PR.
-            Only raise issues that have NOT already been mentioned in previous comments.
-            If all your findings are already covered by existing comments, output only:
-            "## Security Review\n\nNo new issues found beyond what has already been flagged."
-
-            Output your review as text, starting with "## Security Review".
-            Reference specific files and line numbers. If no issues found, say so briefly.
-            Do NOT call any GitHub API or tool to post comments or reviews — the action will post your output automatically.
+            Post your review as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
+            Start with "## Security Review". Reference specific files and line numbers.
+            If no new issues found, say so briefly.
