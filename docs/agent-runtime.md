@@ -39,8 +39,6 @@ spawn(options: SpawnOptions) → SessionHandle
 | Field | Type | Description |
 |-------|------|-------------|
 | sessionName | string | The tmux session name. |
-| paneId | string | The tmux pane ID for output capture. |
-| pid | number | Process ID of the CLI tool. |
 
 **Pseudocode:**
 
@@ -51,8 +49,7 @@ function spawn(options):
     set environment variables from options.env
     build CLI command with adapter-specific flags
     send CLI command to tmux session
-    capture pane ID and process ID
-    return SessionHandle
+    return SessionHandle { sessionName }
 ```
 
 #### send
@@ -88,24 +85,6 @@ function getOutput(sessionName):
     return captured text
 ```
 
-#### streamOutput
-
-Continuously streams output from the tmux pane. Used for the xterm.js live terminal view.
-
-```
-streamOutput(sessionName: string, callback: (chunk: string) → void) → Unsubscribe
-```
-
-**Pseudocode:**
-
-```
-function streamOutput(sessionName, callback):
-    start a polling loop or pipe tmux output
-    on each new chunk of output:
-        call callback(chunk)
-    return function that stops the stream
-```
-
 #### isAlive
 
 Checks whether the CLI tool process in the session is still running.
@@ -118,9 +97,8 @@ isAlive(sessionName: string) → boolean
 
 ```
 function isAlive(sessionName):
-    check if tmux session exists
-    check if the CLI process (pid) is still running
-    return true if both conditions are met
+    check if tmux session exists (tmux has-session)
+    return true if session exists, false otherwise
 ```
 
 #### kill
@@ -164,17 +142,19 @@ claude --dangerously-skip-permissions \
 When the backend resumes an agent or sends it new work, it constructs a prompt containing all relevant context from the database:
 
 ```
-function buildPrompt(issue, agent, context):
-    prompt = ""
-    prompt += "## Your Role\n" + agent.system_prompt
-    prompt += "## Issue\n" + issue.title + "\n" + issue.description
-    prompt += "## Repository\n" + repo details and worktree path
-    prompt += "## Previous Comments\n" + relevant comments from DB
+function buildPrompt(issue, agent, repo, context):
+    parts = []
+    parts += "## Issue\n" + XML-tagged issue.title and issue.description
+    parts += "## Repository\n" + repo.name + " at " + context.worktreePath
+    if context.previousComments:
+        parts += "## Previous Comments\n" + XML-tagged comments
     if context.feedbackComments:
-        prompt += "## Review Feedback to Address\n" + feedback
-    prompt += "## Instructions\n" + task-specific instructions
-    return prompt
+        parts += "## Review Feedback to Address\n" + XML-tagged feedback
+    parts += "## Instructions\n" + role info + crewdeck CLI usage
+    return join(parts, "\n\n")
 ```
+
+The agent system prompt is passed separately via the `--system-prompt` CLI flag, not embedded in the prompt body.
 
 This approach means we never depend on Claude Code's session management. Every invocation gets a complete, self-contained prompt built from CrewDeck's database.
 
@@ -184,10 +164,10 @@ This approach means we never depend on Claude Code's session management. Every i
 crewdeck-<issueId-short>-<agentId-short>-<role>
 ```
 
-Examples:
-- `crewdeck-a1b2c3-d4e5f6-worker`
-- `crewdeck-a1b2c3-g7h8i9-reviewer`
-- `crewdeck-orchestrator-<projectId-short>`
+Examples (8-char hex prefixes):
+- `crewdeck-a1b2c3d4-e5f6g7h8-worker`
+- `crewdeck-a1b2c3d4-i9j0k1l2-reviewer`
+- `crewdeck-orchestrator-<projectId-8chars>`
 
 ### Detecting Completion
 
@@ -253,10 +233,10 @@ Multiple tmux sessions can run simultaneously, bounded by the project's max_conc
 The frontend renders live terminal views using xterm.js. The data flow:
 
 ```
-tmux pane → adapter.streamOutput() → backend WebSocket → frontend xterm.js
+tmux pane → adapter.getOutput() → backend WebSocket → frontend xterm.js
 ```
 
-The adapter polls the tmux pane at a configurable interval (e.g., 100ms) and sends deltas to the backend, which broadcasts them via the `session.output` WebSocket event.
+The backend captures tmux pane output via `adapter.getOutput()` and broadcasts it via the `session.output` WebSocket event. The `ProcessMonitor` also captures a final output snapshot when a session ends and stores it in `Session.context`.
 
 ### Cleanup
 
@@ -421,7 +401,7 @@ The backend validates the JSON structure, executes the action, updates the datab
 
 To add support for a new CLI tool:
 
-1. Implement the adapter interface (spawn, send, getOutput, streamOutput, isAlive, kill).
+1. Implement the adapter interface (spawn, send, getOutput, isAlive, kill).
 2. Handle tool-specific command construction (flags, prompt passing).
 3. Handle tool-specific completion detection.
 4. Register the adapter in the runtime configuration.
