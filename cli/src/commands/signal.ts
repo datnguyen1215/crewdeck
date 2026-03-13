@@ -31,7 +31,7 @@ export async function signalCommand(argv: string[]): Promise<void> {
   }
 
   let data: Record<string, unknown> | undefined;
-  if (dataIdx !== -1 && argv[dataIdx + 1]) {
+  if (dataIdx !== -1 && argv[dataIdx + 1] && !argv[dataIdx + 1].startsWith("--")) {
     try {
       data = JSON.parse(argv[dataIdx + 1]) as Record<string, unknown>;
     } catch {

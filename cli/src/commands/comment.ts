@@ -8,7 +8,7 @@ Example:
 export async function commentCommand(argv: string[]): Promise<void> {
   const msgIdx = argv.indexOf("--message");
 
-  if (msgIdx === -1 || !argv[msgIdx + 1]) {
+  if (msgIdx === -1 || !argv[msgIdx + 1] || argv[msgIdx + 1].startsWith("--")) {
     console.error("Error: --message is required\n");
     console.error(USAGE);
     process.exit(1);
