@@ -20,12 +20,17 @@
 	let cancelStream: (() => void) | null = null;
 	let streamDone = $state(false);
 	let destroyed = false;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let term: any = null;
+	let ro: ResizeObserver | null = null;
 
 	const isRunning = $derived(session.status === 'running' && !streamDone);
 
 	onDestroy(() => {
 		destroyed = true;
 		cancelStream?.();
+		ro?.disconnect();
+		term?.dispose();
 	});
 
 	onMount(async () => {
@@ -65,7 +70,6 @@
 				selectionBackground: '#3a3a4a',
 			},
 			scrollback: 1000,
-			allowProposedApi: false,
 		});
 
 		const fitAddon = new FitAddon();
@@ -75,6 +79,7 @@
 
 		t.open(containerEl!);
 		fitAddon.fit();
+		term = t;
 
 		// Start streaming mock output
 		cancelStream = streamOutput(t, session.outputLines, () => {
@@ -82,19 +87,13 @@
 		});
 
 		// Resize observer keeps terminal fitted to container
-		const ro = new ResizeObserver(() => fitAddon.fit());
+		ro = new ResizeObserver(() => fitAddon.fit());
 		ro.observe(containerEl!);
-
-		return () => {
-			ro.disconnect();
-			cancelStream?.();
-			t.dispose();
-		};
 	});
 </script>
 
 <div
-	class="terminal-wrap flex flex-col gap-0 rounded overflow-hidden border"
+	class="terminal-wrap flex flex-col rounded overflow-hidden border"
 	class:border-cyan={isRunning}
 	class:border-edge={!isRunning}
 	style={isRunning ? 'box-shadow: var(--glow-cyan)' : ''}
