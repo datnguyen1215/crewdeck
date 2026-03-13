@@ -7,8 +7,6 @@ export interface OrchestratorAction {
   reasoning: string;
 }
 
-const VALID_ACTIONS = new Set<ActionType>(ACTION_TYPES);
-
 // Extract JSON from Claude output — handles raw JSON or ```json ... ``` code blocks
 function extractJson(output: string): string {
   const trimmed = output.trim();
@@ -36,7 +34,7 @@ export function parseAction(output: string): OrchestratorAction | null {
   const obj = parsed as Record<string, unknown>;
 
   if (typeof obj.action !== "string") return null;
-  if (!VALID_ACTIONS.has(obj.action as ActionType)) return null;
+  if (!ACTION_TYPES.includes(obj.action as ActionType)) return null;
   if (typeof obj.params !== "object" || obj.params === null || Array.isArray(obj.params)) return null;
   if (typeof obj.reasoning !== "string") return null;
 

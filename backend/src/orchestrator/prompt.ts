@@ -1,8 +1,6 @@
 import type { Project, Issue, Agent, CrewWithAgents } from "../types/entities.js";
 import { escapeXml } from "../utils/xml.js";
 
-export { escapeXml };
-
 export interface OrchestratorState {
   project: Project;
   crew: CrewWithAgents;
@@ -24,7 +22,7 @@ function fmtIssue(i: Issue): string {
 }
 
 function fmtAgent(a: Agent): string {
-  return `  - [${a.id}] ${a.name} | role: ${a.role} | expertise: ${a.expertise.join(", ")} | can_review: ${a.can_review}`;
+  return `  - [${a.id}] ${escapeXml(a.name)} | role: ${escapeXml(a.role)} | expertise: ${escapeXml(a.expertise.join(", "))} | can_review: ${a.can_review}`;
 }
 
 export function buildOrchestratorPrompt(state: OrchestratorState, eventDescription: string): string {

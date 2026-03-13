@@ -7,7 +7,8 @@ import type { AgentAdapter } from "../agent/types.js";
 import { agentSessionName, orchestratorSessionName, mergeContext } from "../agent/types.js";
 import { buildAgentPrompt, buildReviewerPrompt } from "../agent/prompt.js";
 import { createWorktree } from "../agent/worktree.js";
-import { buildOrchestratorPrompt, escapeXml, type OrchestratorState } from "./prompt.js";
+import { buildOrchestratorPrompt, type OrchestratorState } from "./prompt.js";
+import { escapeXml } from "../utils/xml.js";
 import { parseAction, validateActionParams, type OrchestratorAction } from "./actions.js";
 import { getProject, updateProject } from "../db/repositories/projects.js";
 import { listIssues, getIssue, createIssue, updateIssue } from "../db/repositories/issues.js";
@@ -30,6 +31,9 @@ const execFileAsync = promisify(execFile);
 
 // Run claude in --print mode and return stdout.
 // Use execFile to pass the prompt as a direct argument — no shell involved, no encoding needed.
+// --dangerously-skip-permissions is intentional: the orchestrator needs unrestricted tool access
+// (git, crewdeck CLI, etc). The risk is accepted and mitigated by XML-escaping all user-controlled
+// content in prompts so injection cannot redirect Claude's actions.
 export async function callClaude(prompt: string): Promise<string> {
   const { stdout } = await execFileAsync(
     "claude",
@@ -80,6 +84,10 @@ async function executeAssign(
 
   const agent = getAgent(agent_id);
   if (!agent) { logger.warn({ agent_id }, "assign: agent not found"); return; }
+  if (agent.crew_id !== state.crew.id) {
+    logger.warn({ agent_id, crew_id: state.crew.id }, "assign: agent does not belong to project crew");
+    return;
+  }
 
   // Concurrency check — use pre-built state counts to avoid a second listIssues query
   const activeCount = state.inProgressIssues.length + state.inReviewIssues.length + state.feedbackIssues.length;
@@ -112,7 +120,7 @@ async function executeAssign(
   const comments = listComments(issue_id);
   const promptText = repos.length > 0
     ? buildAgentPrompt(updatedIssue, agent, repos[0], { worktreePath, previousComments: comments })
-    : `You are ${agent.name}. Work on: ${issue.title}\n\n${issue.description}\n\nRun: crewdeck signal --event work-complete when done.`;
+    : `You are ${escapeXml(agent.name)}. Work on the issue below.\n\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>\n\nRun: crewdeck signal --event work-complete when done.`;
 
   // Create session record
   const sessionName = agentSessionName(issue_id, agent_id, "worker");
@@ -147,7 +155,7 @@ async function executeAssign(
     logger.error({ err, sessionName }, "assign: failed to spawn agent session");
     updateSession(session.id, { status: "error" });
     updateIssueAgent(issueAgent.id, { status: "error" });
-    updateIssue(issue_id, { status: issue.status, assigned_agent_id: null });
+    updateIssue(issue_id, { status: issue.status, assigned_agent_id: issue.assigned_agent_id });
     return;
   }
 
@@ -172,7 +180,7 @@ async function executeAssign(
 
 async function executeRouteReview(
   params: Record<string, unknown>,
-  projectId: string,
+  state: OrchestratorState,
   bus: EventBus,
   adapter: AgentAdapter
 ): Promise<void> {
@@ -181,6 +189,7 @@ async function executeRouteReview(
     reviewer_agent_id: string;
     review_order: number;
   };
+  const projectId = state.project.id;
 
   const issue = getIssue(issue_id);
   if (!issue) { logger.warn({ issue_id }, "route_review: issue not found"); return; }
@@ -195,6 +204,10 @@ async function executeRouteReview(
 
   const reviewer = getAgent(reviewer_agent_id);
   if (!reviewer) { logger.warn({ reviewer_agent_id }, "route_review: reviewer not found"); return; }
+  if (reviewer.crew_id !== state.crew.id) {
+    logger.warn({ reviewer_agent_id, crew_id: state.crew.id }, "route_review: reviewer does not belong to project crew");
+    return;
+  }
   if (!reviewer.can_review) {
     logger.warn({ reviewer_agent_id }, "route_review: agent cannot review");
     return;
@@ -224,7 +237,7 @@ async function executeRouteReview(
         branchName: updatedIssue.branch_name ?? "main",
         comments,
       })
-    : `You are ${reviewer.name}, a reviewer. Review the code for: ${issue.title}\n\nRun crewdeck signal --event review-complete --data '{"verdict":"approved"}' or '{"verdict":"changes_requested"}' when done.`;
+    : `You are ${escapeXml(reviewer.name)}, a reviewer. Review the issue below.\n\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>\n\nRun crewdeck signal --event review-complete --data '{"verdict":"approved"}' or '{"verdict":"changes_requested"}' when done.`;
 
   const sessionName = agentSessionName(issue_id, reviewer_agent_id, "reviewer");
   const session = createSession({
@@ -346,7 +359,7 @@ async function executeAction(
       await executeAssign(params, state, bus, adapter);
       break;
     case "route_review":
-      await executeRouteReview(params, projectId, bus, adapter);
+      await executeRouteReview(params, state, bus, adapter);
       break;
     case "escalate":
       executeEscalate(params, projectId, bus);
