@@ -101,6 +101,7 @@ router.post("/files", validate(FilesSchema), (req, res) => {
   if (!session) throw new NotFoundError("Session not found");
 
   const ctx = session.context;
+  // Guard needed because session.context is typed as unknown in the DB layer
   const existing = (typeof ctx === "object" && ctx !== null && !Array.isArray(ctx))
     ? (ctx as Record<string, unknown>)
     : {};

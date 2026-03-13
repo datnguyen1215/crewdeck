@@ -36,6 +36,7 @@ export async function post(path: string, body: Record<string, unknown>, apiUrl: 
   }
 }
 
+// Maps camelCase env to snake_case keys expected by the backend API
 export function sessionContext(): { apiUrl: string; session_id: string; agent_id: string; issue_id: string; project_id: string } {
   const env = getEnv();
   return {

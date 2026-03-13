@@ -7,6 +7,7 @@ describe("getEnv", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     for (const key of Object.keys(ENV)) {
       delete process.env[key];
     }
