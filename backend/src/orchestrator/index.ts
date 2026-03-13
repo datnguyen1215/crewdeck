@@ -7,7 +7,7 @@ import type { AgentAdapter } from "../agent/types.js";
 import { agentSessionName, orchestratorSessionName, mergeContext } from "../agent/types.js";
 import { buildAgentPrompt, buildReviewerPrompt } from "../agent/prompt.js";
 import { createWorktree } from "../agent/worktree.js";
-import { buildOrchestratorPrompt, type OrchestratorState } from "./prompt.js";
+import { buildOrchestratorPrompt, escapeXml, type OrchestratorState } from "./prompt.js";
 import { parseAction, validateActionParams, type OrchestratorAction } from "./actions.js";
 import { getProject, updateProject } from "../db/repositories/projects.js";
 import { listIssues, getIssue, createIssue, updateIssue } from "../db/repositories/issues.js";
@@ -37,11 +37,6 @@ export async function callClaude(prompt: string): Promise<string> {
     { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 }
   );
   return stdout;
-}
-
-// Escape XML special characters so user-controlled strings can't break out of XML-delimited sections.
-function escapeXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function buildState(projectId: string): OrchestratorState | null {
@@ -462,8 +457,7 @@ export class OrchestratorManager {
       // in this round already requested changes the status is "feedback" and we must not override it.
       const freshIssue = getIssue(issue_id);
       if (allApproved && allForRound.length > 0 && freshIssue?.status === "in_review") {
-        updateIssue(issue_id, { status: "ready" });
-        const issue = getIssue(issue_id)!;
+        const issue = updateIssue(issue_id, { status: "ready" });
         this.bus.emit("issue.status_changed", {
           issue_id,
           project_id,
@@ -474,11 +468,12 @@ export class OrchestratorManager {
       }
     } else if (verdict === "changes_requested") {
       updateIssueAgent(reviewerRecord.id, { status: "changes_requested" });
+      const prevIssue = getIssue(issue_id);
       updateIssue(issue_id, { status: "feedback" });
       this.bus.emit("issue.status_changed", {
         issue_id,
         project_id,
-        from: "in_review",
+        from: prevIssue?.status ?? "in_review",
         to: "feedback",
       });
     }
