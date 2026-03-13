@@ -46,7 +46,7 @@ export function broadcast(projectId: string, event: string, data: unknown): void
 
 function flushSessionOutput(sessionId: string, projectId: string): void {
   const buf = outputBuffers.get(sessionId);
-  if (!buf || buf.chunks.length === 0) return;
+  if (!buf) return;
   const output = buf.chunks.join("");
   outputBuffers.delete(sessionId);
   broadcast(projectId, "session.output", { session_id: sessionId, output });
@@ -142,41 +142,47 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
 
   wss.on("connection", (socket, req: IncomingMessage) => {
     const ws = socket as ExtendedWebSocket;
-    const url = new URL(req.url ?? "", "http://localhost");
-    const projectId = url.searchParams.get("projectId");
 
-    if (!projectId) {
-      ws.close(4004, "Missing projectId");
-      return;
-    }
+    try {
+      const url = new URL(req.url ?? "", "http://localhost");
+      const projectId = url.searchParams.get("projectId");
 
-    const project = getProject(projectId);
-    if (!project) {
-      ws.close(4004, "Project not found");
-      return;
-    }
+      if (!projectId) {
+        ws.close(4004, "Missing projectId");
+        return;
+      }
 
-    // TODO: authenticate WebSocket connections (same as REST auth middleware)
-    // TODO: validate Origin header to prevent cross-site WebSocket hijacking once auth is implemented
-    ws.isAlive = true;
-    addSubscriber(projectId, ws);
+      const project = getProject(projectId);
+      if (!project) {
+        ws.close(4004, "Project not found");
+        return;
+      }
 
-    ws.on("pong", () => {
+      // TODO: authenticate WebSocket connections (same as REST auth middleware)
+      // TODO: validate Origin header to prevent cross-site WebSocket hijacking once auth is implemented
       ws.isAlive = true;
-      if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
-    });
+      addSubscriber(projectId, ws);
 
-    // Server-push only — client messages are ignored
-    ws.on("close", () => {
-      if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
-      removeSubscriber(projectId, ws);
-    });
+      ws.on("pong", () => {
+        ws.isAlive = true;
+        if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
+      });
 
-    ws.on("error", (err) => {
-      logger.error({ err }, "WebSocket error");
-      if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
-      removeSubscriber(projectId, ws);
-    });
+      // Server-push only — client messages are ignored
+      ws.on("close", () => {
+        if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
+        removeSubscriber(projectId, ws);
+      });
+
+      ws.on("error", (err) => {
+        logger.error({ err }, "WebSocket error");
+        if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
+        removeSubscriber(projectId, ws);
+      });
+    } catch (err) {
+      logger.error({ err }, "WebSocket connection setup failed");
+      ws.close(4011, "Internal error");
+    }
   });
 
   subscribeEvents(bus);
