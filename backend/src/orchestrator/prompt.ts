@@ -10,6 +10,10 @@ export interface OrchestratorState {
   draftIssues: Issue[];
 }
 
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function idleAgents(agents: Agent[], active: Issue[]): Agent[] {
   const busyIds = new Set(active.filter((i) => i.assigned_agent_id).map((i) => i.assigned_agent_id!));
   return agents.filter((a) => !busyIds.has(a.id));
@@ -17,7 +21,7 @@ function idleAgents(agents: Agent[], active: Issue[]): Agent[] {
 
 function fmtIssue(i: Issue): string {
   const agent = i.assigned_agent_id ? `, agent: ${i.assigned_agent_id}` : "";
-  return `  - [${i.id}] "${i.title}" (priority: ${i.priority}${agent}, review_round: ${i.current_review_round})`;
+  return `  - [${i.id}] <issue_title>${escapeXml(i.title)}</issue_title> (priority: ${i.priority}${agent}, review_round: ${i.current_review_round})`;
 }
 
 function fmtAgent(a: Agent): string {

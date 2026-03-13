@@ -1,4 +1,4 @@
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { logger } from "../logger.js";
 import { eventBus } from "../events/bus.js";
@@ -26,16 +26,22 @@ import {
   updateSession,
 } from "../db/repositories/sessions.js";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Run claude in --print mode and return stdout.
-// Base64-encode the prompt so it's safe to embed in the bash command (base64 only uses [A-Za-z0-9+/=]).
+// Use execFile to pass the prompt as a direct argument — no shell involved, no encoding needed.
 export async function callClaude(prompt: string): Promise<string> {
-  const encoded = Buffer.from(prompt).toString("base64");
-  // base64 output is safe to embed unquoted inside single-quoted strings — no shell metacharacters
-  const cmd = `bash -c 'PROMPT=$(printf "%s" ${encoded} | base64 -d); claude --dangerously-skip-permissions --print --prompt "$PROMPT"'`;
-  const { stdout } = await execAsync(cmd, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 });
+  const { stdout } = await execFileAsync(
+    "claude",
+    ["--dangerously-skip-permissions", "--print", "--prompt", prompt],
+    { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 }
+  );
   return stdout;
+}
+
+// Escape XML special characters so user-controlled strings can't break out of XML-delimited sections.
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function buildState(projectId: string): OrchestratorState | null {
@@ -389,7 +395,7 @@ export class OrchestratorManager {
     this.bus.on("issue.created", ({ issue }) => {
       void this.resume(
         issue.project_id,
-        `A new issue was created (ID: ${issue.id}, status: ${issue.status}):\n<issue_title>${issue.title}</issue_title>`
+        `A new issue was created (ID: ${issue.id}, status: ${issue.status}):\n<issue_title>${escapeXml(issue.title)}</issue_title>`
       );
     });
 
@@ -401,7 +407,7 @@ export class OrchestratorManager {
       const issue = getIssue(issue_id);
       void this.resume(
         project_id,
-        `Agent finished work on issue (issue_id: ${issue_id}, agent_id: ${agent_id}, role: ${role}):\n<issue_title>${issue?.title ?? issue_id}</issue_title>\nThe work session has ended — consider routing to review if work is complete.`
+        `Agent finished work on issue (issue_id: ${issue_id}, agent_id: ${agent_id}, role: ${role}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>\nThe work session has ended — consider routing to review if work is complete.`
       );
     });
 
@@ -413,7 +419,7 @@ export class OrchestratorManager {
       const issue = getIssue(issue_id);
       void this.resume(
         project_id,
-        `Review completed (issue_id: ${issue_id}, reviewer_agent_id: ${agent_id}, verdict: ${verdict}, round: ${issue?.current_review_round ?? "?"}/${getProject(project_id)?.max_review_rounds ?? "?"}):\n<issue_title>${issue?.title ?? issue_id}</issue_title>`
+        `Review completed (issue_id: ${issue_id}, reviewer_agent_id: ${agent_id}, verdict: ${verdict}, round: ${issue?.current_review_round ?? "?"}/${getProject(project_id)?.max_review_rounds ?? "?"}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>`
       );
     });
 
@@ -422,7 +428,7 @@ export class OrchestratorManager {
       if (comment.author_type !== "user") return;
       void this.resume(
         project_id,
-        `A user posted a comment on issue ${comment.issue_id}:\n<user_comment>${comment.content.slice(0, 200)}</user_comment>`
+        `A user posted a comment on issue ${comment.issue_id}:\n<user_comment>${escapeXml(comment.content.slice(0, 200))}</user_comment>`
       );
     });
   }
@@ -452,7 +458,10 @@ export class OrchestratorManager {
         (ia) => ia.role === "reviewer" && (ia.status === "active" || ia.status === "approved")
       );
       const allApproved = allForRound.every((ia) => ia.status === "approved");
-      if (allApproved && allForRound.length > 0) {
+      // Only transition to "ready" if the issue is currently "in_review" — if another reviewer
+      // in this round already requested changes the status is "feedback" and we must not override it.
+      const freshIssue = getIssue(issue_id);
+      if (allApproved && allForRound.length > 0 && freshIssue?.status === "in_review") {
         updateIssue(issue_id, { status: "ready" });
         const issue = getIssue(issue_id)!;
         this.bus.emit("issue.status_changed", {

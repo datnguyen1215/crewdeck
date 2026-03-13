@@ -64,8 +64,10 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
 
 export function createIssue(projectId: string, input: CreateIssueInput): Issue {
   const id = crypto.randomUUID();
-  const fields = ["id", "project_id", "title", "description", "max_review_rounds", "priority", "created_by"];
-  const values: unknown[] = [
+  db.prepare(
+    `INSERT INTO Issue (id, project_id, title, description, max_review_rounds, priority, created_by, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
     id,
     projectId,
     input.title,
@@ -73,14 +75,8 @@ export function createIssue(projectId: string, input: CreateIssueInput): Issue {
     input.max_review_rounds ?? null,
     input.priority ?? 0,
     input.created_by ?? "user",
-  ];
-  if (input.status !== undefined) {
-    fields.push("status");
-    values.push(input.status);
-  }
-  db.prepare(
-    `INSERT INTO Issue (${fields.join(", ")}) VALUES (${fields.map(() => "?").join(", ")})`
-  ).run(...values);
+    input.status ?? "open"
+  );
   return getIssue(id)!;
 }
 
