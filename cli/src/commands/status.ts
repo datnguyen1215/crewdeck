@@ -28,6 +28,7 @@ export async function statusCommand(argv: string[]): Promise<void> {
     process.exit(1);
   }
 
-  await post("/internal/status", { ...sessionContext(), state });
+  const { apiUrl, ...ctx } = sessionContext();
+  await post("/internal/status", { ...ctx, state }, apiUrl);
   console.log(`Status set to "${state}".`);
 }

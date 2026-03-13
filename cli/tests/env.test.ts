@@ -1,20 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { ENV } from "./helpers.js";
 
 describe("getEnv", () => {
-  const REQUIRED = {
-    CREWDECK_API_URL: "http://localhost:3000/api/v1",
-    CREWDECK_SESSION_ID: "session-1",
-    CREWDECK_ISSUE_ID: "issue-1",
-    CREWDECK_AGENT_ID: "agent-1",
-    CREWDECK_PROJECT_ID: "project-1",
-  };
-
   beforeEach(() => {
-    Object.assign(process.env, REQUIRED);
+    Object.assign(process.env, ENV);
   });
 
   afterEach(() => {
-    for (const key of Object.keys(REQUIRED)) {
+    for (const key of Object.keys(ENV)) {
       delete process.env[key];
     }
   });

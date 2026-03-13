@@ -40,6 +40,7 @@ export async function signalCommand(argv: string[]): Promise<void> {
     }
   }
 
-  await post("/internal/signal", { ...sessionContext(), event, ...(data ? { data } : {}) });
+  const { apiUrl, ...ctx } = sessionContext();
+  await post("/internal/signal", { ...ctx, event, data }, apiUrl);
   console.log(`Signal "${event}" sent.`);
 }
