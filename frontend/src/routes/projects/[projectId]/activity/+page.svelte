@@ -230,22 +230,48 @@
 	</div>
 
 	<!-- Timeline -->
-	{#if !loading}
-		{#if filtered.length === 0}
-			<p class="text-muted text-sm py-16 text-center">No activity matches the current filters.</p>
-		{:else}
+	{#if loading}
+		<!-- Skeleton timeline while activity loads -->
+		<div class="max-w-2xl relative" style="animation: fade-up 0.3s ease both">
+			<div class="absolute left-[19px] top-2 bottom-0 w-px bg-edge pointer-events-none"></div>
+			<div class="flex flex-col">
+				{#each Array(8) as _, i}
+					<div
+						class="flex gap-4 pb-5 relative"
+						style="animation: fade-up 0.3s ease both; animation-delay: {i * 40}ms"
+					>
+						<div class="flex-shrink-0 w-10 flex justify-center pt-0.5">
+							<div class="skeleton w-6 h-6 rounded-full"></div>
+						</div>
+						<div class="flex-1 pt-0.5">
+							<div class="flex items-center gap-2 mb-1.5">
+								<div class="skeleton h-3 w-16 rounded"></div>
+								<div class="skeleton h-3 w-12 rounded"></div>
+							</div>
+							<div class="skeleton h-4 rounded" style="width: {50 + (i * 23) % 35}%"></div>
+							{#if i % 3 === 0}
+								<div class="skeleton h-3 w-32 rounded mt-1.5"></div>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{:else if filtered.length === 0}
+		<p class="text-muted text-sm py-16 text-center">No activity matches the current filters.</p>
+	{:else}
 			<div class="max-w-2xl relative">
 				<!-- Vertical line down the left -->
 				<div class="absolute left-[19px] top-2 bottom-0 w-px bg-edge pointer-events-none"></div>
 
 				<div class="flex flex-col">
-					{#each visible as entry (entry.id)}
+					{#each visible as entry, i (entry.id)}
 						{@const cfg = ACTOR_CFG[entry.actor_type] ?? ACTOR_CFG.system}
 						{@const recent = isRecent(entry.created_at)}
 						{@const expandable = hasExpandable(entry)}
 						{@const isExpanded = expanded.has(entry.id)}
 						{@const details = (entry.details as Record<string, unknown>) ?? {}}
-						<div class="flex gap-4 pb-5 relative">
+						<div class="flex gap-4 pb-5 relative" style="animation: fade-up 0.25s ease both; animation-delay: {Math.min(i * 30, 300)}ms">
 							<!-- Actor dot on the timeline -->
 							<div class="flex-shrink-0 w-10 flex justify-center pt-0.5 relative z-10">
 								<div
@@ -334,9 +360,5 @@
 				{/if}
 			</div>
 		{/if}
-	{:else}
-		<div class="py-16 text-center">
-			<p class="text-muted text-sm">Loading activity…</p>
-		</div>
 	{/if}
 </div>

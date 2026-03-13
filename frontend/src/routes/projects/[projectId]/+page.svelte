@@ -265,8 +265,46 @@
 	</div>
 
 	<!-- Table / Empty state -->
-	{#if !loading}
-		{#if issues.length === 0}
+	{#if loading}
+		<!-- Skeleton table while issues load -->
+		<div class="overflow-x-auto" style="animation: fade-up 0.3s ease both">
+			<div class="min-w-[680px] border border-edge rounded overflow-hidden">
+				<div class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+					<div class="px-3 py-2.5 text-center">Pri</div>
+					<div class="px-3 py-2.5">Title</div>
+					<div class="px-3 py-2.5">Status</div>
+					<div class="px-3 py-2.5">Agent</div>
+					<div class="px-3 py-2.5">Repo</div>
+					<div class="px-3 py-2.5 text-right">Age</div>
+				</div>
+				{#each Array(8) as _, i}
+					<div
+						class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] border-b border-edge last:border-0 {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						style="animation: fade-up 0.3s ease both; animation-delay: {i * 30}ms"
+					>
+						<div class="px-3 py-3 flex justify-center items-center">
+							<div class="skeleton h-4 w-6 rounded"></div>
+						</div>
+						<div class="px-3 py-3 flex items-center gap-2">
+							<div class="skeleton h-4 rounded" style="width: {60 + (i * 17) % 30}%"></div>
+						</div>
+						<div class="px-3 py-3 flex items-center">
+							<div class="skeleton h-5 w-24 rounded"></div>
+						</div>
+						<div class="px-3 py-3 flex items-center">
+							<div class="skeleton h-4 w-16 rounded"></div>
+						</div>
+						<div class="px-3 py-3 flex items-center">
+							<div class="skeleton h-4 w-14 rounded"></div>
+						</div>
+						<div class="px-3 py-3 flex items-center justify-end">
+							<div class="skeleton h-3 w-8 rounded"></div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{:else if issues.length === 0}
 			<div class="flex flex-col items-center justify-center py-24 text-center">
 				<p class="text-primary text-lg font-semibold mb-1">No issues yet</p>
 				<p class="text-muted text-sm mb-6">Create your first issue to get started</p>
@@ -277,12 +315,12 @@
 					+ Create Issue
 				</button>
 			</div>
-		{:else if filtered.length === 0}
-			<div class="py-16 text-center">
-				<p class="text-muted text-sm">No issues match the current filters.</p>
-			</div>
-		{:else}
-			<div class="overflow-x-auto">
+	{:else if filtered.length === 0}
+		<div class="py-16 text-center">
+			<p class="text-muted text-sm">No issues match the current filters.</p>
+		</div>
+	{:else}
+		<div class="overflow-x-auto">
 				<div class="min-w-[680px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
 					<div
@@ -301,7 +339,8 @@
 						{@const cfg = STATUS_CFG[issue.status] ?? STATUS_CFG.open}
 						<a
 							href="/projects/{projectId}/issues/{issue.id}"
-							class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''}"
+							class="issue-row grid grid-cols-[52px_1fr_148px_96px_96px_60px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''}"
+							style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 						>
 							<!-- Priority -->
 							<div
@@ -360,7 +399,6 @@
 					{/each}
 				</div>
 			</div>
-		{/if}
 	{/if}
 </div>
 
@@ -477,5 +515,25 @@
 	/* Subtle left accent on in-progress rows to make them feel "alive" */
 	.in-progress-row {
 		box-shadow: inset 3px 0 0 rgba(74, 222, 128, 0.4);
+	}
+
+	/* Row hover: left-to-right highlight sweep effect */
+	.issue-row {
+		position: relative;
+		overflow: hidden;
+	}
+
+	.issue-row::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(90deg, transparent 0%, rgba(34, 211, 238, 0.03) 50%, transparent 100%);
+		transform: translateX(-100%);
+		transition: transform 400ms ease;
+		pointer-events: none;
+	}
+
+	.issue-row:hover::after {
+		transform: translateX(100%);
 	}
 </style>
