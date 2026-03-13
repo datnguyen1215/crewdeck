@@ -21,6 +21,16 @@ describe("signalCommand", () => {
     });
   });
 
+  it("sends review-complete signal without --data (no data field sent, server applies default)", async () => {
+    const { signalCommand } = await import("../src/commands/signal.js");
+    await signalCommand(["--event", "review-complete"]);
+
+    const [, opts] = mocks.fetchMock.mock.calls[0];
+    const body = JSON.parse(opts.body as string);
+    expect(body.event).toBe("review-complete");
+    expect(body.data).toBeUndefined();
+  });
+
   it("sends review-complete signal with data", async () => {
     const { signalCommand } = await import("../src/commands/signal.js");
     await signalCommand(["--event", "review-complete", "--data", '{"verdict":"approved"}']);
