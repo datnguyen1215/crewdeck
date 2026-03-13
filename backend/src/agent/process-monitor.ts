@@ -6,6 +6,7 @@ import { mergeContext, type AgentAdapter } from "./types.js";
 
 export class ProcessMonitor {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private stopped = false;
   // Track sessions already marked finished to avoid duplicate events
   private finished = new Set<string>();
 
@@ -13,6 +14,7 @@ export class ProcessMonitor {
 
   start(): void {
     if (this.timer) return;
+    this.stopped = false;
     this.timer = setInterval(() => {
       this.tick().catch((err: unknown) => {
         logger.error({ err }, "Process monitor tick failed");
@@ -22,6 +24,7 @@ export class ProcessMonitor {
   }
 
   stop(): void {
+    this.stopped = true;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
@@ -44,6 +47,13 @@ export class ProcessMonitor {
         const alive = await this.adapter.isAlive(session.tmux_session_name);
         if (alive) {
           // Still running — undo the premature mark so we check again next tick.
+          this.finished.delete(session.id);
+          return;
+        }
+
+        // If the monitor was stopped (shutdown in progress), bail out —
+        // gracefulShutdown owns the final status update for these sessions.
+        if (this.stopped) {
           this.finished.delete(session.id);
           return;
         }

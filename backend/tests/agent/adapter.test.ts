@@ -225,7 +225,7 @@ describe("ClaudeCodeAdapter", () => {
       vi.useRealTimers();
     });
 
-    it("calls callback with delta when output grows", async () => {
+    it("calls callback with full content snapshot when output changes", async () => {
       vi.useFakeTimers();
       let outputSoFar = "";
       const callback = vi.fn();
