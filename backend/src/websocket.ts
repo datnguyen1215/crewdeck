@@ -50,6 +50,7 @@ function flushSessionOutput(sessionId: string, projectId: string): void {
   const output = buf.chunks.join("");
   buf.chunks = [];
   buf.timer = null;
+  outputBuffers.delete(sessionId);
   broadcast(projectId, "session.output", { session_id: sessionId, output });
 }
 
@@ -162,6 +163,7 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
     }
 
     // TODO: authenticate WebSocket connections (same as REST auth middleware)
+    // TODO: validate Origin header to prevent cross-site WebSocket hijacking once auth is implemented
     ws.isAlive = true;
     addSubscriber(projectId, ws);
 
