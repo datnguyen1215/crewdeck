@@ -18,6 +18,8 @@ import internalRouter from "./routes/internal.js";
 import { claudeCodeAdapter } from "./agent/adapters/claude-code.js";
 import { ProcessMonitor } from "./agent/process-monitor.js";
 import { cleanupOrphans, gracefulShutdown } from "./agent/orphan-cleanup.js";
+import { eventBus } from "./events/bus.js";
+import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 
 const app = express();
 
@@ -58,15 +60,18 @@ async function startupSequence(): Promise<void> {
   processMonitor.start();
 }
 
-app.listen(config.port, config.host, () => {
+const server = app.listen(config.port, config.host, () => {
   logger.info(`Server started on port ${config.port}`);
   void startupSequence().catch((err) => {
     logger.error({ err }, "Startup sequence failed");
   });
 });
 
+const wss = setupWebSocket(server, eventBus);
+
 // Graceful shutdown
 async function shutdown() {
+  shutdownWebSocket(wss);
   processMonitor.stop();
   try {
     await gracefulShutdown(claudeCodeAdapter);
