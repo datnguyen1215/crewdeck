@@ -14,17 +14,13 @@ const execAsync = promisify(exec);
 // TODO: Add auth middleware on agent-spawning routes before production (see index.ts).
 function buildLaunchScript(prompt: string, systemPrompt?: string): string {
   const encode = (s: string) => shellQuote(Buffer.from(s).toString("base64"));
-  const lines = [
-    "#!/bin/bash",
-    `PROMPT=$(printf '%s' ${encode(prompt)} | base64 -d)`,
-  ];
+  const promptLine = `PROMPT=$(printf '%s' ${encode(prompt)} | base64 -d)`;
+
   if (systemPrompt) {
-    lines.push(`SYSTEM_PROMPT=$(printf '%s' ${encode(systemPrompt)} | base64 -d)`);
-    lines.push('exec claude --dangerously-skip-permissions --system-prompt "$SYSTEM_PROMPT" --prompt "$PROMPT"');
-  } else {
-    lines.push('exec claude --dangerously-skip-permissions --prompt "$PROMPT"');
+    const sysLine = `SYSTEM_PROMPT=$(printf '%s' ${encode(systemPrompt)} | base64 -d)`;
+    return `#!/bin/bash\n${promptLine}\n${sysLine}\nexec claude --dangerously-skip-permissions --system-prompt "$SYSTEM_PROMPT" --prompt "$PROMPT"\n`;
   }
-  return lines.join("\n") + "\n";
+  return `#!/bin/bash\n${promptLine}\nexec claude --dangerously-skip-permissions --prompt "$PROMPT"\n`;
 }
 
 export class ClaudeCodeAdapter implements AgentAdapter {
