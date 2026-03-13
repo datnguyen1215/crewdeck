@@ -692,7 +692,6 @@ Agent reports which files were modified.
 ```json
 {
   "session_id": "uuid",
-  "project_id": "uuid",
   "modified": ["src/auth/middleware.ts", "tests/auth.test.ts"]
 }
 ```
@@ -772,8 +771,16 @@ All events follow this structure:
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `agent.working` | Agent actively producing output | `{ agent_id, issue_id, session_id }` |
-| `agent.idle` | Agent finished current work | `{ agent_id }` |
+| `agent.finished` | Agent completed its task | `{ session_id, agent_id, issue_id, role }` |
+| `agent.status_changed` | Agent status updated | `{ agent_id, issue_id, state }` |
+| `agent.error` | Agent encountered an unrecoverable error | `{ session_id, agent_id, issue_id, message? }` |
+| `agent.needs_help` | Agent is requesting human assistance | `{ session_id, agent_id, issue_id, message? }` |
+
+#### Review Events
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `review.completed` | Reviewer submitted a verdict | `{ session_id, issue_id, agent_id, verdict }` |
 
 #### PR Events
 

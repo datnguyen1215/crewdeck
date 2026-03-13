@@ -215,6 +215,6 @@ Agent finishes work in tmux
             → POST /api/v1/internal/signal
             → Event bus: agent.finished
             → Orchestrator Manager: routes to review
-            → WebSocket: agent.idle, issue.status_changed
+            → WebSocket: agent.finished
             → Activity Logger: writes log entries
 ```
