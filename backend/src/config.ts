@@ -16,7 +16,6 @@ export const config = {
   corsOrigin: optional("CORS_ORIGIN", "http://localhost:5173"),
   dbPath: optional("DB_PATH", "./data/crewdeck.db"),
   logLevel: optional("LOG_LEVEL", "info"),
-  tmuxPollInterval: parseIntEnv("TMUX_POLL_INTERVAL", 100),
   processMonitorInterval: parseIntEnv("PROCESS_MONITOR_INTERVAL", 5000),
   agentKillTimeout: parseIntEnv("AGENT_KILL_TIMEOUT", 5000),
   nodeEnv: optional("NODE_ENV", "development"),

@@ -1,5 +1,3 @@
-export type Unsubscribe = () => void;
-
 export interface SpawnOptions {
   sessionName: string;
   workdir: string;
@@ -20,8 +18,6 @@ export interface AgentAdapter {
   spawn(options: SpawnOptions): Promise<SessionHandle>;
   send(sessionName: string, message: string): Promise<void>;
   getOutput(sessionName: string): Promise<string>;
-  // Exposed for future WebSocket streaming to the UI — not consumed by internal code yet
-  streamOutput(sessionName: string, callback: (chunk: string) => void): Unsubscribe;
   isAlive(sessionName: string): Promise<boolean>;
   kill(sessionName: string): Promise<void>;
 }

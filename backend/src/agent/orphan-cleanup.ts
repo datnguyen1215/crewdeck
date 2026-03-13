@@ -22,38 +22,41 @@ async function listCrewdeckTmuxSessions(): Promise<string[]> {
 }
 
 // On startup: kill all lingering crewdeck tmux sessions and mark their DB records as error.
+// Also mark any DB sessions still in "running" whose tmux session no longer exists.
 // These are orphans from a previous backend process that didn't shut down cleanly.
 export async function cleanupOrphans(): Promise<void> {
   const tmuxSessions = await listCrewdeckTmuxSessions();
-  if (tmuxSessions.length === 0) return;
+  const liveTmuxNames = new Set(tmuxSessions);
 
-  logger.info({ count: tmuxSessions.length }, "Found orphaned tmux sessions on startup");
-
-  // Build a lookup of tmux_session_name → Session for running DB sessions
-  const runningSessions = listRunningSessions();
-  const sessionByName = new Map(
-    runningSessions
-      .filter((s) => s.tmux_session_name !== null)
-      .map((s) => [s.tmux_session_name!, s])
-  );
-
+  // Kill all lingering crewdeck tmux sessions
   for (const tmuxName of tmuxSessions) {
     try {
       await execAsync(`tmux kill-session -t ${shellQuote(tmuxName)}`);
+      logger.info({ tmux_session: tmuxName }, "Killed orphaned tmux session");
     } catch {
       // Already gone
     }
-
-    const session = sessionByName.get(tmuxName);
-    if (session) {
-      updateSession(session.id, { status: "error" });
-      logger.info({ session_id: session.id, tmux_session: tmuxName }, "Marked orphaned session as error");
-    } else {
-      logger.info({ tmux_session: tmuxName }, "Killed orphaned tmux session (no DB record)");
-    }
   }
 
-  logger.info({ count: tmuxSessions.length }, "Orphan cleanup complete");
+  // Mark all DB sessions in "running" state as error — whether or not their
+  // tmux session was still alive. If the previous backend crashed, some DB
+  // sessions may have no tmux counterpart at all.
+  const runningSessions = listRunningSessions();
+  for (const session of runningSessions) {
+    updateSession(session.id, { status: "error" });
+    const hadTmux = session.tmux_session_name && liveTmuxNames.has(session.tmux_session_name);
+    logger.info(
+      { session_id: session.id, had_tmux: !!hadTmux },
+      "Marked orphaned session as error"
+    );
+  }
+
+  if (tmuxSessions.length || runningSessions.length) {
+    logger.info(
+      { tmux_killed: tmuxSessions.length, db_cleaned: runningSessions.length },
+      "Orphan cleanup complete"
+    );
+  }
 }
 
 // On SIGTERM/SIGINT: capture output, gracefully exit each running session, update DB.

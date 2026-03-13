@@ -9,7 +9,6 @@ vi.mock("node:child_process", () => ({
 // Mock fs/promises for script file writing
 vi.mock("node:fs/promises", () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
-  unlink: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { exec } from "node:child_process";
@@ -201,55 +200,4 @@ describe("ClaudeCodeAdapter", () => {
     });
   });
 
-  describe("streamOutput", () => {
-    it("returns an unsubscribe function that stops polling", () => {
-      vi.useFakeTimers();
-      const callback = vi.fn();
-
-      const mockedExec = vi.mocked(exec);
-      mockedExec.mockImplementation((cmd: unknown, cb: unknown) => {
-        (cb as (err: null, result: { stdout: string; stderr: string }) => void)(
-          null,
-          { stdout: "line1\n", stderr: "" }
-        );
-        return {} as ReturnType<typeof exec>;
-      });
-
-      const unsubscribe = adapter.streamOutput("my-session", callback);
-      unsubscribe();
-
-      vi.advanceTimersByTime(1000);
-      // Callback should not be called after unsubscribe
-      expect(callback).not.toHaveBeenCalled();
-
-      vi.useRealTimers();
-    });
-
-    it("calls callback with full content snapshot when output changes", async () => {
-      vi.useFakeTimers();
-      let outputSoFar = "";
-      const callback = vi.fn();
-
-      const mockedExec = vi.mocked(exec);
-      mockedExec.mockImplementation((cmd: unknown, cb: unknown) => {
-        outputSoFar += "new chunk\n";
-        (cb as (err: null, result: { stdout: string; stderr: string }) => void)(
-          null,
-          { stdout: outputSoFar, stderr: "" }
-        );
-        return {} as ReturnType<typeof exec>;
-      });
-
-      const unsubscribe = adapter.streamOutput("session", callback);
-
-      // Advance past one poll interval
-      await vi.advanceTimersByTimeAsync(200);
-
-      unsubscribe();
-      expect(callback).toHaveBeenCalled();
-      expect(callback.mock.calls[0][0]).toContain("new chunk");
-
-      vi.useRealTimers();
-    });
-  });
 });

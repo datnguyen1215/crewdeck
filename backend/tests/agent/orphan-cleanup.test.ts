@@ -46,10 +46,19 @@ describe("cleanupOrphans", () => {
     vi.clearAllMocks();
   });
 
-  it("does nothing when no crewdeck tmux sessions exist", async () => {
+  it("does nothing when no crewdeck tmux sessions and no running DB sessions exist", async () => {
     mockExec(""); // empty session list
+    vi.mocked(listRunningSessions).mockReturnValue([]);
     await cleanupOrphans();
     expect(updateSession).not.toHaveBeenCalled();
+  });
+
+  it("marks DB sessions as error even when no tmux sessions exist", async () => {
+    mockExec(""); // no tmux sessions
+    const session = makeSession();
+    vi.mocked(listRunningSessions).mockReturnValue([session]);
+    await cleanupOrphans();
+    expect(updateSession).toHaveBeenCalledWith(session.id, { status: "error" });
   });
 
   it("kills orphaned tmux sessions on startup", async () => {
@@ -100,6 +109,7 @@ describe("cleanupOrphans", () => {
 
   it("handles tmux not being available gracefully", async () => {
     mockExecFail(new Error("tmux: command not found"));
+    vi.mocked(listRunningSessions).mockReturnValue([]);
     await expect(cleanupOrphans()).resolves.toBeUndefined();
     expect(updateSession).not.toHaveBeenCalled();
   });
@@ -114,7 +124,6 @@ describe("gracefulShutdown", () => {
       spawn: vi.fn(),
       send: vi.fn(),
       getOutput: vi.fn().mockResolvedValue("captured output"),
-      streamOutput: vi.fn(),
       isAlive: vi.fn().mockResolvedValue(false),
       kill: vi.fn().mockResolvedValue(undefined),
     };

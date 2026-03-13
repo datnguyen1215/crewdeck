@@ -53,32 +53,36 @@ app.use(errorHandler);
 
 const processMonitor = new ProcessMonitor(claudeCodeAdapter);
 
-async function startupSequence(): Promise<void> {
-  // Clean up any tmux sessions left over from a previous backend process,
-  // then start the monitor — order matters to avoid a race between cleanup and monitoring.
+async function main(): Promise<void> {
+  // Run cleanup and start monitor before accepting connections to avoid
+  // races between orphan cleanup, process monitoring, and incoming requests.
   await cleanupOrphans();
   processMonitor.start();
-}
 
-const server = app.listen(config.port, config.host, () => {
-  logger.info(`Server started on port ${config.port}`);
-  void startupSequence().catch((err) => {
-    logger.error({ err }, "Startup sequence failed");
+  const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
+    const s = app.listen(config.port, config.host, () => {
+      logger.info(`Server ready on port ${config.port}`);
+      resolve(s);
+    });
   });
-});
 
-const wss = setupWebSocket(server, eventBus);
+  const wss = setupWebSocket(server, eventBus);
 
-// Graceful shutdown
-async function shutdown() {
-  shutdownWebSocket(wss);
-  processMonitor.stop();
-  try {
-    await gracefulShutdown(claudeCodeAdapter);
-  } finally {
-    db.close();
-    process.exit(0);
+  async function shutdown() {
+    shutdownWebSocket(wss);
+    processMonitor.stop();
+    try {
+      await gracefulShutdown(claudeCodeAdapter);
+    } finally {
+      db.close();
+      process.exit(0);
+    }
   }
+  process.on("SIGTERM", () => { void shutdown(); });
+  process.on("SIGINT", () => { void shutdown(); });
 }
-process.on("SIGTERM", () => { void shutdown(); });
-process.on("SIGINT", () => { void shutdown(); });
+
+main().catch((err) => {
+  logger.error({ err }, "Failed to start server");
+  process.exit(1);
+});
