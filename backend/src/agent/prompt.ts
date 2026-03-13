@@ -6,6 +6,9 @@ export interface PromptContext {
   previousComments?: Comment[];
 }
 
+// Trust boundary: issue content (title, description, comments) is embedded directly into the prompt.
+// This is intentional — issues originate from trusted sources (project owners, GitHub repos they control).
+// If external/untrusted input ever flows into issues, add structural delimiters and data-only instructions.
 export function buildAgentPrompt(
   issue: Issue,
   agent: Agent,
@@ -13,23 +16,19 @@ export function buildAgentPrompt(
   context: PromptContext
 ): string {
   const parts: string[] = [];
+  const fmtComments = (cs: Comment[]) =>
+    cs.map((c) => `**${c.author_type}**: ${c.content}`).join("\n\n");
 
   parts.push(`## Issue\n${issue.title}\n\n${issue.description}`);
 
   parts.push(`## Repository\n${repo.name} at ${context.worktreePath}`);
 
   if (context.previousComments?.length) {
-    const commentText = context.previousComments
-      .map((c) => `**${c.author_type}**: ${c.content}`)
-      .join("\n\n");
-    parts.push(`## Previous Comments\n${commentText}`);
+    parts.push(`## Previous Comments\n${fmtComments(context.previousComments)}`);
   }
 
   if (context.feedbackComments?.length) {
-    const feedbackText = context.feedbackComments
-      .map((c) => `**${c.author_type}**: ${c.content}`)
-      .join("\n\n");
-    parts.push(`## Review Feedback to Address\n${feedbackText}`);
+    parts.push(`## Review Feedback to Address\n${fmtComments(context.feedbackComments)}`);
   }
 
   parts.push(`## Instructions

@@ -36,6 +36,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     await execAsync(`tmux new-session -d -s ${shellQuote(sessionName)} -c ${shellQuote(workdir)}`);
 
     // Inject environment variables into the tmux session environment
+    // env keys are set internally by the backend — no user-supplied keys reach here
     for (const [key, value] of Object.entries(env)) {
       await execAsync(`tmux setenv -t ${shellQuote(sessionName)} ${shellQuote(key)} ${shellQuote(value)}`);
     }
@@ -49,6 +50,9 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     );
 
     // Write launch script to a temp file — avoids multi-level shell escaping
+    // crypto.randomUUID() — available as a global since Node 19
+    // Temp script cleanup relies on the `rm -f` in the tmux command — if the session is killed
+    // before execution, the file persists in /tmp until OS cleanup. File mode 0o700 limits access.
     const scriptPath = join(tmpdir(), `crewdeck-${crypto.randomUUID()}.sh`);
     await writeFile(scriptPath, buildLaunchScript(prompt, systemPrompt), { mode: 0o700 });
 

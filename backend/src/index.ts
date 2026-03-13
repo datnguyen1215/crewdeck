@@ -60,15 +60,20 @@ async function startupSequence(): Promise<void> {
 
 app.listen(config.port, config.host, () => {
   logger.info(`Server started on port ${config.port}`);
-  void startupSequence();
+  void startupSequence().catch((err) => {
+    logger.error({ err }, "Startup sequence failed");
+  });
 });
 
 // Graceful shutdown
 async function shutdown() {
   processMonitor.stop();
-  await gracefulShutdown(claudeCodeAdapter);
-  db.close();
-  process.exit(0);
+  try {
+    await gracefulShutdown(claudeCodeAdapter);
+  } finally {
+    db.close();
+    process.exit(0);
+  }
 }
 process.on("SIGTERM", () => { void shutdown(); });
 process.on("SIGINT", () => { void shutdown(); });
