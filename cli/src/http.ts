@@ -27,9 +27,6 @@ export async function post(path: string, body: Record<string, unknown>, apiUrl: 
     if (err instanceof Error && err.name === "AbortError") {
       throw new Error(`Cannot connect to CrewDeck backend at ${url}: request timed out`);
     }
-    if (err instanceof TypeError && (err.message.includes("fetch failed") || err.message.includes("ECONNREFUSED"))) {
-      throw new Error(`Cannot connect to CrewDeck backend at ${url}`);
-    }
     throw err;
   } finally {
     clearTimeout(timer);
