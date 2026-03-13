@@ -143,6 +143,8 @@ async function executeAssign(
   } catch (err) {
     logger.error({ err, sessionName }, "assign: failed to spawn agent session");
     updateSession(session.id, { status: "error" });
+    updateIssueAgent(issueAgent.id, { status: "error" });
+    updateIssue(issue_id, { status: issue.status, assigned_agent_id: null });
     return;
   }
 
@@ -242,6 +244,8 @@ async function executeRouteReview(
   } catch (err) {
     logger.error({ err, sessionName }, "route_review: failed to spawn reviewer session");
     updateSession(session.id, { status: "error" });
+    updateIssueAgent(issueAgent.id, { status: "error" });
+    updateIssue(issue_id, { status: issue.status });
     return;
   }
 
@@ -297,8 +301,7 @@ function executeCreateDraftIssue(
     created_by: "orchestrator",
   });
   // Draft status — override the default "open"
-  updateIssue(issue.id, { status: "draft" });
-  const draftIssue = getIssue(issue.id)!;
+  const draftIssue = updateIssue(issue.id, { status: "draft" });
 
   bus.emit("orchestrator.draft_issue", { issue: draftIssue, project_id: projectId });
   bus.emit("issue.created", { issue: draftIssue });
@@ -433,11 +436,12 @@ export class OrchestratorManager {
 
     if (verdict === "approved") {
       updateIssueAgent(reviewerRecord.id, { status: "approved" });
+      reviewerRecord.status = "approved";
 
       // Check if all reviewers for the current round approved.
       // Only consider "active" or "approved" records — prior round records
       // with "changes_requested" status must be excluded.
-      const allForRound = listIssueAgents(issue_id).filter(
+      const allForRound = agents.filter(
         (ia) => ia.role === "reviewer" && (ia.status === "active" || ia.status === "approved")
       );
       const allApproved = allForRound.every((ia) => ia.status === "approved");
