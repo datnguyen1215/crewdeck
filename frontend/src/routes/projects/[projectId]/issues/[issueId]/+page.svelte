@@ -28,16 +28,13 @@
 	let copied = $state(false);
 
 	$effect(() => {
+		let cancelled = false;
 		loading = true;
 		getIssue(projectId, issueId)
-			.then((d) => {
-				issue = d;
-				loading = false;
-			})
-			.catch(() => {
-				issue = null;
-				loading = false;
-			});
+			.then((d) => { if (!cancelled) issue = d; })
+			.catch(() => { if (!cancelled) issue = null; })
+			.finally(() => { if (!cancelled) loading = false; });
+		return () => { cancelled = true; };
 	});
 
 	function rel(iso: string) {
@@ -57,47 +54,63 @@
 	// Minimal markdown renderer — handles the subset used in mock data
 	function md(text: string): string {
 		if (!text) return '';
-		// Escape HTML first so all content is safe; then apply markdown transforms
-		let out = esc(text)
-			// Code blocks (must be before inline code)
-			.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`)
-			// Inline code
-			.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`)
-			// Bold
-			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-			// Italic (single *)
-			.replace(/\*([^*]+)\*/g, '<em>$1</em>');
 
-		// Process line by line for headers and lists
-		const lines = out.split('\n');
+		// Apply inline transforms to a single line (HTML already escaped via esc)
+		function inline(s: string): string {
+			return esc(s)
+				.replace(/`([^`]+)`/g, '<code>$1</code>')
+				.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+				.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+		}
+
+		// Process line by line so fenced code blocks are never torn apart
+		const lines = text.split('\n');
 		const result: string[] = [];
 		let inList: 'ul' | 'ol' | false = false;
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
+		let inCodeBlock = false;
+		const codeLines: string[] = [];
+
+		for (const line of lines) {
+			if (/^```/.test(line)) {
+				if (inCodeBlock) {
+					if (inList) { result.push(`</${inList}>`); inList = false; }
+					result.push(`<pre><code>${codeLines.join('\n')}</code></pre>`);
+					codeLines.length = 0;
+					inCodeBlock = false;
+				} else {
+					inCodeBlock = true;
+				}
+				continue;
+			}
+			if (inCodeBlock) {
+				codeLines.push(esc(line));
+				continue;
+			}
 			if (/^### /.test(line)) {
 				if (inList) { result.push(`</${inList}>`); inList = false; }
-				result.push(`<h3>${line.slice(4)}</h3>`);
+				result.push(`<h3>${inline(line.slice(4))}</h3>`);
 			} else if (/^## /.test(line)) {
 				if (inList) { result.push(`</${inList}>`); inList = false; }
-				result.push(`<h2>${line.slice(3)}</h2>`);
+				result.push(`<h2>${inline(line.slice(3))}</h2>`);
 			} else if (/^# /.test(line)) {
 				if (inList) { result.push(`</${inList}>`); inList = false; }
-				result.push(`<h1>${line.slice(2)}</h1>`);
+				result.push(`<h1>${inline(line.slice(2))}</h1>`);
 			} else if (/^\d+\. /.test(line)) {
 				if (!inList) { result.push('<ol>'); inList = 'ol'; }
-				result.push(`<li>${line.replace(/^\d+\. /, '')}</li>`);
+				result.push(`<li>${inline(line.replace(/^\d+\. /, ''))}</li>`);
 			} else if (/^- /.test(line)) {
 				if (!inList) { result.push('<ul>'); inList = 'ul'; }
-				result.push(`<li>${line.slice(2)}</li>`);
+				result.push(`<li>${inline(line.slice(2))}</li>`);
 			} else {
 				if (inList) { result.push(`</${inList}>`); inList = false; }
 				if (line.trim() === '') {
 					result.push('<br>');
 				} else {
-					result.push(`<p>${line}</p>`);
+					result.push(`<p>${inline(line)}</p>`);
 				}
 			}
 		}
+		if (inCodeBlock) result.push(`<pre><code>${codeLines.join('\n')}</code></pre>`);
 		if (inList) result.push(`</${inList}>`);
 		return result.join('');
 	}
@@ -395,7 +408,8 @@
 						{/if}
 
 						{#if issue.status === 'pr_created' && issue.issue_prs?.length}
-							<a href={issue.issue_prs[0].pr_url} target="_blank" rel="noopener" class="w-full py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 block">View PR #{issue.issue_prs[0].pr_number}</a>
+							{@const pr = issue.issue_prs[0]}
+							<a href={pr.pr_url} target="_blank" rel="noopener" class="w-full py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 block">View PR #{pr.pr_number}</a>
 						{/if}
 
 						<button onclick={openEdit} class="w-full py-1.5 border border-edge text-secondary rounded hover:border-edge-hi hover:text-primary transition-colors text-left px-3">Edit Issue</button>
@@ -403,7 +417,7 @@
 				</div>
 
 				<!-- Agents panel -->
-				{#if issue.issue_agents && issue.issue_agents.length > 0}
+				{#if issue.issue_agents?.length}
 					<div class="bg-surface border border-edge rounded p-4">
 						<div class="text-xs text-muted uppercase tracking-widest mb-3">Agents</div>
 						<div class="flex flex-col gap-2 text-xs">
@@ -428,7 +442,7 @@
 				<!-- Pull Requests panel -->
 				<div class="bg-surface border border-edge rounded p-4">
 					<div class="text-xs text-muted uppercase tracking-widest mb-3">Pull Requests</div>
-					{#if issue.issue_prs && issue.issue_prs.length > 0}
+					{#if issue.issue_prs?.length}
 						<div class="flex flex-col gap-2 text-xs">
 							{#each issue.issue_prs as pr}
 								<div class="flex items-center gap-2">
