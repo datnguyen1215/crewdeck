@@ -128,6 +128,7 @@ describe("event bus bridge", () => {
   beforeEach(() => {
     bus = new EventBus();
     subscribers.clear();
+    subscribeEvents(bus);
   });
 
   afterEach(() => {
@@ -143,7 +144,6 @@ describe("event bus bridge", () => {
   it("issue.created broadcasts full issue object", () => {
     const ws = mockWs();
     addSubscriber("p1", ws);
-    bus.on("issue.created", ({ issue }) => broadcast(issue.project_id, "issue.created", issue));
     bus.emit("issue.created", { issue: { id: "i1", project_id: "p1" } as never });
     const msg = lastMessage(ws);
     expect(msg.event).toBe("issue.created");
@@ -153,8 +153,6 @@ describe("event bus bridge", () => {
   it("issue.status_changed broadcasts { issue_id, from, to }", () => {
     const ws = mockWs();
     addSubscriber("p1", ws);
-    bus.on("issue.status_changed", ({ issue_id, project_id, from, to }) =>
-      broadcast(project_id, "issue.status_changed", { issue_id, from, to }));
     bus.emit("issue.status_changed", { issue_id: "i1", project_id: "p1", from: "open", to: "closed" });
     const msg = lastMessage(ws);
     expect(msg.event).toBe("issue.status_changed");
@@ -164,8 +162,6 @@ describe("event bus bridge", () => {
   it("agent.idle broadcasts { agent_id }", () => {
     const ws = mockWs();
     addSubscriber("p1", ws);
-    bus.on("agent.idle", ({ agent_id, project_id }) =>
-      broadcast(project_id, "agent.idle", { agent_id }));
     bus.emit("agent.idle", { agent_id: "a1", project_id: "p1" });
     const msg = lastMessage(ws);
     expect(msg.event).toBe("agent.idle");
@@ -175,8 +171,6 @@ describe("event bus bridge", () => {
   it("pr.status_changed broadcasts { pr_id, from, to }", () => {
     const ws = mockWs();
     addSubscriber("p1", ws);
-    bus.on("pr.status_changed", ({ pr_id, project_id, from, to }) =>
-      broadcast(project_id, "pr.status_changed", { pr_id, from, to }));
     bus.emit("pr.status_changed", { pr_id: "pr1", project_id: "p1", from: "open", to: "merged" });
     const msg = lastMessage(ws);
     expect(msg.event).toBe("pr.status_changed");
