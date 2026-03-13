@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getIssue, addComment, approveIssue, discardIssue, updateIssue } from '$lib/mock/api.js';
-	import { getMockSession } from '$lib/mock/terminal.js';
+	import { mockSessions } from '$lib/mock/terminal.js';
 	import Terminal from '$lib/components/Terminal.svelte';
 
 	type Issue = Awaited<ReturnType<typeof getIssue>>;
@@ -31,7 +31,7 @@
 
 	// Tab navigation
 	let activeTab = $state<'description' | 'comments' | 'terminal'>('description');
-	let terminalSession = $derived(issue ? getMockSession(issue.id) : null);
+	let terminalSession = $derived(issue ? mockSessions[issue.id] ?? null : null);
 
 	$effect(() => {
 		let cancelled = false;

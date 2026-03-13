@@ -5,13 +5,12 @@
 
 /**
  * @typedef {{ text: string; delayMs: number }} OutputLine
- * @typedef {{ sessionId: string; agentName: string; status: 'running' | 'completed' | 'idle'; outputLines: OutputLine[] }} MockTerminalSession
+ * @typedef {{ agentName: string; status: 'running' | 'completed' | 'idle'; outputLines: OutputLine[] }} MockTerminalSession
  */
 
 /** Pre-built mock scenarios keyed by issue id */
 export const mockSessions = {
 	'api-3': {
-		sessionId: 'sess-alice-3',
 		agentName: 'Alice',
 		status: 'running',
 		outputLines: [
@@ -59,7 +58,6 @@ export const mockSessions = {
 	},
 
 	'api-4': {
-		sessionId: 'sess-charlie-4',
 		agentName: 'Charlie',
 		status: 'running',
 		outputLines: [
@@ -94,7 +92,6 @@ export const mockSessions = {
 	},
 
 	'api-auth-bug': {
-		sessionId: 'sess-alice-auth',
 		agentName: 'Alice',
 		status: 'completed',
 		outputLines: [
@@ -135,7 +132,6 @@ export const mockSessions = {
 	},
 
 	'mob-2': {
-		sessionId: 'sess-dave-mob-2',
 		agentName: 'Dave',
 		status: 'completed',
 		outputLines: [
@@ -166,15 +162,6 @@ export const mockSessions = {
 		]
 	}
 };
-
-/**
- * Get mock session for a given issue id, or null if no session exists.
- * @param {string} issueId
- * @returns {MockTerminalSession | null}
- */
-export function getMockSession(issueId) {
-	return mockSessions[issueId] ?? null;
-}
 
 /**
  * Stream terminal output to an xterm Terminal instance with realistic timing.

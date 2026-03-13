@@ -5,7 +5,6 @@
 
 	interface OutputLine { text: string; delayMs: number; }
 	interface Session {
-		sessionId: string;
 		agentName: string;
 		status: 'running' | 'completed' | 'idle';
 		outputLines: OutputLine[];
@@ -18,18 +17,24 @@
 	let { session }: Props = $props();
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let term: any = null;
 	let cancelStream: (() => void) | null = null;
 	let streamDone = $state(false);
+	let destroyed = false;
 
 	const isRunning = $derived(session.status === 'running' && !streamDone);
+
+	onDestroy(() => {
+		destroyed = true;
+		cancelStream?.();
+	});
 
 	onMount(async () => {
 		// Dynamic import — xterm is client-only (no SSR)
 		const { Terminal } = await import('@xterm/xterm');
 		const { FitAddon } = await import('@xterm/addon-fit');
 		const { WebLinksAddon } = await import('@xterm/addon-web-links');
+
+		if (destroyed) return;
 
 		const t = new Terminal({
 			cursorBlink: session.status === 'running',
@@ -70,7 +75,6 @@
 
 		t.open(containerEl!);
 		fitAddon.fit();
-		term = t;
 
 		// Start streaming mock output
 		cancelStream = streamOutput(t, session.outputLines, () => {
@@ -86,10 +90,6 @@
 			cancelStream?.();
 			t.dispose();
 		};
-	});
-
-	onDestroy(() => {
-		cancelStream?.();
 	});
 </script>
 
