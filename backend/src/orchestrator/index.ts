@@ -6,7 +6,7 @@ import type { EventBus } from "../events/bus.js";
 import type { AgentAdapter } from "../agent/types.js";
 import { agentSessionName, orchestratorSessionName, mergeContext } from "../agent/types.js";
 import { buildAgentPrompt, buildReviewerPrompt } from "../agent/prompt.js";
-import { createWorktree } from "../agent/worktree.js";
+import { createWorktree, cleanupWorktree } from "../agent/worktree.js";
 import { buildOrchestratorPrompt, type OrchestratorState } from "./prompt.js";
 import { escapeXml } from "../utils/xml.js";
 import { parseAction, validateActionParams, type OrchestratorAction } from "./actions.js";
@@ -107,19 +107,21 @@ async function executeAssign(
   // Create worktree if repo is configured
   const repos = listRepos(projectId);
   let worktreePath = "/tmp";
+  let createdBranchName: string | null = null;
   if (repos.length > 0) {
     const repo = repos[0];
     try {
-      worktreePath = await createWorktree(repo, updatedIssue, repo.default_branch);
+      const wt = await createWorktree(repo, updatedIssue, repo.default_branch);
+      worktreePath = wt.path;
+      createdBranchName = wt.branchName;
     } catch (err) {
       logger.error({ err, issue_id }, "assign: failed to create worktree, using /tmp");
     }
   }
 
-  // Build agent prompt
-  const comments = listComments(issue_id);
+  // Build agent prompt — listComments only needed when a repo is configured
   const promptText = repos.length > 0
-    ? buildAgentPrompt(updatedIssue, agent, repos[0], { worktreePath, previousComments: comments })
+    ? buildAgentPrompt(updatedIssue, agent, repos[0], { worktreePath, previousComments: listComments(issue_id) })
     : `You are ${escapeXml(agent.name)}. Work on the issue below.\n\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>\n\nRun: crewdeck signal --event work-complete when done.`;
 
   // Create session record
@@ -155,7 +157,20 @@ async function executeAssign(
     logger.error({ err, sessionName }, "assign: failed to spawn agent session");
     updateSession(session.id, { status: "error" });
     updateIssueAgent(issueAgent.id, { status: "error" });
-    updateIssue(issue_id, { status: issue.status, assigned_agent_id: issue.assigned_agent_id });
+    // Restore all issue fields including worktree fields so the next assignment isn't blocked
+    updateIssue(issue_id, {
+      status: issue.status,
+      assigned_agent_id: issue.assigned_agent_id,
+      worktree_path: issue.worktree_path ?? null,
+      branch_name: issue.branch_name ?? null,
+      base_branch: issue.base_branch ?? null,
+    });
+    // Clean up the orphaned git worktree so future assignments don't fail on a duplicate branch
+    if (repos.length > 0 && createdBranchName) {
+      cleanupWorktree(repos[0], worktreePath, createdBranchName).catch((cleanErr) => {
+        logger.warn({ cleanErr, worktreePath }, "assign: failed to clean up orphaned worktree");
+      });
+    }
     return;
   }
 
@@ -227,15 +242,14 @@ async function executeRouteReview(
     review_order,
   });
 
-  // Build reviewer prompt
+  // Build reviewer prompt — listComments only needed when a repo is configured
   const repos = listRepos(projectId);
-  const comments = listComments(issue_id);
   const worktreePath = updatedIssue.worktree_path ?? "/tmp";
   const promptText = repos.length > 0
     ? buildReviewerPrompt(updatedIssue, reviewer, repos[0], {
         worktreePath,
         branchName: updatedIssue.branch_name ?? "main",
-        comments,
+        comments: listComments(issue_id),
       })
     : `You are ${escapeXml(reviewer.name)}, a reviewer. Review the issue below.\n\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>\n\nRun crewdeck signal --event review-complete --data '{"verdict":"approved"}' or '{"verdict":"changes_requested"}' when done.`;
 
@@ -433,7 +447,7 @@ export class OrchestratorManager {
       const issue = getIssue(issue_id);
       void this.resume(
         project_id,
-        `Review completed (issue_id: ${issue_id}, reviewer_agent_id: ${agent_id}, verdict: ${safeVerdict}, round: ${issue?.current_review_round ?? "?"}/${getProject(project_id)?.max_review_rounds ?? "?"}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>`
+        `Review completed (issue_id: ${issue_id}, reviewer_agent_id: ${agent_id}, verdict: ${safeVerdict}, round: ${issue?.current_review_round ?? "?"}/${issue?.max_review_rounds ?? "?"}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>`
       );
     });
 

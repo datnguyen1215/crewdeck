@@ -19,7 +19,7 @@ export async function createWorktree(
   repo: Repo,
   issue: Issue,
   baseBranch: string
-): Promise<string> {
+): Promise<{ path: string; branchName: string }> {
   const branchName = `crewdeck/${issue.id.slice(0, 8)}-${slugify(issue.title)}`;
   const worktreePath = join(repo.local_path, ".worktrees", branchName);
 
@@ -33,7 +33,7 @@ export async function createWorktree(
     base_branch: baseBranch,
   });
 
-  return worktreePath;
+  return { path: worktreePath, branchName };
 }
 
 export async function cleanupWorktree(
