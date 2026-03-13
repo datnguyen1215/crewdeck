@@ -48,8 +48,6 @@ function flushSessionOutput(sessionId: string, projectId: string): void {
   const buf = outputBuffers.get(sessionId);
   if (!buf || buf.chunks.length === 0) return;
   const output = buf.chunks.join("");
-  buf.chunks = [];
-  buf.timer = null;
   outputBuffers.delete(sessionId);
   broadcast(projectId, "session.output", { session_id: sessionId, output });
 }
@@ -91,10 +89,7 @@ export function subscribeEvents(bus: EventBus): void {
   bus.on("session.ended", ({ session_id, project_id, status }) => {
     // Flush any buffered output before the ended event
     const buf = outputBuffers.get(session_id);
-    if (buf?.timer) {
-      clearTimeout(buf.timer);
-      buf.timer = null;
-    }
+    if (buf?.timer) clearTimeout(buf.timer);
     flushSessionOutput(session_id, project_id);
     outputBuffers.delete(session_id);
     broadcast(project_id, "session.ended", { session_id, status });
@@ -173,10 +168,14 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
     });
 
     // Server-push only — client messages are ignored
-    ws.on("close", () => removeSubscriber(projectId, ws));
+    ws.on("close", () => {
+      if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
+      removeSubscriber(projectId, ws);
+    });
 
     ws.on("error", (err) => {
       logger.error({ err }, "WebSocket error");
+      if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
       removeSubscriber(projectId, ws);
     });
   });
