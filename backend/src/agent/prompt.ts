@@ -32,21 +32,17 @@ export function buildAgentPrompt(
     parts.push(`## Review Feedback to Address\n${feedbackText}`);
   }
 
-  parts.push(
-    [
-      "## Instructions",
-      `You are ${agent.name}, a ${agent.role} agent. Work on the issue described above.`,
-      "",
-      "When your work is complete, run:",
-      "  crewdeck signal --event work-complete",
-      "",
-      "Post progress updates with:",
-      "  crewdeck comment --message '...'",
-      "",
-      "Report modified files with:",
-      "  crewdeck files --modified <files>",
-    ].join("\n")
-  );
+  parts.push(`## Instructions
+You are ${agent.name}, a ${agent.role} agent. Work on the issue described above.
+
+When your work is complete, run:
+  crewdeck signal --event work-complete
+
+Post progress updates with:
+  crewdeck comment --message '...'
+
+Report modified files with:
+  crewdeck files --modified <files>`);
 
   return parts.join("\n\n");
 }
