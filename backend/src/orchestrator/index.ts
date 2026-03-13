@@ -158,11 +158,10 @@ async function executeAssign(
   });
 
   // Post orchestrator comment
-  createComment(issue_id, {
+  const comment = createComment(issue_id, {
     content: `Assigned to ${agent.name} (${agent.role}). Session started.`,
     author_type: "orchestrator",
   });
-  const comment = listComments(issue_id).at(-1)!;
   bus.emit("comment.added", { comment, project_id: projectId });
 }
 
@@ -261,11 +260,10 @@ async function executeRouteReview(
     tmux_session_name: sessionName,
   });
 
-  createComment(issue_id, {
+  const comment = createComment(issue_id, {
     content: `Routing to ${reviewer.name} for code review (round ${updatedIssue.current_review_round}).`,
     author_type: "orchestrator",
   });
-  const comment = listComments(issue_id).at(-1)!;
   bus.emit("comment.added", { comment, project_id: projectId });
 }
 
@@ -274,11 +272,10 @@ function executeEscalate(params: Record<string, unknown>, projectId: string, bus
   const issue = getIssue(issue_id);
   if (!issue) { logger.warn({ issue_id }, "escalate: issue not found"); return; }
 
-  createComment(issue_id, {
+  const comment = createComment(issue_id, {
     content: `⚠️ Escalated to human attention: ${reason}`,
     author_type: "orchestrator",
   });
-  const comment = listComments(issue_id).at(-1)!;
   bus.emit("comment.added", { comment, project_id: projectId });
 }
 
@@ -437,9 +434,11 @@ export class OrchestratorManager {
     if (verdict === "approved") {
       updateIssueAgent(reviewerRecord.id, { status: "approved" });
 
-      // Check if all active reviewers for this round approved
+      // Check if all reviewers for the current round approved.
+      // Only consider "active" or "approved" records — prior round records
+      // with "changes_requested" status must be excluded.
       const allForRound = listIssueAgents(issue_id).filter(
-        (ia) => ia.role === "reviewer" && ia.status !== "pending"
+        (ia) => ia.role === "reviewer" && (ia.status === "active" || ia.status === "approved")
       );
       const allApproved = allForRound.every((ia) => ia.status === "approved");
       if (allApproved && allForRound.length > 0) {

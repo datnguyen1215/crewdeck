@@ -1,5 +1,4 @@
-import type { Project, Issue, Agent } from "../types/entities.js";
-import type { CrewWithAgents } from "../types/entities.js";
+import type { Project, Issue, Agent, CrewWithAgents } from "../types/entities.js";
 
 export interface OrchestratorState {
   project: Project;
