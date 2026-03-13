@@ -1,4 +1,7 @@
 import type { Project, Issue, Agent, CrewWithAgents } from "../types/entities.js";
+import { escapeXml } from "../utils/xml.js";
+
+export { escapeXml };
 
 export interface OrchestratorState {
   project: Project;
@@ -8,10 +11,6 @@ export interface OrchestratorState {
   inReviewIssues: Issue[];
   feedbackIssues: Issue[];
   draftIssues: Issue[];
-}
-
-export function escapeXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function idleAgents(agents: Agent[], active: Issue[]): Agent[] {

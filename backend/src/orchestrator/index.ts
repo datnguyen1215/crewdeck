@@ -188,6 +188,10 @@ async function executeRouteReview(
     logger.warn({ issue_id, projectId }, "route_review: issue does not belong to project");
     return;
   }
+  if (!["in_progress", "feedback"].includes(issue.status)) {
+    logger.warn({ issue_id, status: issue.status }, "route_review: issue is not in a reviewable state");
+    return;
+  }
 
   const reviewer = getAgent(reviewer_agent_id);
   if (!reviewer) { logger.warn({ reviewer_agent_id }, "route_review: reviewer not found"); return; }
@@ -411,10 +415,12 @@ export class OrchestratorManager {
       // orchestrator sees the updated state (e.g. issue.status === "ready" on full approval).
       this.handleReviewVerdict(issue_id, project_id, agent_id, verdict);
 
+      // Validate verdict against the known allowlist before embedding in prompt
+      const safeVerdict = ["approved", "changes_requested"].includes(verdict) ? verdict : "unknown";
       const issue = getIssue(issue_id);
       void this.resume(
         project_id,
-        `Review completed (issue_id: ${issue_id}, reviewer_agent_id: ${agent_id}, verdict: ${verdict}, round: ${issue?.current_review_round ?? "?"}/${getProject(project_id)?.max_review_rounds ?? "?"}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>`
+        `Review completed (issue_id: ${issue_id}, reviewer_agent_id: ${agent_id}, verdict: ${safeVerdict}, round: ${issue?.current_review_round ?? "?"}/${getProject(project_id)?.max_review_rounds ?? "?"}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>`
       );
     });
 
@@ -476,6 +482,10 @@ export class OrchestratorManager {
         from: prevIssue?.status ?? "in_review",
         to: "feedback",
       });
+    } else {
+      // Unknown verdict — mark the IssueAgent as error so the review cycle isn't permanently stuck
+      logger.warn({ issue_id, agent_id, verdict }, "handleReviewVerdict: unknown verdict");
+      updateIssueAgent(reviewerRecord.id, { status: "error" });
     }
   }
 

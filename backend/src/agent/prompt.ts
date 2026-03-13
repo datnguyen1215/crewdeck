@@ -1,8 +1,5 @@
 import type { Issue, Agent, Repo, Comment } from "../types/entities.js";
-
-function escapeXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+import { escapeXml } from "../utils/xml.js";
 
 const fmtComments = (cs: Comment[]) =>
   cs.map((c) => `**${c.author_type}**: ${escapeXml(c.content)}`).join("\n\n");
