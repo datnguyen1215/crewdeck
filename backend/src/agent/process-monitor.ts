@@ -44,32 +44,32 @@ export class ProcessMonitor {
         // if overlapping ticks both observe the session as dead.
         this.finished.add(session.id);
 
+        // Capture output while session may still exist — after isAlive returns
+        // false the tmux pane is gone and capture-pane will fail.
+        let lastOutput = "";
+        try {
+          lastOutput = await this.adapter.getOutput(session.tmux_session_name);
+        } catch {
+          // Output unavailable
+        }
+
         const alive = await this.adapter.isAlive(session.tmux_session_name);
         if (alive) {
-          // Still running — undo the premature mark so we check again next tick.
           this.finished.delete(session.id);
           return;
         }
 
-        // If the monitor was stopped (shutdown in progress), bail out —
-        // gracefulShutdown owns the final status update for these sessions.
+        // Check stopped just before mutating DB — if shutdown started while we
+        // were awaiting above, gracefulShutdown owns the final status update.
         if (this.stopped) {
           this.finished.delete(session.id);
           return;
         }
 
-        // Capture final output before marking complete
-        let finalOutput = "";
-        try {
-          finalOutput = await this.adapter.getOutput(session.tmux_session_name);
-        } catch {
-          // Output unavailable — session already gone
-        }
-
         try {
           updateSession(session.id, {
             status: "completed",
-            context: mergeContext(session.context, { final_output: finalOutput }),
+            context: mergeContext(session.context, { final_output: lastOutput }),
           });
 
           eventBus.emit("session.ended", {

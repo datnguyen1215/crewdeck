@@ -8,10 +8,6 @@ export interface SpawnOptions {
 
 export interface SessionHandle {
   sessionName: string;
-  paneId: string;
-  // Initial shell PID before the launch script runs — not the agent process PID.
-  // The pane PID changes after `exec claude ...` replaces the shell.
-  pid: number;
 }
 
 export interface AgentAdapter {

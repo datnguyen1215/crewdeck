@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import { logger } from "../logger.js";
 import { listRunningSessions, updateSession } from "../db/repositories/sessions.js";
 import { CREWDECK_SESSION_PREFIX, mergeContext, type AgentAdapter } from "./types.js";
-import { shellQuote } from "./adapters/claude-code.js";
+import { shellQuote } from "./shell.js";
 
 const execAsync = promisify(exec);
 

@@ -2,7 +2,7 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { join } from "node:path";
 import { updateIssue } from "../db/repositories/issues.js";
-import { shellQuote } from "./adapters/claude-code.js";
+import { shellQuote } from "./shell.js";
 import type { Repo, Issue } from "../types/entities.js";
 
 const execAsync = promisify(exec);

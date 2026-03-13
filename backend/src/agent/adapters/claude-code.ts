@@ -5,29 +5,26 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { config } from "../../config.js";
 import type { AgentAdapter, SpawnOptions, SessionHandle } from "../types.js";
+import { shellQuote } from "../shell.js";
 
 const execAsync = promisify(exec);
 
-// POSIX single-quote escaping for shell arguments
-export function shellQuote(str: string): string {
-  return "'" + str.replace(/'/g, "'\\''") + "'";
-}
-
 // Build a launch script using base64-encoded prompts to avoid shell escaping issues
+// --dangerously-skip-permissions: required for unattended agent execution.
+// TODO: Add auth middleware on agent-spawning routes before production (see index.ts).
 function buildLaunchScript(prompt: string, systemPrompt?: string): string {
-  const promptB64 = Buffer.from(prompt).toString("base64");
-  // Decode prompt from base64 to avoid escaping issues
-  const promptLine = `PROMPT=$(printf '%s' ${shellQuote(promptB64)} | base64 -d)`;
-
+  const encode = (s: string) => shellQuote(Buffer.from(s).toString("base64"));
+  const lines = [
+    "#!/bin/bash",
+    `PROMPT=$(printf '%s' ${encode(prompt)} | base64 -d)`,
+  ];
   if (systemPrompt) {
-    const systemB64 = Buffer.from(systemPrompt).toString("base64");
-    // --dangerously-skip-permissions: required for unattended agent execution.
-    // TODO: Add auth middleware on agent-spawning routes before production (see index.ts).
-    return `#!/bin/bash\n${promptLine}\nSYSTEM_PROMPT=$(printf '%s' ${shellQuote(systemB64)} | base64 -d)\nexec claude --dangerously-skip-permissions --system-prompt "$SYSTEM_PROMPT" --prompt "$PROMPT"\n`;
+    lines.push(`SYSTEM_PROMPT=$(printf '%s' ${encode(systemPrompt)} | base64 -d)`);
+    lines.push('exec claude --dangerously-skip-permissions --system-prompt "$SYSTEM_PROMPT" --prompt "$PROMPT"');
+  } else {
+    lines.push('exec claude --dangerously-skip-permissions --prompt "$PROMPT"');
   }
-  // --dangerously-skip-permissions: required for unattended agent execution.
-  // TODO: Add auth middleware on agent-spawning routes before production (see index.ts).
-  return `#!/bin/bash\n${promptLine}\nexec claude --dangerously-skip-permissions --prompt "$PROMPT"\n`;
+  return lines.join("\n") + "\n";
 }
 
 export class ClaudeCodeAdapter implements AgentAdapter {
@@ -43,14 +40,6 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       await execAsync(`tmux setenv -t ${shellQuote(sessionName)} ${shellQuote(key)} ${shellQuote(value)}`);
     }
 
-    // Capture pane ID and shell PID before sending the command
-    const { stdout: paneIdRaw } = await execAsync(
-      `tmux display-message -t ${shellQuote(sessionName)} -p '#{pane_id}'`
-    );
-    const { stdout: pidRaw } = await execAsync(
-      `tmux display-message -t ${shellQuote(sessionName)} -p '#{pane_pid}'`
-    );
-
     // Write launch script to a temp file — avoids multi-level shell escaping
     // crypto.randomUUID() — available as a global since Node 19
     // Temp script cleanup relies on the `rm -f` in the tmux command — if the session is killed
@@ -62,11 +51,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     const runCmd = `bash ${shellQuote(scriptPath)}; rm -f ${shellQuote(scriptPath)}`;
     await execAsync(`tmux send-keys -t ${shellQuote(sessionName)} ${shellQuote(runCmd)} Enter`);
 
-    return {
-      sessionName,
-      paneId: paneIdRaw.trim(),
-      pid: parseInt(pidRaw.trim(), 10),
-    };
+    return { sessionName };
   }
 
   async send(sessionName: string, message: string): Promise<void> {

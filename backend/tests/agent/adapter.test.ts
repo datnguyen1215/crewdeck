@@ -28,12 +28,9 @@ describe("ClaudeCodeAdapter", () => {
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
         calls.push(cmd as string);
-        let stdout = "";
-        if ((cmd as string).includes("pane_id")) stdout = "%0\n";
-        if ((cmd as string).includes("pane_pid")) stdout = "12345\n";
         (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
           null,
-          { stdout, stderr: "" }
+          { stdout: "", stderr: "" }
         );
         return {} as ReturnType<typeof exec>;
       });
@@ -48,8 +45,6 @@ describe("ClaudeCodeAdapter", () => {
       expect(calls[0]).toContain("crewdeck-test");
       expect(calls[0]).toContain("/tmp/work");
       expect(handle.sessionName).toBe("crewdeck-test");
-      expect(handle.paneId).toBe("%0");
-      expect(handle.pid).toBe(12345);
     });
 
     it("injects environment variables into the tmux session", async () => {
@@ -57,12 +52,9 @@ describe("ClaudeCodeAdapter", () => {
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
         calls.push(cmd as string);
-        let stdout = "";
-        if ((cmd as string).includes("pane_id")) stdout = "%1\n";
-        if ((cmd as string).includes("pane_pid")) stdout = "99\n";
         (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
           null,
-          { stdout, stderr: "" }
+          { stdout: "", stderr: "" }
         );
         return {} as ReturnType<typeof exec>;
       });
@@ -83,12 +75,9 @@ describe("ClaudeCodeAdapter", () => {
     it("includes system-prompt in the launch script when provided", async () => {
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
-        let stdout = "";
-        if ((cmd as string).includes("pane_id")) stdout = "%2\n";
-        if ((cmd as string).includes("pane_pid")) stdout = "42\n";
         (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
           null,
-          { stdout, stderr: "" }
+          { stdout: "", stderr: "" }
         );
         return {} as ReturnType<typeof exec>;
       });
