@@ -16,10 +16,8 @@ export async function commentCommand(argv: string[]): Promise<void> {
 
   const message = argv[msgIdx + 1];
 
-  await post("/internal/comment", {
-    ...sessionContext(),
-    content: message,
-  });
+  const { apiUrl, ...ctx } = sessionContext();
+  await post("/internal/comment", { ...ctx, content: message }, apiUrl);
 
   console.log("Comment posted.");
 }

@@ -1,4 +1,4 @@
-// TODO: These routes need auth (shared secret or network isolation) before production. Currently exposed publicly.
+// TODO: add auth middleware — these endpoints are callable by any network-reachable client
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
@@ -17,7 +17,7 @@ const SignalSchema = z.object({
   issue_id: z.string(),
   project_id: z.string(),
   event: z.enum(["work-complete", "review-complete", "error", "needs-help"]),
-  data: z.record(z.unknown()).optional(),
+  data: z.object({ verdict: z.string().optional(), message: z.string().optional() }).optional(),
 });
 
 const CommentSchema = z.object({
@@ -36,9 +36,6 @@ const StatusSchema = z.object({
 
 const FilesSchema = z.object({
   session_id: z.string(),
-  agent_id: z.string(),
-  issue_id: z.string(),
-  project_id: z.string(),
   modified: z.array(z.string()).min(1),
 });
 
@@ -52,13 +49,13 @@ router.post("/signal", validate(SignalSchema), (req, res) => {
     const role = agent?.role ?? "unknown";
     eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role });
   } else if (event === "review-complete") {
-    const verdict = (data?.verdict as string) ?? "approved";
+    const verdict = data?.verdict ?? "pending";
     eventBus.emit("review.completed", { issue_id, agent_id, project_id, verdict });
   } else if (event === "error") {
-    const message = data?.message as string | undefined;
+    const message = data?.message;
     eventBus.emit("agent.error", { session_id, agent_id, issue_id, project_id, message });
   } else if (event === "needs-help") {
-    const message = data?.message as string | undefined;
+    const message = data?.message;
     eventBus.emit("agent.needs_help", { session_id, agent_id, issue_id, project_id, message });
   }
 

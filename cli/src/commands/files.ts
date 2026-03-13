@@ -27,6 +27,7 @@ export async function filesCommand(argv: string[]): Promise<void> {
     process.exit(1);
   }
 
-  await post("/internal/files", { ...sessionContext(), modified });
+  const { apiUrl, session_id } = sessionContext();
+  await post("/internal/files", { session_id, modified }, apiUrl);
   console.log(`Reported ${modified.length} modified file(s).`);
 }
