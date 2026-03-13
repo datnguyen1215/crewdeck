@@ -15,6 +15,9 @@ import sessionsRouter from "./routes/sessions.js";
 import activityRouter from "./routes/activity.js";
 import orchestratorRouter from "./routes/orchestrator.js";
 import internalRouter from "./routes/internal.js";
+import { claudeCodeAdapter } from "./agent/adapters/claude-code.js";
+import { ProcessMonitor } from "./agent/process-monitor.js";
+import { cleanupOrphans, gracefulShutdown } from "./agent/orphan-cleanup.js";
 import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 
@@ -48,17 +51,38 @@ app.use(`${v1}/internal`, internalRouter);
 // Centralized error handler — must be last
 app.use(errorHandler);
 
-const server = app.listen(config.port, config.host, () => {
-  logger.info(`Server started on port ${config.port}`);
-});
+const processMonitor = new ProcessMonitor(claudeCodeAdapter);
 
-const wss = setupWebSocket(server, eventBus);
+async function main(): Promise<void> {
+  // Run cleanup and start monitor before accepting connections to avoid
+  // races between orphan cleanup, process monitoring, and incoming requests.
+  await cleanupOrphans();
+  processMonitor.start();
 
-// Graceful shutdown
-function shutdown() {
-  shutdownWebSocket(wss);
-  db.close();
-  process.exit(0);
+  const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
+    const s = app.listen(config.port, config.host, () => {
+      logger.info(`Server ready on port ${config.port}`);
+      resolve(s);
+    });
+  });
+
+  const wss = setupWebSocket(server, eventBus);
+
+  async function shutdown() {
+    shutdownWebSocket(wss);
+    processMonitor.stop();
+    try {
+      await gracefulShutdown(claudeCodeAdapter);
+    } finally {
+      db.close();
+      process.exit(0);
+    }
+  }
+  process.on("SIGTERM", () => { void shutdown(); });
+  process.on("SIGINT", () => { void shutdown(); });
 }
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+
+main().catch((err) => {
+  logger.error({ err }, "Failed to start server");
+  process.exit(1);
+});

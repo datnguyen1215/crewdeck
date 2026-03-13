@@ -47,6 +47,11 @@ export function createSession(input: CreateSessionInput): Session {
   return getSession(id)!;
 }
 
+export function listRunningSessions(): Session[] {
+  const rows = db.prepare("SELECT * FROM Session WHERE status = 'running'").all() as SessionRow[];
+  return rows.map(fromRow);
+}
+
 export function updateSession(id: string, input: UpdateSessionInput): Session {
   const fields: string[] = [];
   const values: unknown[] = [];
