@@ -24,11 +24,14 @@ export function buildReviewerPrompt(
     parts.push(`## Issue Comments\n<comments>\n${fmtComments(context.comments)}\n</comments>`);
   }
 
+  // Validate base_branch to prevent shell injection — only allow safe branch name characters.
+  const safeBranch = /^[a-zA-Z0-9._/-]+$/.test(issue.base_branch ?? "") ? issue.base_branch! : "main";
+
   parts.push(`## Instructions
 You are ${reviewer.name}, a ${reviewer.role} reviewer. Review the code changes for the issue above.
 
 To see what changed, run:
-  git diff \$(git merge-base HEAD origin/${issue.base_branch ?? "main"}) HEAD
+  git diff \$(git merge-base HEAD origin/${safeBranch}) HEAD
 
 Evaluate correctness, quality, and completeness. Then signal your verdict:
 

@@ -173,6 +173,7 @@ export interface UpdateAgentInput {
 export interface CreateIssueInput {
   title: string;
   description: string;
+  status?: string;
   max_review_rounds?: number;
   priority?: number;
   created_by?: string;

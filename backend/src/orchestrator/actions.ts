@@ -1,10 +1,5 @@
-export type ActionType =
-  | "assign"
-  | "route_review"
-  | "escalate"
-  | "create_draft_issue"
-  | "reorder"
-  | "no_action";
+const ACTION_TYPES = ["assign", "route_review", "escalate", "create_draft_issue", "reorder", "no_action"] as const;
+export type ActionType = (typeof ACTION_TYPES)[number];
 
 export interface OrchestratorAction {
   action: ActionType;
@@ -12,14 +7,7 @@ export interface OrchestratorAction {
   reasoning: string;
 }
 
-const VALID_ACTIONS = new Set<ActionType>([
-  "assign",
-  "route_review",
-  "escalate",
-  "create_draft_issue",
-  "reorder",
-  "no_action",
-]);
+const VALID_ACTIONS = new Set<ActionType>(ACTION_TYPES);
 
 // Extract JSON from Claude output — handles raw JSON or ```json ... ``` code blocks
 function extractJson(output: string): string {

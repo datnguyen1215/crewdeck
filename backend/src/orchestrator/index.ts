@@ -59,14 +59,19 @@ function buildState(projectId: string): OrchestratorState | null {
 
 async function executeAssign(
   params: Record<string, unknown>,
-  projectId: string,
+  state: OrchestratorState,
   bus: EventBus,
   adapter: AgentAdapter
 ): Promise<void> {
   const { issue_id, agent_id } = params as { issue_id: string; agent_id: string };
+  const projectId = state.project.id;
 
   const issue = getIssue(issue_id);
   if (!issue) { logger.warn({ issue_id }, "assign: issue not found"); return; }
+  if (issue.project_id !== projectId) {
+    logger.warn({ issue_id, projectId }, "assign: issue does not belong to project");
+    return;
+  }
   if (!["open", "draft"].includes(issue.status)) {
     logger.warn({ issue_id, status: issue.status }, "assign: issue is not in assignable state");
     return;
@@ -75,15 +80,12 @@ async function executeAssign(
   const agent = getAgent(agent_id);
   if (!agent) { logger.warn({ agent_id }, "assign: agent not found"); return; }
 
-  // Concurrency check
-  const project = getProject(projectId)!;
-  const activeCount = listIssues(projectId).filter((i) =>
-    ["in_progress", "in_review", "feedback"].includes(i.status)
-  ).length;
-  if (activeCount >= project.max_concurrency) {
-    logger.info({ projectId, activeCount, max: project.max_concurrency }, "assign: concurrency limit reached");
+  // Concurrency check — use pre-built state counts to avoid a second listIssues query
+  const activeCount = state.inProgressIssues.length + state.inReviewIssues.length + state.feedbackIssues.length;
+  if (activeCount >= state.project.max_concurrency) {
+    logger.info({ projectId, activeCount, max: state.project.max_concurrency }, "assign: concurrency limit reached");
     createComment(issue_id, {
-      content: `Issue queued — concurrency limit reached (${activeCount}/${project.max_concurrency})`,
+      content: `Issue queued — concurrency limit reached (${activeCount}/${state.project.max_concurrency})`,
       author_type: "orchestrator",
     });
     return;
@@ -181,6 +183,10 @@ async function executeRouteReview(
 
   const issue = getIssue(issue_id);
   if (!issue) { logger.warn({ issue_id }, "route_review: issue not found"); return; }
+  if (issue.project_id !== projectId) {
+    logger.warn({ issue_id, projectId }, "route_review: issue does not belong to project");
+    return;
+  }
 
   const reviewer = getAgent(reviewer_agent_id);
   if (!reviewer) { logger.warn({ reviewer_agent_id }, "route_review: reviewer not found"); return; }
@@ -245,7 +251,7 @@ async function executeRouteReview(
     logger.error({ err, sessionName }, "route_review: failed to spawn reviewer session");
     updateSession(session.id, { status: "error" });
     updateIssueAgent(issueAgent.id, { status: "error" });
-    updateIssue(issue_id, { status: issue.status });
+    updateIssue(issue_id, { status: issue.status, current_review_round: issue.current_review_round ?? 0 });
     return;
   }
 
@@ -275,6 +281,10 @@ function executeEscalate(params: Record<string, unknown>, projectId: string, bus
   const { issue_id, reason } = params as { issue_id: string; reason: string };
   const issue = getIssue(issue_id);
   if (!issue) { logger.warn({ issue_id }, "escalate: issue not found"); return; }
+  if (issue.project_id !== projectId) {
+    logger.warn({ issue_id, projectId }, "escalate: issue does not belong to project");
+    return;
+  }
 
   const comment = createComment(issue_id, {
     content: `⚠️ Escalated to human attention: ${reason}`,
@@ -294,40 +304,41 @@ function executeCreateDraftIssue(
     priority?: number;
   };
 
-  const issue = createIssue(projectId, {
+  const draftIssue = createIssue(projectId, {
     title,
     description: description ?? "",
+    status: "draft",
     priority: typeof priority === "number" ? priority : 0,
     created_by: "orchestrator",
   });
-  // Draft status — override the default "open"
-  const draftIssue = updateIssue(issue.id, { status: "draft" });
 
   bus.emit("orchestrator.draft_issue", { issue: draftIssue, project_id: projectId });
   bus.emit("issue.created", { issue: draftIssue });
 }
 
-function executeReorder(params: Record<string, unknown>): void {
+function executeReorder(params: Record<string, unknown>, projectId: string): void {
   const { issue_priorities } = params as {
     issue_priorities: Array<{ issue_id: string; priority: number }>;
   };
   for (const { issue_id, priority } of issue_priorities) {
     const issue = getIssue(issue_id);
-    if (issue) updateIssue(issue_id, { priority });
+    if (!issue || issue.project_id !== projectId) continue;
+    updateIssue(issue_id, { priority });
   }
 }
 
 async function executeAction(
   action: OrchestratorAction,
-  projectId: string,
+  state: OrchestratorState,
   bus: EventBus,
   adapter: AgentAdapter
 ): Promise<void> {
   const { params } = action;
+  const projectId = state.project.id;
 
   switch (action.action) {
     case "assign":
-      await executeAssign(params, projectId, bus, adapter);
+      await executeAssign(params, state, bus, adapter);
       break;
     case "route_review":
       await executeRouteReview(params, projectId, bus, adapter);
@@ -339,7 +350,7 @@ async function executeAction(
       executeCreateDraftIssue(params, projectId, bus);
       break;
     case "reorder":
-      executeReorder(params);
+      executeReorder(params, projectId);
       break;
     case "no_action":
       logger.info({ projectId, reasoning: action.reasoning }, "Orchestrator: no_action");
@@ -347,11 +358,8 @@ async function executeAction(
   }
 }
 
-function persistContext(project_id: string, action: OrchestratorAction): void {
-  const project = getProject(project_id);
-  if (!project?.orchestrator_session_id) return;
-
-  const session = getSession(project.orchestrator_session_id);
+function persistContext(sessionId: string, action: OrchestratorAction): void {
+  const session = getSession(sessionId);
   if (!session) return;
 
   updateSession(session.id, {
@@ -375,38 +383,37 @@ export class OrchestratorManager {
   ) {}
 
   init(): void {
+    // NOTE: User-controlled strings (issue titles, comments) are wrapped in XML tags
+    // to clearly delimit data from instructions and mitigate prompt injection.
+
     this.bus.on("issue.created", ({ issue }) => {
       void this.resume(
         issue.project_id,
-        `A new issue was created: "${issue.title}" (ID: ${issue.id}, status: ${issue.status})`
+        `A new issue was created (ID: ${issue.id}, status: ${issue.status}):\n<issue_title>${issue.title}</issue_title>`
       );
     });
 
-    this.bus.on("issue.approved", ({ issue }) => {
-      void this.resume(
-        issue.project_id,
-        `Issue was approved and is ready for prioritization/assignment: "${issue.title}" (ID: ${issue.id})`
-      );
-    });
+    // issue.approved is handled inside the review.completed handler below — no separate
+    // orchestrator resume needed since handleReviewVerdict runs synchronously first and
+    // review.completed already carries the full verdict context.
 
     this.bus.on("agent.finished", ({ issue_id, project_id, agent_id, role }) => {
       const issue = getIssue(issue_id);
-      const issueTitle = issue?.title ?? issue_id;
       void this.resume(
         project_id,
-        `Agent finished work on issue "${issueTitle}" (issue_id: ${issue_id}, agent_id: ${agent_id}, role: ${role}). The work session has ended — consider routing to review if work is complete.`
+        `Agent finished work on issue (issue_id: ${issue_id}, agent_id: ${agent_id}, role: ${role}):\n<issue_title>${issue?.title ?? issue_id}</issue_title>\nThe work session has ended — consider routing to review if work is complete.`
       );
     });
 
     this.bus.on("review.completed", ({ issue_id, project_id, agent_id, verdict }) => {
-      // Pre-process: update IssueAgent status based on verdict
+      // Update IssueAgent status and issue status synchronously before resuming so the
+      // orchestrator sees the updated state (e.g. issue.status === "ready" on full approval).
       this.handleReviewVerdict(issue_id, project_id, agent_id, verdict);
 
       const issue = getIssue(issue_id);
-      const issueTitle = issue?.title ?? issue_id;
       void this.resume(
         project_id,
-        `Review completed for issue "${issueTitle}" (issue_id: ${issue_id}, reviewer_agent_id: ${agent_id}, verdict: ${verdict}). Current review round: ${issue?.current_review_round ?? "?"}/${getProject(project_id)?.max_review_rounds ?? "?"}.`
+        `Review completed (issue_id: ${issue_id}, reviewer_agent_id: ${agent_id}, verdict: ${verdict}, round: ${issue?.current_review_round ?? "?"}/${getProject(project_id)?.max_review_rounds ?? "?"}):\n<issue_title>${issue?.title ?? issue_id}</issue_title>`
       );
     });
 
@@ -415,7 +422,7 @@ export class OrchestratorManager {
       if (comment.author_type !== "user") return;
       void this.resume(
         project_id,
-        `A user posted a comment on issue ${comment.issue_id}: "${comment.content.slice(0, 200)}"`
+        `A user posted a comment on issue ${comment.issue_id}:\n<user_comment>${comment.content.slice(0, 200)}</user_comment>`
       );
     });
   }
@@ -490,9 +497,10 @@ export class OrchestratorManager {
       return;
     }
 
-    // Ensure an orchestrator session record exists
+    // Ensure an orchestrator session record exists; track the ID to avoid re-fetching project later
     const project = state.project;
-    if (!project.orchestrator_session_id) {
+    let orchestratorSessionId = project.orchestrator_session_id;
+    if (!orchestratorSessionId) {
       const session = createSession({
         project_id: projectId,
         session_type: "orchestrator",
@@ -501,6 +509,7 @@ export class OrchestratorManager {
         tmux_session_name: orchestratorSessionName(projectId),
       });
       updateProject(projectId, { orchestrator_session_id: session.id });
+      orchestratorSessionId = session.id;
     }
 
     const prompt = buildOrchestratorPrompt(state, eventDescription);
@@ -534,9 +543,9 @@ export class OrchestratorManager {
       details: action.params,
     });
 
-    await executeAction(action, projectId, this.bus, this.adapter);
+    await executeAction(action, state, this.bus, this.adapter);
 
-    persistContext(projectId, action);
+    persistContext(orchestratorSessionId, action);
   }
 }
 
