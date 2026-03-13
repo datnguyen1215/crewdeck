@@ -136,34 +136,16 @@ describe("gracefulShutdown", () => {
     expect(adapter.kill).toHaveBeenCalledWith(session.tmux_session_name);
   });
 
-  it("updates session status to completed after killing", async () => {
+  it("updates session status to error after killing", async () => {
     const session = makeSession();
     vi.mocked(listRunningSessions).mockReturnValue([session]);
 
     await gracefulShutdown(adapter);
 
-    const calls = vi.mocked(updateSession).mock.calls;
-    const statusUpdate = calls.find(
-      ([id, input]) => id === session.id && (input as { status?: string }).status === "completed"
-    );
-    expect(statusUpdate).toBeDefined();
-  });
-
-  it("saves output snapshot to session context", async () => {
-    const session = makeSession();
-    vi.mocked(listRunningSessions).mockReturnValue([session]);
-
-    await gracefulShutdown(adapter);
-
-    const contextCall = vi.mocked(updateSession).mock.calls.find(
-      ([id, input]) =>
-        id === session.id &&
-        (input as { context?: unknown }).context !== undefined &&
-        typeof (input as { context?: unknown }).context === "object"
-    );
-    expect(contextCall).toBeDefined();
-    const ctx = (contextCall![1] as { context: Record<string, unknown> }).context;
-    expect(ctx.shutdown_output).toBe("captured output");
+    expect(updateSession).toHaveBeenCalledWith(session.id, {
+      status: "error",
+      context: expect.objectContaining({ shutdown_output: "captured output" }),
+    });
   });
 
   it("skips sessions without a tmux_session_name", async () => {

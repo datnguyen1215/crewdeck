@@ -21,7 +21,7 @@ function buildLaunchScript(prompt: string, systemPrompt?: string): string {
 
   if (systemPrompt) {
     const systemB64 = Buffer.from(systemPrompt).toString("base64");
-    // NOTE: --dangerously-skip-permissions is required for unattended agent execution. Auth gates access to agent spawning.
+    // --dangerously-skip-permissions: intentional for unattended agent execution; access is gated by auth on agent-spawning routes
     return `#!/bin/bash\n${promptLine}\nSYSTEM_PROMPT=$(printf '%s' ${shellQuote(systemB64)} | base64 -d)\nexec claude --dangerously-skip-permissions --system-prompt "$SYSTEM_PROMPT" --prompt "$PROMPT"\n`;
   }
   // NOTE: --dangerously-skip-permissions is required for unattended agent execution. Auth gates access to agent spawning.

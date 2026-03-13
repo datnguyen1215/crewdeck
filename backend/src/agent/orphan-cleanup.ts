@@ -75,15 +75,13 @@ export async function gracefulShutdown(adapter: AgentAdapter): Promise<void> {
         // Output unavailable
       }
 
-      // Save output snapshot to context
-      updateSession(session.id, {
-        context: mergeContext(session.context, { shutdown_output: output }),
-      });
-
       // Kill the session (graceful then force)
       await adapter.kill(session.tmux_session_name);
 
-      updateSession(session.id, { status: "completed" });
+      updateSession(session.id, {
+        status: "error",
+        context: mergeContext(session.context, { shutdown_output: output }),
+      });
       logger.info({ session_id: session.id }, "Session stopped during shutdown");
     })
   );

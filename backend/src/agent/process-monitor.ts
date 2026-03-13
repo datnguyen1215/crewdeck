@@ -80,5 +80,12 @@ export class ProcessMonitor {
         logger.info({ session_id: session.id }, "Process monitor detected dead session");
       })
     );
+
+    // Evict IDs that are no longer returned by listRunningSessions — once a session
+    // leaves the running set it can never reappear, so keeping the ID is dead weight.
+    const activeIds = new Set(sessions.map((s) => s.id));
+    for (const id of this.finished) {
+      if (!activeIds.has(id)) this.finished.delete(id);
+    }
   }
 }
