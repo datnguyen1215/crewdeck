@@ -1,7 +1,6 @@
 const TIMEOUT_MS = 10_000;
 
-// Return type is Promise<unknown> rather than void so callers can optionally read the response
-export async function post(path: string, body: Record<string, unknown>, apiUrl: string): Promise<unknown> {
+export async function post(path: string, body: Record<string, unknown>, apiUrl: string): Promise<void> {
   const url = `${apiUrl}${path}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -14,7 +13,11 @@ export async function post(path: string, body: Record<string, unknown>, apiUrl: 
       signal: controller.signal,
     });
 
-    const data = await res.json().catch(() => null);
+    const data = await res.json().catch((err: unknown) => {
+      // Re-throw AbortError so the outer catch handles timeouts during body read
+      if (err instanceof Error && err.name === "AbortError") throw err;
+      return null;
+    });
 
     if (!res.ok) {
       const message = (data != null && typeof data === "object" && "message" in data && typeof data.message === "string")
@@ -22,8 +25,6 @@ export async function post(path: string, body: Record<string, unknown>, apiUrl: 
         : `HTTP ${res.status}`;
       throw new Error(message);
     }
-
-    return data;
   } catch (err: unknown) {
     if (err instanceof Error && err.name === "AbortError") {
       throw new Error(`Cannot connect to CrewDeck backend at ${url}: request timed out`);
