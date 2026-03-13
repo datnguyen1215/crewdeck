@@ -37,16 +37,16 @@ describe("EventBus", () => {
     it("calls multiple handlers for the same event", () => {
       const h1 = vi.fn();
       const h2 = vi.fn();
-      bus.on("agent.idle", h1);
-      bus.on("agent.idle", h2);
-      bus.emit("agent.idle", { agent_id: "a1", project_id: "p1" });
+      bus.on("agent.status_changed", h1);
+      bus.on("agent.status_changed", h2);
+      bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: "p1", state: "active" });
       expect(h1).toHaveBeenCalledOnce();
       expect(h2).toHaveBeenCalledOnce();
     });
 
     it("does not call handlers for a different event", () => {
       const handler = vi.fn();
-      bus.on("agent.idle", handler);
+      bus.on("agent.status_changed", handler);
       bus.emit("pr.status_changed", { pr_id: "pr1", project_id: "p1", from: "open", to: "closed" });
       expect(handler).not.toHaveBeenCalled();
     });
@@ -54,10 +54,10 @@ describe("EventBus", () => {
     it("off() removes a specific handler", () => {
       const h1 = vi.fn();
       const h2 = vi.fn();
-      bus.on("agent.idle", h1);
-      bus.on("agent.idle", h2);
-      bus.off("agent.idle", h1);
-      bus.emit("agent.idle", { agent_id: "a1", project_id: "p1" });
+      bus.on("agent.status_changed", h1);
+      bus.on("agent.status_changed", h2);
+      bus.off("agent.status_changed", h1);
+      bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: "p1", state: "active" });
       expect(h1).not.toHaveBeenCalled();
       expect(h2).toHaveBeenCalledOnce();
     });
@@ -65,7 +65,7 @@ describe("EventBus", () => {
     it("off() has no effect for an unregistered handler", () => {
       const handler = vi.fn();
       // Should not throw
-      expect(() => bus.off("agent.idle", handler)).not.toThrow();
+      expect(() => bus.off("agent.status_changed", handler)).not.toThrow();
     });
   });
 
@@ -81,31 +81,31 @@ describe("EventBus", () => {
         throw new Error("boom");
       });
       const succeeding = vi.fn();
-      bus.on("agent.idle", failing);
-      bus.on("agent.idle", succeeding);
-      bus.emit("agent.idle", { agent_id: "a1", project_id: "p1" });
+      bus.on("agent.status_changed", failing);
+      bus.on("agent.status_changed", succeeding);
+      bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: "p1", state: "active" });
       expect(failing).toHaveBeenCalledOnce();
       expect(succeeding).toHaveBeenCalledOnce();
     });
 
     it("does not throw when a handler fails", () => {
-      bus.on("agent.idle", () => {
+      bus.on("agent.status_changed", () => {
         throw new Error("boom");
       });
       expect(() =>
-        bus.emit("agent.idle", { agent_id: "a1", project_id: "p1" })
+        bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: "p1", state: "active" })
       ).not.toThrow();
     });
 
     it("logs an error when a handler fails", async () => {
       const { logger } = await import("../../src/logger.js");
       const logSpy = vi.spyOn(logger, "error");
-      bus.on("agent.idle", () => {
+      bus.on("agent.status_changed", () => {
         throw new Error("handler error");
       });
-      bus.emit("agent.idle", { agent_id: "a1", project_id: "p1" });
+      bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: "p1", state: "active" });
       expect(logSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ event: "agent.idle" }),
+        expect.objectContaining({ event: "agent.status_changed" }),
         "Event handler failed"
       );
       logSpy.mockRestore();

@@ -219,7 +219,7 @@ describe("ActivityLogger", () => {
 
   it("unsubscribed events are not logged", () => {
     // Events not subscribed to by activity logger should produce no logs
-    eventBus.emit("agent.idle", { agent_id: "a1", project_id: PROJECT_ID });
+    eventBus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: PROJECT_ID, state: "active" });
     expect(getLog()).toHaveLength(0);
   });
 });
