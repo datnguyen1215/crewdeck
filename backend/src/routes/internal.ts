@@ -1,10 +1,11 @@
-// TODO: These routes need auth (shared secret or network isolation) before production. Currently exposed publicly.
+// TODO: add auth middleware — these endpoints are callable by any network-reachable client
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
-import { getIssue, updateIssue } from "../db/repositories/issues.js";
+import { getIssue } from "../db/repositories/issues.js";
 import { getAgent } from "../db/repositories/agents.js";
+import { getSession, updateSession } from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
 
@@ -15,10 +16,12 @@ const SignalSchema = z.object({
   agent_id: z.string(),
   issue_id: z.string(),
   project_id: z.string(),
-  role: z.string(),
-  signal: z.enum(["finished", "review_completed"]),
-  verdict: z.string().optional(),
-});
+  event: z.enum(["work-complete", "review-complete", "error", "needs-help"]),
+  data: z.object({ verdict: z.string().optional(), message: z.string().optional() }).optional(),
+}).refine(
+  (d) => d.event !== "review-complete" || !!d.data?.verdict,
+  { message: "verdict is required for review-complete signals", path: ["data", "verdict"] },
+);
 
 const CommentSchema = z.object({
   issue_id: z.string(),
@@ -31,22 +34,30 @@ const StatusSchema = z.object({
   agent_id: z.string(),
   issue_id: z.string(),
   project_id: z.string(),
-  state: z.string(),
+  state: z.enum(["active", "done", "error"]),
+});
+
+const FilesSchema = z.object({
+  session_id: z.string(),
+  modified: z.array(z.string().max(500)).min(1).max(500),
 });
 
 // POST /signal — receive agent completion signals
 router.post("/signal", validate(SignalSchema), (req, res) => {
-  const { session_id, agent_id, issue_id, project_id, role, signal, verdict } = req.body;
+  const { session_id, agent_id, issue_id, project_id, event, data } = req.body;
 
-  if (signal === "finished") {
-    eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role });
-  } else if (signal === "review_completed") {
-    eventBus.emit("review.completed", {
-      issue_id,
-      agent_id,
-      project_id,
-      verdict: verdict ?? "approved",
-    });
+  if (event === "work-complete") {
+    // Look up the agent's role so the orchestrator can route correctly
+    const agent = getAgent(agent_id);
+    if (!agent) throw new NotFoundError("Agent not found");
+    eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: agent.role });
+  } else if (event === "review-complete") {
+    // verdict is guaranteed present by SignalSchema .refine()
+    eventBus.emit("review.completed", { session_id, issue_id, agent_id, project_id, verdict: data!.verdict! });
+  } else if (event === "error") {
+    eventBus.emit("agent.error", { session_id, agent_id, issue_id, project_id, message: data?.message });
+  } else if (event === "needs-help") {
+    eventBus.emit("agent.needs_help", { session_id, agent_id, issue_id, project_id, message: data?.message });
   }
 
   res.json({ ok: true });
@@ -78,11 +89,25 @@ router.post("/status", validate(StatusSchema), (req, res) => {
 
   eventBus.emit("agent.status_changed", { agent_id, issue_id, project_id, state });
 
-  if (state === "working") {
-    eventBus.emit("agent.working", { agent_id, issue_id, project_id });
-  } else if (state === "idle") {
-    eventBus.emit("agent.idle", { agent_id, project_id });
-  }
+  res.json({ ok: true });
+});
+
+// POST /files — agent reports which files were modified during the session
+// File paths are stored as metadata only — never used for filesystem access
+router.post("/files", validate(FilesSchema), (req, res) => {
+  const { session_id, modified } = req.body;
+
+  const session = getSession(session_id);
+  if (!session) throw new NotFoundError("Session not found");
+
+  const ctx = session.context;
+  // Guard needed because session.context is typed as unknown in the DB layer
+  const existing = (typeof ctx === "object" && ctx !== null && !Array.isArray(ctx))
+    ? (ctx as Record<string, unknown>)
+    : {};
+  updateSession(session_id, {
+    context: { ...existing, modified_files: modified },
+  });
 
   res.json({ ok: true });
 });

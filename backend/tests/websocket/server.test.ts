@@ -159,13 +159,13 @@ describe("event bus bridge", () => {
     expect(msg.data).toEqual({ issue_id: "i1", from: "open", to: "closed" });
   });
 
-  it("agent.idle broadcasts { agent_id }", () => {
+  it("agent.status_changed broadcasts { agent_id, issue_id, state }", () => {
     const ws = mockWs();
     addSubscriber("p1", ws);
-    bus.emit("agent.idle", { agent_id: "a1", project_id: "p1" });
+    bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: "p1", state: "active" });
     const msg = lastMessage(ws);
-    expect(msg.event).toBe("agent.idle");
-    expect(msg.data).toEqual({ agent_id: "a1" });
+    expect(msg.event).toBe("agent.status_changed");
+    expect(msg.data).toEqual({ agent_id: "a1", issue_id: "i1", state: "active" });
   });
 
   it("pr.status_changed broadcasts { pr_id, from, to }", () => {

@@ -94,11 +94,20 @@ export function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "session.ended", { session_id, status });
   });
 
-  bus.on("agent.working", ({ agent_id, issue_id, project_id, session_id }) =>
-    broadcast(project_id, "agent.working", { agent_id, issue_id, session_id }));
+  bus.on("agent.finished", ({ session_id, agent_id, issue_id, project_id, role }) =>
+    broadcast(project_id, "agent.finished", { session_id, agent_id, issue_id, role }));
 
-  bus.on("agent.idle", ({ agent_id, project_id }) =>
-    broadcast(project_id, "agent.idle", { agent_id }));
+  bus.on("agent.status_changed", ({ agent_id, issue_id, project_id, state }) =>
+    broadcast(project_id, "agent.status_changed", { agent_id, issue_id, state }));
+
+  bus.on("agent.error", ({ session_id, agent_id, issue_id, project_id, message }) =>
+    broadcast(project_id, "agent.error", { session_id, agent_id, issue_id, message }));
+
+  bus.on("agent.needs_help", ({ session_id, agent_id, issue_id, project_id, message }) =>
+    broadcast(project_id, "agent.needs_help", { session_id, agent_id, issue_id, message }));
+
+  bus.on("review.completed", ({ session_id, issue_id, agent_id, project_id, verdict }) =>
+    broadcast(project_id, "review.completed", { session_id, issue_id, agent_id, verdict }));
 
   bus.on("pr.created", ({ issue_pr, project_id }) =>
     broadcast(project_id, "pr.created", issue_pr));
