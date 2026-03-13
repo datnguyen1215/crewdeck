@@ -230,7 +230,7 @@
 
 {#if loading}
 	<!-- Skeleton issue detail while data loads -->
-	<div class="p-6 max-w-6xl" style="animation: fade-up 0.3s ease both">
+	<div class="p-6 max-w-6xl fade-up">
 		<!-- Back link skeleton -->
 		<div class="mb-6">
 			<div class="skeleton h-3 w-24 rounded"></div>
@@ -285,7 +285,7 @@
 		<a href="/projects/{projectId}" class="text-cyan text-xs mt-2 inline-block hover:underline">← Back to Board</a>
 	</div>
 {:else}
-	<div class="p-6 max-w-6xl" style="animation: fade-up 0.3s ease both">
+	<div class="p-6 max-w-6xl fade-up">
 		<!-- Back link -->
 		<div class="mb-6">
 			<a href="/projects/{projectId}" class="text-muted text-xs hover:text-secondary transition-colors">← Back to Board</a>

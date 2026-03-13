@@ -92,10 +92,7 @@
 
 <div class="p-8 h-full overflow-auto">
 	<!-- Header -->
-	<div
-		class="flex items-center justify-between mb-10"
-		style="animation: fade-up 0.3s ease both"
-	>
+	<div class="flex items-center justify-between mb-10 fade-up">
 		<div>
 			<h1
 				class="text-2xl font-bold tracking-[0.3em] uppercase"
@@ -120,8 +117,8 @@
 		<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 			{#each Array(6) as _, i}
 				<div
-					class="bg-surface border border-edge rounded-lg p-5 flex flex-col gap-4"
-					style="animation: fade-up 0.3s ease both; animation-delay: {i * 40}ms"
+					class="bg-surface border border-edge rounded-lg p-5 flex flex-col gap-4 fade-up"
+					style="animation-delay: {i * 40}ms"
 				>
 					<div>
 						<div class="skeleton h-4 w-3/5 rounded mb-2"></div>

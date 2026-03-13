@@ -19,8 +19,9 @@
 		});
 	});
 
-	// Simulate mocked WebSocket events to demo the toast system
+	// Simulate mocked WebSocket events to demo the toast system (dev only)
 	onMount(() => {
+		if (!import.meta.env.DEV) return;
 		const events: Array<{ delay: number; type: ToastType; msg: string }> = [
 			{ delay: 3000, type: 'info', msg: 'Agent Alice assigned to issue #42' },
 			{ delay: 9000, type: 'success', msg: 'Issue status changed: In Progress → In Review' },

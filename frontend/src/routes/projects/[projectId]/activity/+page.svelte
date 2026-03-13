@@ -233,13 +233,13 @@
 	{#if loading}
 		<!-- Skeleton timeline while activity loads -->
 		{@const skeletonWidths = [75, 55, 85, 65, 90, 60, 70, 80]}
-		<div class="max-w-2xl relative" style="animation: fade-up 0.3s ease both">
+		<div class="max-w-2xl relative fade-up">
 			<div class="absolute left-[19px] top-2 bottom-0 w-px bg-edge pointer-events-none"></div>
 			<div class="flex flex-col">
 				{#each Array(8) as _, i}
 					<div
-						class="flex gap-4 pb-5 relative"
-						style="animation: fade-up 0.3s ease both; animation-delay: {i * 40}ms"
+						class="flex gap-4 pb-5 relative fade-up"
+						style="animation-delay: {i * 40}ms"
 					>
 						<div class="flex-shrink-0 w-10 flex justify-center pt-0.5">
 							<div class="skeleton w-6 h-6 rounded-full"></div>
@@ -249,7 +249,7 @@
 								<div class="skeleton h-3 w-16 rounded"></div>
 								<div class="skeleton h-3 w-12 rounded"></div>
 							</div>
-							<div class="skeleton h-4 rounded" style="width: {skeletonWidths[i % skeletonWidths.length]}%"></div>
+							<div class="skeleton h-4 rounded" style="width: {skeletonWidths[i]}%"></div>
 							{#if i % 3 === 0}
 								<div class="skeleton h-3 w-32 rounded mt-1.5"></div>
 							{/if}

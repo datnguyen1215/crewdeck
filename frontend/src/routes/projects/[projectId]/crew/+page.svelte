@@ -271,8 +271,8 @@
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
 			{#each Array(6) as _, i}
 				<div
-					class="flex flex-col p-4 bg-surface border border-edge rounded"
-					style="animation: fade-up 0.3s ease both; animation-delay: {i * 50}ms"
+					class="flex flex-col p-4 bg-surface border border-edge rounded fade-up"
+					style="animation-delay: {i * 50}ms"
 				>
 					<div class="flex items-start justify-between gap-2 mb-3">
 						<div class="flex-1">
@@ -314,8 +314,8 @@
 					<!-- Defensive fallback — status is always one of idle/working/reviewing from getCrew() -->
 				{@const cfg = STATUS_CFG[agent.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.idle}
 					<div
-						class="agent-card flex flex-col p-4 bg-surface border rounded hover:-translate-y-0.5 transition-all duration-200 {cfg.cardBorder}"
-						style="{cfg.cardGlow ? `box-shadow: ${cfg.cardGlow};` : ''}animation: fade-up 0.3s ease both; animation-delay: {i * 50}ms"
+						class="agent-card flex flex-col p-4 bg-surface border rounded hover:-translate-y-0.5 transition-all duration-200 fade-up {cfg.cardBorder}"
+						style="{cfg.cardGlow ? `box-shadow: ${cfg.cardGlow};` : ''}animation-delay: {i * 50}ms"
 					>
 						<!-- Name + role -->
 						<div class="flex items-start justify-between gap-2 mb-3">

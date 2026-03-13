@@ -13,8 +13,6 @@
 
 <div
 	class="fixed bottom-4 right-4 z-[200] flex flex-col-reverse gap-2 pointer-events-none w-80 max-w-[calc(100vw-2rem)]"
-	aria-live="polite"
-	aria-label="Notifications"
 >
 	{#each toastStore.items as toast (toast.id)}
 		{@const s = STYLES[toast.type]}

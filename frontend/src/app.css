@@ -116,6 +116,12 @@ a[role="button"]:active {
 	transform: scale(0.97);
 }
 
+/* ---- Fade-up entry animation utility ---- */
+
+.fade-up {
+	animation: fade-up 0.3s ease both;
+}
+
 /* ---- Skeleton loader ---- */
 
 .skeleton {

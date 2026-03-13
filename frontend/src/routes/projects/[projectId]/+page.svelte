@@ -267,7 +267,7 @@
 	<!-- Table / Empty state -->
 	{#if loading}
 		<!-- Skeleton table while issues load -->
-		<div class="overflow-x-auto" style="animation: fade-up 0.3s ease both">
+		<div class="overflow-x-auto fade-up">
 			<div class="min-w-[680px] border border-edge rounded overflow-hidden">
 				<div class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
 					<div class="px-3 py-2.5 text-center">Pri</div>
@@ -280,14 +280,14 @@
 				{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 				{#each Array(8) as _, i}
 					<div
-						class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] border-b border-edge last:border-0 {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
-						style="animation: fade-up 0.3s ease both; animation-delay: {i * 30}ms"
+						class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+					style="animation-delay: {i * 30}ms"
 					>
 						<div class="px-3 py-3 flex justify-center items-center">
 							<div class="skeleton h-4 w-6 rounded"></div>
 						</div>
 						<div class="px-3 py-3 flex items-center gap-2">
-							<div class="skeleton h-4 rounded" style="width: {skeletonWidths[i % skeletonWidths.length]}%"></div>
+							<div class="skeleton h-4 rounded" style="width: {skeletonWidths[i]}%"></div>
 						</div>
 						<div class="px-3 py-3 flex items-center">
 							<div class="skeleton h-5 w-24 rounded"></div>
