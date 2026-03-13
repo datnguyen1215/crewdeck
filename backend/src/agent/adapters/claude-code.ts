@@ -79,15 +79,17 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     return stdout;
   }
 
-  // TODO: consider tmux pipe-pane or log file for complete output capture —
-  // capture-pane only returns the visible screen buffer and silently drops scrolled-off content.
   streamOutput(sessionName: string, callback: (chunk: string) => void): Unsubscribe {
     let lastOutput = "";
     const timer = setInterval(async () => {
       try {
-        const current = await this.getOutput(sessionName);
-        if (current.length > lastOutput.length) {
-          callback(current.slice(lastOutput.length));
+        // -S - captures full scrollback history (not just the visible pane),
+        // so the buffer is append-only and callers receive the complete output.
+        const { stdout: current } = await execAsync(
+          `tmux capture-pane -t ${shellQuote(sessionName)} -p -S -`
+        );
+        if (current !== lastOutput) {
+          callback(current);
         }
         lastOutput = current;
       } catch {
@@ -109,7 +111,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   }
 
   async kill(sessionName: string): Promise<void> {
-    // Attempt graceful exit — send 'exit' to the pane
+    // "exit" may not be handled by the claude CLI — force-kill below covers the failure case
     try {
       await execAsync(`tmux send-keys -t ${shellQuote(sessionName)} "exit" Enter`);
     } catch {
