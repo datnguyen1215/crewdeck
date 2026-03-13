@@ -1,4 +1,5 @@
-import { post, sessionContext } from "../http.js";
+import { getEnv } from "../env.js";
+import { post } from "../http.js";
 
 const VALID_EVENTS = ["work-complete", "review-complete", "error", "needs-help"] as const;
 type SignalEvent = (typeof VALID_EVENTS)[number];
@@ -40,7 +41,7 @@ export async function signalCommand(argv: string[]): Promise<void> {
     }
   }
 
-  const { apiUrl, ...ctx } = sessionContext();
-  await post("/internal/signal", { ...ctx, event, data }, apiUrl);
+  const { api_url, ...ctx } = getEnv();
+  await post("/internal/signal", { ...ctx, event, data }, api_url);
   console.log(`Signal "${event}" sent.`);
 }

@@ -1,5 +1,3 @@
-import { getEnv } from "./env.js";
-
 const TIMEOUT_MS = 10_000;
 
 // Return type is Promise<unknown> rather than void so callers can optionally read the response
@@ -34,16 +32,4 @@ export async function post(path: string, body: Record<string, unknown>, apiUrl: 
   } finally {
     clearTimeout(timer);
   }
-}
-
-// Maps camelCase env to snake_case keys expected by the backend API
-export function sessionContext(): { apiUrl: string; session_id: string; agent_id: string; issue_id: string; project_id: string } {
-  const env = getEnv();
-  return {
-    apiUrl: env.apiUrl,
-    session_id: env.sessionId,
-    agent_id: env.agentId,
-    issue_id: env.issueId,
-    project_id: env.projectId,
-  };
 }

@@ -1,4 +1,5 @@
-import { post, sessionContext } from "../http.js";
+import { getEnv } from "../env.js";
+import { post } from "../http.js";
 
 const VALID_STATES = ["active", "done", "error"] as const;
 type StatusState = (typeof VALID_STATES)[number];
@@ -28,7 +29,7 @@ export async function statusCommand(argv: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const { apiUrl, ...ctx } = sessionContext();
-  await post("/internal/status", { ...ctx, state }, apiUrl);
+  const { api_url, agent_id, issue_id, project_id } = getEnv();
+  await post("/internal/status", { agent_id, issue_id, project_id, state }, api_url);
   console.log(`Status set to "${state}".`);
 }
