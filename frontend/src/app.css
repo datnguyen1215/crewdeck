@@ -38,8 +38,9 @@
 	--glow-blue: 0 0 10px rgba(96, 165, 250, 0.3);
 }
 
-/* Must be global: used via inline style attributes (e.g. style="animation: fade-up ...").
-   Inline styles reference the document stylesheet, not scoped component styles. */
+/* ---- Keyframe animations ---- */
+
+/* Used via inline style attributes — must be global */
 @keyframes fade-up {
 	from {
 		opacity: 0;
@@ -51,10 +52,104 @@
 	}
 }
 
+@keyframes shimmer {
+	from {
+		background-position: -200% 0;
+	}
+	to {
+		background-position: 200% 0;
+	}
+}
+
+@keyframes vt-slide-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+}
+
+@keyframes vt-slide-out {
+	to {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+}
+
+/* ---- View Transitions (page navigation) ---- */
+
+::view-transition-old(root) {
+	animation: 200ms ease-in both vt-slide-out;
+}
+
+::view-transition-new(root) {
+	animation: 350ms cubic-bezier(0, 0, 0.2, 1) both vt-slide-in;
+}
+
+/* ---- Base ---- */
+
 @layer base {
 	html {
 		font-family: var(--font-mono);
 		background-color: var(--color-base);
 		color: var(--color-primary);
+		scroll-behavior: smooth;
+	}
+
+	/* Subtle dot grid — reinforces command-center feel without being distracting */
+	body {
+		background-image: radial-gradient(circle, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+		background-size: 28px 28px;
+	}
+
+	/* Visible focus rings for keyboard navigation */
+	:focus-visible {
+		outline: 2px solid var(--color-cyan);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+}
+
+/* ---- Button press feedback ---- */
+
+button:active:not(:disabled),
+a[role="button"]:active {
+	transform: scale(0.97);
+}
+
+/* ---- Fade-up entry animation utility ---- */
+
+.fade-up {
+	animation: fade-up 0.3s ease both;
+}
+
+/* ---- Skeleton loader ---- */
+
+.skeleton {
+	background: linear-gradient(
+		90deg,
+		var(--color-surface) 25%,
+		var(--color-surface-hi) 50%,
+		var(--color-surface) 75%
+	);
+	background-size: 200% 100%;
+	animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ---- Reduced motion: disable all animations ---- */
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+
+	::view-transition-group(*),
+	::view-transition-image-pair(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none !important;
 	}
 }

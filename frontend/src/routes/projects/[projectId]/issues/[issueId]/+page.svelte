@@ -229,14 +229,63 @@
 </script>
 
 {#if loading}
-	<div class="p-8 text-muted text-sm">Loading...</div>
+	<!-- Skeleton issue detail while data loads -->
+	<div class="p-6 max-w-6xl fade-up">
+		<!-- Back link skeleton -->
+		<div class="mb-6">
+			<div class="skeleton h-3 w-24 rounded"></div>
+		</div>
+		<div class="grid lg:grid-cols-[1fr_288px] gap-5">
+			<!-- Left: content skeleton -->
+			<div class="bg-surface border border-edge rounded overflow-hidden">
+				<!-- Tabs skeleton -->
+				<div class="flex border-b border-edge gap-1 px-1 pt-1">
+					{#each [80, 100, 70] as w}
+						<div class="skeleton h-8 rounded-t" style="width: {w}px"></div>
+					{/each}
+				</div>
+				<div class="p-6 flex flex-col gap-4">
+					<div class="skeleton h-6 w-3/4 rounded"></div>
+					<div class="flex flex-col gap-2">
+						{#each [100, 90, 95, 70, 85] as pct}
+							<div class="skeleton h-4 rounded" style="width: {pct}%"></div>
+						{/each}
+					</div>
+					<div class="mt-4 flex flex-col gap-2">
+						{#each [60, 80, 55] as pct}
+							<div class="skeleton h-4 rounded" style="width: {pct}%"></div>
+						{/each}
+					</div>
+				</div>
+			</div>
+			<!-- Right: sidebar skeleton -->
+			<div class="flex flex-col gap-4">
+				<div class="bg-surface border border-edge rounded p-4 flex flex-col gap-3">
+					{#each Array(6) as _}
+						<div class="flex items-center gap-2">
+							<div class="skeleton h-3 w-20 rounded"></div>
+							<div class="skeleton h-4 w-24 rounded"></div>
+						</div>
+					{/each}
+				</div>
+				<div class="bg-surface border border-edge rounded p-4">
+					<div class="skeleton h-3 w-16 rounded mb-3"></div>
+					<div class="flex flex-col gap-2">
+						{#each Array(2) as _}
+							<div class="skeleton h-8 w-full rounded"></div>
+						{/each}
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
 {:else if !issue}
 	<div class="p-8">
 		<p class="text-muted text-sm">Issue not found.</p>
 		<a href="/projects/{projectId}" class="text-cyan text-xs mt-2 inline-block hover:underline">← Back to Board</a>
 	</div>
 {:else}
-	<div class="p-6 max-w-6xl">
+	<div class="p-6 max-w-6xl fade-up">
 		<!-- Back link -->
 		<div class="mb-6">
 			<a href="/projects/{projectId}" class="text-muted text-xs hover:text-secondary transition-colors">← Back to Board</a>

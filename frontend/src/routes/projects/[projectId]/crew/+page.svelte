@@ -267,7 +267,36 @@
 	</div>
 
 	<!-- Agent Grid -->
-	{#if crew}
+	{#if loading}
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
+			{#each Array(6) as _, i}
+				<div
+					class="flex flex-col p-4 bg-surface border border-edge rounded fade-up"
+					style="animation-delay: {i * 50}ms"
+				>
+					<div class="flex items-start justify-between gap-2 mb-3">
+						<div class="flex-1">
+							<div class="skeleton h-4 w-3/5 rounded mb-1.5"></div>
+							<div class="skeleton h-3 w-2/5 rounded"></div>
+						</div>
+						<div class="skeleton h-3 w-16 rounded"></div>
+					</div>
+					<div class="flex gap-1 mb-3">
+						{#each Array(3) as _}
+							<div class="skeleton h-5 w-14 rounded"></div>
+						{/each}
+					</div>
+					<div class="mt-auto pt-3 border-t border-edge">
+						<div class="skeleton h-4 w-20 rounded mb-2"></div>
+					</div>
+					<div class="flex gap-2 mt-3 pt-3 border-t border-edge">
+						<div class="skeleton flex-1 h-7 rounded"></div>
+						<div class="skeleton flex-1 h-7 rounded"></div>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{:else if crew}
 		{#if crew.agents.length === 0}
 			<div class="flex flex-col items-center justify-center py-24 text-center">
 				<p class="text-primary text-lg font-semibold mb-1">No agents yet</p>
@@ -281,12 +310,12 @@
 			</div>
 		{:else}
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
-				{#each crew.agents as agent (agent.id)}
+				{#each crew.agents as agent, i (agent.id)}
 					<!-- Defensive fallback — status is always one of idle/working/reviewing from getCrew() -->
 				{@const cfg = STATUS_CFG[agent.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.idle}
 					<div
-						class="agent-card flex flex-col p-4 bg-surface border rounded hover:-translate-y-0.5 transition-all duration-200 {cfg.cardBorder}"
-						style={cfg.cardGlow ? `box-shadow: ${cfg.cardGlow}` : ''}
+						class="agent-card flex flex-col p-4 bg-surface border rounded hover:-translate-y-0.5 transition-all duration-200 fade-up {cfg.cardBorder}"
+						style="{cfg.cardGlow ? `box-shadow: ${cfg.cardGlow};` : ''}animation-delay: {i * 50}ms"
 					>
 						<!-- Name + role -->
 						<div class="flex items-start justify-between gap-2 mb-3">

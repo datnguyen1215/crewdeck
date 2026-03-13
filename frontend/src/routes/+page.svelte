@@ -92,7 +92,7 @@
 
 <div class="p-8 h-full overflow-auto">
 	<!-- Header -->
-	<div class="flex items-center justify-between mb-10">
+	<div class="flex items-center justify-between mb-10 fade-up">
 		<div>
 			<h1
 				class="text-2xl font-bold tracking-[0.3em] uppercase"
@@ -113,8 +113,32 @@
 	</div>
 
 	{#if loading}
-		<div class="flex items-center justify-center py-24 text-muted text-sm tracking-widest">
-			LOADING...
+		<!-- Skeleton grid while projects load -->
+		<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+			{#each Array(6) as _, i}
+				<div
+					class="bg-surface border border-edge rounded-lg p-5 flex flex-col gap-4 fade-up"
+					style="animation-delay: {i * 40}ms"
+				>
+					<div>
+						<div class="skeleton h-4 w-3/5 rounded mb-2"></div>
+						<div class="skeleton h-3 w-2/5 rounded"></div>
+					</div>
+					<div class="flex gap-4">
+						<div class="skeleton h-3 w-16 rounded"></div>
+						<div class="skeleton h-3 w-16 rounded"></div>
+					</div>
+					<div>
+						<div class="skeleton h-1.5 w-full rounded-full mb-2"></div>
+						<div class="flex gap-2">
+							{#each Array(5) as _}
+								<div class="skeleton h-3 w-8 rounded"></div>
+							{/each}
+						</div>
+					</div>
+					<div class="skeleton h-8 w-full rounded mt-auto"></div>
+				</div>
+			{/each}
 		</div>
 	{:else if projects.length === 0}
 		<!-- Empty state -->
@@ -383,7 +407,16 @@
 {/if}
 
 <style>
+	.project-card {
+		transition:
+			transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
+			border-color 150ms ease,
+			box-shadow 200ms ease;
+	}
+
 	.project-card:hover {
-		box-shadow: 0 4px 24px rgba(34, 211, 238, 0.08);
+		box-shadow:
+			0 4px 24px rgba(34, 211, 238, 0.08),
+			0 0 0 1px rgba(34, 211, 238, 0.1);
 	}
 </style>
