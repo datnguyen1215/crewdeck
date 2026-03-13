@@ -6,6 +6,7 @@ import {
   addSubscriber,
   removeSubscriber,
   broadcast,
+  subscribeEvents,
 } from "../../src/websocket.js";
 
 // Mock a WebSocket client with controllable state
@@ -133,14 +134,6 @@ describe("event bus bridge", () => {
     subscribers.clear();
   });
 
-  function setupBusAndClient(projectId: string) {
-    const ws = mockWs();
-    addSubscriber(projectId, ws);
-    // Re-subscribe the new bus to websocket bridge
-    // We need to hook the bus manually since we can't call setupWebSocket here
-    return ws;
-  }
-
   // Helper to capture last sent message
   function lastMessage(ws: WebSocket): Record<string, unknown> {
     const calls = (ws.send as ReturnType<typeof vi.fn>).mock.calls;
@@ -192,9 +185,13 @@ describe("event bus bridge", () => {
 });
 
 describe("session.output debouncing", () => {
+  let bus: EventBus;
+
   beforeEach(() => {
     vi.useFakeTimers();
     subscribers.clear();
+    bus = new EventBus();
+    subscribeEvents(bus);
   });
 
   afterEach(() => {
@@ -203,29 +200,8 @@ describe("session.output debouncing", () => {
   });
 
   it("buffers multiple chunks and sends them together within 100ms", () => {
-    const bus = new EventBus();
     const ws = mockWs();
     addSubscriber("p1", ws);
-
-    // Wire up the session.output handler manually
-    const outputBuffers = new Map<string, { chunks: string[]; timer: ReturnType<typeof setTimeout> | null }>();
-    bus.on("session.output", ({ session_id, project_id, output }) => {
-      let buf = outputBuffers.get(session_id);
-      if (!buf) {
-        buf = { chunks: [], timer: null };
-        outputBuffers.set(session_id, buf);
-      }
-      buf.chunks.push(output);
-      if (!buf.timer) {
-        buf.timer = setTimeout(() => {
-          const b = outputBuffers.get(session_id)!;
-          const joined = b.chunks.join("");
-          b.chunks = [];
-          b.timer = null;
-          broadcast(project_id, "session.output", { session_id, output: joined });
-        }, 100);
-      }
-    });
 
     bus.emit("session.output", { session_id: "s1", project_id: "p1", output: "hello " });
     bus.emit("session.output", { session_id: "s1", project_id: "p1", output: "world" });
@@ -242,127 +218,14 @@ describe("session.output debouncing", () => {
   });
 
   it("sends at most once per 100ms even with many rapid chunks", () => {
-    const bus = new EventBus();
     const ws = mockWs();
     addSubscriber("p1", ws);
-    const outputBuffers = new Map<string, { chunks: string[]; timer: ReturnType<typeof setTimeout> | null }>();
-    bus.on("session.output", ({ session_id, project_id, output }) => {
-      let buf = outputBuffers.get(session_id);
-      if (!buf) { buf = { chunks: [], timer: null }; outputBuffers.set(session_id, buf); }
-      buf.chunks.push(output);
-      if (!buf.timer) {
-        buf.timer = setTimeout(() => {
-          const b = outputBuffers.get(session_id)!;
-          broadcast(project_id, "session.output", { session_id, output: b.chunks.join("") });
-          b.chunks = [];
-          b.timer = null;
-        }, 100);
-      }
-    });
 
     for (let i = 0; i < 20; i++) {
-      bus.emit("session.output", { session_id: "s1", project_id: "p1", output: `chunk${i}` });
+      bus.emit("session.output", { session_id: "s2", project_id: "p1", output: `chunk${i}` });
     }
 
     vi.advanceTimersByTime(100);
     expect((ws.send as ReturnType<typeof vi.fn>)).toHaveBeenCalledOnce();
-  });
-});
-
-describe("heartbeat", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    subscribers.clear();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    subscribers.clear();
-  });
-
-  it("pings all connected clients every 30 seconds", () => {
-    const ws = mockWs() as WebSocket & { isAlive?: boolean };
-    ws.isAlive = true;
-    addSubscriber("p1", ws);
-
-    // Simulate the heartbeat loop
-    const interval = setInterval(() => {
-      for (const [projectId, clients] of subscribers) {
-        for (const client of [...clients] as (WebSocket & { isAlive?: boolean; pongTimeout?: ReturnType<typeof setTimeout> })[]) {
-          if (!client.isAlive) { client.terminate(); removeSubscriber(projectId, client); continue; }
-          client.isAlive = false;
-          client.pongTimeout = setTimeout(() => {
-            client.terminate();
-            removeSubscriber(projectId, client);
-          }, 10_000);
-          client.ping();
-        }
-      }
-    }, 30_000);
-
-    vi.advanceTimersByTime(30_000);
-    expect((ws.ping as ReturnType<typeof vi.fn>)).toHaveBeenCalledOnce();
-    expect((ws as WebSocket & { isAlive?: boolean }).isAlive).toBe(false);
-
-    clearInterval(interval);
-  });
-
-  it("terminates client that does not respond to ping within 10s", () => {
-    const ws = mockWs() as WebSocket & { isAlive?: boolean; pongTimeout?: ReturnType<typeof setTimeout> };
-    ws.isAlive = true;
-    addSubscriber("p1", ws);
-
-    const interval = setInterval(() => {
-      for (const [projectId, clients] of subscribers) {
-        for (const client of [...clients] as typeof ws[]) {
-          if (!client.isAlive) { client.terminate(); removeSubscriber(projectId, client); continue; }
-          client.isAlive = false;
-          client.pongTimeout = setTimeout(() => {
-            client.terminate();
-            removeSubscriber(projectId, client);
-          }, 10_000);
-          client.ping();
-        }
-      }
-    }, 30_000);
-
-    vi.advanceTimersByTime(30_000); // ping sent, isAlive = false
-    vi.advanceTimersByTime(10_000); // pong timeout fires
-
-    expect((ws.terminate as ReturnType<typeof vi.fn>)).toHaveBeenCalledOnce();
-    expect(subscribers.has("p1")).toBe(false);
-
-    clearInterval(interval);
-  });
-
-  it("keeps alive a client that responds with pong", () => {
-    const ws = mockWs() as WebSocket & { isAlive?: boolean; pongTimeout?: ReturnType<typeof setTimeout> };
-    ws.isAlive = true;
-    addSubscriber("p1", ws);
-
-    const interval = setInterval(() => {
-      for (const [projectId, clients] of subscribers) {
-        for (const client of [...clients] as typeof ws[]) {
-          if (!client.isAlive) { client.terminate(); removeSubscriber(projectId, client); continue; }
-          client.isAlive = false;
-          client.pongTimeout = setTimeout(() => {
-            client.terminate();
-            removeSubscriber(projectId, client);
-          }, 10_000);
-          client.ping();
-        }
-      }
-    }, 30_000);
-
-    vi.advanceTimersByTime(30_000); // ping sent
-    // Simulate pong response
-    ws.isAlive = true;
-    if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
-
-    vi.advanceTimersByTime(10_000); // would have terminated
-    expect((ws.terminate as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
-    expect(subscribers.has("p1")).toBe(true);
-
-    clearInterval(interval);
   });
 });

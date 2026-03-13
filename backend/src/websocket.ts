@@ -1,7 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "http";
 import type { Server } from "http";
-import { URL } from "url";
 import type { EventBus } from "./events/bus.js";
 import { getProject } from "./db/repositories/projects.js";
 import { logger } from "./logger.js";
@@ -54,7 +53,7 @@ function flushSessionOutput(sessionId: string, projectId: string): void {
   broadcast(projectId, "session.output", { session_id: sessionId, output });
 }
 
-function subscribeEvents(bus: EventBus): void {
+export function subscribeEvents(bus: EventBus): void {
   bus.on("issue.created", ({ issue }) =>
     broadcast(issue.project_id, "issue.created", issue));
 
@@ -125,6 +124,7 @@ interface ExtendedWebSocket extends WebSocket {
 }
 
 export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
+  // TODO: add per-IP connection cap
   const wss = new WebSocketServer({ server, path: "/ws" });
 
   heartbeatInterval = setInterval(() => {
@@ -161,6 +161,7 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
       return;
     }
 
+    // TODO: authenticate WebSocket connections (same as REST auth middleware)
     ws.isAlive = true;
     addSubscriber(projectId, ws);
 
@@ -169,9 +170,7 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
       if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
     });
 
-    // Server-push only — ignore messages from client
-    ws.on("message", () => {});
-
+    // Server-push only — client messages are ignored
     ws.on("close", () => removeSubscriber(projectId, ws));
 
     ws.on("error", (err) => {
