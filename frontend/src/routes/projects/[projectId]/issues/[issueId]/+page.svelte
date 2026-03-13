@@ -2,6 +2,8 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getIssue, addComment, approveIssue, discardIssue, updateIssue } from '$lib/mock/api.js';
+	import { getMockSession } from '$lib/mock/terminal.js';
+	import Terminal from '$lib/components/Terminal.svelte';
 
 	type Issue = Awaited<ReturnType<typeof getIssue>>;
 
@@ -26,6 +28,10 @@
 
 	// Copy state for branch name
 	let copied = $state(false);
+
+	// Tab navigation
+	let activeTab = $state<'description' | 'comments' | 'terminal'>('description');
+	let terminalSession = $derived(issue ? getMockSession(issue.id) : null);
 
 	$effect(() => {
 		let cancelled = false;
@@ -237,44 +243,127 @@
 		</div>
 
 		<!-- Main grid: content + sidebar -->
-		<div class="grid lg:grid-cols-[1fr_288px] gap-5 mb-6">
-			<!-- Left: title + description -->
-			<div class="bg-surface border border-edge rounded p-6">
-				{#if showEditForm}
-					<div class="flex flex-col gap-3">
-						<input
-							bind:value={editTitle}
-							class="bg-base border border-edge rounded px-3 py-2 text-primary text-sm w-full focus:border-cyan focus:outline-none"
-							placeholder="Title"
-						/>
-						<textarea
-							bind:value={editDescription}
-							rows={10}
-							class="bg-base border border-edge rounded px-3 py-2 text-secondary text-xs w-full focus:border-cyan focus:outline-none resize-none"
-							placeholder="Description (Markdown supported)"
-						></textarea>
-						<div class="flex gap-2">
-							<button
-								onclick={handleEditSave}
-								disabled={working}
-								class="px-3 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors"
-							>Save</button>
-							<button
-								onclick={() => showEditForm = false}
-								class="px-3 py-1.5 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors"
-							>Cancel</button>
+		<div class="grid lg:grid-cols-[1fr_288px] gap-5">
+			<!-- Left: tabbed content -->
+			<div class="bg-surface border border-edge rounded overflow-hidden">
+				<!-- Tab nav -->
+				<div class="flex border-b border-edge text-xs">
+					<button
+						onclick={() => activeTab = 'description'}
+						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'description' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
+					>Description</button>
+					<button
+						onclick={() => activeTab = 'comments'}
+						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'comments' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
+					>Comments ({issue.comments.length})</button>
+					<button
+						onclick={() => activeTab = 'terminal'}
+						class="px-4 py-2.5 border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'terminal' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
+					>
+						Terminal
+						{#if terminalSession?.status === 'running'}
+							<span class="inline-block w-1.5 h-1.5 rounded-full bg-green animate-pulse"></span>
+						{/if}
+					</button>
+				</div>
+
+				<!-- Tab content -->
+				<div class="p-6">
+					{#if activeTab === 'description'}
+						{#if showEditForm}
+							<div class="flex flex-col gap-3">
+								<input
+									bind:value={editTitle}
+									class="bg-base border border-edge rounded px-3 py-2 text-primary text-sm w-full focus:border-cyan focus:outline-none"
+									placeholder="Title"
+								/>
+								<textarea
+									bind:value={editDescription}
+									rows={10}
+									class="bg-base border border-edge rounded px-3 py-2 text-secondary text-xs w-full focus:border-cyan focus:outline-none resize-none"
+									placeholder="Description (Markdown supported)"
+								></textarea>
+								<div class="flex gap-2">
+									<button
+										onclick={handleEditSave}
+										disabled={working}
+										class="px-3 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors"
+									>Save</button>
+									<button
+										onclick={() => showEditForm = false}
+										class="px-3 py-1.5 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors"
+									>Cancel</button>
+								</div>
+							</div>
+						{:else}
+							<h1 class="text-lg font-bold text-primary mb-5">{issue.title}</h1>
+							{#if issue.description}
+								<div class="issue-prose text-secondary text-sm leading-relaxed">
+									{@html md(issue.description)}
+								</div>
+							{:else}
+								<p class="text-muted text-sm italic">No description.</p>
+							{/if}
+						{/if}
+
+					{:else if activeTab === 'comments'}
+						{#if issue.comments.length > 0}
+							<div class="flex flex-col gap-3 mb-6">
+								{#each issue.comments as comment (comment.id)}
+									{@const cs = commentStyle(comment.author_type, comment.content)}
+									<div
+										class="border border-edge rounded-r rounded-tl rounded-bl bg-base p-4"
+										style="border-left: 3px solid {cs.border}"
+									>
+										<div class="flex items-center gap-2 mb-2 flex-wrap">
+											<span class="text-xs font-semibold {cs.textColor}">
+												{commentAuthorLabel(comment)}
+											</span>
+											<span class="text-xs text-muted" title={new Date(comment.created_at).toLocaleString()}>
+												{rel(comment.created_at)}
+											</span>
+										</div>
+										<div class="issue-prose text-secondary text-sm leading-relaxed">
+											{@html md(comment.content)}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-muted text-sm mb-6">No comments yet.</p>
+						{/if}
+
+						<!-- Add comment form -->
+						<div class="border border-edge rounded p-4">
+							<textarea
+								bind:value={commentText}
+								rows={3}
+								placeholder="Type your comment here..."
+								class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
+							></textarea>
+							<div class="flex justify-end mt-3 pt-3 border-t border-edge">
+								<button
+									onclick={postComment}
+									disabled={posting || !commentText.trim()}
+									class="px-4 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+								>
+									{posting ? 'Posting...' : 'Post Comment'}
+								</button>
+							</div>
 						</div>
-					</div>
-				{:else}
-					<h1 class="text-lg font-bold text-primary mb-5">{issue.title}</h1>
-					{#if issue.description}
-						<div class="issue-prose text-secondary text-sm leading-relaxed">
-							{@html md(issue.description)}
-						</div>
-					{:else}
-						<p class="text-muted text-sm italic">No description.</p>
+
+					{:else if activeTab === 'terminal'}
+						{#if terminalSession}
+							<Terminal session={terminalSession} />
+						{:else}
+							<div class="flex flex-col items-center justify-center py-16 gap-3 text-center">
+								<span class="text-3xl text-muted opacity-40">⬛</span>
+								<p class="text-muted text-sm">No active session</p>
+								<p class="text-muted text-xs">An agent terminal will appear here once a session starts.</p>
+							</div>
+						{/if}
 					{/if}
-				{/if}
+				</div>
 			</div>
 
 			<!-- Right: sidebar -->
@@ -458,57 +547,6 @@
 			</div>
 		</div>
 
-		<!-- Comments section -->
-		<div class="bg-surface border border-edge rounded p-6">
-			<h2 class="text-xs font-semibold text-muted uppercase tracking-widest mb-5">
-				Comments ({issue.comments.length})
-			</h2>
-
-			{#if issue.comments.length > 0}
-				<div class="flex flex-col gap-3 mb-6">
-					{#each issue.comments as comment (comment.id)}
-						{@const cs = commentStyle(comment.author_type, comment.content)}
-						<div
-							class="border border-edge rounded-r rounded-tl rounded-bl bg-base p-4"
-							style="border-left: 3px solid {cs.border}"
-						>
-							<div class="flex items-center gap-2 mb-2 flex-wrap">
-								<span class="text-xs font-semibold {cs.textColor}">
-									{commentAuthorLabel(comment)}
-								</span>
-								<span class="text-xs text-muted" title={new Date(comment.created_at).toLocaleString()}>
-									{rel(comment.created_at)}
-								</span>
-							</div>
-							<div class="issue-prose text-secondary text-sm leading-relaxed">
-								{@html md(comment.content)}
-							</div>
-						</div>
-					{/each}
-				</div>
-			{:else}
-				<p class="text-muted text-sm mb-6">No comments yet.</p>
-			{/if}
-
-			<!-- Add comment form -->
-			<div class="border border-edge rounded p-4">
-				<textarea
-					bind:value={commentText}
-					rows={3}
-					placeholder="Type your comment here..."
-					class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
-				></textarea>
-				<div class="flex justify-end mt-3 pt-3 border-t border-edge">
-					<button
-						onclick={postComment}
-						disabled={posting || !commentText.trim()}
-						class="px-4 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-					>
-						{posting ? 'Posting...' : 'Post Comment'}
-					</button>
-				</div>
-			</div>
-		</div>
 	</div>
 {/if}
 
