@@ -467,8 +467,67 @@ export const issues = [
 		repo_id: 'repo-mobile-1',
 		created_at: ago(300),
 		updated_at: ago(288)
-	}
+	},
 	// proj-docs: 0 issues
+
+	// Demo issues for Issue Detail View (UI #4)
+	{
+		id: 'api-auth-bug',
+		project_id: 'proj-api',
+		title: 'Fix authentication bug',
+		description:
+			'The login endpoint returns **500** when the session token is expired instead of returning **401**.\n\nThis causes the frontend to show a generic error instead of prompting the user to re-authenticate.\n\n## Steps to Reproduce\n1. Log in and obtain a session token\n2. Wait for the token to expire (or manually expire it)\n3. Make any authenticated API call\n4. Observe 500 Internal Server Error\n\n## Expected Behavior\n- Return `401 Unauthorized` with a descriptive error message\n- Frontend can then redirect to login automatically',
+		status: 'in_review',
+		priority: 8,
+		assigned_agent_id: 'agent-alice',
+		created_by: 'user',
+		max_review_rounds: 3,
+		current_review_round: 1,
+		branch_name: 'crewdeck/a1b2-fix-authentication-bug',
+		worktree_path: '/home/user/projects/api-backend/.worktrees/auth-bug',
+		base_branch: 'main',
+		repo_id: 'repo-api-1',
+		created_at: ago(4),
+		updated_at: ago(0.5)
+	},
+	{
+		id: 'api-pagination',
+		project_id: 'proj-api',
+		title: 'Add pagination support',
+		description:
+			'Implement cursor-based pagination for all list endpoints.\n\n## Requirements\n- Use cursor-based pagination (not offset) for consistency\n- Support `limit` query param (default 20, max 100)\n- Return `next_cursor` in response envelope\n- Add pagination to: `/issues`, `/agents`, `/activity`\n\n## Technical Notes\nUse a compound cursor of `created_at` + `id` to ensure stable ordering even across timestamp ties.',
+		status: 'ready',
+		priority: 5,
+		assigned_agent_id: 'agent-charlie',
+		created_by: 'user',
+		max_review_rounds: 2,
+		current_review_round: 2,
+		branch_name: 'crewdeck/c3d4-add-pagination-support',
+		worktree_path: null,
+		base_branch: 'main',
+		repo_id: 'repo-api-1',
+		created_at: ago(72),
+		updated_at: ago(4)
+	},
+	{
+		id: 'api-refactor-db',
+		project_id: 'proj-api',
+		title: 'Refactor database layer',
+		description:
+			'Extract database access into a dedicated repository layer to decouple business logic from raw SQL queries.\n\nThis will improve testability and make it easier to swap the storage backend in the future.',
+		status: 'draft',
+		priority: 3,
+		assigned_agent_id: null,
+		created_by: 'orchestrator',
+		max_review_rounds: null,
+		current_review_round: 0,
+		branch_name: null,
+		worktree_path: null,
+		base_branch: 'main',
+		repo_id: 'repo-api-1',
+		created_at: ago(6),
+		updated_at: ago(6)
+	}
 ];
 
 export const comments = [
@@ -497,6 +556,188 @@ export const comments = [
 		author_id: 'agent-dave',
 		content: 'Login and register screens complete. Working on the password reset flow.',
 		created_at: ago(4)
+	},
+	// api-auth-bug comments
+	{
+		id: 'cmt-auth-1',
+		issue_id: 'api-auth-bug',
+		author_type: 'orchestrator',
+		author_id: null,
+		content: 'Assigned Agent Alice. Expertise match: backend, API design, authentication.',
+		created_at: ago(3.5)
+	},
+	{
+		id: 'cmt-auth-2',
+		issue_id: 'api-auth-bug',
+		author_type: 'agent',
+		author_id: 'agent-alice',
+		content:
+			'Investigating the auth middleware. Found that `validateSession()` throws an unhandled exception when the token is expired instead of returning `null`.\n\n**Plan:**\n1. Fix the session validator to return `null` for expired tokens\n2. Update the middleware to check for `null` and return 401\n3. Add test coverage for the expired token case',
+		created_at: ago(2.5)
+	},
+	{
+		id: 'cmt-auth-3',
+		issue_id: 'api-auth-bug',
+		author_type: 'agent',
+		author_id: 'agent-alice',
+		content:
+			'Fix implemented. Updated `validateSession()` and the auth middleware. Tests added — all passing.\n\nSubmitting for review.',
+		created_at: ago(1.5)
+	},
+	{
+		id: 'cmt-auth-4',
+		issue_id: 'api-auth-bug',
+		author_type: 'agent',
+		author_id: 'agent-bob',
+		content:
+			'Code looks good overall. One suggestion: consider adding a specific error code for **expired** vs **invalid** tokens so the frontend can show appropriate messaging.\n\nOtherwise, LGTM.',
+		created_at: ago(0.5)
+	},
+	// api-pagination comments
+	{
+		id: 'cmt-page-1',
+		issue_id: 'api-pagination',
+		author_type: 'orchestrator',
+		author_id: null,
+		content: 'Assigned Agent Charlie. Expertise match: CI/CD, infrastructure.',
+		created_at: ago(48)
+	},
+	{
+		id: 'cmt-page-2',
+		issue_id: 'api-pagination',
+		author_type: 'agent',
+		author_id: 'agent-charlie',
+		content:
+			'Starting on pagination. Will implement cursor-based approach using `created_at` + `id` as the compound cursor to ensure stable ordering even across ties.',
+		created_at: ago(46)
+	},
+	{
+		id: 'cmt-page-3',
+		issue_id: 'api-pagination',
+		author_type: 'agent',
+		author_id: 'agent-charlie',
+		content:
+			'Implementation complete. All list endpoints now support `cursor` and `limit` params. Response envelope includes `next_cursor` (null when no more results). Submitting for Round 1 review.',
+		created_at: ago(24)
+	},
+	{
+		id: 'cmt-page-4',
+		issue_id: 'api-pagination',
+		author_type: 'agent',
+		author_id: 'agent-alice',
+		content:
+			'Round 1 review complete. The cursor logic is correct but I\'d suggest **base64-encoding** the cursor value to avoid issues with special characters in URL parameters.\n\n**Requesting changes.**',
+		created_at: ago(18)
+	},
+	{
+		id: 'cmt-page-5',
+		issue_id: 'api-pagination',
+		author_type: 'agent',
+		author_id: 'agent-charlie',
+		content:
+			'Updated: cursors are now base64-encoded. Updated tests to reflect the encoding. Submitting for Round 2 review.',
+		created_at: ago(10)
+	},
+	{
+		id: 'cmt-page-6',
+		issue_id: 'api-pagination',
+		author_type: 'agent',
+		author_id: 'agent-alice',
+		content: 'Round 2 review: looks great. Base64 encoding is clean, test coverage is thorough. **Approved.**',
+		created_at: ago(6)
+	},
+	{
+		id: 'cmt-page-7',
+		issue_id: 'api-pagination',
+		author_type: 'agent',
+		author_id: 'agent-bob',
+		content:
+			'Round 2 review: LGTM. Implementation is clean and consistent across all endpoints. **Approved.**',
+		created_at: ago(4)
+	},
+	// api-refactor-db comments
+	{
+		id: 'cmt-db-1',
+		issue_id: 'api-refactor-db',
+		author_type: 'orchestrator',
+		author_id: null,
+		content:
+			'Proposed this issue based on code analysis. The current codebase mixes raw SQL queries directly in route handlers, making the code difficult to test and maintain.\n\n**Recommended approach:**\n- Create `src/db/repositories/` with one file per entity\n- Each repository exposes typed CRUD methods\n- Route handlers call repositories, not raw SQL\n\nAwaiting approval before assigning an agent.',
+		created_at: ago(6)
+	}
+];
+
+export const issue_agents = [
+	// api-auth-bug: Alice (worker, active), Bob (reviewer, active)
+	{
+		id: 'ia-1',
+		issue_id: 'api-auth-bug',
+		agent_id: 'agent-alice',
+		role: 'worker',
+		status: 'active',
+		review_order: null,
+		session_id: null,
+		created_at: ago(3.5),
+		updated_at: ago(1.5)
+	},
+	{
+		id: 'ia-2',
+		issue_id: 'api-auth-bug',
+		agent_id: 'agent-bob',
+		role: 'reviewer',
+		status: 'active',
+		review_order: 1,
+		session_id: null,
+		created_at: ago(1.5),
+		updated_at: ago(0.5)
+	},
+	// api-pagination: Charlie (worker, done), Alice (reviewer, approved), Bob (reviewer, approved)
+	{
+		id: 'ia-3',
+		issue_id: 'api-pagination',
+		agent_id: 'agent-charlie',
+		role: 'worker',
+		status: 'done',
+		review_order: null,
+		session_id: null,
+		created_at: ago(48),
+		updated_at: ago(10)
+	},
+	{
+		id: 'ia-4',
+		issue_id: 'api-pagination',
+		agent_id: 'agent-alice',
+		role: 'reviewer',
+		status: 'approved',
+		review_order: 1,
+		session_id: null,
+		created_at: ago(24),
+		updated_at: ago(6)
+	},
+	{
+		id: 'ia-5',
+		issue_id: 'api-pagination',
+		agent_id: 'agent-bob',
+		role: 'reviewer',
+		status: 'approved',
+		review_order: 2,
+		session_id: null,
+		created_at: ago(24),
+		updated_at: ago(4)
+	}
+];
+
+export const issue_prs = [
+	// api-8 (done) has a merged PR — demonstrates the PR panel
+	{
+		id: 'ipr-1',
+		issue_id: 'api-8',
+		repo_id: 'repo-api-1',
+		pr_number: 42,
+		pr_url: 'https://github.com/example/api-backend/pull/42',
+		status: 'merged',
+		created_at: ago(130),
+		updated_at: ago(120)
 	}
 ];
 

@@ -15,6 +15,8 @@ import sessionsRouter from "./routes/sessions.js";
 import activityRouter from "./routes/activity.js";
 import orchestratorRouter from "./routes/orchestrator.js";
 import internalRouter from "./routes/internal.js";
+import { eventBus } from "./events/bus.js";
+import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 
 const app = express();
 
@@ -46,12 +48,15 @@ app.use(`${v1}/internal`, internalRouter);
 // Centralized error handler — must be last
 app.use(errorHandler);
 
-app.listen(config.port, config.host, () => {
+const server = app.listen(config.port, config.host, () => {
   logger.info(`Server started on port ${config.port}`);
 });
 
+const wss = setupWebSocket(server, eventBus);
+
 // Graceful shutdown
 function shutdown() {
+  shutdownWebSocket(wss);
   db.close();
   process.exit(0);
 }
