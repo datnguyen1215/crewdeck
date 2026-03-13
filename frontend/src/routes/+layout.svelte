@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import Toast from '$lib/components/Toast.svelte';
-	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { toastStore, type ToastType } from '$lib/stores/toasts.svelte.js';
 
 	let { children } = $props();
 
@@ -21,7 +21,7 @@
 
 	// Simulate mocked WebSocket events to demo the toast system
 	onMount(() => {
-		const events: Array<{ delay: number; type: 'info' | 'success' | 'warning' | 'error'; msg: string }> = [
+		const events: Array<{ delay: number; type: ToastType; msg: string }> = [
 			{ delay: 3000, type: 'info', msg: 'Agent Alice assigned to issue #42' },
 			{ delay: 9000, type: 'success', msg: 'Issue status changed: In Progress → In Review' },
 			{ delay: 16000, type: 'warning', msg: 'Review cycle 2 of 3 started for #38' },

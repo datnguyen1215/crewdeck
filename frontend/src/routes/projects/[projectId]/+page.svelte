@@ -277,6 +277,7 @@
 					<div class="px-3 py-2.5">Repo</div>
 					<div class="px-3 py-2.5 text-right">Age</div>
 				</div>
+				{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 				{#each Array(8) as _, i}
 					<div
 						class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] border-b border-edge last:border-0 {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
@@ -286,7 +287,7 @@
 							<div class="skeleton h-4 w-6 rounded"></div>
 						</div>
 						<div class="px-3 py-3 flex items-center gap-2">
-							<div class="skeleton h-4 rounded" style="width: {60 + (i * 17) % 30}%"></div>
+							<div class="skeleton h-4 rounded" style="width: {skeletonWidths[i % skeletonWidths.length]}%"></div>
 						</div>
 						<div class="px-3 py-3 flex items-center">
 							<div class="skeleton h-5 w-24 rounded"></div>
@@ -517,23 +518,4 @@
 		box-shadow: inset 3px 0 0 rgba(74, 222, 128, 0.4);
 	}
 
-	/* Row hover: left-to-right highlight sweep effect */
-	.issue-row {
-		position: relative;
-		overflow: hidden;
-	}
-
-	.issue-row::after {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(90deg, transparent 0%, rgba(34, 211, 238, 0.03) 50%, transparent 100%);
-		transform: translateX(-100%);
-		transition: transform 400ms ease;
-		pointer-events: none;
-	}
-
-	.issue-row:hover::after {
-		transform: translateX(100%);
-	}
 </style>
