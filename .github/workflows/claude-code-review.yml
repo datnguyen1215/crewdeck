@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Correctness Review
         uses: anthropics/claude-code-action@v1
@@ -34,6 +34,11 @@ jobs:
 
             First, read all existing comments and reviews on this PR using `gh pr view` and `gh api`.
             Skip any issues already raised by other reviewers.
+
+            IMPORTANT: The PR diff shows cumulative changes from the base branch. Issues found
+            in earlier commits may have already been fixed in later commits. Before reporting any
+            issue, read the CURRENT file contents to verify the problem still exists. Only report
+            issues that are present in the current state of the code.
 
             Then review the PR diff for CORRECTNESS:
             - Bugs, logic errors, broken assumptions
@@ -59,7 +64,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Simplicity Review
         uses: anthropics/claude-code-action@v1
@@ -72,6 +77,11 @@ jobs:
 
             First, read all existing comments and reviews on this PR using `gh pr view` and `gh api`.
             Skip any issues already raised by other reviewers.
+
+            IMPORTANT: The PR diff shows cumulative changes from the base branch. Issues found
+            in earlier commits may have already been fixed in later commits. Before reporting any
+            issue, read the CURRENT file contents to verify the problem still exists. Only report
+            issues that are present in the current state of the code.
 
             Then review the PR diff for OVER-ENGINEERING and unnecessary complexity:
             - Is there a shorter/simpler way to achieve the same outcome?
@@ -97,7 +107,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Security Review
         uses: anthropics/claude-code-action@v1
@@ -110,6 +120,11 @@ jobs:
 
             First, read all existing comments and reviews on this PR using `gh pr view` and `gh api`.
             Skip any issues already raised by other reviewers.
+
+            IMPORTANT: The PR diff shows cumulative changes from the base branch. Issues found
+            in earlier commits may have already been fixed in later commits. Before reporting any
+            issue, read the CURRENT file contents to verify the problem still exists. Only report
+            issues that are present in the current state of the code.
 
             Then review the PR diff for SECURITY vulnerabilities:
             - OWASP Top 10: injection, XSS, broken auth, insecure direct object references
