@@ -2,6 +2,7 @@ import { getEnv } from "./env.js";
 
 const TIMEOUT_MS = 10_000;
 
+// Return type is Promise<unknown> rather than void so callers can optionally read the response
 export async function post(path: string, body: Record<string, unknown>, apiUrl: string): Promise<unknown> {
   const url = `${apiUrl}${path}`;
   const controller = new AbortController();
@@ -15,10 +16,12 @@ export async function post(path: string, body: Record<string, unknown>, apiUrl: 
       signal: controller.signal,
     });
 
-    const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+    const data = await res.json().catch(() => null);
 
     if (!res.ok) {
-      const message = (data.message as string) ?? `HTTP ${res.status}`;
+      const message = (data != null && typeof data === "object" && "message" in data && typeof data.message === "string")
+        ? data.message
+        : `HTTP ${res.status}`;
       throw new Error(message);
     }
 

@@ -46,15 +46,16 @@ router.post("/signal", validate(SignalSchema), (req, res) => {
   if (event === "work-complete") {
     // Look up the agent's role so the orchestrator can route correctly
     const agent = getAgent(agent_id);
-    const role = agent?.role ?? "unknown";
-    eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role });
+    if (!agent) throw new NotFoundError("Agent not found");
+    eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: agent.role });
   } else if (event === "review-complete") {
     const verdict = data?.verdict ?? "pending";
-    eventBus.emit("review.completed", { issue_id, agent_id, project_id, verdict });
+    eventBus.emit("review.completed", { session_id, issue_id, agent_id, project_id, verdict });
   } else if (event === "error") {
     const message = data?.message;
     eventBus.emit("agent.error", { session_id, agent_id, issue_id, project_id, message });
-  } else if (event === "needs-help") {
+  } else {
+    // Exhaustive check — Zod validates the event enum, so this always matches
     const message = data?.message;
     eventBus.emit("agent.needs_help", { session_id, agent_id, issue_id, project_id, message });
   }
@@ -92,13 +93,17 @@ router.post("/status", validate(StatusSchema), (req, res) => {
 });
 
 // POST /files — agent reports which files were modified during the session
+// File paths are stored as metadata only — never used for filesystem access
 router.post("/files", validate(FilesSchema), (req, res) => {
   const { session_id, modified } = req.body;
 
   const session = getSession(session_id);
   if (!session) throw new NotFoundError("Session not found");
 
-  const existing = (session.context as Record<string, unknown> | null) ?? {};
+  const ctx = session.context;
+  const existing = (typeof ctx === "object" && ctx !== null && !Array.isArray(ctx))
+    ? (ctx as Record<string, unknown>)
+    : {};
   updateSession(session_id, {
     context: { ...existing, modified_files: modified },
   });

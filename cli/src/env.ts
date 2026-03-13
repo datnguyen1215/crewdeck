@@ -24,6 +24,7 @@ export function getEnv(): Env {
   }
 
   return {
+    // No scheme validation — this env var is set by the backend when spawning agent sessions
     apiUrl: process.env.CREWDECK_API_URL!,
     sessionId: process.env.CREWDECK_SESSION_ID!,
     issueId: process.env.CREWDECK_ISSUE_ID!,

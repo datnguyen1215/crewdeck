@@ -42,11 +42,11 @@ describe("filesCommand", () => {
 
   it("stops collecting files at the next flag", async () => {
     const { filesCommand } = await import("../src/commands/files.js");
-    await filesCommand(["--modified", "src/a.ts", "src/b.ts"]);
+    await filesCommand(["--modified", "src/a.ts", "--other-flag", "ignored.ts"]);
 
     const [, opts] = mocks.fetchMock.mock.calls[0];
     const body = JSON.parse(opts.body as string);
-    expect(body.modified).toEqual(["src/a.ts", "src/b.ts"]);
+    expect(body.modified).toEqual(["src/a.ts"]);
   });
 
   it("propagates backend error", async () => {
