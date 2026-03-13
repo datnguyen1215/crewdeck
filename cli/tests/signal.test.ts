@@ -21,13 +21,14 @@ describe("signalCommand", () => {
     });
   });
 
-  it("sends review-complete signal without --data (no data field sent, server applies default)", async () => {
+  it("sends review-complete signal without --data (server validates verdict via schema)", async () => {
     const { signalCommand } = await import("../src/commands/signal.js");
     await signalCommand(["--event", "review-complete"]);
 
     const [, opts] = mocks.fetchMock.mock.calls[0];
     const body = JSON.parse(opts.body as string);
     expect(body.event).toBe("review-complete");
+    // No data sent — server's SignalSchema .refine() will reject this with a 400
     expect(body.data).toBeUndefined();
   });
 
