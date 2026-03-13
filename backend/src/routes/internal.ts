@@ -49,13 +49,12 @@ router.post("/signal", validate(SignalSchema), (req, res) => {
     if (!agent) throw new NotFoundError("Agent not found");
     eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: agent.role });
   } else if (event === "review-complete") {
-    const verdict = data?.verdict ?? "pending";
-    eventBus.emit("review.completed", { session_id, issue_id, agent_id, project_id, verdict });
+    if (!data?.verdict) throw new Error("verdict is required for review-complete signals");
+    eventBus.emit("review.completed", { session_id, issue_id, agent_id, project_id, verdict: data.verdict });
   } else if (event === "error") {
     const message = data?.message;
     eventBus.emit("agent.error", { session_id, agent_id, issue_id, project_id, message });
-  } else {
-    // Exhaustive check — Zod validates the event enum, so this always matches
+  } else if (event === "needs-help") {
     const message = data?.message;
     eventBus.emit("agent.needs_help", { session_id, agent_id, issue_id, project_id, message });
   }

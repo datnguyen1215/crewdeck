@@ -17,11 +17,11 @@ describe("getEnv", () => {
     // Reset module to pick up env changes
     const { getEnv } = await import("../src/env.js");
     const env = getEnv();
-    expect(env.apiUrl).toBe("http://localhost:3000/api/v1");
-    expect(env.sessionId).toBe("session-1");
-    expect(env.issueId).toBe("issue-1");
-    expect(env.agentId).toBe("agent-1");
-    expect(env.projectId).toBe("project-1");
+    expect(env.api_url).toBe("http://localhost:3000/api/v1");
+    expect(env.session_id).toBe("session-1");
+    expect(env.issue_id).toBe("issue-1");
+    expect(env.agent_id).toBe("agent-1");
+    expect(env.project_id).toBe("project-1");
   });
 
   it("exits with error when env vars are missing", async () => {

@@ -7,11 +7,12 @@ const REQUIRED = [
 ] as const;
 
 export interface Env {
-  apiUrl: string;
-  sessionId: string;
-  issueId: string;
-  agentId: string;
-  projectId: string;
+  // No scheme validation — this env var is set by the backend when spawning agent sessions
+  api_url: string;
+  session_id: string;
+  issue_id: string;
+  agent_id: string;
+  project_id: string;
 }
 
 export function getEnv(): Env {
@@ -24,11 +25,10 @@ export function getEnv(): Env {
   }
 
   return {
-    // No scheme validation — this env var is set by the backend when spawning agent sessions
-    apiUrl: process.env.CREWDECK_API_URL!,
-    sessionId: process.env.CREWDECK_SESSION_ID!,
-    issueId: process.env.CREWDECK_ISSUE_ID!,
-    agentId: process.env.CREWDECK_AGENT_ID!,
-    projectId: process.env.CREWDECK_PROJECT_ID!,
+    api_url: process.env.CREWDECK_API_URL!,
+    session_id: process.env.CREWDECK_SESSION_ID!,
+    issue_id: process.env.CREWDECK_ISSUE_ID!,
+    agent_id: process.env.CREWDECK_AGENT_ID!,
+    project_id: process.env.CREWDECK_PROJECT_ID!,
   };
 }

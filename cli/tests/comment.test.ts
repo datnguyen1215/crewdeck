@@ -13,7 +13,6 @@ describe("commentCommand", () => {
     expect(url).toBe("http://localhost:3000/api/v1/internal/comment");
     const body = JSON.parse(opts.body as string);
     expect(body).toMatchObject({
-      session_id: "session-1",
       agent_id: "agent-1",
       issue_id: "issue-1",
       project_id: "project-1",

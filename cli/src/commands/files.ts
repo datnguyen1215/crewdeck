@@ -1,4 +1,5 @@
-import { post, sessionContext } from "../http.js";
+import { getEnv } from "../env.js";
+import { post } from "../http.js";
 
 const USAGE = `Usage: crewdeck files --modified <file1> [<file2> ...]
 
@@ -27,7 +28,7 @@ export async function filesCommand(argv: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const { apiUrl, session_id } = sessionContext();
-  await post("/internal/files", { session_id, modified }, apiUrl);
+  const { api_url, session_id } = getEnv();
+  await post("/internal/files", { session_id, modified }, api_url);
   console.log(`Reported ${modified.length} modified file(s).`);
 }

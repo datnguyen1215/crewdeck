@@ -1,4 +1,5 @@
-import { post, sessionContext } from "../http.js";
+import { getEnv } from "../env.js";
+import { post } from "../http.js";
 
 const USAGE = `Usage: crewdeck comment --message <text>
 
@@ -16,8 +17,8 @@ export async function commentCommand(argv: string[]): Promise<void> {
 
   const message = argv[msgIdx + 1];
 
-  const { apiUrl, ...ctx } = sessionContext();
-  await post("/internal/comment", { ...ctx, content: message }, apiUrl);
+  const { api_url, agent_id, issue_id, project_id } = getEnv();
+  await post("/internal/comment", { agent_id, issue_id, project_id, content: message }, api_url);
 
   console.log("Comment posted.");
 }
