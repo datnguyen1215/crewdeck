@@ -55,11 +55,9 @@ router.post("/signal", validate(SignalSchema), (req, res) => {
     // verdict is guaranteed present by SignalSchema .refine()
     eventBus.emit("review.completed", { session_id, issue_id, agent_id, project_id, verdict: data!.verdict! });
   } else if (event === "error") {
-    const message = data?.message;
-    eventBus.emit("agent.error", { session_id, agent_id, issue_id, project_id, message });
+    eventBus.emit("agent.error", { session_id, agent_id, issue_id, project_id, message: data?.message });
   } else if (event === "needs-help") {
-    const message = data?.message;
-    eventBus.emit("agent.needs_help", { session_id, agent_id, issue_id, project_id, message });
+    eventBus.emit("agent.needs_help", { session_id, agent_id, issue_id, project_id, message: data?.message });
   }
 
   res.json({ ok: true });
