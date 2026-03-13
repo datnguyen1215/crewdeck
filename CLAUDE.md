@@ -26,5 +26,6 @@ Act as a senior software engineer. Write code that is concise, correct, and prod
 
 ## Code Reviews
 
+- Follow the workflow in `workflows/pr-review.md` for all PR reviews.
 - Only review the files and lines changed in the PR diff. Do not explore or review unrelated code.
 - Read the diff first, then only look at surrounding context in changed files if needed to understand impact.
