@@ -99,10 +99,10 @@ describe("WebSocket integration", () => {
     let ws2Received = false;
     ws2.on("message", () => { ws2Received = true; });
 
-    bus.emit("agent.idle", { agent_id: "a1", project_id: projectId });
+    bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: projectId, state: "active" });
 
     const msg = await msgPromise;
-    expect(msg.event).toBe("agent.idle");
+    expect(msg.event).toBe("agent.status_changed");
 
     // Give ws2 a moment to receive — it should not
     await new Promise((r) => setTimeout(r, 50));
