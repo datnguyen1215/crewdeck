@@ -467,7 +467,7 @@ export const issues = [
 		repo_id: 'repo-mobile-1',
 		created_at: ago(300),
 		updated_at: ago(288)
-	}
+	},
 	// proj-docs: 0 issues
 
 	// Demo issues for Issue Detail View (UI #4)

@@ -17,17 +17,12 @@
 	// Action states
 	let showApproveConfirm = $state(false);
 	let showDiscardConfirm = $state(false);
-	let showCreatePRForm = $state(false);
 	let showEditForm = $state(false);
 	let working = $state(false);
 
 	// Edit form
 	let editTitle = $state('');
 	let editDescription = $state('');
-
-	// Create PR form
-	let prTitle = $state('');
-	let prBranch = $state('main');
 
 	// Copy state for branch name
 	let copied = $state(false);
@@ -55,14 +50,19 @@
 		return d < 7 ? `${d}d ago` : `${Math.floor(d / 7)}w ago`;
 	}
 
+	function esc(s: string) {
+		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
+
 	// Minimal markdown renderer — handles the subset used in mock data
 	function md(text: string): string {
 		if (!text) return '';
-		let out = text
+		// Escape HTML first so all content is safe; then apply markdown transforms
+		let out = esc(text)
 			// Code blocks (must be before inline code)
-			.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => `<pre><code>${esc(code.trim())}</code></pre>`)
+			.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`)
 			// Inline code
-			.replace(/`([^`]+)`/g, (_, c) => `<code>${esc(c)}</code>`)
+			.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`)
 			// Bold
 			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
 			// Italic (single *)
@@ -71,26 +71,26 @@
 		// Process line by line for headers and lists
 		const lines = out.split('\n');
 		const result: string[] = [];
-		let inList = false;
+		let inList: 'ul' | 'ol' | false = false;
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 			if (/^### /.test(line)) {
-				if (inList) { result.push('</ul>'); inList = false; }
+				if (inList) { result.push(`</${inList}>`); inList = false; }
 				result.push(`<h3>${line.slice(4)}</h3>`);
 			} else if (/^## /.test(line)) {
-				if (inList) { result.push('</ul>'); inList = false; }
+				if (inList) { result.push(`</${inList}>`); inList = false; }
 				result.push(`<h2>${line.slice(3)}</h2>`);
 			} else if (/^# /.test(line)) {
-				if (inList) { result.push('</ul>'); inList = false; }
+				if (inList) { result.push(`</${inList}>`); inList = false; }
 				result.push(`<h1>${line.slice(2)}</h1>`);
 			} else if (/^\d+\. /.test(line)) {
-				if (!inList) { result.push('<ol>'); inList = true; }
+				if (!inList) { result.push('<ol>'); inList = 'ol'; }
 				result.push(`<li>${line.replace(/^\d+\. /, '')}</li>`);
 			} else if (/^- /.test(line)) {
-				if (!inList) { result.push('<ul>'); inList = true; }
+				if (!inList) { result.push('<ul>'); inList = 'ul'; }
 				result.push(`<li>${line.slice(2)}</li>`);
 			} else {
-				if (inList) { result.push(inList ? '</ul>' : '</ol>'); inList = false; }
+				if (inList) { result.push(`</${inList}>`); inList = false; }
 				if (line.trim() === '') {
 					result.push('<br>');
 				} else {
@@ -98,12 +98,8 @@
 				}
 			}
 		}
-		if (inList) result.push('</ul>');
+		if (inList) result.push(`</${inList}>`);
 		return result.join('');
-	}
-
-	function esc(s: string) {
-		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 
 	async function postComment() {
@@ -179,18 +175,11 @@
 		done: { label: 'Done', dot: '✓', text: 'text-secondary', border: 'border-secondary' }
 	};
 
-	function commentLeftBorder(authorType: string, content: string): string {
-		if (/requesting changes|changes requested/i.test(content)) return 'var(--color-amber)';
-		if (authorType === 'orchestrator') return 'var(--color-purple)';
-		if (authorType === 'agent') return 'var(--color-cyan)';
-		return 'var(--color-edge-hi)';
-	}
-
-	function commentAuthorColor(authorType: string, content: string): string {
-		if (/requesting changes|changes requested/i.test(content)) return 'text-amber';
-		if (authorType === 'orchestrator') return 'text-purple';
-		if (authorType === 'agent') return 'text-cyan';
-		return 'text-secondary';
+	function commentStyle(authorType: string, content: string): { border: string; textColor: string } {
+		if (/requesting changes|changes requested/i.test(content)) return { border: 'var(--color-amber)', textColor: 'text-amber' };
+		if (authorType === 'orchestrator') return { border: 'var(--color-purple)', textColor: 'text-purple' };
+		if (authorType === 'agent') return { border: 'var(--color-cyan)', textColor: 'text-cyan' };
+		return { border: 'var(--color-edge-hi)', textColor: 'text-secondary' };
 	}
 
 	function commentAuthorLabel(comment: any): string {
@@ -218,13 +207,6 @@
 		closed: 'text-red border-red'
 	};
 
-	function sortedAgents(agents: any[]) {
-		return [...agents].sort((a, b) => {
-			if (a.role === 'worker') return -1;
-			if (b.role === 'worker') return 1;
-			return (a.review_order ?? 0) - (b.review_order ?? 0);
-		});
-	}
 </script>
 
 {#if loading}
@@ -409,18 +391,7 @@
 						{/if}
 
 						{#if issue.status === 'ready'}
-							{#if showCreatePRForm}
-								<div class="flex flex-col gap-2">
-									<input bind:value={prTitle} placeholder="PR title" class="bg-base border border-edge rounded px-2 py-1.5 text-primary w-full focus:border-cyan focus:outline-none" />
-									<input bind:value={prBranch} placeholder="Target branch" class="bg-base border border-edge rounded px-2 py-1.5 font-mono text-secondary w-full focus:border-cyan focus:outline-none" />
-									<div class="flex gap-2">
-										<button class="flex-1 py-1.5 border border-cyan text-cyan rounded hover:bg-cyan/10 transition-colors">Create PR</button>
-										<button onclick={() => showCreatePRForm = false} class="px-2 py-1.5 border border-edge text-muted rounded hover:text-secondary transition-colors">Cancel</button>
-									</div>
-								</div>
-							{:else}
-								<button onclick={() => { prTitle = issue!.title; showCreatePRForm = true; }} class="w-full py-1.5 border border-cyan text-cyan rounded hover:bg-cyan/10 transition-colors text-left px-3">Create PR</button>
-							{/if}
+							<button disabled class="w-full py-1.5 border border-cyan/40 text-cyan/40 rounded text-left px-3 cursor-not-allowed">Create PR</button>
 						{/if}
 
 						{#if issue.status === 'pr_created' && issue.issue_prs?.length}
@@ -436,7 +407,7 @@
 					<div class="bg-surface border border-edge rounded p-4">
 						<div class="text-xs text-muted uppercase tracking-widest mb-3">Agents</div>
 						<div class="flex flex-col gap-2 text-xs">
-							{#each sortedAgents(issue.issue_agents) as ia}
+							{#each [...issue.issue_agents].sort((a, b) => a.role === 'worker' ? -1 : b.role === 'worker' ? 1 : (a.review_order ?? 0) - (b.review_order ?? 0)) as ia}
 								{@const s = agentStatusIcon(ia.status, ia.role)}
 								<div class="flex items-center gap-2">
 									<span class="text-muted w-16 shrink-0">
@@ -482,12 +453,13 @@
 			{#if issue.comments.length > 0}
 				<div class="flex flex-col gap-3 mb-6">
 					{#each issue.comments as comment (comment.id)}
+						{@const cs = commentStyle(comment.author_type, comment.content)}
 						<div
 							class="border border-edge rounded-r rounded-tl rounded-bl bg-base p-4"
-							style="border-left: 3px solid {commentLeftBorder(comment.author_type, comment.content)}"
+							style="border-left: 3px solid {cs.border}"
 						>
 							<div class="flex items-center gap-2 mb-2 flex-wrap">
-								<span class="text-xs font-semibold {commentAuthorColor(comment.author_type, comment.content)}">
+								<span class="text-xs font-semibold {cs.textColor}">
 									{commentAuthorLabel(comment)}
 								</span>
 								<span class="text-xs text-muted" title={new Date(comment.created_at).toLocaleString()}>
