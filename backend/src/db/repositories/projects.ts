@@ -4,7 +4,7 @@ import type {
   CreateProjectInput,
   UpdateProjectInput,
 } from "../../types/entities.js";
-import { createRepo } from "./repos.js";
+import { createRepo, ensureCloned } from "./repos.js";
 
 export function listProjects(): Project[] {
   return db.prepare("SELECT * FROM Project ORDER BY created_at DESC").all() as Project[];
@@ -17,6 +17,12 @@ export function getProject(id: string): Project | null {
 export function createProject(input: CreateProjectInput): Project {
   const id = crypto.randomUUID();
   const crewId = crypto.randomUUID();
+
+  // Clone repo before opening the transaction to avoid holding the SQLite write lock
+  // during a potentially slow git clone operation.
+  if (input.github_url) {
+    ensureCloned(input.github_url);
+  }
 
   db.transaction(() => {
     db.prepare(
