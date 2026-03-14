@@ -32,15 +32,27 @@ jobs:
           prompt: |
             You are reviewing PR #${{ github.event.pull_request.number }}.
 
-            First, read all existing comments and reviews on this PR using `gh pr view` and `gh api`.
-            Skip any issues already raised by other reviewers.
+            ## Step 1: Gather context
 
-            IMPORTANT: The PR diff shows cumulative changes from the base branch. Issues found
-            in earlier commits may have already been fixed in later commits. Before reporting any
-            issue, read the CURRENT file contents to verify the problem still exists. Only report
-            issues that are present in the current state of the code.
+            Read ALL existing comments on this PR:
+            ```
+            gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments
+            ```
 
-            Then review the PR diff for CORRECTNESS:
+            Build a ledger of every issue previously raised in "## Correctness Review" comments.
+            For each prior issue, note whether a later comment (e.g. a fix confirmation from @claude)
+            says it was resolved.
+
+            ## Step 2: Verify prior issues against current code
+
+            For each previously raised issue:
+            1. Read the CURRENT file contents at the referenced location using `cat` or the Read tool.
+            2. Determine if the issue is **still present** or **already fixed**.
+            3. Do NOT re-report issues that are fixed in the current code, even if they appear in the PR diff.
+
+            ## Step 3: Review for new issues
+
+            Review the PR diff for CORRECTNESS issues not already covered by prior reviews:
             - Bugs, logic errors, broken assumptions
             - Off-by-one errors, null/undefined access, unhandled exceptions
             - Incorrect error path handling
@@ -48,9 +60,22 @@ jobs:
             - Race conditions or concurrency issues
             - Whether the code actually does what it claims
 
-            Post your review as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
-            Start with "## Correctness Review". Reference specific files and line numbers.
-            If no new issues found, say so briefly.
+            For every potential issue, read the current file to confirm it exists before reporting.
+
+            ## Step 4: Post your review
+
+            Post as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
+
+            Start with "## Correctness Review" followed by a note about prior reviews:
+            - "No existing reviews to build on." OR
+            - "Previous review raised N issues; M fixed, K still outstanding."
+
+            Then list only:
+            - Outstanding issues from prior reviews (still present in current code)
+            - New issues found in this review
+
+            If everything from prior reviews is fixed and no new issues found, post:
+            "## Correctness Review\n\nAll previously raised issues have been fixed. No new issues found."
 
   simplicity-review:
     runs-on: ubuntu-latest
@@ -75,15 +100,27 @@ jobs:
           prompt: |
             You are reviewing PR #${{ github.event.pull_request.number }}.
 
-            First, read all existing comments and reviews on this PR using `gh pr view` and `gh api`.
-            Skip any issues already raised by other reviewers.
+            ## Step 1: Gather context
 
-            IMPORTANT: The PR diff shows cumulative changes from the base branch. Issues found
-            in earlier commits may have already been fixed in later commits. Before reporting any
-            issue, read the CURRENT file contents to verify the problem still exists. Only report
-            issues that are present in the current state of the code.
+            Read ALL existing comments on this PR:
+            ```
+            gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments
+            ```
 
-            Then review the PR diff for OVER-ENGINEERING and unnecessary complexity:
+            Build a ledger of every issue previously raised in "## Simplicity Review" comments.
+            For each prior issue, note whether a later comment (e.g. a fix confirmation from @claude)
+            says it was resolved.
+
+            ## Step 2: Verify prior issues against current code
+
+            For each previously raised issue:
+            1. Read the CURRENT file contents at the referenced location using `cat` or the Read tool.
+            2. Determine if the issue is **still present** or **already fixed**.
+            3. Do NOT re-report issues that are fixed in the current code, even if they appear in the PR diff.
+
+            ## Step 3: Review for new issues
+
+            Review the PR diff for OVER-ENGINEERING and unnecessary complexity not already covered:
             - Is there a shorter/simpler way to achieve the same outcome?
             - Are abstractions justified or premature?
             - Dead code, unused variables, or redundant logic
@@ -91,9 +128,22 @@ jobs:
             - Could a standard library function or built-in replace custom code?
             - Is the diff larger than it needs to be for the stated goal?
 
-            Post your review as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
-            Start with "## Simplicity Review". Reference specific files and line numbers.
-            If no new issues found, say so briefly.
+            For every potential issue, read the current file to confirm it exists before reporting.
+
+            ## Step 4: Post your review
+
+            Post as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
+
+            Start with "## Simplicity Review" followed by a note about prior reviews:
+            - "No existing reviews to build on." OR
+            - "Previous review raised N issues; M fixed, K still outstanding."
+
+            Then list only:
+            - Outstanding issues from prior reviews (still present in current code)
+            - New issues found in this review
+
+            If everything from prior reviews is fixed and no new issues found, post:
+            "## Simplicity Review\n\nAll previously raised issues have been fixed. No new issues found."
 
   security-review:
     runs-on: ubuntu-latest
@@ -118,15 +168,27 @@ jobs:
           prompt: |
             You are reviewing PR #${{ github.event.pull_request.number }}.
 
-            First, read all existing comments and reviews on this PR using `gh pr view` and `gh api`.
-            Skip any issues already raised by other reviewers.
+            ## Step 1: Gather context
 
-            IMPORTANT: The PR diff shows cumulative changes from the base branch. Issues found
-            in earlier commits may have already been fixed in later commits. Before reporting any
-            issue, read the CURRENT file contents to verify the problem still exists. Only report
-            issues that are present in the current state of the code.
+            Read ALL existing comments on this PR:
+            ```
+            gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments
+            ```
 
-            Then review the PR diff for SECURITY vulnerabilities:
+            Build a ledger of every issue previously raised in "## Security Review" comments.
+            For each prior issue, note whether a later comment (e.g. a fix confirmation from @claude)
+            says it was resolved.
+
+            ## Step 2: Verify prior issues against current code
+
+            For each previously raised issue:
+            1. Read the CURRENT file contents at the referenced location using `cat` or the Read tool.
+            2. Determine if the issue is **still present** or **already fixed**.
+            3. Do NOT re-report issues that are fixed in the current code, even if they appear in the PR diff.
+
+            ## Step 3: Review for new issues
+
+            Review the PR diff for SECURITY vulnerabilities not already covered:
             - OWASP Top 10: injection, XSS, broken auth, insecure direct object references
             - Secrets or credentials accidentally included in the diff
             - Unsafe deserialization or parsing of user input
@@ -134,6 +196,19 @@ jobs:
             - Sensitive data exposed in logs or responses
             - Newly added dependencies with known vulnerabilities
 
-            Post your review as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
-            Start with "## Security Review". Reference specific files and line numbers.
-            If no new issues found, say so briefly.
+            For every potential issue, read the current file to confirm it exists before reporting.
+
+            ## Step 4: Post your review
+
+            Post as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
+
+            Start with "## Security Review" followed by a note about prior reviews:
+            - "No existing reviews to build on." OR
+            - "Previous review raised N issues; M fixed, K still outstanding."
+
+            Then list only:
+            - Outstanding issues from prior reviews (still present in current code)
+            - New issues found in this review
+
+            If everything from prior reviews is fixed and no new issues found, post:
+            "## Security Review\n\nAll previously raised issues have been fixed. No new issues found."
