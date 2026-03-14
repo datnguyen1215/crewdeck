@@ -3,6 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { db } from "../index.js";
 import { config } from "../../config.js";
+import { toContainerPath } from "../../utils/paths.js";
 import type { Repo, CreateRepoInput } from "../../types/entities.js";
 
 function validateSegments(url: string, owner: string, name: string) {
@@ -22,9 +23,10 @@ function parseGithubUrl(url: string): { owner: string; name: string } {
 }
 
 function cloneIfNeeded(githubUrl: string, localPath: string): void {
-  if (fs.existsSync(path.join(localPath, ".git"))) return;
-  fs.mkdirSync(path.dirname(localPath), { recursive: true });
-  execFileSync("git", ["clone", githubUrl, localPath], { stdio: "pipe" });
+  const diskPath = toContainerPath(localPath);
+  if (fs.existsSync(path.join(diskPath, ".git"))) return;
+  fs.mkdirSync(path.dirname(diskPath), { recursive: true });
+  execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe" });
 }
 
 /** Parse the URL and clone the repo if needed, without touching the DB. */
