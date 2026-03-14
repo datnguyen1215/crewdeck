@@ -1,13 +1,12 @@
 services:
   frontend:
     build: ./frontend
-    ports:
-      - "9380:5173"
+    network_mode: host
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_BACKEND_URL=http://backend:3000
+      - VITE_BACKEND_URL=http://localhost:9381
     depends_on:
       - backend
 
@@ -15,16 +14,14 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    ports:
-      - "9381:3000"
+    network_mode: host
     volumes:
       - ./data:/app/data
       - ~/.claude:/home/app/.claude:ro
       - ~/.config/gh:/home/app/.config/gh:ro
-      - ~/projects:/repos
     environment:
+      - PORT=9381
+      - HOST=0.0.0.0
       - CORS_ORIGIN=http://localhost:9380
       - DB_PATH=/app/data/crewdeck.db
       - CREWDECK_REPOS_DIR=/app/data/repos
-      - CREWDECK_REPOS_HOST_PATH=${HOME}/projects
-      - CREWDECK_REPOS_CONTAINER_PATH=/repos
