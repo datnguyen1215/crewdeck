@@ -1,14 +1,7 @@
-# Using network_mode: host to avoid iptables/nftables DNAT failures on modern
-# Linux kernels (e.g. Arch 6.18+). Trade-off: containers share the host's
-# network namespace, so they can reach host-local services. We mitigate by
-# binding both services to 127.0.0.1 only.
 services:
   frontend:
     build: ./frontend
     network_mode: host
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
       - VITE_BACKEND_URL=http://localhost:9381
     depends_on:
@@ -20,7 +13,7 @@ services:
       dockerfile: backend/Dockerfile
     network_mode: host
     volumes:
-      - ./data:/app/data
+      - crewdeck-data:/app/data
       - ~/.claude:/home/app/.claude:ro
       - ~/.config/gh:/home/app/.config/gh:ro
     environment:
@@ -29,3 +22,6 @@ services:
       - CORS_ORIGIN=http://localhost:9380
       - DB_PATH=/app/data/crewdeck.db
       - CREWDECK_REPOS_DIR=/app/data/repos
+
+volumes:
+  crewdeck-data:
