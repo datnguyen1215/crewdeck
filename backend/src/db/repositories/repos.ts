@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 import { db } from "../index.js";
@@ -18,7 +18,7 @@ function parseGithubUrl(url: string): { owner: string; name: string } {
 function cloneIfNeeded(githubUrl: string, localPath: string): void {
   if (fs.existsSync(path.join(localPath, ".git"))) return;
   fs.mkdirSync(path.dirname(localPath), { recursive: true });
-  execSync(`git clone ${githubUrl} ${localPath}`, { stdio: "pipe" });
+  execFileSync("git", ["clone", githubUrl, localPath], { stdio: "pipe" });
 }
 
 export function listRepos(projectId: string): Repo[] {

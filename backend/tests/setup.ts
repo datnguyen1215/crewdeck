@@ -10,7 +10,7 @@ vi.mock("../src/db/index.js", async (importOriginal) => {
 // Stub git clone so repo tests don't hit the network
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
-  return { ...actual, execSync: vi.fn() };
+  return { ...actual, execFileSync: vi.fn() };
 });
 
 vi.mock("node:fs", async (importOriginal) => {
