@@ -20,22 +20,27 @@ import { z } from "zod";
 //   are not used in any fs/shell operation yet. Validate against an allowed base
 //   directory when git/fs operations are introduced.
 
-export const CreateProjectSchema = z.object({
+const CreateProjectBase = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   max_concurrency: z.number().int().positive().optional(),
   max_review_rounds: z.number().int().nonnegative().optional(),
-  github_url: z.string().url().refine((url) => /github\.com/.test(url), { message: "Must be a GitHub URL" }).optional(),
+  github_url: z.string().url().refine((url) => { try { return new URL(url).hostname === "github.com"; } catch { return false; } }, { message: "Must be a GitHub URL" }).optional(),
   local_path: z.string().min(1).optional(),
   default_branch: z.string().optional(),
 });
 
-export const UpdateProjectSchema = CreateProjectSchema.partial().extend({
+export const CreateProjectSchema = CreateProjectBase.refine(
+  (d) => !d.github_url === !d.local_path,
+  { message: "github_url and local_path must both be provided or both omitted", path: ["local_path"] }
+);
+
+export const UpdateProjectSchema = CreateProjectBase.partial().extend({
   orchestrator_session_id: z.string().nullable().optional(),
 });
 
 export const CreateRepoSchema = z.object({
-  github_url: z.string().url().refine((url) => /github\.com/.test(url), { message: "Must be a GitHub URL" }),
+  github_url: z.string().url().refine((url) => { try { return new URL(url).hostname === "github.com"; } catch { return false; } }, { message: "Must be a GitHub URL" }),
   local_path: z.string().min(1),
   default_branch: z.string().optional(),
 });
