@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listActivity, listIssues } from '$lib/mock/api.js';
+	import { listActivity, listIssues } from '$lib/api/client.js';
 
 	type ActivityEntry = Awaited<ReturnType<typeof listActivity>>[number];
 	type Issue = Awaited<ReturnType<typeof listIssues>>[number];
@@ -46,7 +46,7 @@
 		'pr.merged': 'PR Merged'
 	};
 
-	// Pagination scaffolding — not triggered by current mock data but needed for production volumes.
+	// Client-side pagination over fetched entries.
 	const PAGE_SIZE = 50;
 
 	let projectId = $derived($page.params.projectId);
@@ -83,8 +83,12 @@
 		};
 	});
 
-	// Filtering is applied server-side; allEntries already reflects active filters.
-	let filtered = $derived(allEntries);
+	// Backend supports single actor_type filter; apply client-side filtering when multiple are selected.
+	let filtered = $derived(
+		filterActors.length > 1
+			? allEntries.filter((e) => filterActors.includes(e.actor_type))
+			: allEntries
+	);
 
 	let visible = $derived(filtered.slice(0, visibleCount));
 	let hasMore = $derived(filtered.length > visibleCount);
@@ -149,7 +153,7 @@
 	}
 
 	// Entries within the last 2 hours get a subtle glow treatment.
-	// Note: glow effect only triggers for entries <2h old. Visible with live data, not with static mock timestamps.
+	// Entries within the last 2 hours get a subtle glow treatment.
 	function isRecent(dateStr: string): boolean {
 		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
 	}

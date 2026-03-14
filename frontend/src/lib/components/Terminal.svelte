@@ -1,13 +1,11 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import '@xterm/xterm/css/xterm.css';
-	import { streamOutput } from '$lib/mock/terminal.js';
 
-	interface OutputLine { text: string; delayMs: number; }
 	interface Session {
 		agentName: string;
 		status: 'running' | 'completed' | 'idle';
-		outputLines: OutputLine[];
+		output?: string;
 	}
 
 	interface Props {
@@ -17,18 +15,15 @@
 	let { session }: Props = $props();
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
-	let cancelStream: (() => void) | null = null;
-	let streamDone = $state(false);
 	let destroyed = false;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let term: any = null;
 	let ro: ResizeObserver | null = null;
 
-	const isRunning = $derived(session.status === 'running' && !streamDone);
+	const isRunning = $derived(session.status === 'running');
 
 	onDestroy(() => {
 		destroyed = true;
-		cancelStream?.();
 		ro?.disconnect();
 		term?.dispose();
 	});
@@ -81,14 +76,26 @@
 		fitAddon.fit();
 		term = t;
 
-		// Start streaming mock output
-		cancelStream = streamOutput(t, session.outputLines, () => {
-			streamDone = true;
-		});
+		// Write any existing output
+		if (session.output) {
+			for (const line of session.output.split('\n')) {
+				t.writeln(line);
+			}
+		}
 
 		// Resize observer keeps terminal fitted to container
 		ro = new ResizeObserver(() => fitAddon.fit());
 		ro.observe(containerEl!);
+	});
+
+	// Write new output when session.output changes
+	$effect(() => {
+		if (term && session.output) {
+			term.clear();
+			for (const line of session.output.split('\n')) {
+				term.writeln(line);
+			}
+		}
 	});
 </script>
 

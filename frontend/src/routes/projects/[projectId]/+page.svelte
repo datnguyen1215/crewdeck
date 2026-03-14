@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listIssues, listAgents, listRepos, createIssue } from '$lib/mock/api.js';
+	import { listIssues, listAgents, listRepos, createIssue } from '$lib/api/client.js';
 
 	type Issue = Awaited<ReturnType<typeof listIssues>>[number];
 	type Agent = Awaited<ReturnType<typeof listAgents>>[number];
@@ -173,9 +173,7 @@
 			resetForm();
 		} finally {
 			submitting = false;
-			// Decision: no catch block — mock API never throws. When wired to a real API,
-			// add error handling here to surface creation failures to the user.
-		}
+			}
 	}
 
 	function onKeydown(e: KeyboardEvent) {

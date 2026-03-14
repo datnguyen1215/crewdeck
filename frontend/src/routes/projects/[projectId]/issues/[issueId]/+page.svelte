@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { getIssue, addComment, approveIssue, discardIssue, updateIssue } from '$lib/mock/api.js';
-	import { mockSessions } from '$lib/mock/terminal.js';
+	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions } from '$lib/api/client.js';
 	import Terminal from '$lib/components/Terminal.svelte';
 
 	type Issue = Awaited<ReturnType<typeof getIssue>>;
@@ -31,13 +30,29 @@
 
 	// Tab navigation
 	let activeTab = $state<'description' | 'comments' | 'terminal'>('description');
-	let terminalSession = $derived(issue ? mockSessions[issue.id] ?? null : null);
+	let terminalSession = $state<{ agentName: string; status: 'running' | 'completed' | 'idle'; output?: string } | null>(null);
 
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
 		getIssue(projectId, issueId)
-			.then((d) => { if (!cancelled) issue = d; })
+			.then(async (d) => {
+				if (cancelled) return;
+				issue = d;
+				// Find active session for this issue
+				const sessions = await listSessions(projectId, { issue_id: issueId }).catch(() => []);
+				if (cancelled) return;
+				const activeSession = sessions.find((s: any) => s.issue_id === issueId);
+				if (activeSession) {
+					const agentName = d.assigned_agent?.name ?? activeSession.agent_id ?? 'Agent';
+					terminalSession = {
+						agentName,
+						status: activeSession.status === 'running' ? 'running' : activeSession.status === 'completed' ? 'completed' : 'idle'
+					};
+				} else {
+					terminalSession = null;
+				}
+			})
 			.catch(() => { if (!cancelled) issue = null; })
 			.finally(() => { if (!cancelled) loading = false; });
 		return () => { cancelled = true; };
@@ -57,7 +72,7 @@
 		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 
-	// Minimal markdown renderer — handles the subset used in mock data
+	// Minimal markdown renderer — handles the common subset
 	function md(text: string): string {
 		if (!text) return '';
 

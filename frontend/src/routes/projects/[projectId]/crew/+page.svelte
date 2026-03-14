@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent } from '$lib/mock/api.js';
+	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent } from '$lib/api/client.js';
 
 	type CrewData = Awaited<ReturnType<typeof getCrew>>;
 	type AgentData = CrewData['agents'][number];

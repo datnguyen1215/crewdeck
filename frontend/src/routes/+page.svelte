@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { listProjectsWithStats, createProject } from '$lib/mock/api.js';
+	import { listProjectsWithStats, createProject } from '$lib/api/client.js';
 
 	type ProjectWithStats = Awaited<ReturnType<typeof listProjectsWithStats>>[number];
 
