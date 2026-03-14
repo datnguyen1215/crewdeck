@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { listSessions, getSession } from "../db/repositories/sessions.js";
 import { getProject } from "../db/repositories/projects.js";
 import { NotFoundError } from "../middleware/errors.js";
@@ -6,7 +6,7 @@ import type { SessionFilters } from "../types/entities.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", (req, res) => {
+router.get("/", (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
 
@@ -19,7 +19,7 @@ router.get("/", (req, res) => {
   res.json(listSessions(projectId, filters));
 });
 
-router.get("/:sessionId", (req, res) => {
+router.get("/:sessionId", (req: Request<{ projectId: string; sessionId: string }>, res) => {
   const session = getSession(req.params.sessionId);
   if (!session || session.project_id !== req.params.projectId) {
     throw new NotFoundError("Session not found");

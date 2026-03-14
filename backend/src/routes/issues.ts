@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import {
   listIssues,
   getIssue,
@@ -35,7 +35,7 @@ function assertTransition(from: string, to: string): void {
 
 const router = Router({ mergeParams: true });
 
-router.get("/", (req, res) => {
+router.get("/", (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
 
@@ -51,7 +51,7 @@ router.get("/", (req, res) => {
   res.json(listIssues(projectId, filters));
 });
 
-router.get("/:issueId", (req, res) => {
+router.get("/:issueId", (req: Request<{ projectId: string; issueId: string }>, res) => {
   const issue = getIssueWithDetails(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {
     throw new NotFoundError("Issue not found");
@@ -59,7 +59,7 @@ router.get("/:issueId", (req, res) => {
   res.json(issue);
 });
 
-router.post("/", validate(CreateIssueSchema), (req, res) => {
+router.post("/", validate(CreateIssueSchema), (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
   const issue = createIssue(projectId, req.body);
@@ -67,7 +67,7 @@ router.post("/", validate(CreateIssueSchema), (req, res) => {
   res.status(201).json(issue);
 });
 
-router.patch("/:issueId", validate(UpdateIssueSchema), (req, res) => {
+router.patch("/:issueId", validate(UpdateIssueSchema), (req: Request<{ projectId: string; issueId: string }>, res) => {
   const existing = getIssue(req.params.issueId);
   if (!existing || existing.project_id !== req.params.projectId) {
     throw new NotFoundError("Issue not found");
@@ -91,7 +91,7 @@ router.patch("/:issueId", validate(UpdateIssueSchema), (req, res) => {
   res.json(updated);
 });
 
-router.delete("/:issueId", (req, res) => {
+router.delete("/:issueId", (req: Request<{ projectId: string; issueId: string }>, res) => {
   const issue = getIssue(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {
     throw new NotFoundError("Issue not found");
@@ -102,7 +102,7 @@ router.delete("/:issueId", (req, res) => {
 
 // Intentional: dedicated action routes for clarity, even though PATCH could handle these transitions.
 // POST /approve — draft → open
-router.post("/:issueId/approve", (req, res) => {
+router.post("/:issueId/approve", (req: Request<{ projectId: string; issueId: string }>, res) => {
   const issue = getIssue(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {
     throw new NotFoundError("Issue not found");
@@ -116,7 +116,7 @@ router.post("/:issueId/approve", (req, res) => {
 });
 
 // POST /discard — delete draft
-router.post("/:issueId/discard", (req, res) => {
+router.post("/:issueId/discard", (req: Request<{ projectId: string; issueId: string }>, res) => {
   const issue = getIssue(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {
     throw new NotFoundError("Issue not found");
@@ -129,7 +129,7 @@ router.post("/:issueId/discard", (req, res) => {
 });
 
 // POST /create-pr — ready → pr_created, emit event
-router.post("/:issueId/create-pr", (req, res) => {
+router.post("/:issueId/create-pr", (req: Request<{ projectId: string; issueId: string }>, res) => {
   const issue = getIssue(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {
     throw new NotFoundError("Issue not found");

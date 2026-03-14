@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { listRepos, getRepo, createRepo, deleteRepo } from "../db/repositories/repos.js";
 import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
@@ -7,20 +7,20 @@ import { CreateRepoSchema } from "../schemas/validation.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", (req, res) => {
+router.get("/", (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
   res.json(listRepos(projectId));
 });
 
-router.post("/", validate(CreateRepoSchema), (req, res) => {
+router.post("/", validate(CreateRepoSchema), (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
   const repo = createRepo(projectId, req.body);
   res.status(201).json(repo);
 });
 
-router.delete("/:repoId", (req, res) => {
+router.delete("/:repoId", (req: Request<{ projectId: string; repoId: string }>, res) => {
   const repo = getRepo(req.params.repoId);
   if (!repo || repo.project_id !== req.params.projectId) throw new NotFoundError("Repo not found");
   deleteRepo(req.params.repoId);

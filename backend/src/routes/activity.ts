@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { listActivity } from "../db/repositories/activity-log.js";
 import { getProject } from "../db/repositories/projects.js";
 import { NotFoundError } from "../middleware/errors.js";
@@ -6,7 +6,7 @@ import type { ActivityFilters } from "../types/entities.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", (req, res) => {
+router.get("/", (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
 

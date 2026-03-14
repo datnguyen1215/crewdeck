@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { listComments, createComment } from "../db/repositories/comments.js";
 import { getIssue } from "../db/repositories/issues.js";
 import { validate } from "../middleware/validate.js";
@@ -8,7 +8,7 @@ import { eventBus } from "../events/bus.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", (req, res) => {
+router.get("/", (req: Request<{ projectId: string; issueId: string }>, res) => {
   const issue = getIssue(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {
     throw new NotFoundError("Issue not found");
@@ -16,7 +16,7 @@ router.get("/", (req, res) => {
   res.json(listComments(req.params.issueId));
 });
 
-router.post("/", validate(CreateCommentSchema), (req, res) => {
+router.post("/", validate(CreateCommentSchema), (req: Request<{ projectId: string; issueId: string }>, res) => {
   const issue = getIssue(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {
     throw new NotFoundError("Issue not found");
