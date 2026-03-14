@@ -7,6 +7,5 @@ RUN npm ci
 
 COPY . .
 
-EXPOSE 5173
-
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# No EXPOSE — we use network_mode: host, so the port is bound directly on the host.
+CMD ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", "9380"]
