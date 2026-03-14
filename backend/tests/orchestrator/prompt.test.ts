@@ -75,6 +75,7 @@ function makeState(overrides: Partial<OrchestratorState> = {}): OrchestratorStat
     inReviewIssues: [],
     feedbackIssues: [],
     draftIssues: [],
+    activeReviewerAgentIds: new Set(),
     ...overrides,
   };
 }

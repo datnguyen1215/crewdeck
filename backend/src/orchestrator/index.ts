@@ -51,14 +51,27 @@ function buildState(projectId: string): OrchestratorState | null {
   if (!crew) return null;
 
   const all = listIssues(projectId);
+  const inReviewIssues = all.filter((i) => i.status === "in_review");
+
+  // Collect agent IDs that are actively reviewing so they aren't shown as idle
+  const activeReviewerAgentIds = new Set<string>();
+  for (const issue of inReviewIssues) {
+    for (const ia of listIssueAgents(issue.id)) {
+      if (ia.role === "reviewer" && ia.status === "active") {
+        activeReviewerAgentIds.add(ia.agent_id);
+      }
+    }
+  }
+
   return {
     project,
     crew,
     openIssues: all.filter((i) => i.status === "open"),
     inProgressIssues: all.filter((i) => i.status === "in_progress"),
-    inReviewIssues: all.filter((i) => i.status === "in_review"),
+    inReviewIssues,
     feedbackIssues: all.filter((i) => i.status === "feedback"),
     draftIssues: all.filter((i) => i.status === "draft"),
+    activeReviewerAgentIds,
   };
 }
 
@@ -106,10 +119,10 @@ async function executeAssign(
 
   // Create worktree if repo is configured
   const repos = listRepos(projectId);
+  const repo = repos.length > 0 ? repos[0] : null;
   let worktreePath = "/tmp";
   let createdBranchName: string | null = null;
-  if (repos.length > 0) {
-    const repo = repos[0];
+  if (repo) {
     try {
       const wt = await createWorktree(repo, updatedIssue, repo.default_branch);
       worktreePath = wt.path;
@@ -119,7 +132,6 @@ async function executeAssign(
     }
   }
 
-  const repo = repos.length > 0 ? repos[0] : null;
   const promptText = buildAgentPrompt(updatedIssue, agent, repo, {
     worktreePath,
     previousComments: repo ? listComments(issue_id) : undefined,
@@ -167,8 +179,8 @@ async function executeAssign(
       base_branch: issue.base_branch ?? null,
     });
     // Clean up the orphaned git worktree so future assignments don't fail on a duplicate branch
-    if (repos.length > 0 && createdBranchName) {
-      cleanupWorktree(repos[0], worktreePath, createdBranchName).catch((cleanErr) => {
+    if (repo && createdBranchName) {
+      cleanupWorktree(repo, worktreePath, createdBranchName).catch((cleanErr) => {
         logger.warn({ cleanErr, worktreePath }, "assign: failed to clean up orphaned worktree");
       });
     }
@@ -432,7 +444,7 @@ export class OrchestratorManager {
       const issue = getIssue(issue_id);
       void this.resume(
         project_id,
-        `Agent finished work on issue (issue_id: ${issue_id}, agent_id: ${agent_id}, role: ${role}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>\nThe work session has ended — consider routing to review if work is complete.`
+        `Agent finished work on issue (issue_id: ${escapeXml(issue_id)}, agent_id: ${escapeXml(agent_id)}, role: ${escapeXml(role)}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>\nThe work session has ended — consider routing to review if work is complete.`
       );
     });
 
@@ -446,7 +458,7 @@ export class OrchestratorManager {
       const issue = getIssue(issue_id);
       void this.resume(
         project_id,
-        `Review completed (issue_id: ${issue_id}, reviewer_agent_id: ${agent_id}, verdict: ${safeVerdict}, round: ${issue?.current_review_round ?? "?"}/${issue?.max_review_rounds ?? "?"}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>`
+        `Review completed (issue_id: ${escapeXml(issue_id)}, reviewer_agent_id: ${escapeXml(agent_id)}, verdict: ${safeVerdict}, round: ${issue?.current_review_round ?? "?"}/${issue?.max_review_rounds ?? "?"}):\n<issue_title>${escapeXml(issue?.title ?? issue_id)}</issue_title>`
       );
     });
 
@@ -476,12 +488,12 @@ export class OrchestratorManager {
 
     if (verdict === "approved") {
       updateIssueAgent(reviewerRecord.id, { status: "approved" });
-      reviewerRecord.status = "approved";
 
-      // Check if all reviewers for the current round approved.
+      // Re-fetch after DB update to avoid fragile in-memory mutation.
       // Only consider "active" or "approved" records — prior round records
       // with "changes_requested" status must be excluded.
-      const allForRound = agents.filter(
+      const freshAgents = listIssueAgents(issue_id);
+      const allForRound = freshAgents.filter(
         (ia) => ia.role === "reviewer" && (ia.status === "active" || ia.status === "approved")
       );
       const allApproved = allForRound.every((ia) => ia.status === "approved");

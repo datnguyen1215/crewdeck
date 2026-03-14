@@ -9,11 +9,12 @@ export interface OrchestratorState {
   inReviewIssues: Issue[];
   feedbackIssues: Issue[];
   draftIssues: Issue[];
+  activeReviewerAgentIds: Set<string>;
 }
 
-function idleAgents(agents: Agent[], active: Issue[]): Agent[] {
+function idleAgents(agents: Agent[], active: Issue[], activeReviewerAgentIds: Set<string>): Agent[] {
   const busyIds = new Set(active.filter((i) => i.assigned_agent_id).map((i) => i.assigned_agent_id!));
-  return agents.filter((a) => !busyIds.has(a.id));
+  return agents.filter((a) => !busyIds.has(a.id) && !activeReviewerAgentIds.has(a.id));
 }
 
 function fmtIssue(i: Issue): string {
@@ -28,7 +29,7 @@ function fmtAgent(a: Agent): string {
 export function buildOrchestratorPrompt(state: OrchestratorState, eventDescription: string): string {
   const { project, crew, openIssues, inProgressIssues, inReviewIssues, feedbackIssues, draftIssues } = state;
   const allActive = [...inProgressIssues, ...inReviewIssues, ...feedbackIssues];
-  const idle = idleAgents(crew.agents, allActive);
+  const idle = idleAgents(crew.agents, allActive, state.activeReviewerAgentIds);
 
   const sections: string[] = [];
 
