@@ -161,12 +161,13 @@ Tracks which agents are involved with an issue and their role (worker vs. review
 | role | TEXT | NOT NULL | Role on this issue. One of: `worker`, `reviewer`. |
 | status | TEXT | NOT NULL, DEFAULT 'pending' | Agent's status on this issue. One of: `pending`, `active`, `approved`, `changes_requested`, `done`. |
 | review_order | INTEGER | NULLABLE | Order in which this reviewer is invoked (1, 2, 3...). NULL for workers. |
+| review_round | INTEGER | NULLABLE | Review round this record belongs to. 0 for workers; matches `Issue.current_review_round` for reviewers. |
 | session_id | TEXT | FOREIGN KEY → Session.id, NULLABLE | The tmux/CLI session for this agent on this issue. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
 **Constraints:**
-- UNIQUE(issue_id, agent_id, role) — an agent can only have one role per issue.
+- UNIQUE(issue_id, agent_id, role, review_round) — allows the same agent to review across multiple rounds.
 
 ### IssuePR
 
