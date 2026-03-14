@@ -41,9 +41,12 @@ export function createDb(path: string): Database.Database {
           UNIQUE(issue_id, agent_id, role, review_round)
         );
 
-        INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, session_id, created_at, updated_at)
-          SELECT id, issue_id, agent_id, role, status, review_order, session_id, created_at, updated_at
-          FROM IssueAgent_old;
+        INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, review_round, session_id, created_at, updated_at)
+          SELECT ia.id, ia.issue_id, ia.agent_id, ia.role, ia.status, ia.review_order,
+            CASE ia.role WHEN 'worker' THEN 0 ELSE i.current_review_round END,
+            ia.session_id, ia.created_at, ia.updated_at
+          FROM IssueAgent_old ia
+          LEFT JOIN Issue i ON i.id = ia.issue_id;
 
         DROP TABLE IssueAgent_old;
 
