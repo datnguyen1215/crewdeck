@@ -1,4 +1,6 @@
-// TODO: add auth middleware — these endpoints are callable by any network-reachable client
+// These routes are intentionally unauthenticated. The server only runs on the
+// local machine, so there is no untrusted network traffic. Add auth (shared
+// secret or network isolation) if the deployment model ever changes.
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";

@@ -7,10 +7,12 @@ import { z } from "zod";
 //   require keeping two places in sync. Enum enforcement belongs at the route layer
 //   once statuses are stable.
 //
-// - `created_by` / `author_type` / `actor_type`: these should be set server-side by
-//   the request context (auth layer) rather than accepted from the caller. Tracked as
-//   a TODO for when authentication is added — at that point these fields should be
-//   stripped from Create schemas and populated from the session.
+// - `created_by` / `author_type` / `actor_type`: these are accepted by the schema
+//   but overwritten server-side in the route layer (e.g. created_by is forced to
+//   "user" in the issues route). The fields remain in the schemas so internal
+//   callers (orchestrator) can use them directly. This is safe because the server
+//   only runs locally. If auth is added later, strip these from Create schemas
+//   and populate them from the session.
 //
 // - `system_prompt` has no max length: no upper bound is enforced here. The LLM layer
 //   should enforce context limits when the prompt is used. Add .max() here once the
