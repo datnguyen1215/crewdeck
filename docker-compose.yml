@@ -21,10 +21,7 @@ services:
       - ./data:/app/data
       - ~/.claude:/home/app/.claude:ro
       - ~/.config/gh:/home/app/.config/gh:ro
-      - ~/projects:/repos
     environment:
       - CORS_ORIGIN=http://localhost:9380
       - DB_PATH=/app/data/crewdeck.db
       - CREWDECK_REPOS_DIR=/app/data/repos
-      - CREWDECK_REPOS_HOST_PATH=${HOME}/projects
-      - CREWDECK_REPOS_CONTAINER_PATH=/repos
