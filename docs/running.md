@@ -26,12 +26,14 @@ docker compose up --build
 
 ## How It Works
 
-Docker Compose runs two services:
+Docker Compose runs two services using `network_mode: host`, so ports are bound directly on the host (no port mapping):
 
-| Service    | Container Port | Host Port | Description                        |
-|------------|---------------:|----------:|------------------------------------|
-| `frontend` |           5173 |      9380 | SvelteKit dev server (hot reload)  |
-| `backend`  |           3000 |      9381 | Express API + SQLite + agent runtime |
+| Service    | Host Port | Description                        |
+|------------|----------:|------------------------------------|
+| `frontend` |      9380 | SvelteKit dev server (hot reload)  |
+| `backend`  |      9381 | Express API + SQLite + agent runtime |
+
+> **Note:** `network_mode: host` is Linux-only. Docker Desktop on macOS/Windows does not support it.
 
 The backend container includes tmux, git, GitHub CLI, and Claude Code CLI so agents can run autonomously inside it.
 
@@ -65,7 +67,7 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 
 | Variable           | Value                 | Purpose         |
 |--------------------|-----------------------|-----------------|
-| `VITE_BACKEND_URL` | `http://backend:3000` | Backend API URL |
+| `VITE_BACKEND_URL` | `http://localhost:9381` | Backend API URL |
 
 ## Rebuilding
 
@@ -104,12 +106,7 @@ docker compose logs -f frontend
 
 ## Troubleshooting
 
-**Port conflicts**: If ports 9380 or 9381 are in use, change the host port in `docker-compose.yml`:
-```yaml
-ports:
-  - "NEW_PORT:5173"  # frontend
-  - "NEW_PORT:3000"  # backend
-```
+**Port conflicts**: If ports 9380 or 9381 are in use, update the port numbers in `docker-compose.yml`. For the frontend, change `--port 9380` in `frontend/Dockerfile` and `VITE_BACKEND_URL`. For the backend, change the `PORT` environment variable.
 
 **Permission errors on `./data`**: Ensure the directory is writable. The backend runs as a non-root `app` user (UID 999).
 
