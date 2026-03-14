@@ -119,10 +119,11 @@ async function executeAssign(
     }
   }
 
-  // Build agent prompt — listComments only needed when a repo is configured
-  const promptText = repos.length > 0
-    ? buildAgentPrompt(updatedIssue, agent, repos[0], { worktreePath, previousComments: listComments(issue_id) })
-    : `You are ${escapeXml(agent.name)}. Work on the issue below.\n\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>\n\nRun: crewdeck signal --event work-complete when done.`;
+  const repo = repos.length > 0 ? repos[0] : null;
+  const promptText = buildAgentPrompt(updatedIssue, agent, repo, {
+    worktreePath,
+    previousComments: repo ? listComments(issue_id) : undefined,
+  });
 
   // Create session record
   const sessionName = agentSessionName(issue_id, agent_id, "worker");
@@ -242,16 +243,14 @@ async function executeRouteReview(
     review_order,
   });
 
-  // Build reviewer prompt — listComments only needed when a repo is configured
   const repos = listRepos(projectId);
+  const repo = repos.length > 0 ? repos[0] : null;
   const worktreePath = updatedIssue.worktree_path ?? "/tmp";
-  const promptText = repos.length > 0
-    ? buildReviewerPrompt(updatedIssue, reviewer, repos[0], {
-        worktreePath,
-        branchName: updatedIssue.branch_name ?? "main",
-        comments: listComments(issue_id),
-      })
-    : `You are ${escapeXml(reviewer.name)}, a reviewer. Review the issue below.\n\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>\n\nRun crewdeck signal --event review-complete --data '{"verdict":"approved"}' or '{"verdict":"changes_requested"}' when done.`;
+  const promptText = buildReviewerPrompt(updatedIssue, reviewer, repo, {
+    worktreePath,
+    branchName: updatedIssue.branch_name ?? "main",
+    comments: repo ? listComments(issue_id) : undefined,
+  });
 
   const sessionName = agentSessionName(issue_id, reviewer_agent_id, "reviewer");
   const session = createSession({
@@ -283,7 +282,7 @@ async function executeRouteReview(
     logger.error({ err, sessionName }, "route_review: failed to spawn reviewer session");
     updateSession(session.id, { status: "error" });
     updateIssueAgent(issueAgent.id, { status: "error" });
-    updateIssue(issue_id, { status: issue.status, current_review_round: issue.current_review_round ?? 0 });
+    updateIssue(issue_id, { status: issue.status, current_review_round: issue.current_review_round ?? null });
     return;
   }
 
@@ -394,7 +393,7 @@ function persistContext(sessionId: string, action: OrchestratorAction): void {
   const session = getSession(sessionId);
   if (!session) return;
 
-  updateSession(session.id, {
+  updateSession(sessionId, {
     context: mergeContext(session.context, {
       last_action: action.action,
       last_reasoning: action.reasoning,

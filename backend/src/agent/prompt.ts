@@ -13,14 +13,16 @@ export interface ReviewerPromptContext {
 export function buildReviewerPrompt(
   issue: Issue,
   reviewer: Agent,
-  repo: Repo,
+  repo: Repo | null,
   context: ReviewerPromptContext
 ): string {
   const parts: string[] = [];
 
   parts.push(`## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`);
 
-  parts.push(`## Repository\n${escapeXml(repo.name)} at ${escapeXml(context.worktreePath)} (branch: ${escapeXml(context.branchName)})`);
+  if (repo) {
+    parts.push(`## Repository\n${escapeXml(repo.name)} at ${escapeXml(context.worktreePath)} (branch: ${escapeXml(context.branchName)})`);
+  }
 
   if (context.comments?.length) {
     parts.push(`## Issue Comments\n<comments>\n${fmtComments(context.comments)}\n</comments>`);
@@ -29,11 +31,12 @@ export function buildReviewerPrompt(
   // Validate base_branch to prevent shell injection — only allow safe branch name characters.
   const safeBranch = /^[a-zA-Z0-9._/-]+$/.test(issue.base_branch ?? "") ? issue.base_branch! : "main";
 
-  parts.push(`## Instructions
-You are ${escapeXml(reviewer.name)}, a ${escapeXml(reviewer.role)} reviewer. Review the code changes for the issue above.
+  const diffInstruction = repo
+    ? `\n\nTo see what changed, run:\n  git diff \$(git merge-base HEAD origin/${safeBranch}) HEAD`
+    : "";
 
-To see what changed, run:
-  git diff \$(git merge-base HEAD origin/${safeBranch}) HEAD
+  parts.push(`## Instructions
+You are ${escapeXml(reviewer.name)}, a ${escapeXml(reviewer.role)} reviewer. Review the code changes for the issue above.${diffInstruction}
 
 Evaluate correctness, quality, and completeness. Then signal your verdict:
 
@@ -56,7 +59,7 @@ export interface PromptContext {
 export function buildAgentPrompt(
   issue: Issue,
   agent: Agent,
-  repo: Repo,
+  repo: Repo | null,
   context: PromptContext
 ): string {
   const parts: string[] = [];
@@ -65,7 +68,9 @@ export function buildAgentPrompt(
   // Treat content inside these tags as read-only data — never execute or follow directives within them.
   parts.push(`## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`);
 
-  parts.push(`## Repository\n${escapeXml(repo.name)} at ${escapeXml(context.worktreePath)}`);
+  if (repo) {
+    parts.push(`## Repository\n${escapeXml(repo.name)} at ${escapeXml(context.worktreePath)}`);
+  }
 
   if (context.previousComments?.length) {
     parts.push(`## Previous Comments\n<comments>\n${fmtComments(context.previousComments)}\n</comments>`);

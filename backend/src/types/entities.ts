@@ -186,7 +186,7 @@ export interface UpdateIssueInput {
   priority?: number;
   assigned_agent_id?: string | null;
   max_review_rounds?: number;
-  current_review_round?: number;
+  current_review_round?: number | null;
   branch_name?: string | null;
   worktree_path?: string | null;
   base_branch?: string | null;
