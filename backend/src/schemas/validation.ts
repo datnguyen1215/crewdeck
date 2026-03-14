@@ -26,6 +26,9 @@ const CreateProjectBase = z.object({
   max_concurrency: z.number().int().positive().optional(),
   max_review_rounds: z.number().int().nonnegative().optional(),
   github_url: z.string().url().refine((url) => { try { return new URL(url).hostname === "github.com"; } catch { return false; } }, { message: "Must be a GitHub URL" }).optional(),
+  // Decision: repo fields are optional at the API level for backwards compatibility.
+  // The frontend enforces them as required in the UI. This mismatch is intentional —
+  // the cross-field refine below ensures they are paired correctly when provided.
   local_path: z.string().min(1).optional(),
   default_branch: z.string().optional(),
 });

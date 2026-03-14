@@ -34,6 +34,8 @@ export function createProject(input: CreateProjectInput): Project {
       `INSERT INTO Crew (id, project_id, name) VALUES (?, ?, ?)`
     ).run(crewId, id, input.name);
 
+    // Decision: createRepo's return value is discarded here (its getRepo SELECT is wasted).
+    // Accepted as minor cost — not worth adding a void variant or inlining the INSERT.
     if (input.github_url && input.local_path) {
       createRepo(id, {
         github_url: input.github_url,
