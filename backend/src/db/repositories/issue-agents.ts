@@ -7,6 +7,17 @@ export function listIssueAgents(issueId: string): IssueAgent[] {
     .all(issueId) as IssueAgent[];
 }
 
+export function listActiveReviewerAgentIds(issueIds: string[]): string[] {
+  if (issueIds.length === 0) return [];
+  const placeholders = issueIds.map(() => "?").join(", ");
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT agent_id FROM IssueAgent WHERE issue_id IN (${placeholders}) AND role = 'reviewer' AND status = 'active'`
+    )
+    .all(...issueIds) as Array<{ agent_id: string }>;
+  return rows.map((r) => r.agent_id);
+}
+
 export function getIssueAgent(id: string): IssueAgent | null {
   return (
     (db.prepare("SELECT * FROM IssueAgent WHERE id = ?").get(id) as IssueAgent) ?? null

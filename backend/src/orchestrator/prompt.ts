@@ -44,10 +44,10 @@ Feedback issues (awaiting rework):
 ${feedbackIssues.length ? feedbackIssues.map(fmtIssue).join("\n") : "  (none)"}
 Draft issues:
 ${draftIssues.length ? draftIssues.map(fmtIssue).join("\n") : "  (none)"}
-Concurrency: ${allActive.length}/${project.max_concurrency} active (max: ${project.max_concurrency})
+Concurrency: ${allActive.length}/${project.max_concurrency} active
 Max review rounds: ${project.max_review_rounds}`);
 
-  sections.push(`## Crew: ${crew.name}
+  sections.push(`## Crew: ${escapeXml(crew.name)}
 All agents:
 ${crew.agents.map(fmtAgent).join("\n")}
 Idle agents (available to assign):

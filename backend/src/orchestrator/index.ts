@@ -18,6 +18,7 @@ import { listRepos } from "../db/repositories/repos.js";
 import { createComment, listComments } from "../db/repositories/comments.js";
 import {
   listIssueAgents,
+  listActiveReviewerAgentIds,
   createIssueAgent,
   updateIssueAgent,
 } from "../db/repositories/issue-agents.js";
@@ -54,14 +55,9 @@ function buildState(projectId: string): OrchestratorState | null {
   const inReviewIssues = all.filter((i) => i.status === "in_review");
 
   // Collect agent IDs that are actively reviewing so they aren't shown as idle
-  const activeReviewerAgentIds = new Set<string>();
-  for (const issue of inReviewIssues) {
-    for (const ia of listIssueAgents(issue.id)) {
-      if (ia.role === "reviewer" && ia.status === "active") {
-        activeReviewerAgentIds.add(ia.agent_id);
-      }
-    }
-  }
+  const activeReviewerAgentIds = new Set(
+    listActiveReviewerAgentIds(inReviewIssues.map((i) => i.id))
+  );
 
   return {
     project,
@@ -119,7 +115,7 @@ async function executeAssign(
 
   // Create worktree if repo is configured
   const repos = listRepos(projectId);
-  const repo = repos.length > 0 ? repos[0] : null;
+  let repo = repos.length > 0 ? repos[0] : null;
   let worktreePath = "/tmp";
   let createdBranchName: string | null = null;
   if (repo) {
@@ -129,6 +125,7 @@ async function executeAssign(
       createdBranchName = wt.branchName;
     } catch (err) {
       logger.error({ err, issue_id }, "assign: failed to create worktree, using /tmp");
+      repo = null;
     }
   }
 
@@ -349,7 +346,7 @@ function executeCreateDraftIssue(
 
   const draftIssue = createIssue(projectId, {
     title,
-    description: description ?? "",
+    description,
     status: "draft",
     priority: typeof priority === "number" ? priority : 0,
     created_by: "orchestrator",
