@@ -238,10 +238,14 @@ async function executeRouteReview(
     return;
   }
 
-  // Update issue to in_review and increment round
+  // Update issue to in_review — only increment round when starting a new review cycle
+  // (transitioning from in_progress/feedback), not when adding another reviewer to the same cycle.
+  const newRound = issue.status !== "in_review"
+    ? (issue.current_review_round ?? 0) + 1
+    : issue.current_review_round ?? 1;
   const updatedIssue = updateIssue(issue_id, {
     status: "in_review",
-    current_review_round: (issue.current_review_round ?? 0) + 1,
+    current_review_round: newRound,
   });
 
   const issueAgent = createIssueAgent({
