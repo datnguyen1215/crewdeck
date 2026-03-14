@@ -153,7 +153,6 @@
 	}
 
 	// Entries within the last 2 hours get a subtle glow treatment.
-	// Entries within the last 2 hours get a subtle glow treatment.
 	function isRecent(dateStr: string): boolean {
 		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
 	}

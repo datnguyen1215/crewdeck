@@ -164,16 +164,16 @@
 			const issue = await createIssue(projectId, {
 				title: newTitle.trim(),
 				description: newDescription.trim(),
-				// Decision: parseInt with type="number" input is safe here; NaN risk is
-				// negligible. Revisit with Number.isFinite() check when wired to real API.
 				max_review_rounds: newMaxRounds ? parseInt(newMaxRounds) : undefined
 			});
 			issues = [...issues, issue];
 			showModal = false;
 			resetForm();
+		} catch (err) {
+			alert(err instanceof Error ? err.message : 'Failed to create issue');
 		} finally {
 			submitting = false;
-			}
+		}
 	}
 
 	function onKeydown(e: KeyboardEvent) {

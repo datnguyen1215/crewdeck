@@ -137,9 +137,10 @@ export async function removeRepo(projectId, repoId) {
 // ---------------------------------------------------------------------------
 
 export async function getCrew(projectId) {
-  const crew = await request(`/projects/${projectId}/crew`);
-  // Compute agent status/current_issue from active issues
-  const issues = await request(`/projects/${projectId}/issues`);
+  const [crew, issues] = await Promise.all([
+    request(`/projects/${projectId}/crew`),
+    request(`/projects/${projectId}/issues`),
+  ]);
   crew.agents = (crew.agents ?? []).map((agent) => {
     const activeIssue = issues.find(
       (i) =>

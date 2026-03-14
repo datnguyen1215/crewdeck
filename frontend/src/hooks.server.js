@@ -1,9 +1,6 @@
 /** @type {import('@sveltejs/kit').Handle} */
 export async function handle({ event, resolve }) {
-  if (
-    event.url.pathname.startsWith("/api/") ||
-    event.url.pathname.startsWith("/ws")
-  ) {
+  if (event.url.pathname.startsWith("/api/")) {
     const backendUrl = process.env.VITE_BACKEND_URL || "http://localhost:9381";
     const target = `${backendUrl}${event.url.pathname}${event.url.search}`;
     const res = await fetch(target, {
