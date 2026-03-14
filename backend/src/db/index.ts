@@ -22,36 +22,36 @@ export function createDb(path: string): Database.Database {
   // SQLite can't ALTER constraints, so we rebuild the table.
   const columns = db.pragma("table_info(IssueAgent)") as { name: string }[];
   if (!columns.some((c) => c.name === "review_round")) {
-    db.exec(`
-      PRAGMA foreign_keys = OFF;
+    db.pragma("foreign_keys = OFF");
+    db.transaction(() => {
+      db.exec(`
+        ALTER TABLE IssueAgent RENAME TO IssueAgent_old;
 
-      ALTER TABLE IssueAgent RENAME TO IssueAgent_old;
+        CREATE TABLE IssueAgent (
+          id TEXT PRIMARY KEY,
+          issue_id TEXT NOT NULL REFERENCES Issue(id),
+          agent_id TEXT NOT NULL REFERENCES Agent(id),
+          role TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          review_order INTEGER,
+          review_round INTEGER,
+          session_id TEXT REFERENCES Session(id),
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(issue_id, agent_id, role, review_round)
+        );
 
-      CREATE TABLE IssueAgent (
-        id TEXT PRIMARY KEY,
-        issue_id TEXT NOT NULL REFERENCES Issue(id),
-        agent_id TEXT NOT NULL REFERENCES Agent(id),
-        role TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        review_order INTEGER,
-        review_round INTEGER,
-        session_id TEXT REFERENCES Session(id),
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(issue_id, agent_id, role, review_round)
-      );
+        INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, session_id, created_at, updated_at)
+          SELECT id, issue_id, agent_id, role, status, review_order, session_id, created_at, updated_at
+          FROM IssueAgent_old;
 
-      INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, session_id, created_at, updated_at)
-        SELECT id, issue_id, agent_id, role, status, review_order, session_id, created_at, updated_at
-        FROM IssueAgent_old;
+        DROP TABLE IssueAgent_old;
 
-      DROP TABLE IssueAgent_old;
-
-      CREATE INDEX IF NOT EXISTS idx_issue_agent_issue ON IssueAgent(issue_id);
-      CREATE INDEX IF NOT EXISTS idx_issue_agent_agent ON IssueAgent(agent_id);
-
-      PRAGMA foreign_keys = ON;
-    `);
+        CREATE INDEX IF NOT EXISTS idx_issue_agent_issue ON IssueAgent(issue_id);
+        CREATE INDEX IF NOT EXISTS idx_issue_agent_agent ON IssueAgent(agent_id);
+      `);
+    })();
+    db.pragma("foreign_keys = ON");
   }
 
   return db;
