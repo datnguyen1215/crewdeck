@@ -16,24 +16,35 @@ import { z } from "zod";
 //   should enforce context limits when the prompt is used. Add .max() here once the
 //   target model's context window is decided.
 //
-// - `local_path` / `worktree_path` have no path-traversal validation: these paths
+// - `worktree_path` has no path-traversal validation: these paths
 //   are not used in any fs/shell operation yet. Validate against an allowed base
 //   directory when git/fs operations are introduced.
 
-export const CreateProjectSchema = z.object({
+const githubUrl = z.string().url().refine(
+  (url) => { try { return new URL(url).hostname === "github.com"; } catch { return false; } },
+  { message: "Must be a GitHub URL" }
+);
+
+const CreateProjectBase = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   max_concurrency: z.number().int().positive().optional(),
   max_review_rounds: z.number().int().nonnegative().optional(),
+  github_url: githubUrl.optional(),
+  default_branch: z.string().optional(),
 });
 
-export const UpdateProjectSchema = CreateProjectSchema.partial().extend({
+export const CreateProjectSchema = CreateProjectBase;
+
+export const UpdateProjectSchema = CreateProjectBase.omit({
+  github_url: true,
+  default_branch: true,
+}).partial().extend({
   orchestrator_session_id: z.string().nullable().optional(),
 });
 
 export const CreateRepoSchema = z.object({
-  github_url: z.string().url(),
-  local_path: z.string().min(1),
+  github_url: githubUrl,
   default_branch: z.string().optional(),
 });
 

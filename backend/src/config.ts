@@ -19,4 +19,5 @@ export const config = {
   processMonitorInterval: parseIntEnv("PROCESS_MONITOR_INTERVAL", 5000),
   agentKillTimeout: parseIntEnv("AGENT_KILL_TIMEOUT", 5000),
   nodeEnv: optional("NODE_ENV", "development"),
+  reposDir: optional("CREWDECK_REPOS_DIR", "./data/repos"),
 };

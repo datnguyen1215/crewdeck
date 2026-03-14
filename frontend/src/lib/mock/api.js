@@ -79,6 +79,32 @@ export async function createProject(data) {
 		updated_at: now()
 	};
 	db.projects.push(project);
+
+	const crew = {
+		id: `crew-${uid()}`,
+		project_id: project.id,
+		name: `${project.name} Crew`,
+		created_at: now(),
+		updated_at: now()
+	};
+	db.crews.push(crew);
+
+	if (data.github_url) {
+		const url = data.github_url;
+		const [, owner, name] = new URL(url).pathname.split('/');
+		const repo = {
+			id: `repo-${uid()}`,
+			project_id: project.id,
+			github_url: url,
+			name,
+			owner,
+			local_path: `/data/repos/${owner}/${name}`,
+			default_branch: data.default_branch ?? 'main',
+			created_at: now()
+		};
+		db.repos.push(repo);
+	}
+
 	return { ...project };
 }
 
@@ -112,15 +138,15 @@ export async function addRepo(projectId, data) {
 	await delay();
 	const url = data.github_url;
 	// Decision: no URL validation here — mock only. Real backend must validate the URL format.
-	const [owner, name] = url.replace('https://github.com/', '').split('/');
+	const [, owner, name] = new URL(url).pathname.split('/');
 	const repo = {
 		id: `repo-${uid()}`,
 		project_id: projectId,
 		github_url: url,
 		name,
 		owner,
-		local_path: data.local_path,
-		default_branch: 'main',
+		local_path: `/data/repos/${owner}/${name}`,
+		default_branch: data.default_branch ?? 'main',
 		created_at: now()
 	};
 	db.repos.push(repo);

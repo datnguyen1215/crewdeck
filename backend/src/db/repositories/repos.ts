@@ -1,14 +1,59 @@
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import fs from "node:fs";
 import { db } from "../index.js";
+import { config } from "../../config.js";
 import type { Repo, CreateRepoInput } from "../../types/entities.js";
+
+function validateSegments(url: string, owner: string, name: string) {
+  if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(name) || owner === '..' || name === '..')
+    throw new Error(`Cannot parse GitHub URL: ${url}`);
+  return { owner, name };
+}
 
 function parseGithubUrl(url: string): { owner: string; name: string } {
   // https://github.com/owner/repo or https://github.com/owner/repo.git
   const httpsMatch = url.match(/github\.com\/([^/]+)\/([^/.]+)/);
-  if (httpsMatch) return { owner: httpsMatch[1], name: httpsMatch[2] };
+  if (httpsMatch) return validateSegments(url, httpsMatch[1], httpsMatch[2]);
   // git@github.com:owner/repo.git
   const sshMatch = url.match(/github\.com:([^/]+)\/([^/.]+)/);
-  if (sshMatch) return { owner: sshMatch[1], name: sshMatch[2] };
+  if (sshMatch) return validateSegments(url, sshMatch[1], sshMatch[2]);
   throw new Error(`Cannot parse GitHub URL: ${url}`);
+}
+
+function cloneIfNeeded(githubUrl: string, localPath: string): void {
+  if (fs.existsSync(path.join(localPath, ".git"))) return;
+  fs.mkdirSync(path.dirname(localPath), { recursive: true });
+  execFileSync("git", ["clone", githubUrl, localPath], { stdio: "pipe" });
+}
+
+/** Parse the URL and clone the repo if needed, without touching the DB. */
+export function ensureCloned(githubUrl: string): void {
+  const { owner, name } = parseGithubUrl(githubUrl);
+  const localPath = path.resolve(config.reposDir, owner, name);
+  cloneIfNeeded(githubUrl, localPath);
+}
+
+/** Insert a repo row. Assumes the repo is already cloned on disk. */
+export function insertRepo(projectId: string, input: CreateRepoInput): Repo {
+  const id = crypto.randomUUID();
+  const { owner, name } = parseGithubUrl(input.github_url);
+  const localPath = path.resolve(config.reposDir, owner, name);
+
+  db.prepare(
+    `INSERT INTO Repo (id, project_id, github_url, name, owner, local_path, default_branch)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    projectId,
+    input.github_url,
+    name,
+    owner,
+    localPath,
+    input.default_branch ?? "main"
+  );
+
+  return getRepo(id)!;
 }
 
 export function listRepos(projectId: string): Repo[] {
@@ -21,24 +66,10 @@ export function getRepo(id: string): Repo | null {
   return (db.prepare("SELECT * FROM Repo WHERE id = ?").get(id) as Repo) ?? null;
 }
 
+/** Clone the repo (if needed) and insert a DB row. Used by the standalone endpoint. */
 export function createRepo(projectId: string, input: CreateRepoInput): Repo {
-  const id = crypto.randomUUID();
-  const { owner, name } = parseGithubUrl(input.github_url);
-
-  db.prepare(
-    `INSERT INTO Repo (id, project_id, github_url, name, owner, local_path, default_branch)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    id,
-    projectId,
-    input.github_url,
-    name,
-    owner,
-    input.local_path,
-    input.default_branch ?? "main"
-  );
-
-  return getRepo(id)!;
+  ensureCloned(input.github_url);
+  return insertRepo(projectId, input);
 }
 
 export function deleteRepo(id: string): void {

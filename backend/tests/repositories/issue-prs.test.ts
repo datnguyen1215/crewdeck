@@ -28,7 +28,7 @@ beforeEach(clearAll);
 describe("createIssuePR", () => {
   it("creates with default status", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x", local_path: "/x" });
+    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     const pr = createIssuePR({
@@ -46,7 +46,7 @@ describe("createIssuePR", () => {
 describe("updateIssuePR", () => {
   it("updates status", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x", local_path: "/x" });
+    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     const pr = createIssuePR({
       issue_id: issue.id,
@@ -63,7 +63,7 @@ describe("updateIssuePR", () => {
 describe("listIssuePRs", () => {
   it("returns PRs for issue", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x", local_path: "/x" });
+    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     createIssuePR({ issue_id: issue.id, repo_id: repo.id, pr_number: 1, pr_url: "https://github.com/acme/x/pull/1" });
     createIssuePR({ issue_id: issue.id, repo_id: repo.id, pr_number: 2, pr_url: "https://github.com/acme/x/pull/2" });

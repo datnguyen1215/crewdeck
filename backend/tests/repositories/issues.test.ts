@@ -138,7 +138,6 @@ describe("getIssueWithDetails", () => {
     const p = createProject({ name: "P" });
     const repo = createRepo(p.id, {
       github_url: "https://github.com/acme/x",
-      local_path: "/x",
     });
     const crew = getCrew(p.id)!;
     const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
