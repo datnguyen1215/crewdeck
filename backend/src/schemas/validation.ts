@@ -25,7 +25,7 @@ export const CreateProjectSchema = z.object({
   description: z.string().optional(),
   max_concurrency: z.number().int().positive().optional(),
   max_review_rounds: z.number().int().nonnegative().optional(),
-  github_url: z.string().url().optional(),
+  github_url: z.string().url().refine((url) => /github\.com/.test(url), { message: "Must be a GitHub URL" }).optional(),
   local_path: z.string().min(1).optional(),
   default_branch: z.string().optional(),
 });
@@ -35,7 +35,7 @@ export const UpdateProjectSchema = CreateProjectSchema.partial().extend({
 });
 
 export const CreateRepoSchema = z.object({
-  github_url: z.string().url(),
+  github_url: z.string().url().refine((url) => /github\.com/.test(url), { message: "Must be a GitHub URL" }),
   local_path: z.string().min(1),
   default_branch: z.string().optional(),
 });

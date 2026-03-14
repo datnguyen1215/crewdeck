@@ -82,7 +82,7 @@ export async function createProject(data) {
 
 	if (data.github_url && data.local_path) {
 		const url = data.github_url;
-		const [owner, name] = url.replace('https://github.com/', '').split('/');
+		const [, owner, name] = new URL(url).pathname.split('/');
 		const repo = {
 			id: `repo-${uid()}`,
 			project_id: project.id,
@@ -129,7 +129,7 @@ export async function addRepo(projectId, data) {
 	await delay();
 	const url = data.github_url;
 	// Decision: no URL validation here — mock only. Real backend must validate the URL format.
-	const [owner, name] = url.replace('https://github.com/', '').split('/');
+	const [, owner, name] = new URL(url).pathname.split('/');
 	const repo = {
 		id: `repo-${uid()}`,
 		project_id: projectId,
