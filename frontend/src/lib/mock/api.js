@@ -79,6 +79,23 @@ export async function createProject(data) {
 		updated_at: now()
 	};
 	db.projects.push(project);
+
+	if (data.github_url && data.local_path) {
+		const url = data.github_url;
+		const [owner, name] = url.replace('https://github.com/', '').split('/');
+		const repo = {
+			id: `repo-${uid()}`,
+			project_id: project.id,
+			github_url: url,
+			name,
+			owner,
+			local_path: data.local_path,
+			default_branch: data.default_branch ?? 'main',
+			created_at: now()
+		};
+		db.repos.push(repo);
+	}
+
 	return { ...project };
 }
 

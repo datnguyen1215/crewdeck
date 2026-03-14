@@ -25,6 +25,9 @@ export const CreateProjectSchema = z.object({
   description: z.string().optional(),
   max_concurrency: z.number().int().positive().optional(),
   max_review_rounds: z.number().int().nonnegative().optional(),
+  github_url: z.string().url().optional(),
+  local_path: z.string().min(1).optional(),
+  default_branch: z.string().optional(),
 });
 
 export const UpdateProjectSchema = CreateProjectSchema.partial().extend({

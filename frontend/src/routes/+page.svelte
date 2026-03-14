@@ -12,8 +12,13 @@
 	let description = $state('');
 	let maxConcurrency = $state(1);
 	let maxReviewRounds = $state(3);
+	let githubUrl = $state('');
+	let localPath = $state('');
+	let defaultBranch = $state('main');
 	let submitting = $state(false);
 	let nameError = $state('');
+	let githubUrlError = $state('');
+	let localPathError = $state('');
 
 	$effect(() => {
 		listProjectsWithStats().then((data) => {
@@ -24,10 +29,24 @@
 
 	async function submitProject() {
 		nameError = '';
+		githubUrlError = '';
+		localPathError = '';
+
+		let hasError = false;
 		if (!name.trim()) {
 			nameError = 'Name is required';
-			return;
+			hasError = true;
 		}
+		if (!githubUrl.trim()) {
+			githubUrlError = 'GitHub URL is required';
+			hasError = true;
+		}
+		if (!localPath.trim()) {
+			localPathError = 'Local path is required';
+			hasError = true;
+		}
+		if (hasError) return;
+
 		if (maxConcurrency < 1) maxConcurrency = 1;
 		if (maxReviewRounds < 1) maxReviewRounds = 1;
 
@@ -37,15 +56,17 @@
 				name: name.trim(),
 				description: description.trim() || null,
 				max_concurrency: maxConcurrency,
-				max_review_rounds: maxReviewRounds
+				max_review_rounds: maxReviewRounds,
+				github_url: githubUrl.trim(),
+				local_path: localPath.trim(),
+				default_branch: defaultBranch.trim() || 'main'
 			});
-			// Optimistic update: a brand-new project always starts with zero repos,
-			// agents, and issues — hard-coding zeros here is correct.
+			// Optimistic update: repo was created inline, so repo_count starts at 1.
 			projects = [
 				...projects,
 				{
 					...project,
-					repo_count: 0,
+					repo_count: 1,
 					agent_count: 0,
 					issues: { open: 0, in_progress: 0, in_review: 0, ready: 0, done: 0 },
 					orchestrator_status: 'none'
@@ -62,9 +83,14 @@
 		showModal = false;
 		name = '';
 		description = '';
+		githubUrl = '';
+		localPath = '';
+		defaultBranch = 'main';
 		maxConcurrency = 1;
 		maxReviewRounds = 3;
 		nameError = '';
+		githubUrlError = '';
+		localPathError = '';
 	}
 
 	function handleModalKeydown(e: KeyboardEvent) {
@@ -344,6 +370,58 @@
 						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
 							focus:outline-none focus:border-cyan transition-colors resize-none"
 					></textarea>
+				</div>
+
+				<!-- Repository -->
+				<div>
+					<label for="proj-github-url" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+						GitHub URL <span class="text-red">*</span>
+					</label>
+					<input
+						id="proj-github-url"
+						type="text"
+						bind:value={githubUrl}
+						placeholder="https://github.com/owner/repo"
+						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
+							focus:outline-none focus:border-cyan transition-colors"
+						class:border-red={githubUrlError}
+					/>
+					{#if githubUrlError}
+						<p class="text-red text-xs mt-1">{githubUrlError}</p>
+					{/if}
+				</div>
+
+				<div class="flex gap-4">
+					<div class="flex-1">
+						<label for="proj-local-path" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+							Local Path <span class="text-red">*</span>
+						</label>
+						<input
+							id="proj-local-path"
+							type="text"
+							bind:value={localPath}
+							placeholder="/home/user/projects/repo"
+							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
+								focus:outline-none focus:border-cyan transition-colors"
+							class:border-red={localPathError}
+						/>
+						{#if localPathError}
+							<p class="text-red text-xs mt-1">{localPathError}</p>
+						{/if}
+					</div>
+					<div class="w-32">
+						<label for="proj-default-branch" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+							Branch
+						</label>
+						<input
+							id="proj-default-branch"
+							type="text"
+							bind:value={defaultBranch}
+							placeholder="main"
+							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
+								focus:outline-none focus:border-cyan transition-colors"
+						/>
+					</div>
 				</div>
 
 				<!-- Max Concurrency + Max Review Rounds -->

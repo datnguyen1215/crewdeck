@@ -4,6 +4,7 @@ import type {
   CreateProjectInput,
   UpdateProjectInput,
 } from "../../types/entities.js";
+import { createRepo } from "./repos.js";
 
 export function listProjects(): Project[] {
   return db.prepare("SELECT * FROM Project ORDER BY created_at DESC").all() as Project[];
@@ -32,6 +33,14 @@ export function createProject(input: CreateProjectInput): Project {
     db.prepare(
       `INSERT INTO Crew (id, project_id, name) VALUES (?, ?, ?)`
     ).run(crewId, id, input.name);
+
+    if (input.github_url && input.local_path) {
+      createRepo(id, {
+        github_url: input.github_url,
+        local_path: input.local_path,
+        default_branch: input.default_branch,
+      });
+    }
   })();
 
   return getProject(id)!;
