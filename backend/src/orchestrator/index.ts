@@ -434,6 +434,7 @@ export class OrchestratorManager {
     // to clearly delimit data from instructions and mitigate prompt injection.
 
     this.bus.on("issue.created", ({ issue }) => {
+      if (issue.created_by === "orchestrator") return;
       void this.resume(
         issue.project_id,
         `A new issue was created (ID: ${issue.id}, status: ${issue.status}):\n<issue_title>${escapeXml(issue.title)}</issue_title>`
