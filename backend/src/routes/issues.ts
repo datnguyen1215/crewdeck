@@ -62,7 +62,7 @@ router.get("/:issueId", (req: Request<{ projectId: string; issueId: string }>, r
 router.post("/", validate(CreateIssueSchema), (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
-  const issue = createIssue(projectId, req.body);
+  const issue = createIssue(projectId, { ...req.body, created_by: "user" });
   eventBus.emit("issue.created", { issue });
   res.status(201).json(issue);
 });
