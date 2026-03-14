@@ -127,6 +127,15 @@ describe("OrchestratorManager", () => {
       expect(mockClaude).not.toHaveBeenCalled();
     });
 
+    it("does not resume on orchestrator-created issues", async () => {
+      seedIssue();
+      db.prepare("UPDATE Issue SET created_by = 'orchestrator' WHERE id = ?").run(issueId);
+      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      bus.emit("issue.created", { issue: issue as never });
+      await flushPromises();
+      expect(mockClaude).not.toHaveBeenCalled();
+    });
+
     it("resumes on user comment.added", async () => {
       bus.emit("comment.added", {
         comment: { id: "c2", issue_id: "i1", author_type: "user", author_id: null, content: "Please reprioritize", created_at: "" },
