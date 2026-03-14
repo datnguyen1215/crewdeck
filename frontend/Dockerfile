@@ -6,6 +6,11 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 COPY . .
+RUN npm run build
 
-# No EXPOSE — we use network_mode: host, so the port is bound directly on the host.
-CMD ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", "9380"]
+ENV HOST=127.0.0.1
+ENV PORT=9380
+
+EXPOSE 9380
+
+CMD ["node", "build"]

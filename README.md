@@ -17,9 +17,7 @@ docker compose up --build
 - **Frontend**: http://localhost:9380
 - **Backend API**: http://localhost:9381
 
-Data (SQLite DB, cloned repos) persists in `./data/`.
-
-For detailed setup, volume mounts, environment variables, and troubleshooting, see [Running CrewDeck](docs/running.md).
+Data persists in a Docker volume across restarts. See [Running CrewDeck](docs/running.md) for details.
 
 ## Running Without Docker
 
