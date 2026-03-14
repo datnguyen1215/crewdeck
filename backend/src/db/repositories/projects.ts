@@ -4,7 +4,7 @@ import type {
   CreateProjectInput,
   UpdateProjectInput,
 } from "../../types/entities.js";
-import { createRepo, ensureCloned } from "./repos.js";
+import { ensureCloned, insertRepo } from "./repos.js";
 
 export function listProjects(): Project[] {
   return db.prepare("SELECT * FROM Project ORDER BY created_at DESC").all() as Project[];
@@ -40,10 +40,8 @@ export function createProject(input: CreateProjectInput): Project {
       `INSERT INTO Crew (id, project_id, name) VALUES (?, ?, ?)`
     ).run(crewId, id, input.name);
 
-    // Decision: createRepo's return value is discarded here (its getRepo SELECT is wasted).
-    // Accepted as minor cost — not worth adding a void variant or inlining the INSERT.
     if (input.github_url) {
-      createRepo(id, {
+      insertRepo(id, {
         github_url: input.github_url,
         default_branch: input.default_branch,
       });

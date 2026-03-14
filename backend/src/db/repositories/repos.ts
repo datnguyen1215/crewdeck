@@ -34,22 +34,11 @@ export function ensureCloned(githubUrl: string): void {
   cloneIfNeeded(githubUrl, localPath);
 }
 
-export function listRepos(projectId: string): Repo[] {
-  return db
-    .prepare("SELECT * FROM Repo WHERE project_id = ? ORDER BY created_at DESC")
-    .all(projectId) as Repo[];
-}
-
-export function getRepo(id: string): Repo | null {
-  return (db.prepare("SELECT * FROM Repo WHERE id = ?").get(id) as Repo) ?? null;
-}
-
-export function createRepo(projectId: string, input: CreateRepoInput): Repo {
+/** Insert a repo row. Assumes the repo is already cloned on disk. */
+export function insertRepo(projectId: string, input: CreateRepoInput): Repo {
   const id = crypto.randomUUID();
   const { owner, name } = parseGithubUrl(input.github_url);
   const localPath = path.resolve(config.reposDir, owner, name);
-
-  cloneIfNeeded(input.github_url, localPath);
 
   db.prepare(
     `INSERT INTO Repo (id, project_id, github_url, name, owner, local_path, default_branch)
@@ -65,6 +54,22 @@ export function createRepo(projectId: string, input: CreateRepoInput): Repo {
   );
 
   return getRepo(id)!;
+}
+
+export function listRepos(projectId: string): Repo[] {
+  return db
+    .prepare("SELECT * FROM Repo WHERE project_id = ? ORDER BY created_at DESC")
+    .all(projectId) as Repo[];
+}
+
+export function getRepo(id: string): Repo | null {
+  return (db.prepare("SELECT * FROM Repo WHERE id = ?").get(id) as Repo) ?? null;
+}
+
+/** Clone the repo (if needed) and insert a DB row. Used by the standalone endpoint. */
+export function createRepo(projectId: string, input: CreateRepoInput): Repo {
+  ensureCloned(input.github_url);
+  return insertRepo(projectId, input);
 }
 
 export function deleteRepo(id: string): void {
