@@ -111,7 +111,7 @@ async function executeAssign(
 
   const updatedIssue = updateIssue(issue_id, { assigned_agent_id: agent_id, status: "in_progress" });
 
-  const issueAgent = createIssueAgent({ issue_id, agent_id, role: "worker", status: "active" });
+  const issueAgent = createIssueAgent({ issue_id, agent_id, role: "worker", status: "active", review_round: 0 });
 
   // Create worktree if repo is configured
   const repos = listRepos(projectId);
@@ -254,6 +254,7 @@ async function executeRouteReview(
     role: "reviewer",
     status: "active",
     review_order,
+    review_round: newRound,
   });
 
   const repos = listRepos(projectId);
@@ -493,16 +494,16 @@ export class OrchestratorManager {
       updateIssueAgent(reviewerRecord.id, { status: "approved" });
 
       // Re-fetch after DB update to avoid fragile in-memory mutation.
-      // Only consider "active" or "approved" records — prior round records
-      // with "changes_requested" status must be excluded.
+      // Filter by review_round so stale records from crashed prior rounds are excluded.
+      const freshIssue = getIssue(issue_id);
+      const currentRound = freshIssue?.current_review_round ?? null;
       const freshAgents = listIssueAgents(issue_id);
       const allForRound = freshAgents.filter(
-        (ia) => ia.role === "reviewer" && (ia.status === "active" || ia.status === "approved")
+        (ia) => ia.role === "reviewer" && ia.review_round === currentRound
       );
       const allApproved = allForRound.every((ia) => ia.status === "approved");
       // Only transition to "ready" if the issue is currently "in_review" — if another reviewer
       // in this round already requested changes the status is "feedback" and we must not override it.
-      const freshIssue = getIssue(issue_id);
       if (allApproved && allForRound.length > 0 && freshIssue?.status === "in_review") {
         const issue = updateIssue(issue_id, { status: "ready" });
         this.bus.emit("issue.status_changed", {

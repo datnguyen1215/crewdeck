@@ -18,6 +18,45 @@ export function createDb(path: string): Database.Database {
   const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
 
+  // Migration: rebuild IssueAgent if it has the old UNIQUE constraint (missing review_round).
+  // SQLite can't ALTER constraints, so we rebuild the table.
+  const columns = db.pragma("table_info(IssueAgent)") as { name: string }[];
+  if (!columns.some((c) => c.name === "review_round")) {
+    db.pragma("foreign_keys = OFF");
+    db.transaction(() => {
+      db.exec(`
+        ALTER TABLE IssueAgent RENAME TO IssueAgent_old;
+
+        CREATE TABLE IssueAgent (
+          id TEXT PRIMARY KEY,
+          issue_id TEXT NOT NULL REFERENCES Issue(id),
+          agent_id TEXT NOT NULL REFERENCES Agent(id),
+          role TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          review_order INTEGER,
+          review_round INTEGER,
+          session_id TEXT REFERENCES Session(id),
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(issue_id, agent_id, role, review_round)
+        );
+
+        INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, review_round, session_id, created_at, updated_at)
+          SELECT ia.id, ia.issue_id, ia.agent_id, ia.role, ia.status, ia.review_order,
+            CASE ia.role WHEN 'worker' THEN 0 ELSE i.current_review_round END,
+            ia.session_id, ia.created_at, ia.updated_at
+          FROM IssueAgent_old ia
+          LEFT JOIN Issue i ON i.id = ia.issue_id;
+
+        DROP TABLE IssueAgent_old;
+
+        CREATE INDEX IF NOT EXISTS idx_issue_agent_issue ON IssueAgent(issue_id);
+        CREATE INDEX IF NOT EXISTS idx_issue_agent_agent ON IssueAgent(agent_id);
+      `);
+    })();
+    db.pragma("foreign_keys = ON");
+  }
+
   return db;
 }
 
