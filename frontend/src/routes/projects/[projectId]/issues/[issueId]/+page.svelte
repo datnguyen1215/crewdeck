@@ -47,7 +47,7 @@
 					const agentName = d.assigned_agent?.name ?? activeSession.agent_id ?? 'Agent';
 					terminalSession = {
 						agentName,
-						status: activeSession.status === 'running' ? 'running' : activeSession.status === 'completed' ? 'completed' : 'idle'
+						status: ['running', 'completed'].includes(activeSession.status) ? activeSession.status : 'idle'
 					};
 				} else {
 					terminalSession = null;

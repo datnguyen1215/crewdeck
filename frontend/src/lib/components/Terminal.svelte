@@ -76,13 +76,6 @@
 		fitAddon.fit();
 		term = t;
 
-		// Write any existing output
-		if (session.output) {
-			for (const line of session.output.split('\n')) {
-				t.writeln(line);
-			}
-		}
-
 		// Resize observer keeps terminal fitted to container
 		ro = new ResizeObserver(() => fitAddon.fit());
 		ro.observe(containerEl!);

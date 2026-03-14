@@ -43,21 +43,15 @@ export async function listProjects() {
 }
 
 export async function listProjectsWithStats() {
-  const [projects, allRepos, allSessions] = await Promise.all([
-    request("/projects"),
-    // Fetch repos/agents/issues per project below
-    Promise.resolve(null),
-    Promise.resolve(null),
-  ]);
+  const projects = await request("/projects");
 
-  // For each project, fetch stats in parallel
   const enriched = await Promise.all(
     projects.map(async (project) => {
       const [repos, crew, issues, sessions] = await Promise.all([
-        request(`/projects/${project.id}/repos`),
+        request(`/projects/${project.id}/repos`).catch(() => []),
         request(`/projects/${project.id}/crew`).catch(() => null),
-        request(`/projects/${project.id}/issues`),
-        request(`/projects/${project.id}/sessions`),
+        request(`/projects/${project.id}/issues`).catch(() => []),
+        request(`/projects/${project.id}/sessions`).catch(() => []),
       ]);
 
       const issueBreakdown = {
@@ -146,7 +140,7 @@ export async function getCrew(projectId) {
   const crew = await request(`/projects/${projectId}/crew`);
   // Compute agent status/current_issue from active issues
   const issues = await request(`/projects/${projectId}/issues`);
-  crew.agents = crew.agents.map((agent) => {
+  crew.agents = (crew.agents ?? []).map((agent) => {
     const activeIssue = issues.find(
       (i) =>
         i.assigned_agent_id === agent.id &&
@@ -231,8 +225,10 @@ export async function getIssue(projectId, issueId) {
   // Remap backend shape to match what frontend pages expect
   // Backend: { comments, agents, prs, activity }
   // Frontend expects: { comments, issue_agents (with .agent resolved), issue_prs, activity_log, assigned_agent, repo }
-  const allAgents = await listAgents(projectId).catch(() => []);
-  const repos = await listRepos(projectId).catch(() => []);
+  const [allAgents, repos] = await Promise.all([
+    listAgents(projectId).catch(() => []),
+    listRepos(projectId).catch(() => []),
+  ]);
 
   return {
     ...data,
