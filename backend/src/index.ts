@@ -20,6 +20,7 @@ import { ProcessMonitor } from "./agent/process-monitor.js";
 import { cleanupOrphans, gracefulShutdown } from "./agent/orphan-cleanup.js";
 import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
+import { initOrchestrator } from "./orchestrator/index.js";
 
 const app = express();
 
@@ -58,6 +59,7 @@ async function main(): Promise<void> {
   // races between orphan cleanup, process monitoring, and incoming requests.
   await cleanupOrphans();
   processMonitor.start();
+  initOrchestrator(claudeCodeAdapter);
 
   const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const s = app.listen(config.port, config.host, () => {

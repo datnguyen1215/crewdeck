@@ -71,29 +71,30 @@ describe("createWorktree", () => {
   });
 
   it("places worktree inside .worktrees directory", async () => {
-    const worktreePath = await createWorktree(repo, issue, "main");
+    const { path } = await createWorktree(repo, issue, "main");
 
-    expect(worktreePath).toContain("/repos/myrepo/.worktrees/");
-    expect(worktreePath).toContain("crewdeck/abc12345");
+    expect(path).toContain("/repos/myrepo/.worktrees/");
+    expect(path).toContain("crewdeck/abc12345");
   });
 
   it("updates the issue record with branch_name, worktree_path, and base_branch", async () => {
-    const worktreePath = await createWorktree(repo, issue, "main");
+    const { path } = await createWorktree(repo, issue, "main");
 
     expect(updateIssue).toHaveBeenCalledWith(
       issue.id,
       expect.objectContaining({
         branch_name: expect.stringContaining("crewdeck/abc12345"),
-        worktree_path: worktreePath,
+        worktree_path: path,
         base_branch: "main",
       })
     );
   });
 
-  it("returns the worktree path", async () => {
-    const path = await createWorktree(repo, issue, "develop");
+  it("returns the worktree path and branch name", async () => {
+    const { path, branchName } = await createWorktree(repo, issue, "develop");
     expect(typeof path).toBe("string");
     expect(path.length).toBeGreaterThan(0);
+    expect(branchName).toContain("crewdeck/abc12345");
   });
 });
 
