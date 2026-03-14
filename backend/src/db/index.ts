@@ -18,6 +18,12 @@ export function createDb(path: string): Database.Database {
   const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
 
+  // Migrations for existing databases where CREATE TABLE IF NOT EXISTS is a no-op.
+  const columns = db.pragma("table_info(IssueAgent)") as { name: string }[];
+  if (!columns.some((c) => c.name === "review_round")) {
+    db.exec("ALTER TABLE IssueAgent ADD COLUMN review_round INTEGER");
+  }
+
   return db;
 }
 
