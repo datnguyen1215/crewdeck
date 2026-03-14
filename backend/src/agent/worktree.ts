@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { join } from "node:path";
 import { updateIssue } from "../db/repositories/issues.js";
 import { shellQuote } from "./shell.js";
+import { toContainerPath } from "../utils/paths.js";
 import type { Repo, Issue } from "../types/entities.js";
 
 const execAsync = promisify(exec);
@@ -21,10 +22,11 @@ export async function createWorktree(
   baseBranch: string
 ): Promise<{ path: string; branchName: string }> {
   const branchName = `crewdeck/${issue.id.slice(0, 8)}-${slugify(issue.title)}`;
-  const worktreePath = join(repo.local_path, ".worktrees", branchName);
+  const repoPath = toContainerPath(repo.local_path);
+  const worktreePath = join(repoPath, ".worktrees", branchName);
 
   await execAsync(
-    `git -C ${shellQuote(repo.local_path)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(baseBranch)}`
+    `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(baseBranch)}`
   );
 
   updateIssue(issue.id, {
@@ -42,15 +44,16 @@ export async function cleanupWorktree(
   branchName: string,
   deleteBranch = false
 ): Promise<void> {
+  const repoPath = toContainerPath(repo.local_path);
   await execAsync(
-    `git -C ${shellQuote(repo.local_path)} worktree remove ${shellQuote(worktreePath)} --force`
+    `git -C ${shellQuote(repoPath)} worktree remove ${shellQuote(worktreePath)} --force`
   );
 
   if (deleteBranch) {
     // Best-effort branch deletion — ignore if branch has unmerged changes
     try {
       await execAsync(
-        `git -C ${shellQuote(repo.local_path)} branch -d ${shellQuote(branchName)}`
+        `git -C ${shellQuote(repoPath)} branch -d ${shellQuote(branchName)}`
       );
     } catch {
       // Branch may have unmerged commits — leave it
