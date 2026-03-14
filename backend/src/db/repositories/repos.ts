@@ -1,4 +1,8 @@
+import { execSync } from "node:child_process";
+import path from "node:path";
+import fs from "node:fs";
 import { db } from "../index.js";
+import { config } from "../../config.js";
 import type { Repo, CreateRepoInput } from "../../types/entities.js";
 
 function parseGithubUrl(url: string): { owner: string; name: string } {
@@ -9,6 +13,12 @@ function parseGithubUrl(url: string): { owner: string; name: string } {
   const sshMatch = url.match(/github\.com:([^/]+)\/([^/.]+)/);
   if (sshMatch) return { owner: sshMatch[1], name: sshMatch[2] };
   throw new Error(`Cannot parse GitHub URL: ${url}`);
+}
+
+function cloneIfNeeded(githubUrl: string, localPath: string): void {
+  if (fs.existsSync(path.join(localPath, ".git"))) return;
+  fs.mkdirSync(path.dirname(localPath), { recursive: true });
+  execSync(`git clone ${githubUrl} ${localPath}`, { stdio: "pipe" });
 }
 
 export function listRepos(projectId: string): Repo[] {
@@ -24,6 +34,9 @@ export function getRepo(id: string): Repo | null {
 export function createRepo(projectId: string, input: CreateRepoInput): Repo {
   const id = crypto.randomUUID();
   const { owner, name } = parseGithubUrl(input.github_url);
+  const localPath = path.resolve(config.reposDir, owner, name);
+
+  cloneIfNeeded(input.github_url, localPath);
 
   db.prepare(
     `INSERT INTO Repo (id, project_id, github_url, name, owner, local_path, default_branch)
@@ -34,7 +47,7 @@ export function createRepo(projectId: string, input: CreateRepoInput): Repo {
     input.github_url,
     name,
     owner,
-    input.local_path,
+    localPath,
     input.default_branch ?? "main"
   );
 

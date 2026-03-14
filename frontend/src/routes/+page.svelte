@@ -13,12 +13,11 @@
 	let maxConcurrency = $state(1);
 	let maxReviewRounds = $state(3);
 	let githubUrl = $state('');
-	let localPath = $state('');
 	let defaultBranch = $state('main');
 	let submitting = $state(false);
 	let nameError = $state('');
 	let githubUrlError = $state('');
-	let localPathError = $state('');
+	let formError = $state('');
 
 	$effect(() => {
 		listProjectsWithStats().then((data) => {
@@ -30,7 +29,7 @@
 	async function submitProject() {
 		nameError = '';
 		githubUrlError = '';
-		localPathError = '';
+		formError = '';
 
 		let hasError = false;
 		if (!name.trim()) {
@@ -39,10 +38,6 @@
 		}
 		if (!githubUrl.trim()) {
 			githubUrlError = 'GitHub URL is required';
-			hasError = true;
-		}
-		if (!localPath.trim()) {
-			localPathError = 'Local path is required';
 			hasError = true;
 		}
 		if (hasError) return;
@@ -58,7 +53,6 @@
 				max_concurrency: maxConcurrency,
 				max_review_rounds: maxReviewRounds,
 				github_url: githubUrl.trim(),
-				local_path: localPath.trim(),
 				default_branch: defaultBranch.trim() || 'main'
 			});
 			// Optimistic update: repo was created inline, so repo_count starts at 1.
@@ -73,6 +67,8 @@
 				}
 			];
 			closeModal();
+		} catch (err) {
+			formError = err instanceof Error ? err.message : 'Failed to create project';
 		} finally {
 			submitting = false;
 		}
@@ -84,13 +80,12 @@
 		name = '';
 		description = '';
 		githubUrl = '';
-		localPath = '';
 		defaultBranch = 'main';
 		maxConcurrency = 1;
 		maxReviewRounds = 3;
 		nameError = '';
 		githubUrlError = '';
-		localPathError = '';
+		formError = '';
 	}
 
 	function handleModalKeydown(e: KeyboardEvent) {
@@ -373,40 +368,22 @@
 				</div>
 
 				<!-- Repository -->
-				<div>
-					<label for="proj-github-url" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						GitHub URL <span class="text-red">*</span>
-					</label>
-					<input
-						id="proj-github-url"
-						type="text"
-						bind:value={githubUrl}
-						placeholder="https://github.com/owner/repo"
-						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
-							focus:outline-none focus:border-cyan transition-colors"
-						class:border-red={githubUrlError}
-					/>
-					{#if githubUrlError}
-						<p class="text-red text-xs mt-1">{githubUrlError}</p>
-					{/if}
-				</div>
-
 				<div class="flex gap-4">
 					<div class="flex-1">
-						<label for="proj-local-path" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-							Local Path <span class="text-red">*</span>
+						<label for="proj-github-url" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+							GitHub URL <span class="text-red">*</span>
 						</label>
 						<input
-							id="proj-local-path"
+							id="proj-github-url"
 							type="text"
-							bind:value={localPath}
-							placeholder="/home/user/projects/repo"
+							bind:value={githubUrl}
+							placeholder="https://github.com/owner/repo"
 							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
 								focus:outline-none focus:border-cyan transition-colors"
-							class:border-red={localPathError}
+							class:border-red={githubUrlError}
 						/>
-						{#if localPathError}
-							<p class="text-red text-xs mt-1">{localPathError}</p>
+						{#if githubUrlError}
+							<p class="text-red text-xs mt-1">{githubUrlError}</p>
 						{/if}
 					</div>
 					<div class="w-32">
@@ -459,6 +436,10 @@
 						/>
 					</div>
 				</div>
+
+				{#if formError}
+					<p class="text-red text-sm">{formError}</p>
+				{/if}
 
 				<!-- Actions -->
 				<div class="flex gap-3 mt-2">

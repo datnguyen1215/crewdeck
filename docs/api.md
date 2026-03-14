@@ -121,19 +121,21 @@ POST /projects/:projectId/repos
 ```json
 {
   "github_url": "https://github.com/org/repo",
-  "local_path": "/absolute/path/to/local/clone"
+  "default_branch": "main"
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| github_url | Yes | Full GitHub URL. Name and owner are parsed from this. |
-| local_path | Yes | Absolute path to the local clone. Backend validates it exists. |
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| github_url | Yes | — | Full GitHub URL. Name and owner are parsed from this. |
+| default_branch | No | main | Default branch name. |
 
 **Response:** `201 Created` — The created repo object.
 
+**Side effects:** The backend clones the repo to a managed directory if not already present.
+
 **Validation:**
-- local_path must exist and be a git repository.
+- github_url must be a valid GitHub URL.
 - github_url must not already be linked to this project.
 
 #### Remove Repo from Project

@@ -135,7 +135,6 @@ export interface CreateProjectInput {
   max_concurrency?: number;
   max_review_rounds?: number;
   github_url?: string;
-  local_path?: string;
   default_branch?: string;
 }
 
@@ -149,7 +148,6 @@ export interface UpdateProjectInput {
 
 export interface CreateRepoInput {
   github_url: string;
-  local_path: string;
   default_branch?: string;
 }
 

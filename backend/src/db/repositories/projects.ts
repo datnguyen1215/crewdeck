@@ -36,10 +36,9 @@ export function createProject(input: CreateProjectInput): Project {
 
     // Decision: createRepo's return value is discarded here (its getRepo SELECT is wasted).
     // Accepted as minor cost — not worth adding a void variant or inlining the INSERT.
-    if (input.github_url && input.local_path) {
+    if (input.github_url) {
       createRepo(id, {
         github_url: input.github_url,
-        local_path: input.local_path,
         default_branch: input.default_branch,
       });
     }
