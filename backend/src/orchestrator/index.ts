@@ -254,6 +254,7 @@ async function executeRouteReview(
     role: "reviewer",
     status: "active",
     review_order,
+    review_round: newRound,
   });
 
   const repos = listRepos(projectId);
@@ -493,11 +494,12 @@ export class OrchestratorManager {
       updateIssueAgent(reviewerRecord.id, { status: "approved" });
 
       // Re-fetch after DB update to avoid fragile in-memory mutation.
-      // Only consider "active" or "approved" records — prior round records
-      // with "changes_requested" status must be excluded.
+      // Filter by review_round so stale records from crashed prior rounds are excluded.
+      const freshIssueForRound = getIssue(issue_id);
+      const currentRound = freshIssueForRound?.current_review_round ?? null;
       const freshAgents = listIssueAgents(issue_id);
       const allForRound = freshAgents.filter(
-        (ia) => ia.role === "reviewer" && (ia.status === "active" || ia.status === "approved")
+        (ia) => ia.role === "reviewer" && ia.review_round === currentRound
       );
       const allApproved = allForRound.every((ia) => ia.status === "approved");
       // Only transition to "ready" if the issue is currently "in_review" — if another reviewer

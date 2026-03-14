@@ -75,6 +75,7 @@ export interface IssueAgent {
   role: string;
   status: string;
   review_order: number | null;
+  review_round: number | null;
   session_id: string | null;
   created_at: string;
   updated_at: string;
@@ -213,12 +214,14 @@ export interface CreateIssueAgentInput {
   role: string;
   status?: string;
   review_order?: number;
+  review_round?: number;
   session_id?: string;
 }
 
 export interface UpdateIssueAgentInput {
   status?: string;
   review_order?: number;
+  review_round?: number;
   session_id?: string | null;
 }
 

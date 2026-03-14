@@ -93,10 +93,11 @@ CREATE TABLE IF NOT EXISTS IssueAgent (
   role TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   review_order INTEGER,
+  review_round INTEGER,
   session_id TEXT REFERENCES Session(id),
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(issue_id, agent_id, role)
+  UNIQUE(issue_id, agent_id, role, review_round)
 );
 
 CREATE TABLE IF NOT EXISTS IssuePR (

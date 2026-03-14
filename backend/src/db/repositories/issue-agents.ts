@@ -27,8 +27,8 @@ export function getIssueAgent(id: string): IssueAgent | null {
 export function createIssueAgent(input: CreateIssueAgentInput): IssueAgent {
   const id = crypto.randomUUID();
   db.prepare(
-    `INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, session_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, review_round, session_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     input.issue_id,
@@ -36,6 +36,7 @@ export function createIssueAgent(input: CreateIssueAgentInput): IssueAgent {
     input.role,
     input.status ?? "pending",
     input.review_order ?? null,
+    input.review_round ?? null,
     input.session_id ?? null
   );
   return getIssueAgent(id)!;
@@ -47,6 +48,7 @@ export function updateIssueAgent(id: string, input: UpdateIssueAgentInput): Issu
 
   if (input.status !== undefined) { fields.push("status = ?"); values.push(input.status); }
   if (input.review_order !== undefined) { fields.push("review_order = ?"); values.push(input.review_order); }
+  if (input.review_round !== undefined) { fields.push("review_round = ?"); values.push(input.review_round); }
   if (input.session_id !== undefined) { fields.push("session_id = ?"); values.push(input.session_id); }
 
   if (fields.length > 0) {
