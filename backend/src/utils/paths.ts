@@ -11,17 +11,7 @@ export function toContainerPath(hostPath: string): string {
   if (!reposHostPath || !reposContainerPath) return hostPath;
   if (reposHostPath === reposContainerPath) return hostPath;
   if (!hostPath.startsWith(reposHostPath)) return hostPath;
-  return hostPath.replace(reposHostPath, reposContainerPath);
-}
-
-/**
- * Translate a container path back to a host path.
- * Inverse of toContainerPath.
- */
-export function toHostPath(containerPath: string): string {
-  const { reposHostPath, reposContainerPath } = config;
-  if (!reposHostPath || !reposContainerPath) return containerPath;
-  if (reposHostPath === reposContainerPath) return containerPath;
-  if (!containerPath.startsWith(reposContainerPath)) return containerPath;
-  return containerPath.replace(reposContainerPath, reposHostPath);
+  const rest = hostPath.slice(reposHostPath.length);
+  if (rest !== "" && !rest.startsWith("/")) return hostPath;
+  return reposContainerPath + rest;
 }

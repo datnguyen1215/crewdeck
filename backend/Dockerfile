@@ -17,7 +17,8 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
   && apt-get update && apt-get install -y --no-install-recommends gh \
   && rm -rf /var/lib/apt/lists/*
 
-# Claude Code CLI
+# Claude Code CLI — unpinned intentionally; always use the latest release.
+# Agents need the latest tool support and model compatibility.
 RUN npm install -g @anthropic-ai/claude-code
 
 # Create non-root user
