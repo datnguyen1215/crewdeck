@@ -66,7 +66,9 @@ POST /projects
   "name": "My Project",
   "description": "Optional description",
   "max_concurrency": 3,
-  "max_review_rounds": 3
+  "max_review_rounds": 3,
+  "github_url": "https://github.com/owner/repo",
+  "default_branch": "main"
 }
 ```
 
@@ -76,8 +78,12 @@ POST /projects
 | description | No | null | Project description. |
 | max_concurrency | No | 1 | Max concurrent issues. |
 | max_review_rounds | No | 3 | Default max review rounds. |
+| github_url | No | — | GitHub URL of the repository to link to this project. |
+| default_branch | No | main | Default branch for the linked repo. Only used when `github_url` is provided. |
 
 **Response:** `201 Created` — The created project object.
+
+**Side effects:** If `github_url` is provided, the backend clones the repository and creates a linked repo record in one step.
 
 #### Update Project
 

@@ -78,7 +78,7 @@ A GitHub repository linked to a project.
 | github_url | TEXT | NOT NULL | Full GitHub repository URL (e.g., `https://github.com/org/repo`). |
 | name | TEXT | NOT NULL | Repository name (e.g., `repo`). |
 | owner | TEXT | NOT NULL | Repository owner (e.g., `org`). |
-| local_path | TEXT | NOT NULL | Absolute path to the local clone on disk. |
+| local_path | TEXT | NOT NULL | Absolute path to the local clone on disk. Managed by the backend; derived from `CREWDECK_REPOS_DIR/<owner>/<name>`. |
 | default_branch | TEXT | NOT NULL, DEFAULT 'main' | Default branch name. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
