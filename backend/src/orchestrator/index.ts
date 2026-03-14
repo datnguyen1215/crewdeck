@@ -418,6 +418,8 @@ function persistContext(sessionId: string, action: OrchestratorAction): void {
 export class OrchestratorManager {
   // Track projects currently being processed to avoid concurrent runs
   private readonly busy = new Set<string>();
+  // Track projects that received events while busy — triggers a re-run after the current one
+  private readonly pendingRerun = new Set<string>();
 
   constructor(
     private readonly bus: EventBus,
@@ -530,7 +532,8 @@ export class OrchestratorManager {
 
   private async resume(projectId: string, eventDescription: string): Promise<void> {
     if (this.busy.has(projectId)) {
-      logger.info({ projectId }, "Orchestrator busy for project, skipping event");
+      logger.info({ projectId }, "Orchestrator busy for project, queuing re-run");
+      this.pendingRerun.add(projectId);
       return;
     }
     this.busy.add(projectId);
@@ -540,6 +543,9 @@ export class OrchestratorManager {
       logger.error({ err, projectId }, "Orchestrator run failed");
     } finally {
       this.busy.delete(projectId);
+      if (this.pendingRerun.delete(projectId)) {
+        void this.resume(projectId, "Re-evaluating after events were received during previous run");
+      }
     }
   }
 
