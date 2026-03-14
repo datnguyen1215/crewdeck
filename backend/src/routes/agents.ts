@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import {
   listAgents,
   getAgent,
@@ -15,7 +15,7 @@ import { CreateAgentSchema, UpdateAgentSchema } from "../schemas/validation.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", (req, res) => {
+router.get("/", (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
   const crew = getCrew(projectId);
@@ -23,7 +23,7 @@ router.get("/", (req, res) => {
   res.json(listAgents(crew.id));
 });
 
-router.post("/", validate(CreateAgentSchema), (req, res) => {
+router.post("/", validate(CreateAgentSchema), (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
   const crew = getCrew(projectId);

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { getCrew, getCrewWithAgents, updateCrew } from "../db/repositories/crews.js";
 import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
@@ -7,7 +7,7 @@ import { UpdateCrewSchema } from "../schemas/validation.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", (req, res) => {
+router.get("/", (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
   const crew = getCrewWithAgents(projectId);
@@ -15,7 +15,7 @@ router.get("/", (req, res) => {
   res.json(crew);
 });
 
-router.patch("/", validate(UpdateCrewSchema), (req, res) => {
+router.patch("/", validate(UpdateCrewSchema), (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
   const existing = getCrew(projectId);

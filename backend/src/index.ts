@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import pinoHttp from "pino-http";
+import { pinoHttp } from "pino-http";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { db } from "./db/index.js";
