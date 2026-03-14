@@ -148,6 +148,7 @@ crewdeck/
 ├── frontend/          # SvelteKit application
 ├── backend/           # Express + TypeScript API server
 ├── cli/               # CrewDeck CLI (agent ↔ backend communication)
+├── docker-compose.yml # Docker Compose for containerized deployment
 └── docs/              # Design documentation
 ```
 
@@ -367,7 +368,7 @@ On SIGTERM or SIGINT, the backend:
 ## Future Considerations
 
 - **Additional CLI tool adapters** — support for ChatGPT CLI, Codex, and other tools via the adapter interface.
-- **Remote execution** — running agents on remote servers or in containers instead of local tmux sessions.
+- **Remote execution** — running agents on remote servers instead of local tmux sessions.
 - **Multi-user support** — multiple humans overseeing the same project.
 - **Integration with external trackers** — syncing issues with GitHub Issues, Linear, or Jira.
 - **Multiple projects running simultaneously** — with global resource management across projects.

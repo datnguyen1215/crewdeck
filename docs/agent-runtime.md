@@ -261,9 +261,10 @@ When an agent starts work on an issue, the backend creates a git worktree:
 ```
 function createWorktree(repo, issue, baseBranch):
     branchName = "crewdeck/" + issue.id-short + "-" + slugify(issue.title)
-    worktreePath = repo.local_path + "/.worktrees/" + branchName
+    repoPath = toContainerPath(repo.local_path)
+    worktreePath = repoPath + "/.worktrees/" + branchName
 
-    run: git -C <repo.local_path> worktree add -b <branchName> <worktreePath> <baseBranch>
+    run: git -C <repoPath> worktree add -b <branchName> <worktreePath> <baseBranch>
 
     update issue record with branch_name, worktree_path, base_branch
     return worktreePath
@@ -286,8 +287,9 @@ Worktrees are cleaned up when an issue reaches `done` status:
 
 ```
 function cleanupWorktree(repo, worktreePath, branchName):
-    run: git -C <repo.local_path> worktree remove <worktreePath>
-    optionally: git -C <repo.local_path> branch -d <branchName>
+    repoPath = toContainerPath(repo.local_path)
+    run: git -C <repoPath> worktree remove <worktreePath>
+    optionally: git -C <repoPath> branch -d <branchName>
 ```
 
 ## Session Context Storage
