@@ -2,6 +2,11 @@ import { describe, it, expect, beforeAll, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { getApp } from "./setup.js";
+import { eventBus } from "../../src/events/bus.js";
+import {
+  createSession,
+  getSession,
+} from "../../src/db/repositories/sessions.js";
 
 const BASE = "/api/v1/internal";
 const FAKE_ID = "00000000-0000-0000-0000-000000000000";
@@ -37,8 +42,6 @@ beforeAll(async () => {
   issueId = issueRes.body.id;
 
   // Create session directly via DB (no POST route exists)
-  const { createSession } =
-    await import("../../src/db/repositories/sessions.js");
   const session = createSession({
     project_id: projectId,
     session_type: "agent",
@@ -51,7 +54,6 @@ beforeAll(async () => {
 
 describe("POST /api/v1/internal/signal", () => {
   it("work-complete emits agent.finished and returns 200", async () => {
-    const { eventBus } = await import("../../src/events/bus.js");
     const handler = vi.fn();
     eventBus.on("agent.finished", handler);
 
@@ -79,7 +81,6 @@ describe("POST /api/v1/internal/signal", () => {
   });
 
   it("review-complete with verdict emits review.completed", async () => {
-    const { eventBus } = await import("../../src/events/bus.js");
     const handler = vi.fn();
     eventBus.on("review.completed", handler);
 
@@ -116,7 +117,6 @@ describe("POST /api/v1/internal/signal", () => {
   });
 
   it("error signal emits agent.error", async () => {
-    const { eventBus } = await import("../../src/events/bus.js");
     const handler = vi.fn();
     eventBus.on("agent.error", handler);
 
@@ -141,7 +141,6 @@ describe("POST /api/v1/internal/signal", () => {
   });
 
   it("needs-help signal emits agent.needs_help", async () => {
-    const { eventBus } = await import("../../src/events/bus.js");
     const handler = vi.fn();
     eventBus.on("agent.needs_help", handler);
 
@@ -216,7 +215,6 @@ describe("POST /api/v1/internal/comment", () => {
 
 describe("POST /api/v1/internal/status", () => {
   it("updates agent status and emits event", async () => {
-    const { eventBus } = await import("../../src/events/bus.js");
     const handler = vi.fn();
     eventBus.on("agent.status_changed", handler);
 
@@ -260,7 +258,7 @@ describe("POST /api/v1/internal/status", () => {
 });
 
 describe("POST /api/v1/internal/files", () => {
-  it("merges modified files into session context", async () => {
+  it("sets modified files in session context", async () => {
     const res = await request(app)
       .post(`${BASE}/files`)
       .send({
@@ -272,8 +270,6 @@ describe("POST /api/v1/internal/files", () => {
     expect(res.body).toEqual({ ok: true });
 
     // Verify the session was updated in the DB
-    const { getSession } =
-      await import("../../src/db/repositories/sessions.js");
     const session = getSession(sessionId);
     expect(session).not.toBeNull();
     const ctx = session!.context as Record<string, unknown>;
