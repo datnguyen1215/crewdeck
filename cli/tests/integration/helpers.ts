@@ -26,10 +26,16 @@ export function runCli(args: string[]): Promise<CliResult> {
       },
       timeout: 10_000,
     }, (error, stdout, stderr) => {
+      let exitCode = child.exitCode ?? 0;
+      if (error) {
+        if (error.killed) exitCode = 1;
+        else if (typeof error.code === "number") exitCode = error.code;
+        else if (exitCode === 0) exitCode = 1;
+      }
       resolve({
         stdout: stdout.toString(),
         stderr: stderr.toString(),
-        exitCode: error?.code ? Number(error.code) : (child.exitCode ?? 0),
+        exitCode,
       });
     });
   });
