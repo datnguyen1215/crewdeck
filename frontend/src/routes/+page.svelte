@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { listProjectsWithStats, createProject, type ProjectWithStats } from '$lib/api/http.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let projects = $state<ProjectWithStats[]>([]);
 	let loading = $state(true);
@@ -18,10 +19,10 @@
 	let formError = $state('');
 
 	$effect(() => {
-		listProjectsWithStats().then((data) => {
-			projects = data;
-			loading = false;
-		});
+		listProjectsWithStats()
+			.then((data) => { projects = data; })
+			.catch(() => { toastStore.add('Failed to load projects', 'error'); })
+			.finally(() => { loading = false; });
 	});
 
 	async function submitProject() {

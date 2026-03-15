@@ -4,6 +4,7 @@
 	import { getContext } from 'svelte';
 	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions, type IssueWithDetails } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
 
 	type Issue = IssueWithDetails;
@@ -63,7 +64,8 @@
 							activeSessionId = null;
 							sessionStatus = 'idle';
 						}
-					});
+					})
+					.catch(() => {});
 			})
 			.catch(() => { if (!cancelled) issue = null; })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -116,7 +118,7 @@
 		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 
-	// Minimal markdown renderer — handles the subset used in mock data
+	// Minimal markdown renderer — handles the common subset
 	function md(text: string): string {
 		if (!text) return '';
 
@@ -187,6 +189,8 @@
 			const c = await addComment(projectId, issueId, { content: commentText });
 			issue = { ...issue, comments: [...issue.comments, c] };
 			commentText = '';
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to post comment', 'error');
 		} finally {
 			posting = false;
 		}
@@ -198,6 +202,8 @@
 			await approveIssue(projectId, issueId);
 			issue = { ...issue!, status: 'open' };
 			showApproveConfirm = false;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to approve issue', 'error');
 		} finally {
 			working = false;
 		}
@@ -208,6 +214,8 @@
 		try {
 			await discardIssue(projectId, issueId);
 			goto(`/projects/${projectId}`);
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to discard issue', 'error');
 		} finally {
 			working = false;
 		}
@@ -220,6 +228,8 @@
 			await updateIssue(projectId, issueId, { title: editTitle, description: editDescription });
 			issue = { ...issue, title: editTitle, description: editDescription };
 			showEditForm = false;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to save changes', 'error');
 		} finally {
 			working = false;
 		}

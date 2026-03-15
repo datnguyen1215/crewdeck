@@ -3,6 +3,7 @@
 	import { getContext } from 'svelte';
 	import { listActivity, listIssues, type ActivityLog, type Issue } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	type ActivityEntry = ActivityLog;
 
@@ -49,7 +50,7 @@
 		'pr.merged': 'PR Merged'
 	};
 
-	// Pagination scaffolding — not triggered by current mock data but needed for production volumes.
+	// Client-side pagination over fetched entries.
 	const PAGE_SIZE = 50;
 
 	let projectId = $derived($page.params.projectId);
@@ -73,14 +74,14 @@
 		if (filterActors.length > 0) actParams.actor_type = filterActors[0];
 		if (filterAction) actParams.action = filterAction;
 		if (filterIssue) actParams.issue_id = filterIssue;
-		Promise.all([listActivity(projectId, actParams), listIssues(projectId)]).then(
-			([acts, iss]) => {
+		Promise.all([listActivity(projectId, actParams), listIssues(projectId)])
+			.then(([acts, iss]) => {
 				if (cancelled) return;
 				allEntries = acts;
 				issues = iss;
-				loading = false;
-			}
-		);
+			})
+			.catch(() => { if (!cancelled) toastStore.add('Failed to load activity', 'error'); })
+			.finally(() => { if (!cancelled) loading = false; });
 		return () => {
 			cancelled = true;
 		};
@@ -171,7 +172,6 @@
 	}
 
 	// Entries within the last 2 hours get a subtle glow treatment.
-	// Note: glow effect only triggers for entries <2h old. Visible with live data, not with static mock timestamps.
 	function isRecent(dateStr: string): boolean {
 		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
 	}

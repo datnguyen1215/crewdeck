@@ -3,6 +3,7 @@
 	import { getContext } from 'svelte';
 	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent, type CrewWithAgents } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	type CrewData = CrewWithAgents;
 	type AgentData = CrewData['agents'][number];
@@ -63,16 +64,13 @@
 	let deleting = $state(false);
 
 	$effect(() => {
+		let cancelled = false;
 		loading = true;
 		getCrew(projectId)
-			.then((data) => {
-				crew = data;
-				loading = false;
-			})
-			.catch(() => {
-				// TODO: Add error state UI. Currently errors are silently swallowed.
-				loading = false;
-			});
+			.then((data) => { if (!cancelled) { crew = data; } })
+			.catch(() => { if (!cancelled) toastStore.add('Failed to load crew', 'error'); })
+			.finally(() => { if (!cancelled) loading = false; });
+		return () => { cancelled = true; };
 	});
 
 	$effect(() => {
@@ -105,6 +103,8 @@
 			const updated = await updateCrew(projectId, { name: nameInput.trim() });
 			crew = { ...crew, name: updated.name };
 			editingName = false;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to save crew name', 'error');
 		} finally {
 			savingName = false;
 		}
@@ -212,6 +212,8 @@
 				}
 			}
 			showModal = false;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to save agent', 'error');
 		} finally {
 			submitting = false;
 		}
@@ -230,6 +232,8 @@
 			await deleteAgent(projectId, deleteTarget.id);
 			if (crew) crew = { ...crew, agents: crew.agents.filter((a) => a.id !== deleteTarget!.id) };
 			deleteTarget = null;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to delete agent', 'error');
 		} finally {
 			deleting = false;
 		}

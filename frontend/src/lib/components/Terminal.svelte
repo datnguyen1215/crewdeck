@@ -91,6 +91,7 @@
 		ro = new ResizeObserver(() => fitAddon.fit());
 		ro.observe(containerEl!);
 	});
+
 </script>
 
 <div
