@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { getApp } from "./setup.js";
@@ -258,11 +258,24 @@ describe("POST /api/v1/internal/status", () => {
 });
 
 describe("POST /api/v1/internal/files", () => {
+  let filesSessionId: string;
+
+  beforeEach(() => {
+    const session = createSession({
+      project_id: projectId,
+      session_type: "agent",
+      agent_id: agentId,
+      issue_id: issueId,
+      status: "running",
+    });
+    filesSessionId = session.id;
+  });
+
   it("sets modified files in session context", async () => {
     const res = await request(app)
       .post(`${BASE}/files`)
       .send({
-        session_id: sessionId,
+        session_id: filesSessionId,
         modified: ["src/index.ts", "src/app.ts"],
       });
 
@@ -270,7 +283,7 @@ describe("POST /api/v1/internal/files", () => {
     expect(res.body).toEqual({ ok: true });
 
     // Verify the session was updated in the DB
-    const session = getSession(sessionId);
+    const session = getSession(filesSessionId);
     expect(session).not.toBeNull();
     const ctx = session!.context as Record<string, unknown>;
     expect(ctx.modified_files).toEqual(["src/index.ts", "src/app.ts"]);
@@ -289,7 +302,7 @@ describe("POST /api/v1/internal/files", () => {
 
   it("rejects empty array with 400", async () => {
     const res = await request(app).post(`${BASE}/files`).send({
-      session_id: sessionId,
+      session_id: filesSessionId,
       modified: [],
     });
 
@@ -299,7 +312,7 @@ describe("POST /api/v1/internal/files", () => {
   it("rejects array exceeding 500 items with 400", async () => {
     const tooMany = Array.from({ length: 501 }, (_, i) => `file-${i}.ts`);
     const res = await request(app).post(`${BASE}/files`).send({
-      session_id: sessionId,
+      session_id: filesSessionId,
       modified: tooMany,
     });
 
@@ -311,7 +324,7 @@ describe("POST /api/v1/internal/files", () => {
     const res = await request(app)
       .post(`${BASE}/files`)
       .send({
-        session_id: sessionId,
+        session_id: filesSessionId,
         modified: [longPath],
       });
 
