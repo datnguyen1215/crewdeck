@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { getIssue, getSession, addComment, approveIssue, discardIssue, updateIssue, listSessions } from '$lib/api/client.js';
-	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { getContext } from 'svelte';
+	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions, type IssueWithDetails } from '$lib/api/http.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.js';
 	import Terminal from '$lib/components/Terminal.svelte';
 
-	type Issue = Awaited<ReturnType<typeof getIssue>>;
+	type Issue = IssueWithDetails;
+
+	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
 	let issue = $state<Issue | null>(null);
 	let loading = $state(true);
@@ -31,36 +34,72 @@
 
 	// Tab navigation
 	let activeTab = $state<'description' | 'comments' | 'terminal'>('description');
-	let terminalSession = $state<{ agentName: string; status: 'running' | 'completed' | 'idle'; output?: string } | null>(null);
+
+	// Terminal session state
+	let activeSessionId = $state<string | null>(null);
+	let sessionAgentName = $state('Agent');
+	let sessionStatus = $state<'running' | 'completed' | 'idle'>('idle');
 
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
 		getIssue(projectId, issueId)
-			.then(async (d) => {
+			.then((d) => {
 				if (cancelled) return;
 				issue = d;
-				// Find active session for this issue
-				const sessions = await listSessions(projectId, { issue_id: issueId }).catch(() => []);
-				if (cancelled) return;
-				const activeSession = sessions[0];
-				if (activeSession) {
-					const agentName = d.assigned_agent?.name ?? activeSession.agent_id ?? 'Agent';
-					// Fetch full session details for output
-					const fullSession = await getSession(projectId, activeSession.id).catch(() => null);
-					if (cancelled) return;
-					terminalSession = {
-						agentName,
-						status: ['running', 'completed'].includes(activeSession.status) ? activeSession.status : 'idle',
-						output: fullSession?.output
-					};
-				} else {
-					terminalSession = null;
-				}
+
+				// After setting issue, load active session
+				listSessions(projectId, { issue_id: issueId, status: 'running' })
+					.then((sessions) => {
+						if (cancelled) return;
+						if (sessions.length > 0) {
+							activeSessionId = sessions[0].id;
+							sessionStatus = 'running';
+							// Try to find agent name from issue_agents
+							const agentId = sessions[0].agent_id;
+							const ia = d.issue_agents?.find((a: any) => a.agent_id === agentId);
+							sessionAgentName = ia?.agent?.name ?? 'Agent';
+						} else {
+							activeSessionId = null;
+							sessionStatus = 'idle';
+						}
+					});
 			})
 			.catch(() => { if (!cancelled) issue = null; })
 			.finally(() => { if (!cancelled) loading = false; });
 		return () => { cancelled = true; };
+	});
+
+	// WebSocket real-time updates
+	$effect(() => {
+		const ws = getWs();
+		if (!ws) return;
+		const reloadIssue = () => {
+			getIssue(projectId, issueId).then((d) => { issue = d; }).catch(() => {});
+		};
+		const unsubs = [
+			ws.on('issue.updated', reloadIssue),
+			ws.on('issue.status_changed', reloadIssue),
+			ws.on('issue.approved', reloadIssue),
+			ws.on('comment.added', reloadIssue),
+			ws.on('review.completed', reloadIssue),
+			ws.on('pr.created', reloadIssue),
+			ws.on('pr.status_changed', reloadIssue),
+			ws.on('session.started', (data) => {
+				if (data.issue_id === issueId) {
+					activeSessionId = data.session_id as string;
+					sessionStatus = 'running';
+					const ia = issue?.issue_agents?.find((a: any) => a.agent_id === data.agent_id);
+					sessionAgentName = ia?.agent?.name ?? 'Agent';
+				}
+			}),
+			ws.on('session.ended', (data) => {
+				if (data.session_id === activeSessionId) {
+					sessionStatus = 'completed';
+				}
+			}),
+		];
+		return () => unsubs.forEach(fn => fn());
 	});
 
 	function rel(iso: string) {
@@ -338,7 +377,7 @@
 						class="px-4 py-2.5 border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'terminal' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
 					>
 						Terminal
-						{#if terminalSession?.status === 'running'}
+						{#if sessionStatus === 'running'}
 							<span class="inline-block w-1.5 h-1.5 rounded-full bg-green animate-pulse"></span>
 						{/if}
 					</button>
@@ -430,8 +469,8 @@
 						</div>
 
 					{:else if activeTab === 'terminal'}
-						{#if terminalSession}
-							<Terminal session={terminalSession} />
+						{#if activeSessionId}
+							<Terminal {projectId} sessionId={activeSessionId} agentName={sessionAgentName} status={sessionStatus} />
 						{:else}
 							<div class="flex flex-col items-center justify-center py-16 gap-3 text-center">
 								<span class="text-3xl text-muted opacity-40">⬛</span>
@@ -573,6 +612,9 @@
 							<button disabled class="w-full py-1.5 border border-cyan/40 text-cyan/40 rounded text-left px-3 cursor-not-allowed">Create PR</button>
 						{/if}
 
+						<!-- Decision: pr_url is not scheme-validated (e.g. startsWith('https://'))
+							 because it comes from our own backend which only stores GitHub URLs.
+							 Adding a guard would be over-engineering for an internal tool with trusted data. -->
 						{#if issue.status === 'pr_created' && issue.issue_prs?.length}
 							{@const pr = issue.issue_prs[0]}
 							<a href={pr.pr_url} target="_blank" rel="noopener" class="w-full py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 block">View PR #{pr.pr_number}</a>
@@ -606,6 +648,7 @@
 				{/if}
 
 				<!-- Pull Requests panel -->
+				<!-- See decision comment above re: pr_url scheme validation -->
 				<div class="bg-surface border border-edge rounded p-4">
 					<div class="text-xs text-muted uppercase tracking-widest mb-3">Pull Requests</div>
 					{#if issue.issue_prs?.length}

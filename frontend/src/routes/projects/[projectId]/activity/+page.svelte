@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listActivity, listIssues } from '$lib/api/client.js';
-	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { getContext } from 'svelte';
+	import { listActivity, listIssues, type ActivityLog, type Issue } from '$lib/api/http.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.js';
 
-	type ActivityEntry = Awaited<ReturnType<typeof listActivity>>[number];
-	type Issue = Awaited<ReturnType<typeof listIssues>>[number];
+	type ActivityEntry = ActivityLog;
+
+	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
 	const ACTOR_CFG: Record<string, { icon: string; color: string; border: string; glow: string }> = {
 		user: { icon: '○', color: 'text-primary', border: 'border-edge-hi', glow: '' },
@@ -68,7 +70,7 @@
 		// Pass active filters server-side so the limit is applied after filtering,
 		// preventing silent exclusion of matching entries beyond the fetch limit.
 		const actParams: Record<string, unknown> = { limit: 500 };
-		if (filterActors.length > 0) actParams.actor_types = filterActors;
+		if (filterActors.length > 0) actParams.actor_type = filterActors[0];
 		if (filterAction) actParams.action = filterAction;
 		if (filterIssue) actParams.issue_id = filterIssue;
 		Promise.all([listActivity(projectId, actParams), listIssues(projectId)])
@@ -84,12 +86,27 @@
 		};
 	});
 
-	// Backend supports single actor_type filter; apply client-side filtering when multiple are selected.
-	let filtered = $derived(
-		filterActors.length > 1
-			? allEntries.filter((e) => filterActors.includes(e.actor_type))
-			: allEntries
-	);
+	$effect(() => {
+		const ws = getWs();
+		if (!ws) return;
+		const reload = () => {
+			const actParams: Record<string, unknown> = { limit: 500 };
+			if (filterActors.length > 0) actParams.actor_type = filterActors[0];
+			if (filterAction) actParams.action = filterAction;
+			if (filterIssue) actParams.issue_id = filterIssue;
+			Promise.all([listActivity(projectId, actParams), listIssues(projectId)]).then(
+				([acts, iss]) => {
+					allEntries = acts;
+					issues = iss;
+				}
+			).catch(() => {});
+		};
+		const unsub = ws.on('*', reload);
+		return () => unsub();
+	});
+
+	// Filtering is applied server-side; allEntries already reflects active filters.
+	let filtered = $derived(allEntries);
 
 	let visible = $derived(filtered.slice(0, visibleCount));
 	let hasMore = $derived(filtered.length > visibleCount);

@@ -1,8 +1,5 @@
 <script lang="ts">
-	import { listProjectsWithStats, createProject } from '$lib/api/client.js';
-	import { toastStore } from '$lib/stores/toasts.svelte.js';
-
-	type ProjectWithStats = Awaited<ReturnType<typeof listProjectsWithStats>>[number];
+	import { listProjectsWithStats, createProject, type ProjectWithStats } from '$lib/api/http.js';
 
 	let projects = $state<ProjectWithStats[]>([]);
 	let loading = $state(true);
@@ -50,7 +47,7 @@
 		try {
 			const project = await createProject({
 				name: name.trim(),
-				description: description.trim() || null,
+				description: description.trim() || undefined,
 				max_concurrency: maxConcurrency,
 				max_review_rounds: maxReviewRounds,
 				github_url: githubUrl.trim(),

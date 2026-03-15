@@ -16,7 +16,6 @@
 			});
 		});
 	});
-
 </script>
 
 <div class="flex h-screen bg-base overflow-hidden">
