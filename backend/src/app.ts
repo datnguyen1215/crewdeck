@@ -24,7 +24,7 @@ export function createApp(opts: CreateAppOpts = {}) {
 
   app.use(
     cors({
-      origin: opts.corsOrigin ?? "*",
+      origin: opts.corsOrigin ?? false,
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type"],
     }),

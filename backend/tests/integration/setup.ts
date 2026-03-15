@@ -1,4 +1,4 @@
-import { vi, beforeAll, afterAll } from "vitest";
+import { vi, afterAll } from "vitest";
 import { mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -12,7 +12,11 @@ const testDbPath = join(tmpDir, "test.db");
 vi.mock("../../src/db/index.js", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../../src/db/index.js")>();
   const db = mod.createDb(testDbPath);
-  return { ...mod, db };
+  return {
+    ...mod,
+    db,
+    withTransaction: <T>(fn: () => T): T => db.transaction(fn)(),
+  };
 });
 
 // Mock git clone — prevents network calls during repo creation
