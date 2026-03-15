@@ -9,7 +9,7 @@ import { ValidationError } from "../../middleware/errors.js";
 
 function validateSegments(url: string, owner: string, name: string) {
   if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(name) || owner === '..' || name === '..')
-    throw new Error(`Cannot parse GitHub URL: ${url}`);
+    throw new ValidationError(`Cannot parse GitHub URL: ${url}`);
   return { owner, name };
 }
 
@@ -20,7 +20,7 @@ function parseGithubUrl(url: string): { owner: string; name: string } {
   // git@github.com:owner/repo.git
   const sshMatch = url.match(/github\.com:([^/]+)\/([^/.]+)/);
   if (sshMatch) return validateSegments(url, sshMatch[1], sshMatch[2]);
-  throw new Error(`Cannot parse GitHub URL: ${url}`);
+  throw new ValidationError(`Cannot parse GitHub URL: ${url}`);
 }
 
 function cloneIfNeeded(githubUrl: string, localPath: string): void {
