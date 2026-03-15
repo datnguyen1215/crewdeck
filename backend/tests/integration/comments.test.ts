@@ -64,6 +64,7 @@ describe("Comments API", () => {
       const proj = await request(app)
         .post(`${API}/projects`)
         .send({ name: "no-issue-project" });
+      expect(proj.status).toBe(201);
 
       const res = await request(app).get(
         commentsUrl(proj.body.id, "non-existent-issue-id"),
@@ -78,6 +79,7 @@ describe("Comments API", () => {
       const otherProj = await request(app)
         .post(`${API}/projects`)
         .send({ name: "other-project" });
+      expect(otherProj.status).toBe(201);
 
       const res = await request(app).get(
         commentsUrl(otherProj.body.id, issueId),
@@ -129,6 +131,7 @@ describe("Comments API", () => {
       const proj = await request(app)
         .post(`${API}/projects`)
         .send({ name: "post-no-issue" });
+      expect(proj.status).toBe(201);
 
       const res = await request(app)
         .post(commentsUrl(proj.body.id, "fake-issue-id"))
