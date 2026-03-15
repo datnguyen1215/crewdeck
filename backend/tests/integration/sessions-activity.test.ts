@@ -191,19 +191,10 @@ describe("Sessions & Activity Log", () => {
     it("filters by since (timestamp)", async () => {
       await insertActivity({ action: "old" });
 
-      // KNOWN BUG: SQLite stores timestamps as "YYYY-MM-DD HH:MM:SS" (space
-      // separator) but callers typically pass ISO 8601 ("T" separator, "Z"
-      // suffix). The `created_at >= ?` string comparison is broken with ISO
-      // 8601 input — it will always return 0 results. This should be fixed in
-      // production by normalizing timestamp formats.
-      const future = new Date(Date.now() + 60_000);
-      const sqliteFormat = future
-        .toISOString()
-        .replace("T", " ")
-        .replace(/\.\d{3}Z$/, "");
+      const future = new Date(Date.now() + 60_000).toISOString();
       const res = await request(app)
         .get(activityUrl())
-        .query({ since: sqliteFormat });
+        .query({ since: future });
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(0);
     });
