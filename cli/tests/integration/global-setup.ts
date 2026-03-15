@@ -100,16 +100,23 @@ export default async function setup({ provide }: GlobalSetupContext) {
     if (msg) console.error(`[backend stderr] ${msg}`);
   });
 
-  await waitForReady(baseUrl);
+  function teardown() {
+    if (backendProcess) backendProcess.kill("SIGTERM");
+    if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  try {
+    await waitForReady(baseUrl);
+  } catch (err) {
+    teardown();
+    throw err;
+  }
 
   provide("baseUrl", baseUrl);
   provide("dbPath", dbPath);
   provide("seeded", seeded);
 
-  return () => {
-    if (backendProcess) backendProcess.kill("SIGTERM");
-    if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
-  };
+  return teardown;
 }
 
 declare module "vitest" {

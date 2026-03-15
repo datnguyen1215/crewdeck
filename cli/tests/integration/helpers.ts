@@ -1,8 +1,8 @@
 import { execFile } from "child_process";
-import { resolve, join } from "path";
+import { resolve } from "path";
 import { inject } from "vitest";
 
-const CLI_ENTRY = resolve(join(__dirname, "../../dist/index.js"));
+const CLI_ENTRY = resolve(__dirname, "../../dist/index.js");
 
 interface CliResult {
   stdout: string;
