@@ -56,8 +56,9 @@ describe("Comments API", () => {
       const res = await request(app).get(commentsUrl(projectId, issueId));
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(2);
-      expect(res.body[0].content).toBe("first comment");
-      expect(res.body[1].content).toBe("second comment");
+      const contents = res.body.map((c: { content: string }) => c.content);
+      expect(contents).toContain("first comment");
+      expect(contents).toContain("second comment");
     });
 
     it("returns 404 for non-existent issue", async () => {

@@ -3,7 +3,7 @@ import type { Comment, CreateCommentInput } from "../../types/entities.js";
 
 export function listComments(issueId: string): Comment[] {
   return db
-    .prepare("SELECT * FROM Comment WHERE issue_id = ? ORDER BY created_at ASC")
+    .prepare("SELECT * FROM Comment WHERE issue_id = ? ORDER BY created_at ASC, id ASC")
     .all(issueId) as Comment[];
 }
 
