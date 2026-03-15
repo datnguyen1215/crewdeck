@@ -3,8 +3,7 @@ import request from "supertest";
 import type { Express } from "express";
 import { getApp } from "./setup.js";
 
-const FAKE_PROJECT_ID = "00000000-0000-0000-0000-000000000000";
-const FAKE_AGENT_ID = "00000000-0000-0000-0000-000000000000";
+const FAKE_ID = "00000000-0000-0000-0000-000000000000";
 
 let app: Express;
 let projectId: string;
@@ -14,6 +13,7 @@ beforeAll(async () => {
   const res = await request(app)
     .post("/api/v1/projects")
     .send({ name: "crew-agents-test-project" });
+  expect(res.status).toBe(201);
   projectId = res.body.id;
 });
 
@@ -26,9 +26,7 @@ describe("GET /api/v1/projects/:projectId/crew", () => {
   });
 
   it("returns 404 for non-existent project", async () => {
-    const res = await request(app).get(
-      `/api/v1/projects/${FAKE_PROJECT_ID}/crew`,
-    );
+    const res = await request(app).get(`/api/v1/projects/${FAKE_ID}/crew`);
     expect(res.status).toBe(404);
   });
 });
@@ -44,7 +42,7 @@ describe("PATCH /api/v1/projects/:projectId/crew", () => {
 
   it("returns 404 for non-existent project", async () => {
     const res = await request(app)
-      .patch(`/api/v1/projects/${FAKE_PROJECT_ID}/crew`)
+      .patch(`/api/v1/projects/${FAKE_ID}/crew`)
       .send({ name: "Nope" });
     expect(res.status).toBe(404);
   });
@@ -85,13 +83,20 @@ describe("POST /api/v1/projects/:projectId/crew/agents", () => {
 
   it("returns 404 for non-existent project", async () => {
     const res = await request(app)
-      .post(`/api/v1/projects/${FAKE_PROJECT_ID}/crew/agents`)
+      .post(`/api/v1/projects/${FAKE_ID}/crew/agents`)
       .send({ name: "Agent", role: "dev", system_prompt: "prompt" });
     expect(res.status).toBe(404);
   });
 });
 
 describe("GET /api/v1/projects/:projectId/crew/agents (after creation)", () => {
+  beforeAll(async () => {
+    const res = await request(app)
+      .post(`/api/v1/projects/${projectId}/crew/agents`)
+      .send({ name: "List Agent", role: "dev", system_prompt: "prompt" });
+    expect(res.status).toBe(201);
+  });
+
   it("returns agents after creating some", async () => {
     const res = await request(app).get(
       `/api/v1/projects/${projectId}/crew/agents`,
@@ -102,6 +107,13 @@ describe("GET /api/v1/projects/:projectId/crew/agents (after creation)", () => {
 });
 
 describe("GET /api/v1/projects/:projectId/crew (with agents)", () => {
+  beforeAll(async () => {
+    const res = await request(app)
+      .post(`/api/v1/projects/${projectId}/crew/agents`)
+      .send({ name: "Crew Agent", role: "dev", system_prompt: "prompt" });
+    expect(res.status).toBe(201);
+  });
+
   it("returns crew with agents after adding some", async () => {
     const res = await request(app).get(`/api/v1/projects/${projectId}/crew`);
     expect(res.status).toBe(200);
@@ -120,6 +132,7 @@ describe("PATCH /api/v1/projects/:projectId/crew/agents/:agentId", () => {
         role: "tester",
         system_prompt: "test prompt",
       });
+    expect(res.status).toBe(201);
     agentId = res.body.id;
   });
 
@@ -133,7 +146,7 @@ describe("PATCH /api/v1/projects/:projectId/crew/agents/:agentId", () => {
 
   it("returns 404 for non-existent agent", async () => {
     const res = await request(app)
-      .patch(`/api/v1/projects/${projectId}/crew/agents/${FAKE_AGENT_ID}`)
+      .patch(`/api/v1/projects/${projectId}/crew/agents/${FAKE_ID}`)
       .send({ name: "Nope" });
     expect(res.status).toBe(404);
   });
@@ -146,6 +159,7 @@ describe("DELETE /api/v1/projects/:projectId/crew/agents/:agentId", () => {
     const res = await request(app)
       .post(`/api/v1/projects/${projectId}/crew/agents`)
       .send({ name: "Deletable", role: "disposable", system_prompt: "bye" });
+    expect(res.status).toBe(201);
     agentId = res.body.id;
   });
 
@@ -158,7 +172,7 @@ describe("DELETE /api/v1/projects/:projectId/crew/agents/:agentId", () => {
 
   it("returns 404 for non-existent agent", async () => {
     const res = await request(app).delete(
-      `/api/v1/projects/${projectId}/crew/agents/${FAKE_AGENT_ID}`,
+      `/api/v1/projects/${projectId}/crew/agents/${FAKE_ID}`,
     );
     expect(res.status).toBe(404);
   });
@@ -172,18 +186,21 @@ describe("DELETE /api/v1/projects/:projectId/crew/agents/:agentId (conflict)", (
     const agentRes = await request(app)
       .post(`/api/v1/projects/${projectId}/crew/agents`)
       .send({ name: "Busy Agent", role: "worker", system_prompt: "working" });
+    expect(agentRes.status).toBe(201);
     agentId = agentRes.body.id;
 
     // Create an issue
     const issueRes = await request(app)
       .post(`/api/v1/projects/${projectId}/issues`)
       .send({ title: "Blocking issue", description: "blocks deletion" });
+    expect(issueRes.status).toBe(201);
     const issueId = issueRes.body.id;
 
     // Assign agent and set status to open (non-terminal)
-    await request(app)
+    const patchRes = await request(app)
       .patch(`/api/v1/projects/${projectId}/issues/${issueId}`)
       .send({ assigned_agent_id: agentId, status: "open" });
+    expect(patchRes.status).toBe(200);
   });
 
   it("returns 409 when agent has active issues", async () => {
