@@ -33,7 +33,7 @@ function cloneIfNeeded(githubUrl: string, localPath: string, token?: string): vo
       // Use GIT_ASKPASS to inject credentials without embedding them in the URL
       // (which would persist the token in .git/config).
       const askpass = path.join(os.tmpdir(), `crewdeck-askpass-${crypto.randomUUID()}.sh`);
-      fs.writeFileSync(askpass, `#!/bin/sh\necho "${token}"\n`, { mode: 0o700 });
+      fs.writeFileSync(askpass, `#!/bin/sh\nprintf '%s\n' '${token.replace(/'/g, "'\\''")}';\n`, { mode: 0o700 });
       const env = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: askpass };
       try {
         execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe", env });
