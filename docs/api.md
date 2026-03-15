@@ -600,8 +600,8 @@ GET /projects/:projectId/activity
 | issue_id | TEXT | Filter by issue. |
 | actor_type | TEXT | Filter by actor type. |
 | action | TEXT | Filter by action (e.g., `issue.status_changed`). |
-| since | DATETIME | Only entries after this timestamp. |
-| limit | INTEGER | Max entries to return. Default: 50. |
+| since | DATETIME | Only entries after this timestamp. Must be a valid date (ISO 8601 or any format parseable by `new Date()`). Invalid values return `400 VALIDATION_ERROR`. |
+| limit | INTEGER | Max entries to return. Default: 50. Max: 500. |
 | offset | INTEGER | Pagination offset. Default: 0. |
 
 **Response:** `200 OK` — Array of activity log entries, ordered by created_at descending.
