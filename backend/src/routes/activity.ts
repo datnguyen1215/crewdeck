@@ -21,7 +21,7 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
       res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "since must be a valid date" } });
       return;
     }
-    filters.since = d.toISOString().replace("T", " ").replace("Z", "").slice(0, 19);
+    filters.since = d.toISOString().slice(0, 19).replace("T", " ");
   }
   if (limit) {
     const parsed = parseInt(limit, 10);
