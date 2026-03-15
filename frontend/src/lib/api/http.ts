@@ -291,13 +291,6 @@ export function createPR(projectId: string, issueId: string) {
 // Comments
 // ---------------------------------------------------------------------------
 
-export function listComments(projectId: string, issueId: string) {
-  return request<Comment[]>(
-    "GET",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/comments`,
-  );
-}
-
 export function addComment(
   projectId: string,
   issueId: string,

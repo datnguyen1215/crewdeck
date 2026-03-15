@@ -64,7 +64,8 @@
 							activeSessionId = null;
 							sessionStatus = 'idle';
 						}
-					});
+					})
+					.catch(() => {});
 			})
 			.catch(() => { if (!cancelled) issue = null; })
 			.finally(() => { if (!cancelled) loading = false; });
