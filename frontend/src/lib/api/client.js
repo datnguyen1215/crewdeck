@@ -279,10 +279,6 @@ export async function discardIssue(projectId, issueId) {
 // Comments
 // ---------------------------------------------------------------------------
 
-export async function listComments(projectId, issueId) {
-  return request(`/projects/${projectId}/issues/${issueId}/comments`);
-}
-
 export async function addComment(projectId, issueId, data) {
   return request(`/projects/${projectId}/issues/${issueId}/comments`, {
     method: "POST",

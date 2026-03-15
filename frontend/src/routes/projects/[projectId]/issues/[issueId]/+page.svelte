@@ -43,11 +43,12 @@
 				// Find active session for this issue
 				const sessions = await listSessions(projectId, { issue_id: issueId }).catch(() => []);
 				if (cancelled) return;
-				const activeSession = sessions.find((s: any) => s.issue_id === issueId);
+				const activeSession = sessions[0];
 				if (activeSession) {
 					const agentName = d.assigned_agent?.name ?? activeSession.agent_id ?? 'Agent';
 					// Fetch full session details for output
 					const fullSession = await getSession(projectId, activeSession.id).catch(() => null);
+					if (cancelled) return;
 					terminalSession = {
 						agentName,
 						status: ['running', 'completed'].includes(activeSession.status) ? activeSession.status : 'idle',
