@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { getApp } from "./setup.js";
+import { createSession } from "../../src/db/repositories/sessions.js";
+import { createActivity } from "../../src/db/repositories/activity-log.js";
 
 const PROJECTS = "/api/v1/projects";
 const prefix = `sa-${Date.now()}`;
@@ -25,28 +27,22 @@ describe("Sessions & Activity Log", () => {
   const activityUrl = () => `${PROJECTS}/${projectId}/activity`;
 
   /** Insert a session directly via the repository. */
-  const insertSession = async (overrides: Record<string, unknown> = {}) => {
-    const { createSession } =
-      await import("../../src/db/repositories/sessions.js");
-    return createSession({
+  const insertSession = async (overrides: Record<string, unknown> = {}) =>
+    createSession({
       project_id: projectId,
       session_type: "worker",
       status: "idle",
       ...overrides,
     });
-  };
 
   /** Insert an activity log entry directly via the repository. */
-  const insertActivity = async (overrides: Record<string, unknown> = {}) => {
-    const { createActivity } =
-      await import("../../src/db/repositories/activity-log.js");
-    return createActivity({
+  const insertActivity = async (overrides: Record<string, unknown> = {}) =>
+    createActivity({
       project_id: projectId,
       actor_type: "system",
       action: "test.action",
       ...overrides,
     });
-  };
 
   /** Create a real issue so FK constraints on issue_id are satisfied. */
   const createIssue = async () => {
@@ -185,6 +181,9 @@ describe("Sessions & Activity Log", () => {
         .get(activityUrl())
         .query({ action: "issue.created" });
       expect(res.status).toBe(200);
+      // Exact count relies on beforeEach creating a fresh project with no
+      // prior activity. If refactored to share projects, side-effects from
+      // other operations may add extra entries.
       expect(res.body).toHaveLength(1);
       expect(res.body[0].action).toBe("issue.created");
     });
@@ -192,11 +191,19 @@ describe("Sessions & Activity Log", () => {
     it("filters by since (timestamp)", async () => {
       await insertActivity({ action: "old" });
 
-      // Use a timestamp slightly in the future so the "old" entry is excluded
-      const future = new Date(Date.now() + 60_000).toISOString();
+      // KNOWN BUG: SQLite stores timestamps as "YYYY-MM-DD HH:MM:SS" (space
+      // separator) but callers typically pass ISO 8601 ("T" separator, "Z"
+      // suffix). The `created_at >= ?` string comparison is broken with ISO
+      // 8601 input — it will always return 0 results. This should be fixed in
+      // production by normalizing timestamp formats.
+      const future = new Date(Date.now() + 60_000);
+      const sqliteFormat = future
+        .toISOString()
+        .replace("T", " ")
+        .replace(/\.\d{3}Z$/, "");
       const res = await request(app)
         .get(activityUrl())
-        .query({ since: future });
+        .query({ since: sqliteFormat });
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(0);
     });
