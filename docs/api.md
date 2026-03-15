@@ -118,6 +118,8 @@ POST /projects
 
 **Response:** `201 Created` — The created project object.
 
+**Error:** `400 VALIDATION_ERROR` — If `github_url` is provided but the repository cannot be cloned (e.g., invalid URL, unreachable host, missing permissions).
+
 **Side effects:** If `github_url` is provided, the backend clones the repository and creates a linked repo record in one step.
 
 #### Update Project
@@ -178,6 +180,7 @@ POST /projects/:projectId/repos
 **Validation:**
 - github_url must be a valid GitHub URL.
 - github_url must not already be linked to this project.
+- Repository must be reachable and cloneable; otherwise returns `400 VALIDATION_ERROR`.
 
 #### Remove Repo from Project
 
