@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions } from '$lib/api/client.js';
+	import { getIssue, getSession, addComment, approveIssue, discardIssue, updateIssue, listSessions } from '$lib/api/client.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
 
 	type Issue = Awaited<ReturnType<typeof getIssue>>;
@@ -45,9 +46,12 @@
 				const activeSession = sessions.find((s: any) => s.issue_id === issueId);
 				if (activeSession) {
 					const agentName = d.assigned_agent?.name ?? activeSession.agent_id ?? 'Agent';
+					// Fetch full session details for output
+					const fullSession = await getSession(projectId, activeSession.id).catch(() => null);
 					terminalSession = {
 						agentName,
-						status: ['running', 'completed'].includes(activeSession.status) ? activeSession.status : 'idle'
+						status: ['running', 'completed'].includes(activeSession.status) ? activeSession.status : 'idle',
+						output: fullSession?.output ?? undefined
 					};
 				} else {
 					terminalSession = null;
@@ -143,6 +147,8 @@
 			const c = await addComment(projectId, issueId, { content: commentText });
 			issue = { ...issue, comments: [...issue.comments, c] };
 			commentText = '';
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to post comment', 'error');
 		} finally {
 			posting = false;
 		}
@@ -154,6 +160,8 @@
 			await approveIssue(projectId, issueId);
 			issue = { ...issue!, status: 'open' };
 			showApproveConfirm = false;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to approve issue', 'error');
 		} finally {
 			working = false;
 		}
@@ -164,6 +172,8 @@
 		try {
 			await discardIssue(projectId, issueId);
 			goto(`/projects/${projectId}`);
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to discard issue', 'error');
 		} finally {
 			working = false;
 		}
@@ -176,6 +186,8 @@
 			await updateIssue(projectId, issueId, { title: editTitle, description: editDescription });
 			issue = { ...issue, title: editTitle, description: editDescription };
 			showEditForm = false;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to save changes', 'error');
 		} finally {
 			working = false;
 		}

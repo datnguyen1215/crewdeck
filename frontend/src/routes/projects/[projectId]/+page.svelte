@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { listIssues, listAgents, listRepos, createIssue } from '$lib/api/client.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	type Issue = Awaited<ReturnType<typeof listIssues>>[number];
 	type Agent = Awaited<ReturnType<typeof listAgents>>[number];
@@ -170,7 +171,7 @@
 			showModal = false;
 			resetForm();
 		} catch (err) {
-			alert(err instanceof Error ? err.message : 'Failed to create issue');
+			toastStore.add(err instanceof Error ? err.message : 'Failed to create issue', 'error');
 		} finally {
 			submitting = false;
 		}
