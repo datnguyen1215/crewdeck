@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { listActivity, listIssues } from '$lib/api/client.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	type ActivityEntry = Awaited<ReturnType<typeof listActivity>>[number];
 	type Issue = Awaited<ReturnType<typeof listIssues>>[number];
@@ -70,14 +71,14 @@
 		if (filterActors.length > 0) actParams.actor_types = filterActors;
 		if (filterAction) actParams.action = filterAction;
 		if (filterIssue) actParams.issue_id = filterIssue;
-		Promise.all([listActivity(projectId, actParams), listIssues(projectId)]).then(
-			([acts, iss]) => {
+		Promise.all([listActivity(projectId, actParams), listIssues(projectId)])
+			.then(([acts, iss]) => {
 				if (cancelled) return;
 				allEntries = acts;
 				issues = iss;
-				loading = false;
-			}
-		);
+			})
+			.catch(() => { if (!cancelled) toastStore.add('Failed to load activity', 'error'); })
+			.finally(() => { if (!cancelled) loading = false; });
 		return () => {
 			cancelled = true;
 		};

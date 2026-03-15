@@ -52,7 +52,7 @@
 					terminalSession = {
 						agentName,
 						status: ['running', 'completed'].includes(activeSession.status) ? activeSession.status : 'idle',
-						output: fullSession?.output ?? undefined
+						output: fullSession?.output
 					};
 				} else {
 					terminalSession = null;
