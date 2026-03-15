@@ -156,10 +156,11 @@ describe("OrchestratorManager", () => {
 
     it("resumes on review.completed", async () => {
       seedIssue("in_review");
+      db.prepare("UPDATE Issue SET current_review_round = 1 WHERE id = ?").run(issueId);
       const iaId = crypto.randomUUID();
       db.prepare(
-        "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, session_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ).run(iaId, issueId, reviewerAgentId, "reviewer", "active", 1, null);
+        "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, review_round, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      ).run(iaId, issueId, reviewerAgentId, "reviewer", "active", 1, 1, null);
 
       bus.emit("review.completed", {
         session_id: "s1",
@@ -563,10 +564,11 @@ describe("OrchestratorManager", () => {
   describe("review pipeline", () => {
     it("marks IssueAgent approved and issue ready when all reviewers approve", async () => {
       seedIssue("in_review");
+      db.prepare("UPDATE Issue SET current_review_round = 1 WHERE id = ?").run(issueId);
       const iaId = crypto.randomUUID();
       db.prepare(
-        "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, session_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ).run(iaId, issueId, reviewerAgentId, "reviewer", "active", 1, null);
+        "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, review_round, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      ).run(iaId, issueId, reviewerAgentId, "reviewer", "active", 1, 1, null);
 
       bus.emit("review.completed", {
         session_id: "s1",
@@ -590,10 +592,11 @@ describe("OrchestratorManager", () => {
 
     it("marks IssueAgent changes_requested and issue feedback on changes_requested verdict", async () => {
       seedIssue("in_review");
+      db.prepare("UPDATE Issue SET current_review_round = 1 WHERE id = ?").run(issueId);
       const iaId = crypto.randomUUID();
       db.prepare(
-        "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, session_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ).run(iaId, issueId, reviewerAgentId, "reviewer", "active", 1, null);
+        "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, review_round, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      ).run(iaId, issueId, reviewerAgentId, "reviewer", "active", 1, 1, null);
 
       bus.emit("review.completed", {
         session_id: "s1",
