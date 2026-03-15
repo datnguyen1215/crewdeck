@@ -1,9 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent } from '$lib/mock/api.js';
+	import { getContext } from 'svelte';
+	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent, type CrewWithAgents } from '$lib/api/http.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.js';
 
-	type CrewData = Awaited<ReturnType<typeof getCrew>>;
+	type CrewData = CrewWithAgents;
 	type AgentData = CrewData['agents'][number];
+
+	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
 	const STATUS_CFG = {
 		idle: {
@@ -69,6 +73,21 @@
 				// TODO: Add error state UI. Currently errors are silently swallowed.
 				loading = false;
 			});
+	});
+
+	$effect(() => {
+		const ws = getWs();
+		if (!ws) return;
+		const reload = () => {
+			getCrew(projectId).then((data) => { crew = data; }).catch(() => {});
+		};
+		const unsubs = [
+			ws.on('agent.status_changed', reload),
+			ws.on('agent.finished', reload),
+			ws.on('agent.error', reload),
+			ws.on('issue.assigned', reload),
+		];
+		return () => unsubs.forEach(fn => fn());
 	});
 
 	// --- Crew name ---

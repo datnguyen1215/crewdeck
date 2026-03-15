@@ -1,40 +1,37 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { getContext } from 'svelte';
 	import '@xterm/xterm/css/xterm.css';
-	import { streamOutput } from '$lib/mock/terminal.js';
-
-	interface OutputLine { text: string; delayMs: number; }
-	interface Session {
-		agentName: string;
-		status: 'running' | 'completed' | 'idle';
-		outputLines: OutputLine[];
-	}
+	import type { ProjectWebSocket } from '$lib/api/ws.js';
 
 	interface Props {
-		session: Session;
+		projectId: string;
+		sessionId: string;
+		agentName: string;
+		status: 'running' | 'completed' | 'idle';
 	}
 
-	let { session }: Props = $props();
+	let { projectId, sessionId, agentName, status }: Props = $props();
+
+	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
-	let cancelStream: (() => void) | null = null;
-	let streamDone = $state(false);
 	let destroyed = false;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let term: any = null;
 	let ro: ResizeObserver | null = null;
+	let unsubOutput: (() => void) | null = null;
 
-	const isRunning = $derived(session.status === 'running' && !streamDone);
+	const isRunning = $derived(status === 'running');
 
 	onDestroy(() => {
 		destroyed = true;
-		cancelStream?.();
+		unsubOutput?.();
 		ro?.disconnect();
 		term?.dispose();
 	});
 
 	onMount(async () => {
-		// Dynamic import — xterm is client-only (no SSR)
 		const { Terminal } = await import('@xterm/xterm');
 		const { FitAddon } = await import('@xterm/addon-fit');
 		const { WebLinksAddon } = await import('@xterm/addon-web-links');
@@ -42,7 +39,7 @@
 		if (destroyed) return;
 
 		const t = new Terminal({
-			cursorBlink: session.status === 'running',
+			cursorBlink: status === 'running',
 			fontFamily: 'JetBrains Mono, Fira Code, Cascadia Code, ui-monospace, monospace',
 			fontSize: 12,
 			lineHeight: 1.4,
@@ -69,7 +66,7 @@
 				brightWhite: '#e4e4e7',
 				selectionBackground: '#3a3a4a',
 			},
-			scrollback: 1000,
+			scrollback: 5000,
 		});
 
 		const fitAddon = new FitAddon();
@@ -81,12 +78,16 @@
 		fitAddon.fit();
 		term = t;
 
-		// Start streaming mock output
-		cancelStream = streamOutput(t, session.outputLines, () => {
-			streamDone = true;
-		});
+		// Subscribe to WS session.output events
+		const ws = getWs();
+		if (ws) {
+			unsubOutput = ws.on('session.output', (data) => {
+				if (data.session_id === sessionId && term) {
+					term.write(data.output as string);
+				}
+			});
+		}
 
-		// Resize observer keeps terminal fitted to container
 		ro = new ResizeObserver(() => fitAddon.fit());
 		ro.observe(containerEl!);
 	});
@@ -110,14 +111,14 @@
 			class:animate-pulse={isRunning}
 			class:bg-muted={!isRunning}
 		></span>
-		<span class="text-secondary">Agent: <span class="text-cyan">{session.agentName}</span></span>
-		<span class="ml-auto text-muted capitalize">{isRunning ? 'Running' : session.status}</span>
+		<span class="text-secondary">Agent: <span class="text-cyan">{agentName}</span></span>
+		<span class="ml-auto text-muted capitalize">{isRunning ? 'Running' : status}</span>
 	</div>
 
 	<!-- xterm container -->
 	<div
 		class="xterm-container"
-		class:opacity-60={session.status === 'completed'}
+		class:opacity-60={status === 'completed'}
 		bind:this={containerEl}
 	></div>
 </div>
