@@ -39,7 +39,7 @@
 
 	let crew = $state<CrewData | null>(null);
 	let loading = $state(true);
-	let projectId = $derived($page.params.projectId);
+	let projectId = $derived($page.params.projectId!);
 
 	// Inline crew name editing
 	let editingName = $state(false);

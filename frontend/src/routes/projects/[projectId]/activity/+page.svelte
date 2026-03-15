@@ -53,7 +53,7 @@
 	// Client-side pagination over fetched entries.
 	const PAGE_SIZE = 50;
 
-	let projectId = $derived($page.params.projectId);
+	let projectId = $derived($page.params.projectId!);
 	let allEntries = $state<ActivityEntry[]>([]);
 	let issues = $state<Issue[]>([]);
 	let loading = $state(true);

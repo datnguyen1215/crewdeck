@@ -13,8 +13,8 @@
 
 	let issue = $state<Issue | null>(null);
 	let loading = $state(true);
-	let projectId = $derived($page.params.projectId);
-	let issueId = $derived($page.params.issueId);
+	let projectId = $derived($page.params.projectId!);
+	let issueId = $derived($page.params.issueId!);
 
 	// Comment form
 	let commentText = $state('');

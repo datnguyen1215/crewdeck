@@ -57,7 +57,7 @@
 	let repos = $state<Repo[]>([]);
 	let loading = $state(true);
 
-	let projectId = $derived($page.params.projectId);
+	let projectId = $derived($page.params.projectId!);
 
 	// Filter state
 	let filterStatuses = $state<string[]>([]);
