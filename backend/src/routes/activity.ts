@@ -15,7 +15,14 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
   if (issue_id) filters.issue_id = issue_id;
   if (actor_type) filters.actor_type = actor_type;
   if (action) filters.action = action;
-  if (since) filters.since = since;
+  if (since) {
+    const d = new Date(since);
+    if (isNaN(d.getTime())) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "since must be a valid date" } });
+      return;
+    }
+    filters.since = d.toISOString().replace("T", " ").replace("Z", "").slice(0, 19);
+  }
   if (limit) {
     const parsed = parseInt(limit, 10);
     if (!Number.isFinite(parsed) || parsed < 0) {
