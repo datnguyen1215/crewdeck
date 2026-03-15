@@ -24,12 +24,14 @@ describe("Projects CRUD", () => {
     });
 
     it("returns created projects", async () => {
-      await request(app)
+      const a = await request(app)
         .post(BASE)
         .send({ name: name("list-a") });
-      await request(app)
+      expect(a.status).toBe(201);
+      const b = await request(app)
         .post(BASE)
         .send({ name: name("list-b") });
+      expect(b.status).toBe(201);
 
       const res = await request(app).get(BASE);
       const names = res.body.map((p: { name: string }) => p.name);
@@ -79,6 +81,7 @@ describe("Projects CRUD", () => {
       const created = await request(app)
         .post(BASE)
         .send({ name: name("get-by-id") });
+      expect(created.status).toBe(201);
       const res = await request(app).get(`${BASE}/${created.body.id}`);
 
       expect(res.status).toBe(200);
@@ -97,6 +100,7 @@ describe("Projects CRUD", () => {
       const created = await request(app)
         .post(BASE)
         .send({ name: name("patch") });
+      expect(created.status).toBe(201);
       const res = await request(app)
         .patch(`${BASE}/${created.body.id}`)
         .send({ name: name("patched"), description: "updated" });
@@ -117,6 +121,7 @@ describe("Projects CRUD", () => {
       const created = await request(app)
         .post(BASE)
         .send({ name: name("patch-bad") });
+      expect(created.status).toBe(201);
       const res = await request(app)
         .patch(`${BASE}/${created.body.id}`)
         .send({ max_concurrency: "not-a-number" });
@@ -129,6 +134,7 @@ describe("Projects CRUD", () => {
       const created = await request(app)
         .post(BASE)
         .send({ name: name("delete") });
+      expect(created.status).toBe(201);
       const res = await request(app).delete(`${BASE}/${created.body.id}`);
       expect(res.status).toBe(204);
     });
@@ -142,7 +148,9 @@ describe("Projects CRUD", () => {
       const created = await request(app)
         .post(BASE)
         .send({ name: name("delete-verify") });
-      await request(app).delete(`${BASE}/${created.body.id}`);
+      expect(created.status).toBe(201);
+      const del = await request(app).delete(`${BASE}/${created.body.id}`);
+      expect(del.status).toBe(204);
 
       const res = await request(app).get(`${BASE}/${created.body.id}`);
       expect(res.status).toBe(404);
