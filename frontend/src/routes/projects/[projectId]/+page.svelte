@@ -98,7 +98,8 @@
 		if (!ws) return;
 		const reload = () => {
 			Promise.all([listIssues(projectId), listAgents(projectId), listRepos(projectId)])
-				.then(([i, a, r]) => { issues = i; agents = a; repos = r; });
+				.then(([i, a, r]) => { issues = i; agents = a; repos = r; })
+				.catch(() => {});
 		};
 		const unsubs = [
 			ws.on('issue.created', reload),

@@ -70,7 +70,7 @@
 		// Pass active filters server-side so the limit is applied after filtering,
 		// preventing silent exclusion of matching entries beyond the fetch limit.
 		const actParams: Record<string, unknown> = { limit: 500 };
-		if (filterActors.length > 0) actParams.actor_types = filterActors;
+		if (filterActors.length > 0) actParams.actor_type = filterActors[0];
 		if (filterAction) actParams.action = filterAction;
 		if (filterIssue) actParams.issue_id = filterIssue;
 		Promise.all([listActivity(projectId, actParams), listIssues(projectId)]).then(
@@ -91,7 +91,7 @@
 		if (!ws) return;
 		const reload = () => {
 			const actParams: Record<string, unknown> = { limit: 500 };
-			if (filterActors.length > 0) actParams.actor_types = filterActors;
+			if (filterActors.length > 0) actParams.actor_type = filterActors[0];
 			if (filterAction) actParams.action = filterAction;
 			if (filterIssue) actParams.issue_id = filterIssue;
 			Promise.all([listActivity(projectId, actParams), listIssues(projectId)]).then(
@@ -99,7 +99,7 @@
 					allEntries = acts;
 					issues = iss;
 				}
-			);
+			).catch(() => {});
 		};
 		const unsub = ws.on('*', reload);
 		return () => unsub();

@@ -75,7 +75,7 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reloadIssue = () => {
-			getIssue(projectId, issueId).then((d) => { issue = d; });
+			getIssue(projectId, issueId).then((d) => { issue = d; }).catch(() => {});
 		};
 		const unsubs = [
 			ws.on('issue.updated', reloadIssue),
@@ -604,6 +604,9 @@
 							<button disabled class="w-full py-1.5 border border-cyan/40 text-cyan/40 rounded text-left px-3 cursor-not-allowed">Create PR</button>
 						{/if}
 
+						<!-- Decision: pr_url is not scheme-validated (e.g. startsWith('https://'))
+							 because it comes from our own backend which only stores GitHub URLs.
+							 Adding a guard would be over-engineering for an internal tool with trusted data. -->
 						{#if issue.status === 'pr_created' && issue.issue_prs?.length}
 							{@const pr = issue.issue_prs[0]}
 							<a href={pr.pr_url} target="_blank" rel="noopener" class="w-full py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 block">View PR #{pr.pr_number}</a>
@@ -637,6 +640,7 @@
 				{/if}
 
 				<!-- Pull Requests panel -->
+				<!-- See decision comment above re: pr_url scheme validation -->
 				<div class="bg-surface border border-edge rounded p-4">
 					<div class="text-xs text-muted uppercase tracking-widest mb-3">Pull Requests</div>
 					{#if issue.issue_prs?.length}

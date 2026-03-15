@@ -15,6 +15,17 @@ class ApiError extends Error {
   }
 }
 
+/** Build a query string from an optional filter object. Returns "" or "?key=val&…". */
+function qs(filters?: Record<string, unknown>): string {
+  if (!filters) return "";
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== null) params.set(k, String(v));
+  }
+  const s = params.toString();
+  return s ? `?${s}` : "";
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -51,7 +62,7 @@ export function listProjects() {
 }
 
 export function getProject(id: string) {
-  return request<Project>("GET", `/projects/${id}`);
+  return request<Project>("GET", `/projects/${encodeURIComponent(id)}`);
 }
 
 export function createProject(data: {
@@ -66,11 +77,11 @@ export function createProject(data: {
 }
 
 export function updateProject(id: string, data: Partial<Project>) {
-  return request<Project>("PATCH", `/projects/${id}`, data);
+  return request<Project>("PATCH", `/projects/${encodeURIComponent(id)}`, data);
 }
 
 export function deleteProject(id: string) {
-  return request<void>("DELETE", `/projects/${id}`);
+  return request<void>("DELETE", `/projects/${encodeURIComponent(id)}`);
 }
 
 /**
@@ -128,19 +139,24 @@ export async function listProjectsWithStats(): Promise<ProjectWithStats[]> {
 // Repos
 // ---------------------------------------------------------------------------
 
+const e = encodeURIComponent;
+
 export function listRepos(projectId: string) {
-  return request<Repo[]>("GET", `/projects/${projectId}/repos`);
+  return request<Repo[]>("GET", `/projects/${e(projectId)}/repos`);
 }
 
 export function createRepo(
   projectId: string,
   data: { github_url: string; default_branch?: string },
 ) {
-  return request<Repo>("POST", `/projects/${projectId}/repos`, data);
+  return request<Repo>("POST", `/projects/${e(projectId)}/repos`, data);
 }
 
 export function deleteRepo(projectId: string, repoId: string) {
-  return request<void>("DELETE", `/projects/${projectId}/repos/${repoId}`);
+  return request<void>(
+    "DELETE",
+    `/projects/${e(projectId)}/repos/${e(repoId)}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -148,15 +164,15 @@ export function deleteRepo(projectId: string, repoId: string) {
 // ---------------------------------------------------------------------------
 
 export function getCrew(projectId: string) {
-  return request<CrewWithAgents>("GET", `/projects/${projectId}/crew`);
+  return request<CrewWithAgents>("GET", `/projects/${e(projectId)}/crew`);
 }
 
 export function updateCrew(projectId: string, data: { name: string }) {
-  return request<Crew>("PATCH", `/projects/${projectId}/crew`, data);
+  return request<Crew>("PATCH", `/projects/${e(projectId)}/crew`, data);
 }
 
 export function listAgents(projectId: string) {
-  return request<Agent[]>("GET", `/projects/${projectId}/crew/agents`);
+  return request<Agent[]>("GET", `/projects/${e(projectId)}/crew/agents`);
 }
 
 export function createAgent(
@@ -169,7 +185,7 @@ export function createAgent(
     can_review?: boolean;
   },
 ) {
-  return request<Agent>("POST", `/projects/${projectId}/crew/agents`, data);
+  return request<Agent>("POST", `/projects/${e(projectId)}/crew/agents`, data);
 }
 
 export function updateAgent(
@@ -179,7 +195,7 @@ export function updateAgent(
 ) {
   return request<Agent>(
     "PATCH",
-    `/projects/${projectId}/crew/agents/${agentId}`,
+    `/projects/${e(projectId)}/crew/agents/${e(agentId)}`,
     data,
   );
 }
@@ -187,7 +203,7 @@ export function updateAgent(
 export function deleteAgent(projectId: string, agentId: string) {
   return request<void>(
     "DELETE",
-    `/projects/${projectId}/crew/agents/${agentId}`,
+    `/projects/${e(projectId)}/crew/agents/${e(agentId)}`,
   );
 }
 
@@ -205,23 +221,16 @@ export function listIssues(
     order?: string;
   },
 ) {
-  const params = new URLSearchParams();
-  if (filters) {
-    for (const [k, v] of Object.entries(filters)) {
-      if (v) params.set(k, v);
-    }
-  }
-  const qs = params.toString();
   return request<Issue[]>(
     "GET",
-    `/projects/${projectId}/issues${qs ? `?${qs}` : ""}`,
+    `/projects/${e(projectId)}/issues${qs(filters)}`,
   );
 }
 
 export function getIssue(projectId: string, issueId: string) {
   return request<IssueWithDetails>(
     "GET",
-    `/projects/${projectId}/issues/${issueId}`,
+    `/projects/${e(projectId)}/issues/${e(issueId)}`,
   );
 }
 
@@ -235,7 +244,7 @@ export function createIssue(
     created_by?: string;
   },
 ) {
-  return request<Issue>("POST", `/projects/${projectId}/issues`, data);
+  return request<Issue>("POST", `/projects/${e(projectId)}/issues`, data);
 }
 
 export function updateIssue(
@@ -245,33 +254,36 @@ export function updateIssue(
 ) {
   return request<Issue>(
     "PATCH",
-    `/projects/${projectId}/issues/${issueId}`,
+    `/projects/${e(projectId)}/issues/${e(issueId)}`,
     data,
   );
 }
 
 export function deleteIssue(projectId: string, issueId: string) {
-  return request<void>("DELETE", `/projects/${projectId}/issues/${issueId}`);
+  return request<void>(
+    "DELETE",
+    `/projects/${e(projectId)}/issues/${e(issueId)}`,
+  );
 }
 
 export function approveIssue(projectId: string, issueId: string) {
   return request<Issue>(
     "POST",
-    `/projects/${projectId}/issues/${issueId}/approve`,
+    `/projects/${e(projectId)}/issues/${e(issueId)}/approve`,
   );
 }
 
 export function discardIssue(projectId: string, issueId: string) {
   return request<void>(
     "POST",
-    `/projects/${projectId}/issues/${issueId}/discard`,
+    `/projects/${e(projectId)}/issues/${e(issueId)}/discard`,
   );
 }
 
 export function createPR(projectId: string, issueId: string) {
   return request<Issue>(
     "POST",
-    `/projects/${projectId}/issues/${issueId}/create-pr`,
+    `/projects/${e(projectId)}/issues/${e(issueId)}/create-pr`,
   );
 }
 
@@ -282,7 +294,7 @@ export function createPR(projectId: string, issueId: string) {
 export function listComments(projectId: string, issueId: string) {
   return request<Comment[]>(
     "GET",
-    `/projects/${projectId}/issues/${issueId}/comments`,
+    `/projects/${e(projectId)}/issues/${e(issueId)}/comments`,
   );
 }
 
@@ -293,7 +305,7 @@ export function addComment(
 ) {
   return request<Comment>(
     "POST",
-    `/projects/${projectId}/issues/${issueId}/comments`,
+    `/projects/${e(projectId)}/issues/${e(issueId)}/comments`,
     data,
   );
 }
@@ -306,23 +318,16 @@ export function listSessions(
   projectId: string,
   filters?: { status?: string; type?: string; issue_id?: string },
 ) {
-  const params = new URLSearchParams();
-  if (filters) {
-    for (const [k, v] of Object.entries(filters)) {
-      if (v) params.set(k, v);
-    }
-  }
-  const qs = params.toString();
   return request<Session[]>(
     "GET",
-    `/projects/${projectId}/sessions${qs ? `?${qs}` : ""}`,
+    `/projects/${e(projectId)}/sessions${qs(filters)}`,
   );
 }
 
 export function getSession(projectId: string, sessionId: string) {
   return request<Session>(
     "GET",
-    `/projects/${projectId}/sessions/${sessionId}`,
+    `/projects/${e(projectId)}/sessions/${e(sessionId)}`,
   );
 }
 
@@ -333,7 +338,7 @@ export function getSession(projectId: string, sessionId: string) {
 export function getOrchestratorStatus(projectId: string) {
   return request<OrchestratorStatus>(
     "GET",
-    `/projects/${projectId}/orchestrator/status`,
+    `/projects/${e(projectId)}/orchestrator/status`,
   );
 }
 
@@ -343,7 +348,7 @@ export function startOrchestrator(
 ) {
   return request<Session>(
     "POST",
-    `/projects/${projectId}/orchestrator/start`,
+    `/projects/${e(projectId)}/orchestrator/start`,
     context ? { context } : undefined,
   );
 }
@@ -351,7 +356,7 @@ export function startOrchestrator(
 export function stopOrchestrator(projectId: string) {
   return request<{ status: string }>(
     "POST",
-    `/projects/${projectId}/orchestrator/stop`,
+    `/projects/${e(projectId)}/orchestrator/stop`,
   );
 }
 
@@ -370,16 +375,9 @@ export function listActivity(
     offset?: number;
   },
 ) {
-  const params = new URLSearchParams();
-  if (filters) {
-    for (const [k, v] of Object.entries(filters)) {
-      if (v !== undefined && v !== null) params.set(k, String(v));
-    }
-  }
-  const qs = params.toString();
   return request<ActivityLog[]>(
     "GET",
-    `/projects/${projectId}/activity${qs ? `?${qs}` : ""}`,
+    `/projects/${e(projectId)}/activity${qs(filters)}`,
   );
 }
 

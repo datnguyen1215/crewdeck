@@ -79,7 +79,7 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
-			getCrew(projectId).then((data) => { crew = data; });
+			getCrew(projectId).then((data) => { crew = data; }).catch(() => {});
 		};
 		const unsubs = [
 			ws.on('agent.status_changed', reload),

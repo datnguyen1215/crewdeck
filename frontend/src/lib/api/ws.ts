@@ -78,11 +78,9 @@ export class ProjectWebSocket {
       this.#listeners.set(event, set);
     }
     set.add(handler);
-    return () => this.off(event, handler);
-  }
-
-  off(event: WsEvent | "*", handler: Handler) {
-    this.#listeners.get(event)?.delete(handler);
+    return () => {
+      this.#listeners.get(event)?.delete(handler);
+    };
   }
 
   #open() {
@@ -90,7 +88,7 @@ export class ProjectWebSocket {
       this.#reconnectDelay > INITIAL_DELAY ? "reconnecting" : "connecting";
 
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${location.host}/ws?projectId=${this.#projectId}`;
+    const url = `${protocol}//${location.host}/ws?projectId=${encodeURIComponent(this.#projectId)}`;
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
