@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { listIssues, listAgents, listRepos, createIssue } from '$lib/mock/api.js';
+	import { getContext } from 'svelte';
+	import { listIssues, listAgents, listRepos, createIssue, type Issue, type Agent, type Repo } from '$lib/api/http.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.js';
 
-	type Issue = Awaited<ReturnType<typeof listIssues>>[number];
-	type Agent = Awaited<ReturnType<typeof listAgents>>[number];
-	type Repo = Awaited<ReturnType<typeof listRepos>>[number];
+	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
 	// Visual config per status — dot glyph, text/border color classes, optional glow + pulse
 	const STATUS_CFG: Record<
@@ -93,8 +93,27 @@
 		};
 	});
 
+	$effect(() => {
+		const ws = getWs();
+		if (!ws) return;
+		const reload = () => {
+			Promise.all([listIssues(projectId), listAgents(projectId), listRepos(projectId)])
+				.then(([i, a, r]) => { issues = i; agents = a; repos = r; });
+		};
+		const unsubs = [
+			ws.on('issue.created', reload),
+			ws.on('issue.updated', reload),
+			ws.on('issue.status_changed', reload),
+			ws.on('issue.approved', reload),
+			ws.on('issue.assigned', reload),
+			ws.on('agent.status_changed', reload),
+			ws.on('agent.finished', reload),
+		];
+		return () => unsubs.forEach(fn => fn());
+	});
+
 	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
-	let repoMap = $derived(Object.fromEntries(repos.map((r) => [r.id, r.name])));
+	let repoMap = $derived(Object.fromEntries(repos.map((r) => [r.id, r.github_url.split('/').pop() ?? r.github_url])));
 
 	let filtered = $derived.by(() => {
 		let result = [...issues];
@@ -155,26 +174,27 @@
 		}
 	}
 
+	let formError = $state('');
+
 	async function handleCreate(e: SubmitEvent) {
 		e.preventDefault();
 		// Guard against whitespace-only inputs that pass HTML `required` without trimming.
 		if (!newTitle.trim() || !newDescription.trim()) return;
 		submitting = true;
+		formError = '';
 		try {
 			const issue = await createIssue(projectId, {
 				title: newTitle.trim(),
 				description: newDescription.trim(),
-				// Decision: parseInt with type="number" input is safe here; NaN risk is
-				// negligible. Revisit with Number.isFinite() check when wired to real API.
 				max_review_rounds: newMaxRounds ? parseInt(newMaxRounds) : undefined
 			});
 			issues = [...issues, issue];
 			showModal = false;
 			resetForm();
+		} catch (err) {
+			formError = err instanceof Error ? err.message : 'Failed to create issue';
 		} finally {
 			submitting = false;
-			// Decision: no catch block — mock API never throws. When wired to a real API,
-			// add error handling here to surface creation failures to the user.
 		}
 	}
 
