@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { getApp } from "./setup.js";
+import { createIssue as createIssueInDb } from "../../src/db/repositories/issues.js";
 
 /** Transition an issue through a sequence of statuses via PATCH. */
 const transitionTo = async (
@@ -11,9 +12,12 @@ const transitionTo = async (
   statuses: string[],
 ) => {
   for (const status of statuses) {
-    await request(app)
+    const res = await request(app)
       .patch(`/api/v1/projects/${projectId}/issues/${issueId}`)
       .send({ status });
+    if (res.status !== 200) {
+      throw new Error(`transitionTo failed: expected 200 for "${status}", got ${res.status}`);
+    }
   }
 };
 
@@ -90,13 +94,29 @@ describe("Issues API", () => {
     });
 
     it("filters by created_by", async () => {
+      // Seed an issue with a different created_by directly in the DB
+      createIssueInDb(projectId, {
+        title: "Agent issue",
+        description: "Created by agent",
+        created_by: "agent",
+      });
+      await createIssue(app, projectId, { title: "User issue" });
+
       const res = await request(app)
         .get(base(projectId))
         .query({ created_by: "user" });
       expect(res.status).toBe(200);
+      expect(res.body.length).toBeGreaterThan(0);
       res.body.forEach((i: { created_by: string }) => {
         expect(i.created_by).toBe("user");
       });
+
+      // Verify the agent issue exists but is excluded
+      const allRes = await request(app).get(base(projectId));
+      const agentIssues = allRes.body.filter(
+        (i: { created_by: string }) => i.created_by === "agent",
+      );
+      expect(agentIssues.length).toBeGreaterThan(0);
     });
 
     it("sorts by created_at with order", async () => {
