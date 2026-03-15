@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   listProjects,
+  listProjectsWithStats,
   getProject,
   createProject,
   updateProject,
@@ -15,8 +16,12 @@ import {
 
 const router = Router();
 
-router.get("/", (_req, res) => {
-  res.json(listProjects());
+router.get("/", (req, res) => {
+  if (req.query.stats !== undefined) {
+    res.json(listProjectsWithStats());
+  } else {
+    res.json(listProjects());
+  }
 });
 
 router.get("/:id", (req, res) => {

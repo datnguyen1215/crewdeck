@@ -1,17 +1,83 @@
 import { db } from "../index.js";
 import type {
   Project,
+  ProjectWithStats,
   CreateProjectInput,
   UpdateProjectInput,
 } from "../../types/entities.js";
 import { ensureCloned, insertRepo } from "./repos.js";
+import { getSession } from "./sessions.js";
 
 export function listProjects(): Project[] {
-  return db.prepare("SELECT * FROM Project ORDER BY created_at DESC").all() as Project[];
+  return db
+    .prepare("SELECT * FROM Project ORDER BY created_at DESC")
+    .all() as Project[];
+}
+
+export function listProjectsWithStats(): ProjectWithStats[] {
+  const projects = listProjects();
+
+  const repoCountStmt = db.prepare(
+    "SELECT COUNT(*) as count FROM Repo WHERE project_id = ?",
+  );
+  const agentCountStmt = db.prepare(
+    "SELECT COUNT(*) as count FROM Agent WHERE crew_id IN (SELECT id FROM Crew WHERE project_id = ?)",
+  );
+  const issueCountStmt = db.prepare(
+    "SELECT status, COUNT(*) as count FROM Issue WHERE project_id = ? GROUP BY status",
+  );
+
+  return projects.map((project) => {
+    const repoCount = (repoCountStmt.get(project.id) as { count: number })
+      .count;
+    const agentCount = (agentCountStmt.get(project.id) as { count: number })
+      .count;
+
+    const issueBreakdown = {
+      open: 0,
+      in_progress: 0,
+      in_review: 0,
+      ready: 0,
+      done: 0,
+    };
+    const issueCounts = issueCountStmt.all(project.id) as {
+      status: string;
+      count: number;
+    }[];
+    for (const row of issueCounts) {
+      if (row.status in issueBreakdown) {
+        issueBreakdown[row.status as keyof typeof issueBreakdown] = row.count;
+      }
+    }
+
+    let orchestrator_status = "none";
+    if (project.orchestrator_session_id) {
+      const session = getSession(project.orchestrator_session_id);
+      if (session) {
+        orchestrator_status =
+          session.status === "running"
+            ? "active"
+            : session.status === "error"
+              ? "error"
+              : "idle";
+      }
+    }
+
+    return {
+      ...project,
+      repo_count: repoCount,
+      agent_count: agentCount,
+      issues: issueBreakdown,
+      orchestrator_status,
+    };
+  });
 }
 
 export function getProject(id: string): Project | null {
-  return (db.prepare("SELECT * FROM Project WHERE id = ?").get(id) as Project) ?? null;
+  return (
+    (db.prepare("SELECT * FROM Project WHERE id = ?").get(id) as Project) ??
+    null
+  );
 }
 
 export function createProject(input: CreateProjectInput): Project {
@@ -27,18 +93,20 @@ export function createProject(input: CreateProjectInput): Project {
   db.transaction(() => {
     db.prepare(
       `INSERT INTO Project (id, name, description, max_concurrency, max_review_rounds)
-       VALUES (?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?)`,
     ).run(
       id,
       input.name,
       input.description ?? null,
       input.max_concurrency ?? 1,
-      input.max_review_rounds ?? 3
+      input.max_review_rounds ?? 3,
     );
 
-    db.prepare(
-      `INSERT INTO Crew (id, project_id, name) VALUES (?, ?, ?)`
-    ).run(crewId, id, input.name);
+    db.prepare(`INSERT INTO Crew (id, project_id, name) VALUES (?, ?, ?)`).run(
+      crewId,
+      id,
+      input.name,
+    );
 
     if (input.github_url) {
       insertRepo(id, {
@@ -55,15 +123,33 @@ export function updateProject(id: string, input: UpdateProjectInput): Project {
   const fields: string[] = [];
   const values: unknown[] = [];
 
-  if (input.name !== undefined) { fields.push("name = ?"); values.push(input.name); }
-  if (input.description !== undefined) { fields.push("description = ?"); values.push(input.description); }
-  if (input.max_concurrency !== undefined) { fields.push("max_concurrency = ?"); values.push(input.max_concurrency); }
-  if (input.max_review_rounds !== undefined) { fields.push("max_review_rounds = ?"); values.push(input.max_review_rounds); }
-  if (input.orchestrator_session_id !== undefined) { fields.push("orchestrator_session_id = ?"); values.push(input.orchestrator_session_id); }
+  if (input.name !== undefined) {
+    fields.push("name = ?");
+    values.push(input.name);
+  }
+  if (input.description !== undefined) {
+    fields.push("description = ?");
+    values.push(input.description);
+  }
+  if (input.max_concurrency !== undefined) {
+    fields.push("max_concurrency = ?");
+    values.push(input.max_concurrency);
+  }
+  if (input.max_review_rounds !== undefined) {
+    fields.push("max_review_rounds = ?");
+    values.push(input.max_review_rounds);
+  }
+  if (input.orchestrator_session_id !== undefined) {
+    fields.push("orchestrator_session_id = ?");
+    values.push(input.orchestrator_session_id);
+  }
 
   if (fields.length > 0) {
     fields.push("updated_at = CURRENT_TIMESTAMP");
-    db.prepare(`UPDATE Project SET ${fields.join(", ")} WHERE id = ?`).run(...values, id);
+    db.prepare(`UPDATE Project SET ${fields.join(", ")} WHERE id = ?`).run(
+      ...values,
+      id,
+    );
   }
 
   return getProject(id)!;
@@ -79,18 +165,18 @@ export function deleteProject(id: string): void {
   db.transaction(() => {
     db.prepare("DELETE FROM ActivityLog WHERE project_id = ?").run(id);
     db.prepare(
-      "DELETE FROM IssueAgent WHERE issue_id IN (SELECT id FROM Issue WHERE project_id = ?)"
+      "DELETE FROM IssueAgent WHERE issue_id IN (SELECT id FROM Issue WHERE project_id = ?)",
     ).run(id);
     db.prepare(
-      "DELETE FROM IssuePR WHERE issue_id IN (SELECT id FROM Issue WHERE project_id = ?)"
+      "DELETE FROM IssuePR WHERE issue_id IN (SELECT id FROM Issue WHERE project_id = ?)",
     ).run(id);
     db.prepare(
-      "DELETE FROM Comment WHERE issue_id IN (SELECT id FROM Issue WHERE project_id = ?)"
+      "DELETE FROM Comment WHERE issue_id IN (SELECT id FROM Issue WHERE project_id = ?)",
     ).run(id);
     db.prepare("DELETE FROM Session WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM Issue WHERE project_id = ?").run(id);
     db.prepare(
-      "DELETE FROM Agent WHERE crew_id IN (SELECT id FROM Crew WHERE project_id = ?)"
+      "DELETE FROM Agent WHERE crew_id IN (SELECT id FROM Crew WHERE project_id = ?)",
     ).run(id);
     db.prepare("DELETE FROM Repo WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM Crew WHERE project_id = ?").run(id);

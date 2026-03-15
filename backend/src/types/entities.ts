@@ -118,6 +118,19 @@ export interface ActivityLog {
 }
 
 // Composite types
+export interface ProjectWithStats extends Project {
+  repo_count: number;
+  agent_count: number;
+  issues: {
+    open: number;
+    in_progress: number;
+    in_review: number;
+    ready: number;
+    done: number;
+  };
+  orchestrator_status: string;
+}
+
 export interface CrewWithAgents extends Crew {
   agents: Agent[];
 }
@@ -199,8 +212,8 @@ export interface IssueFilters {
   status?: string[];
   assigned_agent_id?: string;
   created_by?: string;
-  sort?: 'priority' | 'created_at' | 'updated_at';
-  order?: 'asc' | 'desc';
+  sort?: "priority" | "created_at" | "updated_at";
+  order?: "asc" | "desc";
 }
 
 export interface CreateCommentInput {
