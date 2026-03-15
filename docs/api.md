@@ -26,9 +26,18 @@ The backend exposes a REST API for CRUD operations and a WebSocket server for re
 
 ```
 GET /projects
+GET /projects?stats
 ```
 
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| stats | flag | When present (any value), returns each project with computed stats fields. |
+
 **Response:** `200 OK`
+
+Without `?stats`:
 ```json
 [
   {
@@ -40,6 +49,32 @@ GET /projects
     "orchestrator_session_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
+  }
+]
+```
+
+With `?stats`:
+```json
+[
+  {
+    "id": "uuid",
+    "name": "My Project",
+    "description": "...",
+    "max_concurrency": 3,
+    "max_review_rounds": 3,
+    "orchestrator_session_id": "uuid | null",
+    "created_at": "ISO 8601",
+    "updated_at": "ISO 8601",
+    "repo_count": 2,
+    "agent_count": 4,
+    "issues": {
+      "open": 3,
+      "in_progress": 1,
+      "in_review": 0,
+      "ready": 1,
+      "done": 12
+    },
+    "orchestrator_status": "active | idle | error | none"
   }
 ]
 ```
