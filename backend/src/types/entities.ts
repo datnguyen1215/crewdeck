@@ -128,7 +128,7 @@ export interface ProjectWithStats extends Project {
     ready: number;
     done: number;
   };
-  orchestrator_status: string;
+  orchestrator_status: "none" | "active" | "error" | "idle";
 }
 
 export interface CrewWithAgents extends Crew {

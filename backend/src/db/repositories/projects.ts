@@ -15,44 +15,41 @@ export function listProjects(): Project[] {
 }
 
 export function listProjectsWithStats(): ProjectWithStats[] {
-  const projects = listProjects();
+  type StatsRow = Project & {
+    repo_count: number;
+    agent_count: number;
+    issue_open: number | null;
+    issue_in_progress: number | null;
+    issue_in_review: number | null;
+    issue_ready: number | null;
+    issue_done: number | null;
+  };
 
-  const repoCountStmt = db.prepare(
-    "SELECT COUNT(*) as count FROM Repo WHERE project_id = ?",
-  );
-  const agentCountStmt = db.prepare(
-    "SELECT COUNT(*) as count FROM Agent WHERE crew_id IN (SELECT id FROM Crew WHERE project_id = ?)",
-  );
-  const issueCountStmt = db.prepare(
-    "SELECT status, COUNT(*) as count FROM Issue WHERE project_id = ? GROUP BY status",
-  );
+  const rows = db
+    .prepare(
+      `SELECT
+        p.*,
+        COUNT(DISTINCT r.id) AS repo_count,
+        COUNT(DISTINCT a.id) AS agent_count,
+        SUM(i.status = 'open')        AS issue_open,
+        SUM(i.status = 'in_progress') AS issue_in_progress,
+        SUM(i.status = 'in_review')   AS issue_in_review,
+        SUM(i.status = 'ready')       AS issue_ready,
+        SUM(i.status = 'done')        AS issue_done
+      FROM Project p
+      LEFT JOIN Repo  r ON r.project_id = p.id
+      LEFT JOIN Crew  c ON c.project_id = p.id
+      LEFT JOIN Agent a ON a.crew_id    = c.id
+      LEFT JOIN Issue i ON i.project_id = p.id
+      GROUP BY p.id
+      ORDER BY p.created_at DESC`,
+    )
+    .all() as StatsRow[];
 
-  return projects.map((project) => {
-    const repoCount = (repoCountStmt.get(project.id) as { count: number })
-      .count;
-    const agentCount = (agentCountStmt.get(project.id) as { count: number })
-      .count;
-
-    const issueBreakdown = {
-      open: 0,
-      in_progress: 0,
-      in_review: 0,
-      ready: 0,
-      done: 0,
-    };
-    const issueCounts = issueCountStmt.all(project.id) as {
-      status: string;
-      count: number;
-    }[];
-    for (const row of issueCounts) {
-      if (row.status in issueBreakdown) {
-        issueBreakdown[row.status as keyof typeof issueBreakdown] = row.count;
-      }
-    }
-
-    let orchestrator_status = "none";
-    if (project.orchestrator_session_id) {
-      const session = getSession(project.orchestrator_session_id);
+  return rows.map((row) => {
+    let orchestrator_status: ProjectWithStats["orchestrator_status"] = "none";
+    if (row.orchestrator_session_id) {
+      const session = getSession(row.orchestrator_session_id);
       if (session) {
         orchestrator_status =
           session.status === "running"
@@ -64,10 +61,14 @@ export function listProjectsWithStats(): ProjectWithStats[] {
     }
 
     return {
-      ...project,
-      repo_count: repoCount,
-      agent_count: agentCount,
-      issues: issueBreakdown,
+      ...row,
+      issues: {
+        open: row.issue_open ?? 0,
+        in_progress: row.issue_in_progress ?? 0,
+        in_review: row.issue_in_review ?? 0,
+        ready: row.issue_ready ?? 0,
+        done: row.issue_done ?? 0,
+      },
       orchestrator_status,
     };
   });
