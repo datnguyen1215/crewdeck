@@ -42,3 +42,17 @@ jobs:
         working-directory: cli
       - run: npm run test:run
         working-directory: cli
+
+  cli-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci && npm run build
+        working-directory: backend
+      - run: npm ci && npm run build
+        working-directory: cli
+      - run: npm run test:integration
+        working-directory: cli
