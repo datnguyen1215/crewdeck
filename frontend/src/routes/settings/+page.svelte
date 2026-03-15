@@ -18,8 +18,8 @@
 	let userCode = $state('');
 	let verificationUri = $state('');
 	let polling = $state(false);
-	let pollInterval = $state(5);
-	let pollTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+	let pollInterval = 5;
+	let pollTimer: ReturnType<typeof setTimeout> | null = null;
 	let deviceFlowError = $state('');
 
 	// Delete confirmation
