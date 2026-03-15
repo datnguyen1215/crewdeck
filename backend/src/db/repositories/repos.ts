@@ -9,7 +9,7 @@ import { ValidationError } from "../../middleware/errors.js";
 
 function validateSegments(url: string, owner: string, name: string) {
   if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(name) || owner === '..' || name === '..')
-    throw new Error(`Cannot parse GitHub URL: ${url}`);
+    throw new ValidationError(`Cannot parse GitHub URL: ${url}`);
   return { owner, name };
 }
 
