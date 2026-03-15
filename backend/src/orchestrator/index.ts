@@ -15,6 +15,7 @@ import { listIssues, getIssue, createIssue, updateIssue } from "../db/repositori
 import { getAgent } from "../db/repositories/agents.js";
 import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listRepos } from "../db/repositories/repos.js";
+import { getGitHubAccount } from "../db/repositories/github-accounts.js";
 import { createComment, listComments } from "../db/repositories/comments.js";
 import {
   listIssueAgents,
@@ -150,6 +151,10 @@ async function executeAssign(
   updateIssueAgent(issueAgent.id, { session_id: session.id });
 
   // Spawn agent session
+  const ghAccount = state.project.github_account_id
+    ? getGitHubAccount(state.project.github_account_id)
+    : null;
+
   try {
     await adapter.spawn({
       sessionName,
@@ -161,6 +166,7 @@ async function executeAssign(
         CREWDECK_AGENT_ID: agent_id,
         CREWDECK_ISSUE_ID: issue_id,
         CREWDECK_PROJECT_ID: projectId,
+        ...(ghAccount ? { GH_TOKEN: ghAccount.oauth_token } : {}),
       },
     });
   } catch (err) {
@@ -279,6 +285,10 @@ async function executeRouteReview(
 
   updateIssueAgent(issueAgent.id, { session_id: session.id });
 
+  const ghAccount = state.project.github_account_id
+    ? getGitHubAccount(state.project.github_account_id)
+    : null;
+
   try {
     await adapter.spawn({
       sessionName,
@@ -290,6 +300,7 @@ async function executeRouteReview(
         CREWDECK_AGENT_ID: reviewer_agent_id,
         CREWDECK_ISSUE_ID: issue_id,
         CREWDECK_PROJECT_ID: projectId,
+        ...(ghAccount ? { GH_TOKEN: ghAccount.oauth_token } : {}),
       },
     });
   } catch (err) {

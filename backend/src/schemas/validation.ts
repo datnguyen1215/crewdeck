@@ -149,3 +149,12 @@ export const CreateActivitySchema = z.object({
   action: z.string().min(1),
   details: z.unknown().optional(),
 });
+
+export const InitDeviceFlowSchema = z.object({
+  client_id: z.string().min(1).optional(),
+});
+
+export const PollDeviceFlowSchema = z.object({
+  device_code: z.string().min(1),
+  client_id: z.string().min(1).optional(),
+});

@@ -57,6 +57,14 @@ export function createDb(path: string): Database.Database {
     db.pragma("foreign_keys = ON");
   }
 
+  // Migration: add github_account_id column to Project if missing.
+  const projectCols = db.pragma("table_info(Project)") as { name: string }[];
+  if (!projectCols.some((c) => c.name === "github_account_id")) {
+    db.exec(
+      `ALTER TABLE Project ADD COLUMN github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL`,
+    );
+  }
+
   return db;
 }
 

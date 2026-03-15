@@ -1,3 +1,19 @@
+export interface GitHubAccount {
+  id: string;
+  account_name: string;
+  github_username: string;
+  oauth_token: string;
+  scopes: string | null;
+  created_at: string;
+}
+
+export interface CreateGitHubAccountInput {
+  account_name: string;
+  github_username: string;
+  oauth_token: string;
+  scopes?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -5,6 +21,7 @@ export interface Project {
   max_concurrency: number;
   max_review_rounds: number;
   orchestrator_session_id: string | null;
+  github_account_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +167,7 @@ export interface CreateProjectInput {
   max_review_rounds?: number;
   github_url?: string;
   default_branch?: string;
+  github_account_id?: string;
 }
 
 export interface UpdateProjectInput {
@@ -158,6 +176,7 @@ export interface UpdateProjectInput {
   max_concurrency?: number;
   max_review_rounds?: number;
   orchestrator_session_id?: string | null;
+  github_account_id?: string | null;
 }
 
 export interface CreateRepoInput {

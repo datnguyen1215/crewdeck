@@ -22,4 +22,5 @@ export const config = {
   reposDir: optional("CREWDECK_REPOS_DIR", "./data/repos"),
   reposHostPath: process.env.CREWDECK_REPOS_HOST_PATH || "",
   reposContainerPath: process.env.CREWDECK_REPOS_CONTAINER_PATH || "",
+  githubClientId: process.env.GITHUB_CLIENT_ID ?? "",
 };

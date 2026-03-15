@@ -72,6 +72,7 @@ export function createProject(data: {
   max_review_rounds?: number;
   github_url?: string;
   default_branch?: string;
+  github_account_id?: string;
 }) {
   return request<Project>("POST", "/projects", data);
 }
@@ -307,6 +308,29 @@ export function stopOrchestrator(projectId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// GitHub Accounts
+// ---------------------------------------------------------------------------
+
+export function listGitHubAccounts() {
+  return request<GitHubAccount[]>("GET", "/github-accounts");
+}
+
+export function startDeviceFlow(clientId?: string) {
+  return request<DeviceCodeResponse>("POST", "/github-accounts/device-code", clientId ? { client_id: clientId } : {});
+}
+
+export function pollDeviceFlow(deviceCode: string, clientId?: string) {
+  return request<DeviceCodePollResponse>("POST", "/github-accounts/device-code/poll", {
+    device_code: deviceCode,
+    ...(clientId ? { client_id: clientId } : {}),
+  });
+}
+
+export function deleteGitHubAccount(id: string) {
+  return request<void>("DELETE", `/github-accounts/${e(id)}`);
+}
+
+// ---------------------------------------------------------------------------
 // Activity
 // ---------------------------------------------------------------------------
 
@@ -338,6 +362,7 @@ export interface Project {
   max_concurrency: number;
   max_review_rounds: number;
   orchestrator_session_id: string | null;
+  github_account_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -476,4 +501,31 @@ export interface OrchestratorStatus {
   orchestrator_session_id: string | null;
   status: string;
   session: Session | null;
+}
+
+export interface GitHubAccount {
+  id: string;
+  account_name: string;
+  github_username: string;
+  scopes: string | null;
+  created_at: string;
+}
+
+export interface DeviceCodeResponse {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  expires_in: number;
+  interval: number;
+}
+
+export interface DeviceCodePollResponse {
+  id?: string;
+  account_name?: string;
+  github_username?: string;
+  scopes?: string | null;
+  created_at?: string;
+  status?: string;
+  error?: string;
+  error_description?: string;
 }

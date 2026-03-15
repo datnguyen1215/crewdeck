@@ -6,6 +6,7 @@ import type {
   UpdateProjectInput,
 } from "../../types/entities.js";
 import { ensureCloned, insertRepo } from "./repos.js";
+import { getGitHubAccount } from "./github-accounts.js";
 import { getSession } from "./sessions.js";
 
 export function listProjects(): Project[] {
@@ -88,19 +89,23 @@ export function createProject(input: CreateProjectInput): Project {
   // Clone repo before opening the transaction to avoid holding the SQLite write lock
   // during a potentially slow git clone operation.
   if (input.github_url) {
-    ensureCloned(input.github_url);
+    const ghAccount = input.github_account_id
+      ? getGitHubAccount(input.github_account_id)
+      : null;
+    ensureCloned(input.github_url, ghAccount?.oauth_token);
   }
 
   db.transaction(() => {
     db.prepare(
-      `INSERT INTO Project (id, name, description, max_concurrency, max_review_rounds)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO Project (id, name, description, max_concurrency, max_review_rounds, github_account_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       input.name,
       input.description ?? null,
       input.max_concurrency ?? 1,
       input.max_review_rounds ?? 3,
+      input.github_account_id ?? null,
     );
 
     db.prepare(`INSERT INTO Crew (id, project_id, name) VALUES (?, ?, ?)`).run(
@@ -143,6 +148,10 @@ export function updateProject(id: string, input: UpdateProjectInput): Project {
   if (input.orchestrator_session_id !== undefined) {
     fields.push("orchestrator_session_id = ?");
     values.push(input.orchestrator_session_id);
+  }
+  if (input.github_account_id !== undefined) {
+    fields.push("github_account_id = ?");
+    values.push(input.github_account_id);
   }
 
   if (fields.length > 0) {
