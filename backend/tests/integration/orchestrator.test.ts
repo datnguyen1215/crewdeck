@@ -6,7 +6,6 @@ import { getApp } from "./setup.js";
 const PROJECTS = "/api/v1/projects";
 const prefix = `orch-${Date.now()}`;
 
-/** Helper to create a project and return its id. */
 const createProject = async (app: Express, label: string): Promise<string> => {
   const res = await request(app)
     .post(PROJECTS)
@@ -121,10 +120,10 @@ describe("Orchestrator routes", () => {
       const projectId = await createProject(app, "stop-running");
 
       // Start first
-      const startRes = await request(app)
-        .post(orchestratorUrl(projectId, "start"))
-        .send({});
-      expect(startRes.status).toBe(201);
+      expect(
+        (await request(app).post(orchestratorUrl(projectId, "start")).send({}))
+          .status,
+      ).toBe(201);
 
       const res = await request(app)
         .post(orchestratorUrl(projectId, "stop"))
@@ -148,10 +147,10 @@ describe("Orchestrator routes", () => {
     it("sets session status to stopped after stop", async () => {
       const projectId = await createProject(app, "stop-verify");
 
-      const startRes = await request(app)
-        .post(orchestratorUrl(projectId, "start"))
-        .send({});
-      expect(startRes.status).toBe(201);
+      expect(
+        (await request(app).post(orchestratorUrl(projectId, "start")).send({}))
+          .status,
+      ).toBe(201);
 
       await request(app).post(orchestratorUrl(projectId, "stop")).send();
 
