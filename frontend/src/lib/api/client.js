@@ -314,7 +314,6 @@ export async function listActivity(projectId, filters = {}) {
   // Backend accepts single actor_type; frontend may send actor_types array
   if (filters.actor_types?.length === 1)
     params.actor_type = filters.actor_types[0];
-  else if (filters.actor_type) params.actor_type = filters.actor_type;
   if (filters.action) params.action = filters.action;
   if (filters.since) params.since = filters.since;
   if (filters.limit) params.limit = filters.limit;
