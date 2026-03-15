@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import { execFileSync } from "node:child_process";
 import { getApp } from "./setup.js";
 
 const BASE = "/api/v1/projects";
@@ -64,6 +65,25 @@ describe("Projects CRUD", () => {
     it("rejects empty name with 400", async () => {
       const res = await request(app).post(BASE).send({ name: "" });
       expect(res.status).toBe(400);
+    });
+
+    it("returns 400 with message when git clone fails", async () => {
+      const mock = vi.mocked(execFileSync);
+      const err = Object.assign(new Error("Command failed"), {
+        stderr: Buffer.from(
+          "Cloning into '/tmp/repo'...\nfatal: could not read Username for 'https://github.com': No such device or address\n",
+        ),
+      });
+      mock.mockImplementationOnce(() => { throw err; });
+
+      const res = await request(app)
+        .post(BASE)
+        .send({ name: name("clone-fail"), github_url: "https://github.com/owner/repo" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain("Failed to clone repository");
+      // Ensure URLs are stripped from the error message
+      expect(res.body.error.message).not.toMatch(/https?:\/\/[^\s]+github/);
     });
 
     it("applies default values for max_concurrency and max_review_rounds", async () => {

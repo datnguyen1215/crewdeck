@@ -5,6 +5,7 @@ import { db } from "../index.js";
 import { config } from "../../config.js";
 import { toContainerPath } from "../../utils/paths.js";
 import type { Repo, CreateRepoInput } from "../../types/entities.js";
+import { ValidationError } from "../../middleware/errors.js";
 
 function validateSegments(url: string, owner: string, name: string) {
   if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(name) || owner === '..' || name === '..')
@@ -26,7 +27,18 @@ function cloneIfNeeded(githubUrl: string, localPath: string): void {
   const diskPath = toContainerPath(localPath);
   if (fs.existsSync(path.join(diskPath, ".git"))) return;
   fs.mkdirSync(path.dirname(diskPath), { recursive: true });
-  execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe" });
+  try {
+    execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe" });
+  } catch (err: unknown) {
+    const stderr =
+      err instanceof Error && "stderr" in err
+        ? String((err as any).stderr).trim()
+        : "";
+    // Strip URLs that may contain embedded credentials (e.g. https://token@github.com/...)
+    const safe = (stderr || (err instanceof Error ? err.message : "unknown error"))
+      .replace(/https?:\/\/[^\s]+/g, "<url>");
+    throw new ValidationError(`Failed to clone repository: ${safe}`);
+  }
 }
 
 /** Parse the URL and clone the repo if needed, without touching the DB. */
