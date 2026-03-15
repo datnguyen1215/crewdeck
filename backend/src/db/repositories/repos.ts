@@ -32,11 +32,12 @@ function cloneIfNeeded(githubUrl: string, localPath: string): void {
   } catch (err: unknown) {
     const stderr =
       err instanceof Error && "stderr" in err
-        ? String((err as { stderr: unknown }).stderr).trim()
+        ? String((err as any).stderr).trim()
         : "";
-    throw new ValidationError(
-      `Failed to clone repository: ${stderr || (err instanceof Error ? err.message : "unknown error")}`,
-    );
+    // Strip URLs that may contain embedded credentials (e.g. https://token@github.com/...)
+    const safe = (stderr || (err instanceof Error ? err.message : "unknown error"))
+      .replace(/https?:\/\/[^\s]+/g, "<url>");
+    throw new ValidationError(`Failed to clone repository: ${safe}`);
   }
 }
 
