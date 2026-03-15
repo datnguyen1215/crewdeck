@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { listProjectsWithStats, createProject } from '$lib/api/client.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	type ProjectWithStats = Awaited<ReturnType<typeof listProjectsWithStats>>[number];
 
@@ -20,10 +21,10 @@
 	let formError = $state('');
 
 	$effect(() => {
-		listProjectsWithStats().then((data) => {
-			projects = data;
-			loading = false;
-		});
+		listProjectsWithStats()
+			.then((data) => { projects = data; })
+			.catch(() => { toastStore.add('Failed to load projects', 'error'); })
+			.finally(() => { loading = false; });
 	});
 
 	async function submitProject() {
