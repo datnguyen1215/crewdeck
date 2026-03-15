@@ -10,11 +10,13 @@ const seedProjectAndIssue = async (app: Express) => {
   const proj = await request(app)
     .post(`${API}/projects`)
     .send({ name: "comment-test-project" });
+  expect(proj.status).toBe(201);
   const projectId = proj.body.id;
 
   const issue = await request(app)
     .post(`${API}/projects/${projectId}/issues`)
     .send({ title: "test issue", description: "for comment tests" });
+  expect(issue.status).toBe(201);
   const issueId = issue.body.id;
 
   return { projectId, issueId };
@@ -42,12 +44,14 @@ describe("Comments API", () => {
     it("returns comments after adding some", async () => {
       const { projectId, issueId } = await seedProjectAndIssue(app);
 
-      await request(app)
+      const c1 = await request(app)
         .post(commentsUrl(projectId, issueId))
         .send({ content: "first comment" });
-      await request(app)
+      expect(c1.status).toBe(201);
+      const c2 = await request(app)
         .post(commentsUrl(projectId, issueId))
         .send({ content: "second comment" });
+      expect(c2.status).toBe(201);
 
       const res = await request(app).get(commentsUrl(projectId, issueId));
       expect(res.status).toBe(200);
