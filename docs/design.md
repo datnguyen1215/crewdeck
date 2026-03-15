@@ -134,7 +134,7 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 | **Database** | SQLite via `better-sqlite3` | Synchronous API (performance advantage for SQLite), no async overhead, raw SQL for full control |
 | **Request validation** | Zod | Strict schema validation, self-documenting, TypeScript integration |
 | **WebSocket** | `ws` | Minimal, no abstraction overhead |
-| **Testing** | Vitest | Fast, native TypeScript support, compatible with Vite ecosystem |
+| **Testing** | Vitest + supertest | Vitest for unit tests; supertest for HTTP integration tests |
 | **Logging** | pino | Fast structured JSON logging |
 | **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate |
 | **CSS** | Tailwind CSS | Utility-first, dark theme, no component library |
