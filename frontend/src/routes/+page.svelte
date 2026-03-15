@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { listProjectsWithStats, createProject, type ProjectWithStats } from '$lib/api/http.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let projects = $state<ProjectWithStats[]>([]);
 	let loading = $state(true);

@@ -92,15 +92,6 @@
 		ro.observe(containerEl!);
 	});
 
-	// Write new output when session.output changes
-	$effect(() => {
-		if (term && session.output) {
-			term.clear();
-			for (const line of session.output.split('\n')) {
-				term.writeln(line);
-			}
-		}
-	});
 </script>
 
 <div

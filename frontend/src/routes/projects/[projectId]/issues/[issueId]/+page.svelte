@@ -4,6 +4,7 @@
 	import { getContext } from 'svelte';
 	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions, type IssueWithDetails } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
 
 	type Issue = IssueWithDetails;

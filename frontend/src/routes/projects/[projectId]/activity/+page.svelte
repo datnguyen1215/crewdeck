@@ -3,6 +3,7 @@
 	import { getContext } from 'svelte';
 	import { listActivity, listIssues, type ActivityLog, type Issue } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	type ActivityEntry = ActivityLog;
 
