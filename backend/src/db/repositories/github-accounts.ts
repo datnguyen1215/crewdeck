@@ -29,12 +29,9 @@ export const createGitHubAccount = (
   return getGitHubAccount(id)!;
 };
 
-/** Deletes a GitHub account and nullifies references on projects. */
+/** Deletes a GitHub account. Project.github_account_id is nullified by ON DELETE SET NULL. */
 export const deleteGitHubAccount = (id: string): void => {
-  db.transaction(() => {
-    db.prepare("UPDATE Project SET github_account_id = NULL WHERE github_account_id = ?").run(id);
-    db.prepare("DELETE FROM GitHubAccount WHERE id = ?").run(id);
-  })();
+  db.prepare("DELETE FROM GitHubAccount WHERE id = ?").run(id);
 };
 
 /** Updates the OAuth token, scopes, and username after re-authentication. */

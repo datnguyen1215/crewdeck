@@ -85,18 +85,23 @@ export const getGitHubUsername = async (token: string): Promise<string> => {
   return data.login;
 };
 
-/** Revoke an OAuth token (best-effort, tolerates already-revoked tokens). */
+/** Revoke an OAuth token. Requires client_id + client_secret for Basic auth. */
 export const revokeToken = async (
   clientId: string,
+  clientSecret: string,
   token: string,
 ): Promise<void> => {
+  if (!clientSecret) {
+    throw new Error("Cannot revoke token: GITHUB_CLIENT_SECRET is not configured");
+  }
+
   const res = await fetch(
     `https://api.github.com/applications/${clientId}/token`,
     {
       method: "DELETE",
       headers: {
         Accept: "application/vnd.github+json",
-        Authorization: `Basic ${Buffer.from(`${clientId}:`).toString("base64")}`,
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ access_token: token }),

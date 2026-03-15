@@ -19,7 +19,7 @@
 	let verificationUri = $state('');
 	let polling = $state(false);
 	let pollInterval = $state(5);
-	let pollTimer = $state<ReturnType<typeof setInterval> | null>(null);
+	let pollTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 	let deviceFlowError = $state('');
 
 	// Delete confirmation
@@ -56,7 +56,12 @@
 
 	function startPolling() {
 		polling = true;
-		pollTimer = setInterval(async () => {
+		schedulePoll();
+	}
+
+	function schedulePoll() {
+		pollTimer = setTimeout(async () => {
+			if (!polling) return;
 			try {
 				const res = await pollDeviceFlow(deviceCode);
 				if (res.id) {
@@ -64,14 +69,20 @@
 					showDeviceFlow = false;
 					toastStore.add(`Connected GitHub account: ${res.github_username}`, 'success');
 					await loadAccounts();
+				} else if (res.error === 'slow_down') {
+					// RFC 8628: increase interval by 5 seconds
+					pollInterval += 5;
+					schedulePoll();
 				} else if (res.error === 'expired_token') {
 					stopPolling();
 					deviceFlowError = 'Code expired. Please try again.';
 				} else if (res.error === 'access_denied') {
 					stopPolling();
 					deviceFlowError = 'Authorization was denied.';
+				} else {
+					// 'authorization_pending' — keep polling at current interval
+					schedulePoll();
 				}
-				// 'authorization_pending' and 'slow_down' — keep polling
 			} catch {
 				stopPolling();
 				deviceFlowError = 'Polling failed. Please try again.';
@@ -82,7 +93,7 @@
 	function stopPolling() {
 		polling = false;
 		if (pollTimer) {
-			clearInterval(pollTimer);
+			clearTimeout(pollTimer);
 			pollTimer = null;
 		}
 	}

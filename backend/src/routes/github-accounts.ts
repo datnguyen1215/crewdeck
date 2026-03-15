@@ -64,9 +64,9 @@ router.delete("/:id", async (req, res, next) => {
     if (!account) throw new NotFoundError("GitHub account not found");
 
     // Best-effort token revocation — don't fail the delete if it errors
-    if (account.oauth_token && config.githubClientId) {
+    if (account.oauth_token && config.githubClientId && config.githubClientSecret) {
       try {
-        await deviceFlow.revokeToken(config.githubClientId, account.oauth_token);
+        await deviceFlow.revokeToken(config.githubClientId, config.githubClientSecret, account.oauth_token);
       } catch {
         // Ignore revocation errors
       }

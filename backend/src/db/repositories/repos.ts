@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import { db } from "../index.js";
@@ -27,19 +28,23 @@ function cloneIfNeeded(githubUrl: string, localPath: string, token?: string): vo
   const diskPath = toContainerPath(localPath);
   if (fs.existsSync(path.join(diskPath, ".git"))) return;
   fs.mkdirSync(path.dirname(diskPath), { recursive: true });
-  let cloneUrl = githubUrl;
-  if (token) {
-    try {
-      const parsed = new URL(githubUrl);
-      parsed.username = "oauth2";
-      parsed.password = token;
-      cloneUrl = parsed.toString();
-    } catch {
-      // If URL parsing fails, fall through to use the original URL
-    }
-  }
   try {
-    execFileSync("git", ["clone", cloneUrl, diskPath], { stdio: "pipe" });
+    // Use GIT_ASKPASS to inject credentials without embedding them in the URL
+    // (which would persist the token in .git/config).
+    const env = { ...process.env };
+    if (token) {
+      const askpass = path.join(os.tmpdir(), `crewdeck-askpass-${crypto.randomUUID()}.sh`);
+      fs.writeFileSync(askpass, `#!/bin/sh\necho "${token}"\n`, { mode: 0o700 });
+      env.GIT_ASKPASS = askpass;
+      env.GIT_TERMINAL_PROMPT = "0";
+      try {
+        execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe", env });
+      } finally {
+        try { fs.unlinkSync(askpass); } catch {}
+      }
+    } else {
+      execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe" });
+    }
   } catch (err: unknown) {
     const stderr =
       err instanceof Error && "stderr" in err
