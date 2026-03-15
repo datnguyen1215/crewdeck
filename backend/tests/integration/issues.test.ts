@@ -1,0 +1,363 @@
+import { describe, it, expect, beforeAll } from "vitest";
+import request from "supertest";
+import type { Express } from "express";
+import { getApp } from "./setup.js";
+
+/** Transition an issue through a sequence of statuses via PATCH. */
+const transitionTo = async (
+  app: Express,
+  projectId: string,
+  issueId: string,
+  statuses: string[],
+) => {
+  for (const status of statuses) {
+    await request(app)
+      .patch(`/api/v1/projects/${projectId}/issues/${issueId}`)
+      .send({ status });
+  }
+};
+
+/** Create an issue via the API and return its body. */
+const createIssue = async (
+  app: Express,
+  projectId: string,
+  overrides: Record<string, unknown> = {},
+) => {
+  const res = await request(app)
+    .post(`/api/v1/projects/${projectId}/issues`)
+    .send({
+      title: "Test issue",
+      description: "Test description",
+      ...overrides,
+    });
+  return res.body;
+};
+
+describe("Issues API", () => {
+  let app: Express;
+  let projectId: string;
+  const base = (pid: string) => `/api/v1/projects/${pid}/issues`;
+
+  beforeAll(async () => {
+    app = await getApp();
+    const res = await request(app)
+      .post("/api/v1/projects")
+      .send({ name: "issues-test-project" });
+    projectId = res.body.id;
+  });
+
+  // --- CRUD ---
+
+  describe("GET /issues", () => {
+    it("returns empty array when no issues", async () => {
+      const proj = await request(app)
+        .post("/api/v1/projects")
+        .send({ name: "empty-project" });
+      const res = await request(app).get(base(proj.body.id));
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it("returns all issues for a project", async () => {
+      await createIssue(app, projectId, { title: "List test 1" });
+      await createIssue(app, projectId, { title: "List test 2" });
+      const res = await request(app).get(base(projectId));
+      expect(res.status).toBe(200);
+      expect(res.body.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("filters by status (single value)", async () => {
+      await createIssue(app, projectId, { title: "Filter single" });
+      const res = await request(app)
+        .get(base(projectId))
+        .query({ status: "open" });
+      expect(res.status).toBe(200);
+      expect(
+        res.body.every((i: { status: string }) => i.status === "open"),
+      ).toBe(true);
+    });
+
+    it("filters by status (comma-separated)", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, ["in_progress"]);
+      const res = await request(app)
+        .get(base(projectId))
+        .query({ status: "open,in_progress" });
+      expect(res.status).toBe(200);
+      res.body.forEach((i: { status: string }) => {
+        expect(["open", "in_progress"]).toContain(i.status);
+      });
+    });
+
+    it("filters by created_by", async () => {
+      const res = await request(app)
+        .get(base(projectId))
+        .query({ created_by: "user" });
+      expect(res.status).toBe(200);
+      res.body.forEach((i: { created_by: string }) => {
+        expect(i.created_by).toBe("user");
+      });
+    });
+
+    it("sorts by created_at with order", async () => {
+      const res = await request(app)
+        .get(base(projectId))
+        .query({ sort: "created_at", order: "asc" });
+      expect(res.status).toBe(200);
+      const dates = res.body.map((i: { created_at: string }) => i.created_at);
+      expect(dates).toEqual([...dates].sort());
+    });
+  });
+
+  describe("POST /issues", () => {
+    it("creates issue with defaults", async () => {
+      const res = await request(app)
+        .post(base(projectId))
+        .send({ title: "New issue", description: "Desc" });
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe("open");
+      expect(res.body.created_by).toBe("user");
+      expect(res.body.title).toBe("New issue");
+    });
+
+    it("validates required fields", async () => {
+      const res = await request(app).post(base(projectId)).send({});
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 404 for non-existent project", async () => {
+      const res = await request(app)
+        .post(base("nonexistent-id"))
+        .send({ title: "X", description: "Y" });
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("GET /issues/:issueId", () => {
+    it("returns issue with full details", async () => {
+      const issue = await createIssue(app, projectId, { title: "Detail test" });
+      const res = await request(app).get(`${base(projectId)}/${issue.id}`);
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(issue.id);
+      expect(res.body.title).toBe("Detail test");
+    });
+
+    it("returns 404 for non-existent issue", async () => {
+      const res = await request(app).get(`${base(projectId)}/nonexistent`);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("PATCH /issues/:issueId", () => {
+    it("updates title and description", async () => {
+      const issue = await createIssue(app, projectId, { title: "Old title" });
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ title: "New title", description: "New desc" });
+      expect(res.status).toBe(200);
+      expect(res.body.title).toBe("New title");
+      expect(res.body.description).toBe("New desc");
+    });
+
+    it("returns 404 for non-existent issue", async () => {
+      const res = await request(app)
+        .patch(`${base(projectId)}/nonexistent`)
+        .send({ title: "X" });
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /issues/:issueId", () => {
+    it("deletes issue", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app).delete(`${base(projectId)}/${issue.id}`);
+      expect(res.status).toBe(204);
+      const check = await request(app).get(`${base(projectId)}/${issue.id}`);
+      expect(check.status).toBe(404);
+    });
+
+    it("returns 404 for non-existent issue", async () => {
+      const res = await request(app).delete(`${base(projectId)}/nonexistent`);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  // --- Status transitions (valid) ---
+  // Issues default to "open" status when created via the API.
+
+  describe("status transitions - valid", () => {
+    it("open -> in_progress", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "in_progress" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("in_progress");
+    });
+
+    it("in_progress -> in_review", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, ["in_progress"]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "in_review" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("in_review");
+    });
+
+    it("in_review -> feedback", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, [
+        "in_progress",
+        "in_review",
+      ]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "feedback" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("feedback");
+    });
+
+    it("in_review -> ready", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, [
+        "in_progress",
+        "in_review",
+      ]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "ready" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("ready");
+    });
+
+    it("feedback -> in_progress", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, [
+        "in_progress",
+        "in_review",
+        "feedback",
+      ]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "in_progress" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("in_progress");
+    });
+
+    it("ready -> pr_created", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, [
+        "in_progress",
+        "in_review",
+        "ready",
+      ]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "pr_created" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("pr_created");
+    });
+
+    it("pr_created -> done", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, [
+        "in_progress",
+        "in_review",
+        "ready",
+        "pr_created",
+      ]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "done" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("done");
+    });
+
+    it("any status can transition to done (escape hatch)", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "done" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("done");
+    });
+  });
+
+  // --- Status transitions (invalid) ---
+
+  describe("status transitions - invalid", () => {
+    it("open -> ready is rejected", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "ready" });
+      expect(res.status).toBe(400);
+    });
+
+    it("open -> pr_created is rejected", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "pr_created" });
+      expect(res.status).toBe(400);
+    });
+
+    it("done -> open is rejected (done is terminal)", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, ["done"]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "open" });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // --- Action endpoints ---
+  // /approve and /discard require draft status, which can't be reached via the API
+  // (issues default to "open"). These tests verify the error paths.
+
+  describe("POST /approve", () => {
+    it("rejects non-draft issue", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app).post(
+        `${base(projectId)}/${issue.id}/approve`,
+      );
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("POST /discard", () => {
+    it("rejects non-draft issue with 400", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app).post(
+        `${base(projectId)}/${issue.id}/discard`,
+      );
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("POST /create-pr", () => {
+    it("transitions ready to pr_created", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, [
+        "in_progress",
+        "in_review",
+        "ready",
+      ]);
+      const res = await request(app).post(
+        `${base(projectId)}/${issue.id}/create-pr`,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("pr_created");
+    });
+
+    it("rejects non-ready issue", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app).post(
+        `${base(projectId)}/${issue.id}/create-pr`,
+      );
+      expect(res.status).toBe(400);
+    });
+  });
+});
