@@ -298,8 +298,8 @@
 					<div class="px-3 py-2.5">Repo</div>
 					<div class="px-3 py-2.5 text-right">Age</div>
 				</div>
-				{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 				{#each Array(8) as _, i}
+					{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 					<div
 						class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
 					style="animation-delay: {i * 30}ms"
