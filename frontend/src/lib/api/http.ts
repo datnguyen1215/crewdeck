@@ -84,55 +84,8 @@ export function deleteProject(id: string) {
   return request<void>("DELETE", `/projects/${encodeURIComponent(id)}`);
 }
 
-/**
- * Fetches all projects with computed stats (repo count, agent count, issue
- * breakdown, orchestrator status). Composed from multiple endpoints since the
- * backend doesn't have a single stats endpoint.
- */
-export async function listProjectsWithStats(): Promise<ProjectWithStats[]> {
-  const projects = await listProjects();
-  const results = await Promise.all(
-    projects.map(async (project) => {
-      const [repos, crew, issues, orchStatus] = await Promise.all([
-        listRepos(project.id),
-        getCrew(project.id).catch(() => null),
-        listIssues(project.id),
-        getOrchestratorStatus(project.id).catch(() => null),
-      ]);
-
-      const issueBreakdown = {
-        open: 0,
-        in_progress: 0,
-        in_review: 0,
-        ready: 0,
-        done: 0,
-      };
-      for (const i of issues) {
-        if (i.status in issueBreakdown) {
-          issueBreakdown[i.status as keyof typeof issueBreakdown]++;
-        }
-      }
-
-      let orchestrator_status = "none";
-      if (orchStatus?.session) {
-        orchestrator_status =
-          orchStatus.session.status === "running"
-            ? "active"
-            : orchStatus.session.status === "error"
-              ? "error"
-              : "idle";
-      }
-
-      return {
-        ...project,
-        repo_count: repos.length,
-        agent_count: crew?.agents?.length ?? 0,
-        issues: issueBreakdown,
-        orchestrator_status,
-      };
-    }),
-  );
-  return results;
+export function listProjectsWithStats() {
+  return request<ProjectWithStats[]>("GET", "/projects?stats");
 }
 
 // ---------------------------------------------------------------------------
