@@ -5,15 +5,14 @@ This guide covers running CrewDeck using Docker Compose.
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
-- [GitHub CLI](https://cli.github.com/) authenticated (`gh auth login`) on your host machine
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configured on your host machine
+- A [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) with `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
 
-The following host directories **must exist** or the backend container will fail to start:
+The following host directory **must exist** or the backend container will fail to start:
 
-| Host Path      | Purpose                                             |
-| -------------- | --------------------------------------------------- |
-| `~/.claude`    | Claude Code config (mounted read-only into backend) |
-| `~/.config/gh` | GitHub CLI auth (mounted read-only into backend)    |
+| Host Path   | Purpose                                             |
+| ----------- | --------------------------------------------------- |
+| `~/.claude` | Claude Code config (mounted read-only into backend) |
 
 ## Quick Start
 
@@ -43,12 +42,11 @@ When you add a repo to a project, the backend clones it automatically into its o
 
 Application data (SQLite database and cloned repos) is stored in a named Docker volume `crewdeck-data`, which persists across container restarts and rebuilds.
 
-The only host mounts are for authentication (read-only):
+The only host mount is for Claude Code configuration (read-only):
 
-| Host Path      | Container Path              | Purpose            |
-| -------------- | --------------------------- | ------------------ |
-| `~/.claude`    | `/home/app/.claude` (ro)    | Claude Code config |
-| `~/.config/gh` | `/home/app/.config/gh` (ro) | GitHub CLI auth    |
+| Host Path   | Container Path           | Purpose            |
+| ----------- | ------------------------ | ------------------ |
+| `~/.claude` | `/home/app/.claude` (ro) | Claude Code config |
 
 ## Environment Variables
 
@@ -56,11 +54,13 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 
 **Backend** (set in `docker-compose.yml`):
 
-| Variable             | Value                   | Purpose                        |
-| -------------------- | ----------------------- | ------------------------------ |
-| `CORS_ORIGIN`        | `http://localhost:9380` | Allowed CORS origin (frontend) |
-| `DB_PATH`            | `/app/data/crewdeck.db` | SQLite database location       |
-| `CREWDECK_REPOS_DIR` | `/app/data/repos`       | Where repos are cloned         |
+| Variable               | Value                   | Purpose                                     |
+| ---------------------- | ----------------------- | ------------------------------------------- |
+| `CORS_ORIGIN`          | `http://localhost:9380` | Allowed CORS origin (frontend)              |
+| `DB_PATH`              | `/app/data/crewdeck.db` | SQLite database location                    |
+| `CREWDECK_REPOS_DIR`   | `/app/data/repos`       | Where repos are cloned                      |
+| `GITHUB_CLIENT_ID`     | *(your OAuth App)*      | GitHub OAuth App client ID (Device Flow)    |
+| `GITHUB_CLIENT_SECRET` | *(your OAuth App)*      | GitHub OAuth App client secret (token revocation) |
 
 **Frontend**:
 
@@ -109,6 +109,6 @@ docker compose logs -f frontend
 
 ## Troubleshooting
 
-**GitHub CLI not working in container**: Make sure `gh auth login` is complete on your host and `~/.config/gh` exists.
+**GitHub authentication**: GitHub accounts are connected in-app via Device Flow (Settings → GitHub Accounts). You do not need `gh auth login` on your host. Make sure `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set for your GitHub OAuth App.
 
 **Claude Code not working**: Ensure `~/.claude` exists on your host with valid configuration.

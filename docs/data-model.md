@@ -13,9 +13,9 @@ All persistent state is stored in a local SQLite database. This document defines
 ## Entity Relationship Diagram
 
 ```
-┌──────────┐       ┌──────────┐       ┌──────────┐
-│ Project  │1────N│   Repo   │       │  Agent   │
-└──────────┘       └──────────┘       └──────────┘
+┌─────────────┐    ┌──────────┐       ┌──────────┐       ┌──────────┐
+│GitHubAccount│0──N│ Project  │1────N│   Repo   │       │  Agent   │
+└─────────────┘    └──────────┘       └──────────┘       └──────────┘
      │1                                    │N
      │                                     │
      │N                                    │1
@@ -64,8 +64,26 @@ Represents a body of work tied to one or more GitHub repositories.
 | max_concurrency | INTEGER | NOT NULL, DEFAULT 1 | Maximum number of issues worked on simultaneously. |
 | max_review_rounds | INTEGER | NOT NULL, DEFAULT 3 | Default max review loop iterations before escalation. |
 | orchestrator_session_id | TEXT | FOREIGN KEY → Session.id, NULLABLE | Session ID for the project's orchestrator. |
+| github_account_id | TEXT | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+
+### GitHubAccount
+
+A GitHub account connected via Device Flow OAuth. Used to authenticate git operations and agent sessions within a project.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| account_name | TEXT | NOT NULL | Display name for the account (matches github_username). |
+| github_username | TEXT | NOT NULL | GitHub username. |
+| oauth_token | TEXT | NOT NULL | OAuth access token. Never returned to the client. |
+| scopes | TEXT | | Comma-separated OAuth scopes granted. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+
+**Note:** `oauth_token` is stored server-side only and stripped from all API responses.
+
+---
 
 ### Repo
 
@@ -223,6 +241,7 @@ Immutable audit trail of every action in the system.
 
 | Relationship | Type | Description |
 |-------------|------|-------------|
+| GitHubAccount → Project | One-to-Many | A GitHub account can be linked to multiple projects. |
 | Project → Repo | One-to-Many | A project has multiple repos. |
 | Project → Crew | One-to-One | A project has exactly one crew. |
 | Project → Issue | One-to-Many | A project has multiple issues. |
