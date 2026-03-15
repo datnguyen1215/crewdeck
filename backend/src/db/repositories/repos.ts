@@ -29,14 +29,12 @@ function cloneIfNeeded(githubUrl: string, localPath: string, token?: string): vo
   if (fs.existsSync(path.join(diskPath, ".git"))) return;
   fs.mkdirSync(path.dirname(diskPath), { recursive: true });
   try {
-    // Use GIT_ASKPASS to inject credentials without embedding them in the URL
-    // (which would persist the token in .git/config).
-    const env = { ...process.env };
     if (token) {
+      // Use GIT_ASKPASS to inject credentials without embedding them in the URL
+      // (which would persist the token in .git/config).
       const askpass = path.join(os.tmpdir(), `crewdeck-askpass-${crypto.randomUUID()}.sh`);
       fs.writeFileSync(askpass, `#!/bin/sh\necho "${token}"\n`, { mode: 0o700 });
-      env.GIT_ASKPASS = askpass;
-      env.GIT_TERMINAL_PROMPT = "0";
+      const env = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: askpass };
       try {
         execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe", env });
       } finally {

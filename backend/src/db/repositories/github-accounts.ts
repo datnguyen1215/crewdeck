@@ -33,16 +33,3 @@ export const createGitHubAccount = (
 export const deleteGitHubAccount = (id: string): void => {
   db.prepare("DELETE FROM GitHubAccount WHERE id = ?").run(id);
 };
-
-/** Updates the OAuth token, scopes, and username after re-authentication. */
-export const updateGitHubAccountToken = (
-  id: string,
-  token: string,
-  scopes: string,
-  username: string,
-): GitHubAccount => {
-  db.prepare(
-    `UPDATE GitHubAccount SET oauth_token = ?, scopes = ?, github_username = ? WHERE id = ?`,
-  ).run(token, scopes, username, id);
-  return getGitHubAccount(id)!;
-};

@@ -36,6 +36,12 @@ router.post("/device-code/poll", validate(PollDeviceFlowSchema), async (req, res
     const result = await deviceFlow.pollForToken(clientId, req.body.device_code);
 
     if ("access_token" in result) {
+      // NOTE: if getGitHubUsername fails (network blip, rate limit), the token is lost and
+      // the user must re-authorize. This is intentional — saving with a placeholder username
+      // adds complexity for a very unlikely edge case. The orphaned token on GitHub's side is
+      // harmless (local tool, no external exposure) and can be manually revoked via GitHub's
+      // OAuth app settings if needed. The device code may still be valid for retry, but the
+      // frontend clears it on error, so the user starts fresh.
       const username = await deviceFlow.getGitHubUsername(result.access_token);
       const account = ghAccounts.createGitHubAccount({
         account_name: username,
