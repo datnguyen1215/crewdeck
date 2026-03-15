@@ -1,6 +1,7 @@
 import { Router, type Request } from "express";
 import { listRepos, getRepo, createRepo, deleteRepo } from "../db/repositories/repos.js";
 import { getProject } from "../db/repositories/projects.js";
+import { getGitHubAccount } from "../db/repositories/github-accounts.js";
 import { validate } from "../middleware/validate.js";
 import { NotFoundError } from "../middleware/errors.js";
 import { CreateRepoSchema } from "../schemas/validation.js";
@@ -15,8 +16,12 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
 
 router.post("/", validate(CreateRepoSchema), (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
-  if (!getProject(projectId)) throw new NotFoundError("Project not found");
-  const repo = createRepo(projectId, req.body);
+  const project = getProject(projectId);
+  if (!project) throw new NotFoundError("Project not found");
+  const ghAccount = project.github_account_id
+    ? getGitHubAccount(project.github_account_id)
+    : null;
+  const repo = createRepo(projectId, req.body, ghAccount?.oauth_token);
   res.status(201).json(repo);
 });
 

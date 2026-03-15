@@ -34,6 +34,7 @@ const CreateProjectBase = z.object({
   max_review_rounds: z.number().int().nonnegative().optional(),
   github_url: githubUrl.optional(),
   default_branch: z.string().optional(),
+  github_account_id: z.string().nullable().optional(),
 });
 
 export const CreateProjectSchema = CreateProjectBase;
@@ -148,4 +149,13 @@ export const CreateActivitySchema = z.object({
   actor_id: z.string().optional(),
   action: z.string().min(1),
   details: z.unknown().optional(),
+});
+
+export const InitDeviceFlowSchema = z.object({
+  client_id: z.string().min(1).optional(),
+});
+
+export const PollDeviceFlowSchema = z.object({
+  device_code: z.string().min(1),
+  client_id: z.string().min(1).optional(),
 });

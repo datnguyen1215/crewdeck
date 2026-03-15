@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import { db } from "../index.js";
@@ -23,12 +24,25 @@ function parseGithubUrl(url: string): { owner: string; name: string } {
   throw new ValidationError(`Cannot parse GitHub URL: ${url}`);
 }
 
-function cloneIfNeeded(githubUrl: string, localPath: string): void {
+function cloneIfNeeded(githubUrl: string, localPath: string, token?: string): void {
   const diskPath = toContainerPath(localPath);
   if (fs.existsSync(path.join(diskPath, ".git"))) return;
   fs.mkdirSync(path.dirname(diskPath), { recursive: true });
   try {
-    execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe" });
+    if (token) {
+      // Use GIT_ASKPASS to inject credentials without embedding them in the URL
+      // (which would persist the token in .git/config).
+      const askpass = path.join(os.tmpdir(), `crewdeck-askpass-${crypto.randomUUID()}.sh`);
+      fs.writeFileSync(askpass, `#!/bin/sh\nprintf '%s\n' '${token.replace(/'/g, "'\\''")}';\n`, { mode: 0o700 });
+      const env = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: askpass };
+      try {
+        execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe", env });
+      } finally {
+        try { fs.unlinkSync(askpass); } catch {}
+      }
+    } else {
+      execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe" });
+    }
   } catch (err: unknown) {
     const stderr =
       err instanceof Error && "stderr" in err
@@ -42,10 +56,10 @@ function cloneIfNeeded(githubUrl: string, localPath: string): void {
 }
 
 /** Parse the URL and clone the repo if needed, without touching the DB. */
-export function ensureCloned(githubUrl: string): void {
+export function ensureCloned(githubUrl: string, token?: string): void {
   const { owner, name } = parseGithubUrl(githubUrl);
   const localPath = path.resolve(config.reposDir, owner, name);
-  cloneIfNeeded(githubUrl, localPath);
+  cloneIfNeeded(githubUrl, localPath, token);
 }
 
 /** Insert a repo row. Assumes the repo is already cloned on disk. */
@@ -81,8 +95,8 @@ export function getRepo(id: string): Repo | null {
 }
 
 /** Clone the repo (if needed) and insert a DB row. Used by the standalone endpoint. */
-export function createRepo(projectId: string, input: CreateRepoInput): Repo {
-  ensureCloned(input.github_url);
+export function createRepo(projectId: string, input: CreateRepoInput, token?: string): Repo {
+  ensureCloned(input.github_url, token);
   return insertRepo(projectId, input);
 }
 

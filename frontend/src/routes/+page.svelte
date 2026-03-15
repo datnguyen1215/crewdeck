@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { listProjectsWithStats, createProject, type ProjectWithStats } from '$lib/api/http.js';
+	import { listProjectsWithStats, createProject, listGitHubAccounts, type ProjectWithStats, type GitHubAccount } from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let projects = $state<ProjectWithStats[]>([]);
 	let loading = $state(true);
+	let githubAccounts = $state<GitHubAccount[]>([]);
+	let selectedGitHubAccountId = $state('');
 
 	// Modal state
 	let showModal = $state(false);
@@ -23,6 +25,12 @@
 			.then((data) => { projects = data; })
 			.catch(() => { toastStore.add('Failed to load projects', 'error'); })
 			.finally(() => { loading = false; });
+	});
+
+	$effect(() => {
+		listGitHubAccounts()
+			.then((data) => { githubAccounts = data; })
+			.catch(() => { /* silently fail — dropdown will just be empty */ });
 	});
 
 	async function submitProject() {
@@ -52,7 +60,8 @@
 				max_concurrency: maxConcurrency,
 				max_review_rounds: maxReviewRounds,
 				github_url: githubUrl.trim(),
-				default_branch: defaultBranch.trim() || 'main'
+				default_branch: defaultBranch.trim() || 'main',
+				github_account_id: selectedGitHubAccountId || undefined
 			});
 			// Optimistic update: repo was created inline, so repo_count starts at 1.
 			projects = [
@@ -78,6 +87,7 @@
 		showModal = false;
 		name = '';
 		description = '';
+		selectedGitHubAccountId = '';
 		githubUrl = '';
 		defaultBranch = 'main';
 		maxConcurrency = 1;
@@ -364,6 +374,29 @@
 						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
 							focus:outline-none focus:border-cyan transition-colors resize-none"
 					></textarea>
+				</div>
+
+				<!-- GitHub Account -->
+				<div>
+					<label for="proj-gh-account" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+						GitHub Account
+					</label>
+					<select
+						id="proj-gh-account"
+						bind:value={selectedGitHubAccountId}
+						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary
+							focus:outline-none focus:border-cyan transition-colors"
+					>
+						<option value="">None (use host credentials)</option>
+						{#each githubAccounts as account}
+							<option value={account.id}>{account.github_username} ({account.account_name})</option>
+						{/each}
+					</select>
+					{#if githubAccounts.length === 0}
+						<p class="text-muted text-xs mt-1">
+							No accounts connected. <a href="/settings" class="text-cyan hover:underline">Add one in Settings</a>
+						</p>
+					{/if}
 				</div>
 
 				<!-- Repository -->

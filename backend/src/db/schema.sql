@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS Project (
   max_concurrency INTEGER NOT NULL DEFAULT 1,
   max_review_rounds INTEGER NOT NULL DEFAULT 3,
   orchestrator_session_id TEXT,
+  github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -120,6 +121,15 @@ CREATE TABLE IF NOT EXISTS ActivityLog (
   actor_id TEXT,
   action TEXT NOT NULL,
   details TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS GitHubAccount (
+  id TEXT PRIMARY KEY,
+  account_name TEXT NOT NULL,
+  github_username TEXT NOT NULL,
+  oauth_token TEXT NOT NULL,
+  scopes TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
