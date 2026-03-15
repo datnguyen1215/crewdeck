@@ -66,16 +66,21 @@ jobs:
 
             Post as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
 
-            Start with "## Correctness Review" followed by a note about prior reviews:
-            - "No existing reviews to build on." OR
-            - "Previous review raised N issues; M fixed, K still outstanding."
+            Use this exact output format — no preamble, no methodology, no extras:
 
-            Then list only:
-            - Outstanding issues from prior reviews (still present in current code)
-            - New issues found in this review
+            If issues found:
+            ```
+            ## Correctness Review
 
-            If everything from prior reviews is fixed and no new issues found, post:
-            "## Correctness Review\n\nAll previously raised issues have been fixed. No new issues found."
+            - **{title}** in `{file}:{line}` — {what's wrong and why it matters}
+            ```
+
+            If no issues found:
+            ```
+            ## Correctness Review
+
+            No issues found.
+            ```
 
   simplicity-review:
     runs-on: ubuntu-latest
@@ -134,16 +139,21 @@ jobs:
 
             Post as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
 
-            Start with "## Simplicity Review" followed by a note about prior reviews:
-            - "No existing reviews to build on." OR
-            - "Previous review raised N issues; M fixed, K still outstanding."
+            Use this exact output format — no preamble, no methodology, no extras:
 
-            Then list only:
-            - Outstanding issues from prior reviews (still present in current code)
-            - New issues found in this review
+            If issues found:
+            ```
+            ## Simplicity Review
 
-            If everything from prior reviews is fixed and no new issues found, post:
-            "## Simplicity Review\n\nAll previously raised issues have been fixed. No new issues found."
+            - **{title}** in `{file}:{line}` — {what's wrong and why it matters}
+            ```
+
+            If no issues found:
+            ```
+            ## Simplicity Review
+
+            No issues found.
+            ```
 
   security-review:
     runs-on: ubuntu-latest
@@ -202,13 +212,18 @@ jobs:
 
             Post as a PR comment using `gh pr comment ${{ github.event.pull_request.number }}`.
 
-            Start with "## Security Review" followed by a note about prior reviews:
-            - "No existing reviews to build on." OR
-            - "Previous review raised N issues; M fixed, K still outstanding."
+            Use this exact output format — no preamble, no methodology, no extras:
 
-            Then list only:
-            - Outstanding issues from prior reviews (still present in current code)
-            - New issues found in this review
+            If issues found:
+            ```
+            ## Security Review
 
-            If everything from prior reviews is fixed and no new issues found, post:
-            "## Security Review\n\nAll previously raised issues have been fixed. No new issues found."
+            - **{title}** in `{file}:{line}` — {what's wrong and why it matters}
+            ```
+
+            If no issues found:
+            ```
+            ## Security Review
+
+            No issues found.
+            ```
