@@ -34,6 +34,7 @@ const CreateProjectBase = z.object({
   max_review_rounds: z.number().int().nonnegative().optional(),
   github_url: githubUrl.optional(),
   default_branch: z.string().optional(),
+  github_account_id: z.string().nullable().optional(),
 });
 
 export const CreateProjectSchema = CreateProjectBase;
