@@ -10,7 +10,7 @@ import { escapeXml } from "../utils/xml.js";
 import { parseAction, validateActionParams, type OrchestratorAction } from "./actions.js";
 import { getProject, updateProject } from "../db/repositories/projects.js";
 import { listIssues, getIssue, createIssue, updateIssue } from "../db/repositories/issues.js";
-import { getAgent } from "../db/repositories/agents.js";
+import { getAgent, getCaptain } from "../db/repositories/agents.js";
 import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listRepos } from "../db/repositories/repos.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
@@ -416,7 +416,7 @@ export class OrchestratorManager {
     private readonly bus: EventBus,
     private readonly adapter: AgentAdapter,
     // Injected for testability — defaults to the module-level callClaude
-    private readonly claudeFn: (prompt: string) => Promise<string> = callClaude
+    private readonly claudeFn: (prompt: string, opts?: { systemPrompt?: string }) => Promise<string> = callClaude
   ) {}
 
   init(): void {
@@ -548,6 +548,13 @@ export class OrchestratorManager {
       return;
     }
 
+    // Captain must exist — if no captain is designated, skip orchestration
+    const captain = getCaptain(state.crew.id);
+    if (!captain) {
+      logger.info({ projectId }, "Orchestrator: no captain agent designated, skipping");
+      return;
+    }
+
     // Ensure an orchestrator session record exists; track the ID to avoid re-fetching project later
     const project = state.project;
     let orchestratorSessionId = project.orchestrator_session_id;
@@ -568,7 +575,7 @@ export class OrchestratorManager {
 
     let output: string;
     try {
-      output = await this.claudeFn(prompt);
+      output = await this.claudeFn(prompt, { systemPrompt: captain.system_prompt });
     } catch (err) {
       logger.error({ err, projectId }, "Orchestrator: Claude call failed");
       return;

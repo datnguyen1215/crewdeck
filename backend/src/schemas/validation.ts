@@ -60,6 +60,7 @@ export const CreateAgentSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   system_prompt: z.string().min(1),
+  is_captain: z.boolean().optional(),
 });
 
 export const UpdateAgentSchema = CreateAgentSchema.partial();

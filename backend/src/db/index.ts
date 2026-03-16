@@ -96,6 +96,12 @@ export function createDb(path: string): Database.Database {
     db.pragma("foreign_keys = ON");
   }
 
+  // Migration: add is_captain column to Agent if missing.
+  const agentCols2 = db.pragma("table_info(Agent)") as { name: string }[];
+  if (!agentCols2.some((c) => c.name === "is_captain")) {
+    db.exec("ALTER TABLE Agent ADD COLUMN is_captain INTEGER NOT NULL DEFAULT 0");
+  }
+
   return db;
 }
 
