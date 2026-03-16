@@ -13,7 +13,7 @@ Software development teams increasingly want to leverage AI coding agents for au
 - **No unified coordination** — agents operate in isolation with no awareness of each other's work.
 - **No review pipeline** — AI-generated code goes unreviewed or requires manual human review for every change.
 - **No audit trail** — there is no record of why an agent made specific decisions or what feedback it received.
-- **No prioritization** — issues must be manually triaged and assigned, with no intelligent routing based on agent expertise.
+- **No prioritization** — issues must be manually triaged and assigned, with no intelligent routing based on agent fit.
 - **Vendor lock-in** — systems built around a specific AI tool cannot easily adopt alternatives.
 
 CrewDeck solves these problems by providing a local-first issue management platform where crews of AI agents autonomously work on issues, review each other's code, and prepare pull requests — all under human oversight.
@@ -38,9 +38,9 @@ A crew is a team of agents belonging to a project. Crews are assembled based on 
 
 An agent is a specialized AI persona defined by a custom system prompt. Agents have:
 
-- A name and role description (e.g., "Senior Software Engineer", "Security Expert").
-- A system prompt generated and refined through AI assistance (using the CLI tool).
-- Expertise areas that the orchestrator uses for task assignment.
+- A name and title (e.g., "Senior Software Engineer", "Security Expert").
+- An optional description providing additional context for the orchestrator.
+- A system prompt generated through AI assistance from a short prompt.
 
 Agent creation is AI-assisted: the user describes the role they want, and the system uses the CLI tool to generate and refine a detailed system prompt for that agent.
 
@@ -49,7 +49,7 @@ Agent creation is AI-assisted: the user describes the role they want, and the sy
 The orchestrator is a persistent AI session scoped to a single project. It is the brain of the system. The orchestrator:
 
 - **Prioritizes issues** — analyzes all open issues and determines execution order based on content, dependencies, and urgency.
-- **Assigns agents** — matches issues to the best-fit agent based on expertise and availability.
+- **Assigns agents** — matches issues to the best-fit agent based on title, description, and availability.
 - **Manages the review pipeline** — routes completed work to reviewers in the appropriate order, tracks review rounds, and handles feedback loops.
 - **Creates draft issues** — can propose new issues (e.g., breaking a large issue into sub-tasks, identifying related problems). All orchestrator-created issues start in Draft status and require human approval.
 - **Manages dependencies** — understands which issues depend on others and sequences work accordingly, including basing worktrees on previous branches when needed.

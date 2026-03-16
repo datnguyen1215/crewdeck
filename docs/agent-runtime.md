@@ -366,7 +366,7 @@ function buildOrchestratorPrompt(project, event):
     prompt += "Available agents: " + list of idle agents
     prompt += "Concurrency: " + current active / max_concurrency
     prompt += "\n## Event\n" + description of what triggered this resumption
-    prompt += "\n## Crew\n" + list of agents with roles and expertise
+    prompt += "\n## Crew\n" + list of agents with names, titles, and descriptions
     prompt += "\n## Instructions\n"
     prompt += "Decide what action to take based on the event and current state."
     prompt += "Respond with a structured action (assign, route_review, escalate, create_draft_issue, etc.)"
@@ -384,7 +384,7 @@ The orchestrator is prompted to respond in **structured JSON format**. The backe
     "issue_id": "uuid",
     "agent_id": "uuid"
   },
-  "reasoning": "Alice has backend + auth expertise, best match for this issue"
+  "reasoning": "Alice's title and description best match the backend requirements of this issue"
 }
 ```
 
