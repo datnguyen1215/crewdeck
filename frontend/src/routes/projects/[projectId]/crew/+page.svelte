@@ -197,7 +197,7 @@
 				title: ftitle.trim(),
 				description: fdescription.trim() || undefined,
 				system_prompt: fprompt.trim(),
-				is_captain: fisCaptain || undefined
+				is_captain: fisCaptain
 			};
 			if (editTarget) {
 				const updated = await updateAgent(projectId, editTarget.id, data);

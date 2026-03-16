@@ -52,7 +52,7 @@ export interface Agent {
   title: string;
   description: string | null;
   system_prompt: string;
-  is_captain: number;
+  is_captain: boolean;
   created_at: string;
   updated_at: string;
 }

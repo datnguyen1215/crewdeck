@@ -1,22 +1,27 @@
 import { db } from "../index.js";
 import type { Agent, CreateAgentInput, UpdateAgentInput } from "../../types/entities.js";
 
+function normalize(row: Agent): Agent {
+  return { ...row, is_captain: !!row.is_captain };
+}
+
 export function listAgents(crewId: string): Agent[] {
-  return db
+  const rows = db
     .prepare("SELECT * FROM Agent WHERE crew_id = ? ORDER BY created_at ASC")
     .all(crewId) as Agent[];
+  return rows.map(normalize);
 }
 
 export function getAgent(id: string): Agent | null {
   const row = db.prepare("SELECT * FROM Agent WHERE id = ?").get(id) as Agent | undefined;
-  return row ?? null;
+  return row ? normalize(row) : null;
 }
 
 export function getCaptain(crewId: string): Agent | null {
   const row = db
     .prepare("SELECT * FROM Agent WHERE crew_id = ? AND is_captain = 1")
     .get(crewId) as Agent | undefined;
-  return row ?? null;
+  return row ? normalize(row) : null;
 }
 
 export function createAgent(crewId: string, input: CreateAgentInput): Agent {
