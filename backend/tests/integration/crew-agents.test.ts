@@ -177,6 +177,106 @@ describe("DELETE /api/v1/projects/:projectId/crew/agents/:agentId", () => {
   });
 });
 
+describe("Captain designation", () => {
+  let captainProjectId: string;
+
+  beforeAll(async () => {
+    const res = await request(app)
+      .post("/api/v1/projects")
+      .send({ name: "captain-test-project", github_url: "https://github.com/test/captain" });
+    expect(res.status).toBe(201);
+    captainProjectId = res.body.id;
+  });
+
+  it("creates agent with is_captain flag", async () => {
+    const res = await request(app)
+      .post(`/api/v1/projects/${captainProjectId}/crew/agents`)
+      .send({
+        name: "The Captain",
+        title: "coordinator",
+        system_prompt: "You coordinate the crew.",
+        is_captain: true,
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.is_captain).toBe(1);
+  });
+
+  it("defaults is_captain to 0 when not provided", async () => {
+    const res = await request(app)
+      .post(`/api/v1/projects/${captainProjectId}/crew/agents`)
+      .send({
+        name: "Regular Worker",
+        title: "developer",
+        system_prompt: "You write code.",
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.is_captain).toBe(0);
+  });
+
+  it("enforces one captain per crew — new captain demotes previous", async () => {
+    const res = await request(app)
+      .post(`/api/v1/projects/${captainProjectId}/crew/agents`)
+      .send({
+        name: "New Captain",
+        title: "lead",
+        system_prompt: "You are the new captain.",
+        is_captain: true,
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.is_captain).toBe(1);
+
+    // Verify only one captain exists
+    const crew = await request(app).get(`/api/v1/projects/${captainProjectId}/crew`);
+    expect(crew.status).toBe(200);
+    const captains = crew.body.agents.filter((a: { is_captain: number }) => a.is_captain === 1);
+    expect(captains).toHaveLength(1);
+    expect(captains[0].name).toBe("New Captain");
+  });
+
+  it("updates agent to become captain via PATCH", async () => {
+    // Create a non-captain agent
+    const createRes = await request(app)
+      .post(`/api/v1/projects/${captainProjectId}/crew/agents`)
+      .send({
+        name: "Promoted Agent",
+        title: "senior dev",
+        system_prompt: "You are a senior dev.",
+      });
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.is_captain).toBe(0);
+
+    // Promote to captain
+    const patchRes = await request(app)
+      .patch(`/api/v1/projects/${captainProjectId}/crew/agents/${createRes.body.id}`)
+      .send({ is_captain: true });
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.is_captain).toBe(1);
+
+    // Verify previous captain was demoted
+    const crew = await request(app).get(`/api/v1/projects/${captainProjectId}/crew`);
+    const captains = crew.body.agents.filter((a: { is_captain: number }) => a.is_captain === 1);
+    expect(captains).toHaveLength(1);
+    expect(captains[0].name).toBe("Promoted Agent");
+  });
+
+  it("removes captain designation via PATCH", async () => {
+    const crew = await request(app).get(`/api/v1/projects/${captainProjectId}/crew`);
+    const captain = crew.body.agents.find((a: { is_captain: number }) => a.is_captain === 1);
+    expect(captain).toBeDefined();
+
+    const patchRes = await request(app)
+      .patch(`/api/v1/projects/${captainProjectId}/crew/agents/${captain.id}`)
+      .send({ is_captain: false });
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.is_captain).toBe(0);
+
+    // No captains remain
+    const updatedCrew = await request(app).get(`/api/v1/projects/${captainProjectId}/crew`);
+    const captains = updatedCrew.body.agents.filter((a: { is_captain: number }) => a.is_captain === 1);
+    expect(captains).toHaveLength(0);
+  });
+});
+
 describe("DELETE /api/v1/projects/:projectId/crew/agents/:agentId (conflict)", () => {
   let agentId: string;
 
