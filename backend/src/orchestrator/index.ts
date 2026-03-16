@@ -29,8 +29,6 @@ import {
 
 import { callClaude } from "../utils/claude.js";
 
-export { callClaude };
-
 function buildState(projectId: string): OrchestratorState | null {
   const project = getProject(projectId);
   if (!project) return null;

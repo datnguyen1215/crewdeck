@@ -13,6 +13,7 @@ import { validate } from "../middleware/validate.js";
 import { NotFoundError, ConflictError } from "../middleware/errors.js";
 import { CreateAgentSchema, UpdateAgentSchema, GenerateAgentSchema } from "../schemas/validation.js";
 import { callClaude } from "../utils/claude.js";
+import { escapeXml } from "../utils/xml.js";
 
 const router = Router({ mergeParams: true });
 
@@ -39,7 +40,7 @@ router.post("/generate", validate(GenerateAgentSchema), async (req: Request<{ pr
 
 Respond with ONLY a valid JSON object. No markdown, no explanation.`;
 
-    const fullPrompt = `${systemPrompt}\n\nUser description: ${prompt}`;
+    const fullPrompt = `${systemPrompt}\n\nUser description: ${escapeXml(prompt)}`;
     const output = await callClaude(fullPrompt);
 
     // Extract JSON from possible markdown code blocks
