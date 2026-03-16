@@ -986,7 +986,7 @@ All events follow this structure:
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `session.started` | New tmux session created | `{ session_id, agent_id, issue_id, tmux_session_name }` |
+| `session.started` | New tmux session created | `{ session_id, tmux_session_name, agent_id?, issue_id? }` — `agent_id` and `issue_id` are omitted for orchestrator sessions |
 | `session.output` | Terminal output chunk | `{ session_id, output }` |
 | `session.ended` | Session completed or stopped | `{ session_id, status }` |
 
