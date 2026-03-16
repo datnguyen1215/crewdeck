@@ -71,6 +71,12 @@ export function subscribeEvents(bus: EventBus): void {
   bus.on("comment.added", ({ comment, project_id }) =>
     broadcast(project_id, "comment.added", comment));
 
+  bus.on("comment.updated", ({ comment, project_id }) =>
+    broadcast(project_id, "comment.updated", comment));
+
+  bus.on("comment.deleted", ({ comment_id, issue_id, project_id }) =>
+    broadcast(project_id, "comment.deleted", { comment_id, issue_id }));
+
   bus.on("session.started", ({ session_id, agent_id, issue_id, project_id, tmux_session_name }) =>
     broadcast(project_id, "session.started", { session_id, agent_id, issue_id, tmux_session_name }));
 

@@ -49,6 +49,8 @@ export interface EventMap {
   "issue.status_changed": { issue_id: string; project_id: string; from: string; to: string };
   "issue.assigned": { issue_id: string; project_id: string; agent_id: string; agent_name: string };
   "comment.added": { comment: Comment; project_id: string };
+  "comment.updated": { comment: Comment; project_id: string };
+  "comment.deleted": { comment_id: string; issue_id: string; project_id: string };
   "session.started": {
     session_id: string;
     agent_id: string;

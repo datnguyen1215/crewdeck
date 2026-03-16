@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
-	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions, type IssueWithDetails } from '$lib/api/http.js';
+	import { getIssue, addComment, editComment, deleteComment, approveIssue, discardIssue, updateIssue, listSessions, type IssueWithDetails } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
@@ -33,8 +33,14 @@
 	// Copy state for branch name
 	let copied = $state(false);
 
+	// Comment edit/delete state
+	let editingCommentId = $state<string | null>(null);
+	let editingCommentText = $state('');
+	let deletingCommentId = $state<string | null>(null);
+	let commentWorking = $state(false);
+
 	// Tab navigation
-	let activeTab = $state<'description' | 'comments' | 'terminal'>('description');
+	let activeTab = $state<'description' | 'terminal'>('description');
 
 	// Terminal session state
 	let activeSessionId = $state<string | null>(null);
@@ -84,6 +90,8 @@
 			ws.on('issue.status_changed', reloadIssue),
 			ws.on('issue.approved', reloadIssue),
 			ws.on('comment.added', reloadIssue),
+			ws.on('comment.updated', reloadIssue),
+			ws.on('comment.deleted', reloadIssue),
 			ws.on('review.completed', reloadIssue),
 			ws.on('pr.created', reloadIssue),
 			ws.on('pr.status_changed', reloadIssue),
@@ -193,6 +201,39 @@
 			toastStore.add(err instanceof Error ? err.message : 'Failed to post comment', 'error');
 		} finally {
 			posting = false;
+		}
+	}
+
+	function startEditComment(comment: any) {
+		editingCommentId = comment.id;
+		editingCommentText = comment.content;
+	}
+
+	async function saveEditComment() {
+		if (!editingCommentId || !editingCommentText.trim() || !issue) return;
+		commentWorking = true;
+		try {
+			const updated = await editComment(projectId, issueId, editingCommentId, { content: editingCommentText });
+			issue = { ...issue, comments: issue.comments.map(c => c.id === updated.id ? updated : c) };
+			editingCommentId = null;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to edit comment', 'error');
+		} finally {
+			commentWorking = false;
+		}
+	}
+
+	async function confirmDeleteComment() {
+		if (!deletingCommentId || !issue) return;
+		commentWorking = true;
+		try {
+			await deleteComment(projectId, issueId, deletingCommentId);
+			issue = { ...issue, comments: issue.comments.filter(c => c.id !== deletingCommentId) };
+			deletingCommentId = null;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to delete comment', 'error');
+		} finally {
+			commentWorking = false;
 		}
 	}
 
@@ -371,10 +412,6 @@
 						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'description' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
 					>Description</button>
 					<button
-						onclick={() => activeTab = 'comments'}
-						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'comments' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
-					>Comments ({issue.comments.length})</button>
-					<button
 						onclick={() => activeTab = 'terminal'}
 						class="px-4 py-2.5 border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'terminal' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
 					>
@@ -424,52 +461,6 @@
 							{/if}
 						{/if}
 
-					{:else if activeTab === 'comments'}
-						{#if issue.comments.length > 0}
-							<div class="flex flex-col gap-3 mb-6">
-								{#each issue.comments as comment (comment.id)}
-									{@const cs = commentStyle(comment.author_type, comment.content)}
-									<div
-										class="border border-edge rounded-r rounded-tl rounded-bl bg-base p-4"
-										style="border-left: 3px solid {cs.border}"
-									>
-										<div class="flex items-center gap-2 mb-2 flex-wrap">
-											<span class="text-xs font-semibold {cs.textColor}">
-												{commentAuthorLabel(comment)}
-											</span>
-											<span class="text-xs text-muted" title={new Date(comment.created_at).toLocaleString()}>
-												{rel(comment.created_at)}
-											</span>
-										</div>
-										<div class="issue-prose text-secondary text-sm leading-relaxed">
-											{@html md(comment.content)}
-										</div>
-									</div>
-								{/each}
-							</div>
-						{:else}
-							<p class="text-muted text-sm mb-6">No comments yet.</p>
-						{/if}
-
-						<!-- Add comment form -->
-						<div class="border border-edge rounded p-4">
-							<textarea
-								bind:value={commentText}
-								rows={3}
-								placeholder="Type your comment here..."
-								class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
-							></textarea>
-							<div class="flex justify-end mt-3 pt-3 border-t border-edge">
-								<button
-									onclick={postComment}
-									disabled={posting || !commentText.trim()}
-									class="px-4 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-								>
-									{posting ? 'Posting...' : 'Post Comment'}
-								</button>
-							</div>
-						</div>
-
 					{:else if activeTab === 'terminal'}
 						{#if activeSessionId}
 							<Terminal {projectId} sessionId={activeSessionId} agentName={sessionAgentName} status={sessionStatus} />
@@ -481,6 +472,102 @@
 							</div>
 						{/if}
 					{/if}
+				</div>
+			</div>
+
+			<!-- Comments section (below tabs) -->
+			<div class="bg-surface border border-edge rounded overflow-hidden lg:col-span-2">
+				<div class="px-6 py-4 border-b border-edge">
+					<span class="text-xs text-muted uppercase tracking-widest">Comments ({issue.comments.length})</span>
+				</div>
+				<div class="p-6">
+					{#if issue.comments.length > 0}
+						<div class="flex flex-col gap-3 mb-6">
+							{#each issue.comments as comment (comment.id)}
+								{@const cs = commentStyle(comment.author_type, comment.content)}
+								<div
+									class="border border-edge rounded-r rounded-tl rounded-bl bg-base p-4"
+									style="border-left: 3px solid {cs.border}"
+								>
+									<div class="flex items-center gap-2 mb-2 flex-wrap">
+										<span class="text-xs font-semibold {cs.textColor}">
+											{commentAuthorLabel(comment)}
+										</span>
+										<span class="text-xs text-muted" title={new Date(comment.created_at).toLocaleString()}>
+											{rel(comment.created_at)}
+										</span>
+										{#if comment.author_type === 'user'}
+											<div class="ml-auto flex gap-1">
+												<button
+													onclick={() => startEditComment(comment)}
+													class="text-xs text-muted hover:text-secondary transition-colors px-1"
+													title="Edit comment"
+												>edit</button>
+												{#if deletingCommentId === comment.id}
+													<span class="text-xs text-red">Delete?
+														<button onclick={confirmDeleteComment} disabled={commentWorking} class="hover:underline">yes</button>
+														/
+														<button onclick={() => deletingCommentId = null} class="hover:underline text-muted">no</button>
+													</span>
+												{:else}
+													<button
+														onclick={() => deletingCommentId = comment.id}
+														class="text-xs text-muted hover:text-red transition-colors px-1"
+														title="Delete comment"
+													>delete</button>
+												{/if}
+											</div>
+										{/if}
+									</div>
+									{#if editingCommentId === comment.id}
+										<div class="flex flex-col gap-2">
+											<textarea
+												bind:value={editingCommentText}
+												rows={3}
+												class="w-full bg-base border border-edge rounded px-3 py-2 text-secondary text-sm resize-none focus:border-cyan focus:outline-none"
+											></textarea>
+											<div class="flex gap-2">
+												<button
+													onclick={saveEditComment}
+													disabled={commentWorking || !editingCommentText.trim()}
+													class="px-3 py-1 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors"
+												>Save</button>
+												<button
+													onclick={() => editingCommentId = null}
+													class="px-3 py-1 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors"
+												>Cancel</button>
+											</div>
+										</div>
+									{:else}
+										<div class="issue-prose text-secondary text-sm leading-relaxed">
+											{@html md(comment.content)}
+										</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="text-muted text-sm mb-6">No comments yet.</p>
+					{/if}
+
+					<!-- Add comment form -->
+					<div class="border border-edge rounded p-4">
+						<textarea
+							bind:value={commentText}
+							rows={3}
+							placeholder="Type your comment here..."
+							class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
+						></textarea>
+						<div class="flex justify-end mt-3 pt-3 border-t border-edge">
+							<button
+								onclick={postComment}
+								disabled={posting || !commentText.trim()}
+								class="px-4 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+							>
+								{posting ? 'Posting...' : 'Post Comment'}
+							</button>
+						</div>
+					</div>
 				</div>
 			</div>
 

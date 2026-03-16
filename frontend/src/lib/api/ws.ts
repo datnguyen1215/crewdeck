@@ -11,6 +11,8 @@ export type WsEvent =
   | "issue.status_changed"
   | "issue.assigned"
   | "comment.added"
+  | "comment.updated"
+  | "comment.deleted"
   | "session.started"
   | "session.output"
   | "session.ended"
