@@ -263,6 +263,30 @@ export function addComment(
   );
 }
 
+export function editComment(
+  projectId: string,
+  issueId: string,
+  commentId: string,
+  data: { content: string },
+) {
+  return request<Comment>(
+    "PATCH",
+    `/projects/${e(projectId)}/issues/${e(issueId)}/comments/${e(commentId)}`,
+    data,
+  );
+}
+
+export function deleteComment(
+  projectId: string,
+  issueId: string,
+  commentId: string,
+) {
+  return request<void>(
+    "DELETE",
+    `/projects/${e(projectId)}/issues/${e(issueId)}/comments/${e(commentId)}`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------------------
