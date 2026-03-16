@@ -169,5 +169,4 @@ CREATE INDEX IF NOT EXISTS idx_activity_issue ON ActivityLog(issue_id);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON ActivityLog(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_captain_message_project ON CaptainMessage(project_id);
 CREATE INDEX IF NOT EXISTS idx_captain_message_created ON CaptainMessage(project_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_captain_history_project ON CaptainHistory(project_id);
 CREATE INDEX IF NOT EXISTS idx_captain_history_created ON CaptainHistory(project_id, created_at);
