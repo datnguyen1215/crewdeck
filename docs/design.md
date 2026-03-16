@@ -305,7 +305,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 
 All state changes are broadcast to connected frontend clients via WebSocket:
 
-- **Issue events** — created, status changed, assigned, comment added.
+- **Issue events** — created, status changed, assigned, comment added, comment updated, comment deleted.
 - **Agent events** — session started, session ended, output streaming.
 - **Orchestrator events** — issue prioritized, agent assigned, draft issue proposed.
 - **PR events** — PR created, status updated.
