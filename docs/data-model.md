@@ -243,9 +243,9 @@ Immutable audit trail of every action in the system.
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
 | project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
 | issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | Related issue, if applicable. |
-| actor_type | TEXT | NOT NULL | Who performed the action. One of: `user`, `agent`, `orchestrator`, `system`. |
+| actor_type | TEXT | NOT NULL | Who performed the action. One of: `user`, `agent`, `orchestrator`, `system`, `captain`. |
 | actor_id | TEXT | NULLABLE | Agent.id if actor_type is `agent`. |
-| action | TEXT | NOT NULL | Action identifier (e.g., `issue.created`, `issue.status_changed`, `comment.added`, `agent.assigned`, `session.started`, `pr.created`). |
+| action | TEXT | NOT NULL | Action identifier (e.g., `issue.created`, `issue.status_changed`, `comment.added`, `agent.assigned`, `session.started`, `pr.created`, `captain.decision`, `review.completed`, `agent.finished`, `agent.error`, `agent.needs_help`). |
 | details | TEXT | | JSON blob with action-specific data (e.g., `{"from": "open", "to": "in_progress"}`). |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
