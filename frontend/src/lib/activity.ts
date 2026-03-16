@@ -74,7 +74,7 @@ export function actionLabel(entry: ActivityLog): string {
 
 export function hasExpandableDetails(entry: ActivityLog): boolean {
 	const d = (entry.details as Record<string, unknown>) ?? {};
-	return !!(d.text || d.comment || d.reason || d.reasoning || d.note || d.branch || d.message || d.verdict);
+	return !!(d.text || d.content_preview || d.reason || d.reasoning || d.note || d.branch || d.message || d.verdict);
 }
 
 export const HANDOFF_ACTIONS = new Set([

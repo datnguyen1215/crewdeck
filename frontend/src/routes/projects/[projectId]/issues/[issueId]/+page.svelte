@@ -566,8 +566,8 @@
 															{#if details.text}
 																<p class="text-primary">"{details.text}"</p>
 															{/if}
-															{#if details.comment}
-																<p class="text-primary">"{details.comment}"</p>
+															{#if details.content_preview}
+																<p class="text-primary">"{details.content_preview}"</p>
 															{/if}
 															{#if details.reasoning}
 																<p class="whitespace-pre-wrap">{details.reasoning}</p>

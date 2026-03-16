@@ -113,12 +113,19 @@ export function initActivityLogger(): void {
   });
 
   eventBus.on("orchestrator.decision", ({ project_id, action, details, reasoning, issue_id, agent_id }) => {
+    const params = details as Record<string, unknown> | undefined;
     log({
       project_id,
       issue_id: issue_id ?? null,
       actor_type: "captain",
       action: "captain.decision",
-      details: { ...(details as object), action, reasoning, agent_id },
+      details: {
+        action,
+        reasoning,
+        agent_id,
+        reviewer_agent_id: params?.reviewer_agent_id,
+        message: params?.message,
+      },
     });
   });
 
