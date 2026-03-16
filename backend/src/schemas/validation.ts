@@ -146,6 +146,10 @@ export const UpdateSessionSchema = z.object({
   context: z.unknown().optional(),
 });
 
+export const CreateCaptainMessageSchema = z.object({
+  content: z.string().min(1),
+});
+
 export const CreateActivitySchema = z.object({
   project_id: z.string(),
   issue_id: z.string().optional(),

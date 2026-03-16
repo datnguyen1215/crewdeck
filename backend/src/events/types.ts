@@ -71,4 +71,16 @@ export interface EventMap {
   "orchestrator.decision": { project_id: string; action: string; details: unknown };
   "orchestrator.draft_issue": { issue: Issue; project_id: string };
   "review.completed": { session_id: string; issue_id: string; agent_id: string; project_id: string; verdict: string };
+  "captain.message": {
+    message: {
+      id: string;
+      project_id: string;
+      author_type: string;
+      author_id: string | null;
+      content: string;
+      context: unknown;
+      created_at: string;
+    };
+    project_id: string;
+  };
 }
