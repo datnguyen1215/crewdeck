@@ -32,15 +32,5 @@ export async function fetchRepoMetadata(
     );
   }
 
-  const data = (await res.json()) as {
-    name: string;
-    description: string | null;
-    default_branch: string;
-  };
-
-  return {
-    name: data.name,
-    description: data.description,
-    default_branch: data.default_branch,
-  };
+  return (await res.json()) as RepoMetadata;
 }

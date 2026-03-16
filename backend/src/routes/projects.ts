@@ -11,7 +11,7 @@ import { getGitHubAccount } from "../db/repositories/github-accounts.js";
 import { parseGithubUrl } from "../db/repositories/repos.js";
 import { fetchRepoMetadata } from "../github/repo-metadata.js";
 import { validate } from "../middleware/validate.js";
-import { NotFoundError, ValidationError } from "../middleware/errors.js";
+import { NotFoundError } from "../middleware/errors.js";
 import {
   CreateProjectSchema,
   UpdateProjectSchema,
@@ -36,11 +36,6 @@ router.get("/:id", (req, res) => {
 router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
   try {
     const body = req.body;
-
-    if (!body.github_url) {
-      throw new ValidationError("github_url is required");
-    }
-
     const { owner, name: repoName } = parseGithubUrl(body.github_url);
 
     // Fetch metadata from GitHub API
@@ -51,8 +46,12 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
     let metadata;
     try {
       metadata = await fetchRepoMetadata(owner, repoName, token);
-    } catch {
-      // Fall back to URL-derived values if API call fails (e.g. rate limited)
+    } catch (err) {
+      // If a GitHub account was explicitly selected, surface the error —
+      // the user likely expects private repo access and should know it failed.
+      if (body.github_account_id) throw err;
+      // For unauthenticated requests, fall back to URL-derived values
+      // (e.g. rate-limited on a public repo).
       metadata = { name: repoName, description: null, default_branch: "main" };
     }
 
