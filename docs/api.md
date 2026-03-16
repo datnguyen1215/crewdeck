@@ -292,7 +292,9 @@ GET /projects/:projectId/crew
       "name": "Alice",
       "title": "Senior Software Engineer",
       "description": "Focuses on backend services and API design.",
-      "is_captain": false
+      "is_captain": false,
+      "status": "idle | working | reviewing",
+      "current_issue": { "id": "uuid", "title": "Fix login bug" } | null
     }
   ],
   "created_at": "ISO 8601",
