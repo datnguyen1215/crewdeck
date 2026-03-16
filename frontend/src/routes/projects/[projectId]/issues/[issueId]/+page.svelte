@@ -132,6 +132,7 @@
 			ws.on('review.completed', reloadActivity),
 			ws.on('agent.finished', reloadActivity),
 			ws.on('agent.error', reloadActivity),
+			ws.on('agent.needs_help', reloadActivity),
 			ws.on('pr.created', reloadActivity),
 		];
 		return () => unsubs.forEach(fn => fn());
@@ -562,14 +563,29 @@
 													</button>
 													{#if isExp}
 														<div class="mt-1.5 p-2 bg-base-hi border border-edge rounded text-xs text-secondary font-mono leading-relaxed">
+															{#if details.text}
+																<p class="text-primary">"{details.text}"</p>
+															{/if}
+															{#if details.comment}
+																<p class="text-primary">"{details.comment}"</p>
+															{/if}
 															{#if details.reasoning}
 																<p class="whitespace-pre-wrap">{details.reasoning}</p>
 															{/if}
 															{#if details.verdict}
-																<p class="{details.verdict === 'approved' ? 'text-green' : 'text-amber'}">Verdict: {details.verdict}</p>
+																<p class="mt-1 {details.verdict === 'approved' ? 'text-green' : 'text-amber'}">Verdict: {details.verdict}</p>
 															{/if}
 															{#if details.message}
-																<p>{details.message}</p>
+																<p class="mt-1">{details.message}</p>
+															{/if}
+															{#if details.reason}
+																<p class="text-muted mt-1">Reason: {details.reason}</p>
+															{/if}
+															{#if details.branch}
+																<p class="text-muted mt-1">Branch: {details.branch}</p>
+															{/if}
+															{#if details.note}
+																<p class="text-muted mt-1">{details.note}</p>
 															{/if}
 														</div>
 													{/if}

@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { db } from "../db/index.js";
+import { getSession } from "../db/repositories/sessions.js";
 import { eventBus } from "./bus.js";
 
 // Exhaustive set of actor types written to the audit log.
@@ -90,9 +91,11 @@ export function initActivityLogger(): void {
     });
   });
 
-  eventBus.on("session.ended", ({ project_id, status }) => {
+  eventBus.on("session.ended", ({ session_id, project_id, status }) => {
+    const session = getSession(session_id);
     log({
       project_id,
+      issue_id: session?.issue_id ?? null,
       actor_type: "system",
       action: "session.ended",
       details: { status },
@@ -115,7 +118,7 @@ export function initActivityLogger(): void {
       issue_id: issue_id ?? null,
       actor_type: "captain",
       action: "captain.decision",
-      details: { action, reasoning, agent_id, ...(details as object) },
+      details: { ...(details as object), action, reasoning, agent_id },
     });
   });
 
