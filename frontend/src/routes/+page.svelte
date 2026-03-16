@@ -5,18 +5,12 @@
 	let projects = $state<ProjectWithStats[]>([]);
 	let loading = $state(true);
 	let githubAccounts = $state<GitHubAccount[]>([]);
-	let selectedGitHubAccountId = $state('');
 
 	// Modal state
 	let showModal = $state(false);
-	let name = $state('');
-	let description = $state('');
-	let maxConcurrency = $state(1);
-	let maxReviewRounds = $state(3);
 	let githubUrl = $state('');
-	let defaultBranch = $state('main');
+	let selectedGitHubAccountId = $state('');
 	let submitting = $state(false);
-	let nameError = $state('');
 	let githubUrlError = $state('');
 	let formError = $state('');
 
@@ -34,36 +28,20 @@
 	});
 
 	async function submitProject() {
-		nameError = '';
 		githubUrlError = '';
 		formError = '';
 
-		let hasError = false;
-		if (!name.trim()) {
-			nameError = 'Name is required';
-			hasError = true;
-		}
 		if (!githubUrl.trim()) {
 			githubUrlError = 'GitHub URL is required';
-			hasError = true;
+			return;
 		}
-		if (hasError) return;
-
-		if (maxConcurrency < 1) maxConcurrency = 1;
-		if (maxReviewRounds < 1) maxReviewRounds = 1;
 
 		submitting = true;
 		try {
 			const project = await createProject({
-				name: name.trim(),
-				description: description.trim() || undefined,
-				max_concurrency: maxConcurrency,
-				max_review_rounds: maxReviewRounds,
 				github_url: githubUrl.trim(),
-				default_branch: defaultBranch.trim() || 'main',
 				github_account_id: selectedGitHubAccountId || undefined
 			});
-			// Optimistic update: repo was created inline, so repo_count starts at 1.
 			projects = [
 				...projects,
 				{
@@ -85,14 +63,8 @@
 	function closeModal() {
 		if (submitting) return;
 		showModal = false;
-		name = '';
-		description = '';
-		selectedGitHubAccountId = '';
 		githubUrl = '';
-		defaultBranch = 'main';
-		maxConcurrency = 1;
-		maxReviewRounds = 3;
-		nameError = '';
+		selectedGitHubAccountId = '';
 		githubUrlError = '';
 		formError = '';
 	}
@@ -342,132 +314,46 @@
 				}}
 				class="flex flex-col gap-4"
 			>
-				<!-- Name -->
+				<!-- GitHub URL -->
 				<div>
-					<label for="proj-name" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						Name <span class="text-red">*</span>
+					<label for="proj-github-url" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+						GitHub URL <span class="text-red">*</span>
 					</label>
 					<input
-						id="proj-name"
+						id="proj-github-url"
 						type="text"
-						bind:value={name}
-						placeholder="My Project"
+						bind:value={githubUrl}
+						placeholder="https://github.com/owner/repo"
 						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
 							focus:outline-none focus:border-cyan transition-colors"
-						class:border-red={nameError}
+						class:border-red={githubUrlError}
 					/>
-					{#if nameError}
-						<p class="text-red text-xs mt-1">{nameError}</p>
+					{#if githubUrlError}
+						<p class="text-red text-xs mt-1">{githubUrlError}</p>
+					{:else}
+						<p class="text-muted text-xs mt-1">Name, description, and branch will be fetched automatically</p>
 					{/if}
-				</div>
-
-				<!-- Description -->
-				<div>
-					<label for="proj-desc" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						Description
-					</label>
-					<textarea
-						id="proj-desc"
-						bind:value={description}
-						placeholder="Optional description..."
-						rows="3"
-						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
-							focus:outline-none focus:border-cyan transition-colors resize-none"
-					></textarea>
 				</div>
 
 				<!-- GitHub Account -->
-				<div>
-					<label for="proj-gh-account" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						GitHub Account
-					</label>
-					<select
-						id="proj-gh-account"
-						bind:value={selectedGitHubAccountId}
-						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary
-							focus:outline-none focus:border-cyan transition-colors"
-					>
-						<option value="">None (use host credentials)</option>
-						{#each githubAccounts as account}
-							<option value={account.id}>{account.github_username} ({account.account_name})</option>
-						{/each}
-					</select>
-					{#if githubAccounts.length === 0}
-						<p class="text-muted text-xs mt-1">
-							No accounts connected. <a href="/settings" class="text-cyan hover:underline">Add one in Settings</a>
-						</p>
-					{/if}
-				</div>
-
-				<!-- Repository -->
-				<div class="flex gap-4">
-					<div class="flex-1">
-						<label for="proj-github-url" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-							GitHub URL <span class="text-red">*</span>
+				{#if githubAccounts.length > 0}
+					<div>
+						<label for="proj-gh-account" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+							GitHub Account
 						</label>
-						<input
-							id="proj-github-url"
-							type="text"
-							bind:value={githubUrl}
-							placeholder="https://github.com/owner/repo"
-							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
-								focus:outline-none focus:border-cyan transition-colors"
-							class:border-red={githubUrlError}
-						/>
-						{#if githubUrlError}
-							<p class="text-red text-xs mt-1">{githubUrlError}</p>
-						{/if}
-					</div>
-					<div class="w-32">
-						<label for="proj-default-branch" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-							Branch
-						</label>
-						<input
-							id="proj-default-branch"
-							type="text"
-							bind:value={defaultBranch}
-							placeholder="main"
-							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
-								focus:outline-none focus:border-cyan transition-colors"
-						/>
-					</div>
-				</div>
-
-				<!-- Max Concurrency + Max Review Rounds -->
-				<div class="flex gap-4">
-					<div class="flex-1">
-						<label
-							for="proj-concurrency"
-							class="block text-xs text-muted uppercase tracking-widest mb-1.5"
-						>
-							Max Concurrency
-						</label>
-						<input
-							id="proj-concurrency"
-							type="number"
-							bind:value={maxConcurrency}
-							min="1"
+						<select
+							id="proj-gh-account"
+							bind:value={selectedGitHubAccountId}
 							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary
 								focus:outline-none focus:border-cyan transition-colors"
-						/>
-					</div>
-					<div class="flex-1">
-						<label
-							for="proj-review-rounds"
-							class="block text-xs text-muted uppercase tracking-widest mb-1.5"
 						>
-							Max Review Rounds
-						</label>
-						<input
-							id="proj-review-rounds"
-							type="number"
-							bind:value={maxReviewRounds}
-							min="1"
-							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary
-								focus:outline-none focus:border-cyan transition-colors"
-						/>
+							<option value="">None (use host credentials)</option>
+							{#each githubAccounts as account}
+								<option value={account.id}>{account.github_username} ({account.account_name})</option>
+							{/each}
+						</select>
 					</div>
-				</div>
+				{/if}
 
 				{#if formError}
 					<p class="text-red text-sm">{formError}</p>

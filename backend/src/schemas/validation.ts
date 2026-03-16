@@ -28,11 +28,11 @@ const githubUrl = z.string().url().refine(
 );
 
 const CreateProjectBase = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).optional(),
   description: z.string().optional(),
   max_concurrency: z.number().int().positive().optional(),
   max_review_rounds: z.number().int().nonnegative().optional(),
-  github_url: githubUrl.optional(),
+  github_url: githubUrl,
   default_branch: z.string().optional(),
   github_account_id: z.string().nullable().optional(),
 });

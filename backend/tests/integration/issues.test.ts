@@ -46,7 +46,7 @@ describe("Issues API", () => {
     app = await getApp();
     const res = await request(app)
       .post("/api/v1/projects")
-      .send({ name: "issues-test-project" });
+      .send({ name: "issues-test-project", github_url: "https://github.com/test/repo" });
     projectId = res.body.id;
   });
 
@@ -56,7 +56,7 @@ describe("Issues API", () => {
     it("returns empty array when no issues", async () => {
       const proj = await request(app)
         .post("/api/v1/projects")
-        .send({ name: "empty-project" });
+        .send({ name: "empty-project", github_url: "https://github.com/test/repo" });
       const res = await request(app).get(base(proj.body.id));
       expect(res.status).toBe(200);
       expect(res.body).toEqual([]);

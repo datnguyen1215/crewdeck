@@ -27,11 +27,11 @@ describe("Projects CRUD", () => {
     it("returns created projects", async () => {
       const a = await request(app)
         .post(BASE)
-        .send({ name: name("list-a") });
+        .send({ name: name("list-a"), github_url: "https://github.com/test/repo" });
       expect(a.status).toBe(201);
       const b = await request(app)
         .post(BASE)
-        .send({ name: name("list-b") });
+        .send({ name: name("list-b"), github_url: "https://github.com/test/repo" });
       expect(b.status).toBe(201);
 
       const res = await request(app).get(BASE);
@@ -45,7 +45,7 @@ describe("Projects CRUD", () => {
     it("creates a project with valid body", async () => {
       const res = await request(app)
         .post(BASE)
-        .send({ name: name("create"), description: "desc" });
+        .send({ name: name("create"), description: "desc", github_url: "https://github.com/test/repo" });
 
       expect(res.status).toBe(201);
       expect(res.body).toMatchObject({
@@ -57,14 +57,22 @@ describe("Projects CRUD", () => {
       expect(res.body.updated_at).toBeDefined();
     });
 
-    it("rejects missing name with 400", async () => {
+    it("rejects missing github_url with 400", async () => {
       const res = await request(app).post(BASE).send({});
       expect(res.status).toBe(400);
     });
 
     it("rejects empty name with 400", async () => {
-      const res = await request(app).post(BASE).send({ name: "" });
+      const res = await request(app).post(BASE).send({ name: "", github_url: "https://github.com/test/repo" });
       expect(res.status).toBe(400);
+    });
+
+    it("derives name from github_url when name is omitted", async () => {
+      const res = await request(app)
+        .post(BASE)
+        .send({ github_url: "https://github.com/test/my-project" });
+      expect(res.status).toBe(201);
+      expect(res.body.name).toBe("my-project");
     });
 
     it("returns 400 with message when git clone fails", async () => {
@@ -89,7 +97,7 @@ describe("Projects CRUD", () => {
     it("applies default values for max_concurrency and max_review_rounds", async () => {
       const res = await request(app)
         .post(BASE)
-        .send({ name: name("defaults") });
+        .send({ name: name("defaults"), github_url: "https://github.com/test/repo" });
       expect(res.status).toBe(201);
       expect(typeof res.body.max_concurrency).toBe("number");
       expect(typeof res.body.max_review_rounds).toBe("number");
@@ -100,7 +108,7 @@ describe("Projects CRUD", () => {
     it("returns a project by id", async () => {
       const created = await request(app)
         .post(BASE)
-        .send({ name: name("get-by-id") });
+        .send({ name: name("get-by-id"), github_url: "https://github.com/test/repo" });
       expect(created.status).toBe(201);
       const res = await request(app).get(`${BASE}/${created.body.id}`);
 
@@ -119,7 +127,7 @@ describe("Projects CRUD", () => {
     it("updates name and description", async () => {
       const created = await request(app)
         .post(BASE)
-        .send({ name: name("patch") });
+        .send({ name: name("patch"), github_url: "https://github.com/test/repo" });
       expect(created.status).toBe(201);
       const res = await request(app)
         .patch(`${BASE}/${created.body.id}`)
@@ -140,7 +148,7 @@ describe("Projects CRUD", () => {
     it("rejects invalid fields with 400", async () => {
       const created = await request(app)
         .post(BASE)
-        .send({ name: name("patch-bad") });
+        .send({ name: name("patch-bad"), github_url: "https://github.com/test/repo" });
       expect(created.status).toBe(201);
       const res = await request(app)
         .patch(`${BASE}/${created.body.id}`)
@@ -153,7 +161,7 @@ describe("Projects CRUD", () => {
     it("deletes a project and returns 204", async () => {
       const created = await request(app)
         .post(BASE)
-        .send({ name: name("delete") });
+        .send({ name: name("delete"), github_url: "https://github.com/test/repo" });
       expect(created.status).toBe(201);
       const res = await request(app).delete(`${BASE}/${created.body.id}`);
       expect(res.status).toBe(204);
@@ -167,7 +175,7 @@ describe("Projects CRUD", () => {
     it("project is gone after deletion", async () => {
       const created = await request(app)
         .post(BASE)
-        .send({ name: name("delete-verify") });
+        .send({ name: name("delete-verify"), github_url: "https://github.com/test/repo" });
       expect(created.status).toBe(201);
       const del = await request(app).delete(`${BASE}/${created.body.id}`);
       expect(del.status).toBe(204);

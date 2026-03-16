@@ -19,7 +19,7 @@ describe("Sessions & Activity Log", () => {
   beforeEach(async () => {
     const res = await request(app)
       .post(PROJECTS)
-      .send({ name: `${prefix}-${Math.random().toString(36).slice(2)}` });
+      .send({ name: `${prefix}-${Math.random().toString(36).slice(2)}`, github_url: "https://github.com/test/repo" });
     projectId = res.body.id;
   });
 

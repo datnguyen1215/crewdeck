@@ -12,7 +12,7 @@ beforeAll(async () => {
   app = await getApp();
   const res = await request(app)
     .post("/api/v1/projects")
-    .send({ name: "crew-agents-test-project" });
+    .send({ name: "crew-agents-test-project", github_url: "https://github.com/test/repo" });
   expect(res.status).toBe(201);
   projectId = res.body.id;
 });

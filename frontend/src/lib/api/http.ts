@@ -66,12 +66,7 @@ export function getProject(id: string) {
 }
 
 export function createProject(data: {
-  name: string;
-  description?: string;
-  max_concurrency?: number;
-  max_review_rounds?: number;
-  github_url?: string;
-  default_branch?: string;
+  github_url: string;
   github_account_id?: string;
 }) {
   return request<Project>("POST", "/projects", data);
