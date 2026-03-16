@@ -123,11 +123,10 @@ A specialized AI persona within a crew.
 |-------|------|-------------|-------------|
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
 | crew_id | TEXT | NOT NULL, FOREIGN KEY → Crew.id | Owning crew. |
-| name | TEXT | NOT NULL | Agent name (e.g., "Alice — Senior Engineer"). |
-| role | TEXT | NOT NULL | Short role label (e.g., "Senior Software Engineer"). |
-| expertise | TEXT | | Comma-separated or JSON array of expertise areas. Used by orchestrator for assignment. |
+| name | TEXT | NOT NULL | Agent name (e.g., "Alice"). |
+| title | TEXT | NOT NULL | Professional title (e.g., "Senior Software Engineer"). |
+| description | TEXT | | Optional 1-2 sentence summary of what this agent does. |
 | system_prompt | TEXT | NOT NULL | Full system prompt defining this agent's persona and behavior. |
-| can_review | INTEGER | NOT NULL, DEFAULT 1 | Whether this agent participates in reviews (1 = yes, 0 = no). |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 

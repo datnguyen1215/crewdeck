@@ -296,9 +296,8 @@ GET /projects/:projectId/crew
     {
       "id": "uuid",
       "name": "Alice",
-      "role": "Senior Software Engineer",
-      "expertise": ["backend", "databases", "API design"],
-      "can_review": true
+      "title": "Senior Software Engineer",
+      "description": "Focuses on backend services and API design."
     }
   ],
   "created_at": "ISO 8601",
@@ -353,49 +352,51 @@ POST /projects/:projectId/crew/agents
 ```json
 {
   "name": "Alice",
-  "role": "Senior Software Engineer",
-  "expertise": ["backend", "databases"],
-  "system_prompt": "You are a senior software engineer...",
-  "can_review": true
+  "title": "Senior Software Engineer",
+  "description": "Focuses on backend services and API design.",
+  "system_prompt": "You are a senior software engineer..."
 }
 ```
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
 | name | Yes | — | Agent name. |
-| role | Yes | — | Short role label. |
-| expertise | No | [] | Array of expertise areas. |
+| title | Yes | — | Professional title. |
+| description | No | null | Short description of the agent's focus. |
 | system_prompt | Yes | — | Full system prompt. |
-| can_review | No | true | Whether this agent reviews. |
 
 **Response:** `201 Created` — The created agent object.
 
 #### Generate Agent Prompt
 
 ```
-POST /projects/:projectId/crew/agents/generate-prompt
+POST /projects/:projectId/crew/agents/generate
 ```
 
-Uses the CLI tool to generate and refine a system prompt based on a role description.
+Uses the CLI tool to generate an agent configuration from a short description.
 
 **Request Body:**
 ```json
 {
-  "role_description": "A security expert focused on OWASP top 10 vulnerabilities and secure coding practices"
+  "prompt": "A security expert focused on OWASP top 10 vulnerabilities and secure coding practices"
 }
 ```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| prompt | Yes | Short description of the desired agent (max 2000 chars). |
 
 **Response:** `200 OK`
 ```json
 {
-  "suggested_name": "Security Expert",
-  "suggested_role": "Security Analyst",
-  "suggested_expertise": ["security", "OWASP", "vulnerability analysis"],
-  "generated_prompt": "You are a security expert specializing in..."
+  "name": "Rex",
+  "title": "Security Analyst",
+  "description": "Specializes in OWASP top 10 vulnerabilities and secure coding practices.",
+  "system_prompt": "You are a security expert specializing in..."
 }
 ```
 
-**Note:** This does not create the agent. The user reviews the generated prompt and then calls Create Agent.
+**Note:** This does not create the agent. The user reviews the generated values and then calls Create Agent.
 
 #### Update Agent
 
@@ -456,7 +457,7 @@ GET /projects/:projectId/issues/:issueId
   "status": "in_review",
   "priority": 8,
   "assigned_agent_id": "uuid",
-  "assigned_agent": { "id": "uuid", "name": "Alice", "role": "..." },
+  "assigned_agent": { "id": "uuid", "name": "Alice", "title": "..." },
   "created_by": "user",
   "max_review_rounds": null,
   "current_review_round": 1,
@@ -598,7 +599,7 @@ GET /projects/:projectId/issues/:issueId/comments
     "issue_id": "uuid",
     "author_type": "agent",
     "author_id": "uuid",
-    "author": { "id": "uuid", "name": "Alice", "role": "Senior Engineer" },
+    "author": { "id": "uuid", "name": "Alice", "title": "Senior Engineer" },
     "content": "I've identified the root cause...",
     "created_at": "ISO 8601"
   }
