@@ -4,6 +4,8 @@ export interface SpawnOptions {
   prompt: string;
   systemPrompt?: string;
   env?: Record<string, string>;
+  /** Run claude with --print flag (non-interactive, stdout-only). Session exits when done. */
+  print?: boolean;
 }
 
 export interface SessionHandle {

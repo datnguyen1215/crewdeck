@@ -79,26 +79,35 @@ function seedIssue(status = "open"): void {
   ).run(issueId, projectId, "Fix auth bug", "OAuth is broken", status, "user");
 }
 
-function makeAdapter(): AgentAdapter {
+/** Create a mock adapter where getOutput returns the given JSON and isAlive returns false (session exited). */
+function makeAdapter(outputJson?: string): AgentAdapter {
   return {
     spawn: vi
       .fn()
       .mockResolvedValue({ sessionName: "test-session" } as SessionHandle),
     send: vi.fn().mockResolvedValue(undefined),
-    getOutput: vi.fn().mockResolvedValue(""),
-    isAlive: vi.fn().mockResolvedValue(true),
+    getOutput: vi.fn().mockResolvedValue(outputJson ?? ""),
+    isAlive: vi.fn().mockResolvedValue(false),
     kill: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function flushPromises(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+  // The orchestrator polls isAlive at 500ms intervals; since isAlive
+  // is mocked to return false immediately, we need to wait >500ms for
+  // the poll delay + await chain to fully resolve.
+  return new Promise((resolve) => setTimeout(resolve, 700));
 }
+
+const DEFAULT_RESPONSE = JSON.stringify({
+  action: "no_action",
+  params: {},
+  reasoning: "nothing",
+});
 
 describe("OrchestratorManager", () => {
   let bus: EventBus;
   let adapter: AgentAdapter;
-  let mockClaude: ReturnType<typeof vi.fn>;
   let manager: OrchestratorManager;
 
   beforeAll(() => {
@@ -121,22 +130,13 @@ describe("OrchestratorManager", () => {
     ).run(projectId);
 
     bus = new EventBus();
-    adapter = makeAdapter();
-    mockClaude = vi
-      .fn()
-      .mockResolvedValue(
-        JSON.stringify({
-          action: "no_action",
-          params: {},
-          reasoning: "nothing",
-        }),
-      );
-    manager = new OrchestratorManager(bus, adapter, mockClaude);
+    adapter = makeAdapter(DEFAULT_RESPONSE);
+    manager = new OrchestratorManager(bus, adapter);
     manager.init();
   });
 
   afterEach(() => {
-    mockClaude.mockReset();
+    vi.restoreAllMocks();
   });
 
   // --- Event subscription tests ---
@@ -149,8 +149,11 @@ describe("OrchestratorManager", () => {
         .get(issueId) as Record<string, unknown>;
       bus.emit("issue.created", { issue: issue as never });
       await flushPromises();
-      expect(mockClaude).toHaveBeenCalledOnce();
-      expect(mockClaude.mock.calls[0][0] as string).toContain("Fix auth bug");
+      // The orchestrator should have spawned a tmux session with --print
+      expect(adapter.spawn).toHaveBeenCalled();
+      const call = vi.mocked(adapter.spawn).mock.calls[0][0];
+      expect(call.print).toBe(true);
+      expect(call.prompt).toContain("Fix auth bug");
     });
 
     it("resumes on agent.finished", async () => {
@@ -163,7 +166,7 @@ describe("OrchestratorManager", () => {
         role: "worker",
       });
       await flushPromises();
-      expect(mockClaude).toHaveBeenCalledOnce();
+      expect(adapter.spawn).toHaveBeenCalled();
     });
 
     it("resumes on review.completed", async () => {
@@ -182,7 +185,7 @@ describe("OrchestratorManager", () => {
         verdict: "approved",
       });
       await flushPromises();
-      expect(mockClaude).toHaveBeenCalledOnce();
+      expect(adapter.spawn).toHaveBeenCalled();
     });
 
     it("does not resume on orchestrator/agent comments", async () => {
@@ -198,7 +201,7 @@ describe("OrchestratorManager", () => {
         project_id: projectId,
       });
       await flushPromises();
-      expect(mockClaude).not.toHaveBeenCalled();
+      expect(adapter.spawn).not.toHaveBeenCalled();
     });
 
     it("does not resume on orchestrator-created issues", async () => {
@@ -211,7 +214,7 @@ describe("OrchestratorManager", () => {
         .get(issueId) as Record<string, unknown>;
       bus.emit("issue.created", { issue: issue as never });
       await flushPromises();
-      expect(mockClaude).not.toHaveBeenCalled();
+      expect(adapter.spawn).not.toHaveBeenCalled();
     });
 
     it("resumes on user comment.added", async () => {
@@ -227,7 +230,7 @@ describe("OrchestratorManager", () => {
         project_id: projectId,
       });
       await flushPromises();
-      expect(mockClaude).toHaveBeenCalledOnce();
+      expect(adapter.spawn).toHaveBeenCalled();
     });
   });
 
@@ -236,13 +239,12 @@ describe("OrchestratorManager", () => {
   describe("assign action", () => {
     it("updates issue to in_progress and creates IssueAgent", async () => {
       seedIssue("open");
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "assign",
-          params: { issue_id: issueId, agent_id: agentId },
-          reasoning: "Best match",
-        }),
-      );
+      const response = JSON.stringify({
+        action: "assign",
+        params: { issue_id: issueId, agent_id: agentId },
+        reasoning: "Best match",
+      });
+      vi.mocked(adapter.getOutput).mockResolvedValue(response);
 
       const issue = db
         .prepare("SELECT * FROM Issue WHERE id = ?")
@@ -267,13 +269,12 @@ describe("OrchestratorManager", () => {
 
     it("spawns an agent session", async () => {
       seedIssue("open");
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "assign",
-          params: { issue_id: issueId, agent_id: agentId },
-          reasoning: "Go",
-        }),
-      );
+      const response = JSON.stringify({
+        action: "assign",
+        params: { issue_id: issueId, agent_id: agentId },
+        reasoning: "Go",
+      });
+      vi.mocked(adapter.getOutput).mockResolvedValue(response);
 
       const issue = db
         .prepare("SELECT * FROM Issue WHERE id = ?")
@@ -281,21 +282,21 @@ describe("OrchestratorManager", () => {
       bus.emit("issue.created", { issue: issue as never });
       await flushPromises();
 
-      expect(adapter.spawn).toHaveBeenCalledOnce();
-      const call = vi.mocked(adapter.spawn).mock.calls[0][0];
-      expect(call.sessionName).toContain("worker");
-      expect(call.env?.CREWDECK_AGENT_ID).toBe(agentId);
+      // spawn is called twice: once for orchestrator tmux, once for agent
+      const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
+      const agentSpawn = spawnCalls.find((c) => c[0].sessionName.includes("worker"));
+      expect(agentSpawn).toBeDefined();
+      expect(agentSpawn![0].env?.CREWDECK_AGENT_ID).toBe(agentId);
     });
 
     it("posts a comment after assign", async () => {
       seedIssue("open");
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "assign",
-          params: { issue_id: issueId, agent_id: agentId },
-          reasoning: "Go",
-        }),
-      );
+      const response = JSON.stringify({
+        action: "assign",
+        params: { issue_id: issueId, agent_id: agentId },
+        reasoning: "Go",
+      });
+      vi.mocked(adapter.getOutput).mockResolvedValue(response);
 
       const issue = db
         .prepare("SELECT * FROM Issue WHERE id = ?")
@@ -324,13 +325,12 @@ describe("OrchestratorManager", () => {
       ).run(i2, projectId, "Busy2", "d", "in_progress", "user");
 
       seedIssue("open");
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "assign",
-          params: { issue_id: issueId, agent_id: agentId },
-          reasoning: "Try to assign",
-        }),
-      );
+      const response = JSON.stringify({
+        action: "assign",
+        params: { issue_id: issueId, agent_id: agentId },
+        reasoning: "Try to assign",
+      });
+      vi.mocked(adapter.getOutput).mockResolvedValue(response);
 
       const issue = db
         .prepare("SELECT * FROM Issue WHERE id = ?")
@@ -355,13 +355,12 @@ describe("OrchestratorManager", () => {
 
     it("skips assign for non-assignable issue status", async () => {
       seedIssue("in_progress");
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "assign",
-          params: { issue_id: issueId, agent_id: agentId },
-          reasoning: "wrong state",
-        }),
-      );
+      const response = JSON.stringify({
+        action: "assign",
+        params: { issue_id: issueId, agent_id: agentId },
+        reasoning: "wrong state",
+      });
+      vi.mocked(adapter.getOutput).mockResolvedValue(response);
 
       bus.emit("agent.finished", {
         session_id: "s1",
@@ -377,7 +376,10 @@ describe("OrchestratorManager", () => {
         .prepare("SELECT status FROM Issue WHERE id = ?")
         .get(issueId) as { status: string };
       expect(updated.status).toBe("in_progress");
-      expect(adapter.spawn).not.toHaveBeenCalled();
+      // spawn is called once for orchestrator, but NOT for an agent session
+      const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
+      const agentSpawn = spawnCalls.find((c) => c[0].sessionName.includes("worker"));
+      expect(agentSpawn).toBeUndefined();
     });
   });
 
@@ -386,17 +388,16 @@ describe("OrchestratorManager", () => {
   describe("route_review action", () => {
     it("transitions issue to in_review and creates reviewer IssueAgent", async () => {
       seedIssue("in_progress");
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "route_review",
-          params: {
-            issue_id: issueId,
-            reviewer_agent_id: reviewerAgentId,
-            review_order: 1,
-          },
-          reasoning: "Route to Bob",
-        }),
-      );
+      const response = JSON.stringify({
+        action: "route_review",
+        params: {
+          issue_id: issueId,
+          reviewer_agent_id: reviewerAgentId,
+          review_order: 1,
+        },
+        reasoning: "Route to Bob",
+      });
+      vi.mocked(adapter.getOutput).mockResolvedValue(response);
 
       bus.emit("agent.finished", {
         session_id: "s1",
@@ -429,13 +430,12 @@ describe("OrchestratorManager", () => {
   describe("escalate action", () => {
     it("posts escalation comment", async () => {
       seedIssue("in_review");
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "escalate",
-          params: { issue_id: issueId, reason: "Max rounds hit" },
-          reasoning: "Escalate",
-        }),
-      );
+      const response = JSON.stringify({
+        action: "escalate",
+        params: { issue_id: issueId, reason: "Max rounds hit" },
+        reasoning: "Escalate",
+      });
+      vi.mocked(adapter.getOutput).mockResolvedValue(response);
 
       bus.emit("agent.finished", {
         session_id: "s1",
@@ -461,17 +461,16 @@ describe("OrchestratorManager", () => {
   describe("create_draft_issue action", () => {
     it("creates issue with draft status and orchestrator author", async () => {
       seedIssue("open");
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "create_draft_issue",
-          params: {
-            title: "Refactor auth",
-            description: "Needed",
-            priority: 5,
-          },
-          reasoning: "Detected during review",
-        }),
-      );
+      const response = JSON.stringify({
+        action: "create_draft_issue",
+        params: {
+          title: "Refactor auth",
+          description: "Needed",
+          priority: 5,
+        },
+        reasoning: "Detected during review",
+      });
+      vi.mocked(adapter.getOutput).mockResolvedValue(response);
 
       const issue = db
         .prepare("SELECT * FROM Issue WHERE id = ?")
@@ -506,18 +505,17 @@ describe("OrchestratorManager", () => {
         "INSERT INTO Issue (id, project_id, title, description, status, created_by, priority) VALUES (?, ?, ?, ?, ?, ?, ?)",
       ).run(i2, projectId, "P2", "d", "open", "user", 0);
 
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "reorder",
-          params: {
-            issue_priorities: [
-              { issue_id: i1, priority: 10 },
-              { issue_id: i2, priority: 3 },
-            ],
-          },
-          reasoning: "Prioritize",
-        }),
-      );
+      const response = JSON.stringify({
+        action: "reorder",
+        params: {
+          issue_priorities: [
+            { issue_id: i1, priority: 10 },
+            { issue_id: i2, priority: 3 },
+          ],
+        },
+        reasoning: "Prioritize",
+      });
+      vi.mocked(adapter.getOutput).mockResolvedValue(response);
 
       bus.emit("comment.added", {
         comment: {
@@ -607,14 +605,23 @@ describe("OrchestratorManager", () => {
 
   describe("concurrency guard", () => {
     it("prevents concurrent runs but re-runs sequentially after first completes", async () => {
-      let resolve!: (v: string) => void;
-      const slowPromise = new Promise<string>((r) => {
-        resolve = r;
+      // Make isAlive return true initially, then false after a delay
+      let spawnCount = 0;
+      let resolveFirst!: () => void;
+      const firstRunWait = new Promise<void>((r) => { resolveFirst = r; });
+
+      vi.mocked(adapter.isAlive).mockImplementation(async () => {
+        // First orchestrator run: block until we resolve
+        if (spawnCount <= 1) {
+          await firstRunWait;
+          return false;
+        }
+        return false;
       });
-      mockClaude.mockReturnValueOnce(slowPromise);
-      mockClaude.mockResolvedValueOnce(
-        JSON.stringify({ action: "no_action", params: {}, reasoning: "rerun" }),
-      );
+      vi.mocked(adapter.spawn).mockImplementation(async () => {
+        spawnCount++;
+        return { sessionName: "test" };
+      });
 
       seedIssue("open");
       const issue = db
@@ -623,27 +630,26 @@ describe("OrchestratorManager", () => {
 
       bus.emit("issue.created", { issue: issue as never });
       bus.emit("issue.created", { issue: issue as never });
-      await flushPromises();
+      await new Promise((r) => setTimeout(r, 10));
 
-      // While first run is in-flight, only one call should have been made
-      expect(mockClaude).toHaveBeenCalledTimes(1);
+      // While first run is blocked, only one spawn should have happened
+      expect(spawnCount).toBe(1);
 
-      resolve(
-        JSON.stringify({ action: "no_action", params: {}, reasoning: "ok" }),
-      );
-      await flushPromises();
+      resolveFirst();
+      // Wait long enough for the first run to finish + the re-run's 500ms poll interval
+      await new Promise((r) => setTimeout(r, 1500));
 
-      // After first run finishes, the queued re-run fires sequentially
-      expect(mockClaude).toHaveBeenCalledTimes(2);
+      // After first run finishes, the queued re-run fires
+      expect(spawnCount).toBe(2);
     });
   });
 
   // --- error handling ---
 
   describe("error handling", () => {
-    it("does not throw when Claude returns invalid JSON", async () => {
+    it("does not throw when Claude returns invalid output", async () => {
       seedIssue("open");
-      mockClaude.mockResolvedValue("I cannot do this");
+      vi.mocked(adapter.getOutput).mockResolvedValue("I cannot do this");
 
       const issue = db
         .prepare("SELECT * FROM Issue WHERE id = ?")
@@ -654,9 +660,9 @@ describe("OrchestratorManager", () => {
       await flushPromises();
     });
 
-    it("does not throw when Claude call fails", async () => {
+    it("does not throw when spawn fails", async () => {
       seedIssue("open");
-      mockClaude.mockRejectedValue(new Error("Claude unavailable"));
+      vi.mocked(adapter.spawn).mockRejectedValue(new Error("tmux failed"));
 
       const issue = db
         .prepare("SELECT * FROM Issue WHERE id = ?")
@@ -669,7 +675,7 @@ describe("OrchestratorManager", () => {
 
     it("emits orchestrator.decision event on valid action", async () => {
       seedIssue("open");
-      mockClaude.mockResolvedValue(
+      vi.mocked(adapter.getOutput).mockResolvedValue(
         JSON.stringify({
           action: "no_action",
           params: {},

@@ -28,7 +28,9 @@ import {
   updateSession,
 } from "../db/repositories/sessions.js";
 
-import { callClaude } from "../utils/claude.js";
+// Poll interval and timeout for waiting on the orchestrator tmux session
+const ORCH_POLL_MS = 500;
+const ORCH_TIMEOUT_MS = 120_000;
 
 function buildState(projectId: string): OrchestratorState | null {
   const project = getProject(projectId);
@@ -416,8 +418,6 @@ export class OrchestratorManager {
   constructor(
     private readonly bus: EventBus,
     private readonly adapter: AgentAdapter,
-    // Injected for testability — defaults to the module-level callClaude
-    private readonly claudeFn: (prompt: string, opts?: { systemPrompt?: string }) => Promise<string> = callClaude
   ) {}
 
   init(): void {
@@ -565,7 +565,8 @@ export class OrchestratorManager {
       return;
     }
 
-    // Ensure an orchestrator session record exists; track the ID to avoid re-fetching project later
+    // Ensure a persistent orchestrator session record exists for the project.
+    // This session tracks context across runs (last_action, reasoning, etc).
     const project = state.project;
     let orchestratorSessionId = project.orchestrator_session_id;
     if (!orchestratorSessionId) {
@@ -583,13 +584,71 @@ export class OrchestratorManager {
     const prompt = buildOrchestratorPrompt(state, eventDescription);
     logger.debug({ projectId, eventDescription }, "Orchestrator resuming");
 
-    let output: string;
+    // Spawn a tmux session running claude --print so the captain's terminal
+    // output is visible in real-time on the frontend. The session exits when
+    // claude finishes, and we capture the final output to parse the JSON action.
+    const tmuxName = orchestratorSessionName(projectId);
+
+    // Kill any leftover tmux session from a previous run
+    try { await this.adapter.kill(tmuxName); } catch { /* noop */ }
+
+    // Mark the orchestrator session as running and emit session.started
+    updateSession(orchestratorSessionId, { status: "running", tmux_session_name: tmuxName });
+    this.bus.emit("session.started", {
+      session_id: orchestratorSessionId,
+      project_id: projectId,
+      tmux_session_name: tmuxName,
+    });
+
     try {
-      output = await this.claudeFn(prompt, { systemPrompt: captain.system_prompt });
+      await this.adapter.spawn({
+        sessionName: tmuxName,
+        workdir: "/tmp",
+        prompt,
+        systemPrompt: captain.system_prompt,
+        print: true,
+        env: {
+          CREWDECK_SESSION_ID: orchestratorSessionId,
+          CREWDECK_PROJECT_ID: projectId,
+        },
+      });
     } catch (err) {
-      logger.error({ err, projectId }, "Orchestrator: Claude call failed");
+      logger.error({ err, projectId }, "Orchestrator: failed to spawn tmux session");
+      updateSession(orchestratorSessionId, { status: "error" });
       return;
     }
+
+    // Wait for the tmux session to finish (claude --print exits after responding).
+    // Capture output each iteration — once isAlive returns false the tmux pane is
+    // gone and capture-pane will fail, so we need the last successful capture.
+    let timedOut = true;
+    let output = "";
+    const deadline = Date.now() + ORCH_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await new Promise<void>((r) => setTimeout(r, ORCH_POLL_MS));
+      try { output = await this.adapter.getOutput(tmuxName); } catch { /* pane gone */ }
+      if (!(await this.adapter.isAlive(tmuxName))) { timedOut = false; break; }
+    }
+
+    if (timedOut) {
+      logger.warn({ projectId }, "Orchestrator: tmux session timed out, killing");
+      try { output = await this.adapter.getOutput(tmuxName); } catch { /* pane gone */ }
+      await this.adapter.kill(tmuxName);
+    }
+
+    // Update session status
+    updateSession(orchestratorSessionId, {
+      status: "completed",
+      context: mergeContext(
+        getSession(orchestratorSessionId)?.context,
+        { final_output: output },
+      ),
+    });
+    this.bus.emit("session.ended", {
+      session_id: orchestratorSessionId,
+      project_id: projectId,
+      status: "completed",
+    });
 
     const action = parseAction(output);
     if (!action) {

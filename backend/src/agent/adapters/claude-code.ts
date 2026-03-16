@@ -12,20 +12,24 @@ const execAsync = promisify(exec);
 // Build a launch script using base64-encoded prompts to avoid shell escaping issues
 // --dangerously-skip-permissions: required for unattended agent execution.
 // TODO: Add auth middleware on agent-spawning routes before production (see index.ts).
-function buildLaunchScript(prompt: string, systemPrompt?: string): string {
+function buildLaunchScript(prompt: string, systemPrompt?: string, print?: boolean): string {
   const encode = (s: string) => shellQuote(Buffer.from(s).toString("base64"));
   const promptLine = `PROMPT=$(printf '%s' ${encode(prompt)} | base64 -d)`;
+  const printFlag = print ? " --print" : "";
+
+  // --print takes the prompt as a positional arg; interactive mode needs --prompt
+  const promptArg = print ? '"$PROMPT"' : '--prompt "$PROMPT"';
 
   if (systemPrompt) {
     const sysLine = `SYSTEM_PROMPT=$(printf '%s' ${encode(systemPrompt)} | base64 -d)`;
-    return `#!/bin/bash\n${promptLine}\n${sysLine}\nexec claude --dangerously-skip-permissions --system-prompt "$SYSTEM_PROMPT" --prompt "$PROMPT"\n`;
+    return `#!/bin/bash\n${promptLine}\n${sysLine}\nexec claude --dangerously-skip-permissions${printFlag} --system-prompt "$SYSTEM_PROMPT" ${promptArg}\n`;
   }
-  return `#!/bin/bash\n${promptLine}\nexec claude --dangerously-skip-permissions --prompt "$PROMPT"\n`;
+  return `#!/bin/bash\n${promptLine}\nexec claude --dangerously-skip-permissions${printFlag} ${promptArg}\n`;
 }
 
 export class ClaudeCodeAdapter implements AgentAdapter {
   async spawn(options: SpawnOptions): Promise<SessionHandle> {
-    const { sessionName, workdir, prompt, systemPrompt, env = {} } = options;
+    const { sessionName, workdir, prompt, systemPrompt, env = {}, print } = options;
 
     // Create detached tmux session with the given working directory
     await execAsync(`tmux new-session -d -s ${shellQuote(sessionName)} -c ${shellQuote(workdir)}`);
@@ -41,7 +45,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // Temp script cleanup relies on the `rm -f` in the tmux command — if the session is killed
     // before execution, the file persists in /tmp until OS cleanup. File mode 0o700 limits access.
     const scriptPath = join(tmpdir(), `crewdeck-${crypto.randomUUID()}.sh`);
-    await writeFile(scriptPath, buildLaunchScript(prompt, systemPrompt), { mode: 0o700 });
+    await writeFile(scriptPath, buildLaunchScript(prompt, systemPrompt, print), { mode: 0o700 });
 
     // Execute the script inside the tmux pane; cleanup script after exit
     const runCmd = `bash ${shellQuote(scriptPath)}; rm -f ${shellQuote(scriptPath)}`;
