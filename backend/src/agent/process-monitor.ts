@@ -19,13 +19,11 @@ export class ProcessMonitor {
     const prev = this.lastOutput.get(sessionId) ?? "";
     if (!output || output === prev) return;
     const newContent = output.startsWith(prev) ? output.slice(prev.length) : output;
-    if (newContent) {
-      eventBus.emit("session.output", {
-        session_id: sessionId,
-        project_id: projectId,
-        output: newContent,
-      });
-    }
+    eventBus.emit("session.output", {
+      session_id: sessionId,
+      project_id: projectId,
+      output: newContent,
+    });
     this.lastOutput.set(sessionId, output);
   }
 

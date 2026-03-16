@@ -618,25 +618,22 @@ export class OrchestratorManager {
       return;
     }
 
-    // Wait for the tmux session to finish (claude --print exits after responding)
+    // Wait for the tmux session to finish (claude --print exits after responding).
+    // Capture output each iteration — once isAlive returns false the tmux pane is
+    // gone and capture-pane will fail, so we need the last successful capture.
     let timedOut = true;
+    let output = "";
     const deadline = Date.now() + ORCH_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise<void>((r) => setTimeout(r, ORCH_POLL_MS));
+      try { output = await this.adapter.getOutput(tmuxName); } catch { /* pane gone */ }
       if (!(await this.adapter.isAlive(tmuxName))) { timedOut = false; break; }
     }
 
     if (timedOut) {
       logger.warn({ projectId }, "Orchestrator: tmux session timed out, killing");
+      try { output = await this.adapter.getOutput(tmuxName); } catch { /* pane gone */ }
       await this.adapter.kill(tmuxName);
-    }
-
-    // Capture final output — session may already be gone, so capture may fail
-    let output = "";
-    try {
-      output = await this.adapter.getOutput(tmuxName);
-    } catch {
-      // Session already gone — try to get output from whatever was captured
     }
 
     // Update session status
