@@ -739,6 +739,63 @@ GET /projects/:projectId/orchestrator/status
 
 ---
 
+### Captain Messages
+
+#### List Captain Messages
+
+```
+GET /projects/:projectId/captain/messages
+```
+
+Returns the captain's decision timeline for the project, ordered by `created_at` ascending.
+
+**Response:** `200 OK` — Array of CaptainMessage objects.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "author_type": "captain",
+    "author_id": "uuid | null",
+    "content": "Assigned Alice to issue #12 based on her backend expertise.",
+    "context": { "action": "assign", "issue_id": "uuid", "agent_id": "uuid" },
+    "created_at": "ISO 8601"
+  }
+]
+```
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Send Captain Message
+
+```
+POST /projects/:projectId/captain/messages
+```
+
+Send a user message to influence captain behavior. The orchestrator is resumed after the message is stored.
+
+**Request Body:**
+```json
+{
+  "content": "Please prioritize the authentication issues."
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| content | Yes | Message content (max 10000 chars). |
+
+**Response:** `201 Created` — The created CaptainMessage object (author_type = `user`).
+
+**Side effects:**
+- WebSocket event emitted: `captain.message`.
+- Orchestrator session resumed.
+
+**Error:** `404 Not Found` — Project does not exist.
+
+---
+
 ### Internal API (Agent CLI)
 
 These endpoints are used exclusively by the CrewDeck CLI running inside agent tmux sessions. They are not intended for frontend or external use. See [Agent CLI](agent-cli.md) for the full CLI specification.
@@ -924,6 +981,12 @@ All events follow this structure:
 |-------|-------------|------|
 | `orchestrator.decision` | Orchestrator made a decision | `{ action, details }` |
 | `orchestrator.draft_issue` | Orchestrator proposed a new issue | Full draft issue object |
+
+#### Captain Events
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `captain.message` | New captain or user message in the project chat | Full CaptainMessage object |
 
 ---
 

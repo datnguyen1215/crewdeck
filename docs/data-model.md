@@ -220,6 +220,20 @@ Tracks AI CLI session context. Owned by CrewDeck, not the underlying CLI tool.
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
+### CaptainMessage
+
+A message in the project-level captain chat. Created by the orchestrator after each decision or by the user to influence captain behavior.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id, ON DELETE CASCADE | Owning project. |
+| author_type | TEXT | NOT NULL | Who authored the message. One of: `captain`, `user`. |
+| author_id | TEXT | NULLABLE | Agent.id if author_type is `captain`. NULL for user messages. |
+| content | TEXT | NOT NULL | Message body. |
+| context | TEXT | NULLABLE | JSON blob with structured decision metadata (e.g., action taken, affected issue/agent IDs). Set by the orchestrator; NULL for user messages. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+
 ### ActivityLog
 
 Immutable audit trail of every action in the system.
@@ -247,6 +261,7 @@ Immutable audit trail of every action in the system.
 | Project → Issue | One-to-Many | A project has multiple issues. |
 | Project → Session | One-to-Many | A project has multiple sessions (orchestrator + agent sessions). |
 | Project → ActivityLog | One-to-Many | A project has many activity log entries. |
+| Project → CaptainMessage | One-to-Many | A project has many captain chat messages. |
 | Crew → Agent | One-to-Many | A crew has multiple agents. |
 | Issue → Comment | One-to-Many | An issue has many comments. |
 | Issue → IssueAgent | One-to-Many | An issue has many agent assignments. |
@@ -275,3 +290,5 @@ The following indexes should be created for query performance:
 - `idx_activity_project` on ActivityLog(project_id)
 - `idx_activity_issue` on ActivityLog(issue_id)
 - `idx_activity_created` on ActivityLog(project_id, created_at)
+- `idx_captain_message_project` on CaptainMessage(project_id)
+- `idx_captain_message_created` on CaptainMessage(project_id, created_at)
