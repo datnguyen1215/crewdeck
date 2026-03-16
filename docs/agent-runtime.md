@@ -139,11 +139,12 @@ claude --dangerously-skip-permissions \
 
 ```
 claude --dangerously-skip-permissions \
+       --print \
        --system-prompt "<system prompt>" \
        "<initial task prompt>"
 ```
 
-In print mode the prompt is passed as a positional argument (not `--prompt` or `--print`). Claude exits immediately after writing its response to stdout, which the adapter captures and parses as structured JSON.
+In print mode `--print` is a standalone flag (it does not take the prompt as its value). The prompt is passed as a positional argument. Claude exits immediately after writing its response to stdout, which the adapter captures and parses as structured JSON.
 
 **Notes:**
 - `--dangerously-skip-permissions` is used because agents need to operate autonomously without approval prompts. The human oversight comes from CrewDeck's review pipeline instead.
