@@ -25,10 +25,9 @@ const agent: Agent = {
   id: "agent-1",
   crew_id: "crew-1",
   name: "Dev Bot",
-  role: "developer",
-  expertise: ["TypeScript"],
+  title: "developer",
+  description: null,
   system_prompt: "You are a developer",
-  can_review: false,
   created_at: "2026-01-01",
   updated_at: "2026-01-01",
 };

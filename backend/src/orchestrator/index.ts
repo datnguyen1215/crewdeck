@@ -1,5 +1,3 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { logger } from "../logger.js";
 import { eventBus } from "../events/bus.js";
 import type { EventBus } from "../events/bus.js";
@@ -29,21 +27,7 @@ import {
   updateSession,
 } from "../db/repositories/sessions.js";
 
-const execFileAsync = promisify(execFile);
-
-// Run claude in --print mode and return stdout.
-// Use execFile to pass the prompt as a direct argument — no shell involved, no encoding needed.
-// --dangerously-skip-permissions is intentional: the orchestrator needs unrestricted tool access
-// (git, crewdeck CLI, etc). The risk is accepted and mitigated by XML-escaping all user-controlled
-// content in prompts so injection cannot redirect Claude's actions.
-export async function callClaude(prompt: string): Promise<string> {
-  const { stdout } = await execFileAsync(
-    "claude",
-    ["--dangerously-skip-permissions", "--print", "--prompt", prompt],
-    { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 }
-  );
-  return stdout;
-}
+import { callClaude } from "../utils/claude.js";
 
 function buildState(projectId: string): OrchestratorState | null {
   const project = getProject(projectId);
@@ -203,7 +187,7 @@ async function executeAssign(
 
   // Post orchestrator comment
   const comment = createComment(issue_id, {
-    content: `Assigned to ${agent.name} (${agent.role}). Session started.`,
+    content: `Assigned to ${agent.name} (${agent.title}). Session started.`,
     author_type: "orchestrator",
   });
   bus.emit("comment.added", { comment, project_id: projectId });
@@ -239,11 +223,6 @@ async function executeRouteReview(
     logger.warn({ reviewer_agent_id, crew_id: state.crew.id }, "route_review: reviewer does not belong to project crew");
     return;
   }
-  if (!reviewer.can_review) {
-    logger.warn({ reviewer_agent_id }, "route_review: agent cannot review");
-    return;
-  }
-
   // Update issue to in_review — only increment round when starting a new review cycle
   // (transitioning from in_progress/feedback), not when adding another reviewer to the same cycle.
   const newRound = issue.status !== "in_review"

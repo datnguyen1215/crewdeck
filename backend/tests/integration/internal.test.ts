@@ -30,7 +30,7 @@ beforeAll(async () => {
   // Create agent
   const agentRes = await request(app)
     .post(`/api/v1/projects/${projectId}/crew/agents`)
-    .send({ name: "Test Agent", role: "developer", system_prompt: "test" });
+    .send({ name: "Test Agent", title: "developer", system_prompt: "test" });
   expect(agentRes.status).toBe(201);
   agentId = agentRes.body.id;
 
@@ -73,7 +73,7 @@ describe("POST /api/v1/internal/signal", () => {
         agent_id: agentId,
         issue_id: issueId,
         project_id: projectId,
-        role: "developer",
+        role: "worker",
       }),
     );
 

@@ -65,6 +65,37 @@ export function createDb(path: string): Database.Database {
     );
   }
 
+  // Migration: rename role→title, add description, drop expertise & can_review from Agent.
+  const agentCols = db.pragma("table_info(Agent)") as { name: string }[];
+  if (agentCols.some((c) => c.name === "role")) {
+    db.pragma("foreign_keys = OFF");
+    db.transaction(() => {
+      db.exec(`
+        ALTER TABLE Agent RENAME TO Agent_old;
+
+        CREATE TABLE Agent (
+          id TEXT PRIMARY KEY,
+          crew_id TEXT NOT NULL REFERENCES Crew(id),
+          name TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          system_prompt TEXT NOT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        INSERT INTO Agent (id, crew_id, name, title, description, system_prompt, created_at, updated_at)
+          SELECT id, crew_id, name, role, NULL, system_prompt, created_at, updated_at
+          FROM Agent_old;
+
+        DROP TABLE Agent_old;
+
+        CREATE INDEX IF NOT EXISTS idx_agent_crew ON Agent(crew_id);
+      `);
+    })();
+    db.pragma("foreign_keys = ON");
+  }
+
   return db;
 }
 
