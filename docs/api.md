@@ -626,6 +626,39 @@ POST /projects/:projectId/issues/:issueId/comments
 
 **Note:** Agent and orchestrator comments are created internally by the system, not through this endpoint.
 
+#### Edit Comment
+
+```
+PATCH /projects/:projectId/issues/:issueId/comments/:commentId
+```
+
+**Request Body:**
+```json
+{
+  "content": "Updated comment text."
+}
+```
+
+**Response:** `200 OK` — The updated comment object.
+
+**Error:** `403 Forbidden` — Cannot edit agent or orchestrator comments (author_type ≠ `user`).
+
+**Side effects:**
+- WebSocket event: `comment.updated`.
+
+#### Delete Comment
+
+```
+DELETE /projects/:projectId/issues/:issueId/comments/:commentId
+```
+
+**Response:** `204 No Content`
+
+**Error:** `403 Forbidden` — Cannot delete agent or orchestrator comments (author_type ≠ `user`).
+
+**Side effects:**
+- WebSocket event: `comment.deleted`.
+
 ---
 
 ### Sessions
@@ -946,6 +979,8 @@ All events follow this structure:
 | Event | Description | Data |
 |-------|-------------|------|
 | `comment.added` | New comment on an issue | Full comment object |
+| `comment.updated` | User comment was edited | Full comment object |
+| `comment.deleted` | User comment was deleted | `{ comment_id, issue_id }` |
 
 #### Session Events
 
