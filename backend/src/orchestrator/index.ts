@@ -28,9 +28,7 @@ import { config } from "../config.js";
 // Build the initial prompt that tells the captain what CLI commands are available
 // and provides any saved decision history for context continuity.
 function buildCaptainInitialPrompt(projectId: string): string {
-  const parts: string[] = [];
-
-  parts.push(`You are the captain of this project. You drive all decisions using the crewdeck CLI.
+  let prompt = `You are the captain of this project. You drive all decisions using the crewdeck CLI.
 
 ## Available Commands
 
@@ -60,16 +58,15 @@ crewdeck history list             — list your decision history
 - After review approval, the issue is done.
 - If a review requests changes, re-assign the original worker.
 
-Start by listing issues and agents to understand the current state.`);
+Start by listing issues and agents to understand the current state.`;
 
-  // Inject saved decision history if any
   const history = listCaptainHistory(projectId);
   if (history.length > 0) {
     const entries = history.map((h) => `- [${h.created_at}] ${h.summary}`).join("\n");
-    parts.push(`\n## Decision History (from previous sessions)\n${entries}`);
+    prompt += `\n\n## Decision History (from previous sessions)\n${entries}`;
   }
 
-  return parts.join("\n");
+  return prompt;
 }
 
 // Execute an assign action triggered by the captain via CLI
@@ -329,8 +326,8 @@ async function executeRouteReview(
 }
 
 export class OrchestratorManager {
-  // Track captain sessions per project
   private readonly captainSessions = new Map<string, string>(); // projectId → sessionId
+  private readonly captainSpawning = new Map<string, Promise<string | null>>(); // in-flight spawn guards
 
   constructor(
     private readonly bus: EventBus,
@@ -394,7 +391,6 @@ export class OrchestratorManager {
     });
   }
 
-  // Spawn or get existing captain session for a project
   async ensureCaptainSession(projectId: string): Promise<string | null> {
     const existingSessionId = this.captainSessions.get(projectId);
     if (existingSessionId) {
@@ -407,6 +403,20 @@ export class OrchestratorManager {
       updateSession(existingSessionId, { status: "completed" });
     }
 
+    // If another call is already spawning, wait for it
+    const inflight = this.captainSpawning.get(projectId);
+    if (inflight) return inflight;
+
+    const promise = this.spawnCaptainSession(projectId);
+    this.captainSpawning.set(projectId, promise);
+    try {
+      return await promise;
+    } finally {
+      this.captainSpawning.delete(projectId);
+    }
+  }
+
+  private async spawnCaptainSession(projectId: string): Promise<string | null> {
     const project = getProject(projectId);
     if (!project) return null;
 

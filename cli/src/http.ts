@@ -10,10 +10,7 @@ export async function get(path: string, params: Record<string, string>, apiUrl: 
   try {
     const res = await fetch(url, { signal: controller.signal });
 
-    const data = await res.json().catch((err: unknown) => {
-      if (err instanceof Error && err.name === "AbortError") throw err;
-      return null;
-    });
+    const data = await res.json().catch(() => null);
 
     if (!res.ok) {
       const message = (data != null && typeof data === "object" && "message" in data && typeof data.message === "string")
