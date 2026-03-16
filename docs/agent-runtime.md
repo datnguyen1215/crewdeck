@@ -140,10 +140,10 @@ claude --dangerously-skip-permissions \
 ```
 claude --dangerously-skip-permissions \
        --system-prompt "<system prompt>" \
-       --print "<initial task prompt>"
+       "<initial task prompt>"
 ```
 
-In print mode the prompt is passed as a positional argument (not `--prompt`). Claude exits immediately after writing its response to stdout, which the adapter captures and parses as structured JSON.
+In print mode the prompt is passed as a positional argument (not `--prompt` or `--print`). Claude exits immediately after writing its response to stdout, which the adapter captures and parses as structured JSON.
 
 **Notes:**
 - `--dangerously-skip-permissions` is used because agents need to operate autonomously without approval prompts. The human oversight comes from CrewDeck's review pipeline instead.
@@ -350,7 +350,7 @@ The orchestrator is a special case of the agent runtime. It follows the same ada
 
 ### How the Orchestrator Runs
 
-The orchestrator uses `adapter.spawn()` with `print: true`. Each invocation creates a tmux session, runs Claude in `--print` mode (exits after printing its JSON response), and the backend polls `isAlive()` until the session exits, then captures the output with `getOutput()` and parses the JSON action. This means each orchestrator decision is a short-lived tmux session rather than a long-running interactive one.
+The orchestrator uses `adapter.spawn()` with `print: true`. Each invocation creates a tmux session, runs Claude in `--print` mode (exits after printing its JSON response), and the backend polls in a loop — capturing output with `getOutput()` each iteration so the last successful capture is retained when the pane disappears (once `isAlive()` returns false, the tmux pane is gone and `capture-pane` fails). The parsed JSON action comes from that last captured output. This means each orchestrator decision is a short-lived tmux session rather than a long-running interactive one.
 
 The `session.started` event emitted for orchestrator sessions omits `agent_id` and `issue_id` (both are optional in this event) since orchestrator sessions are not tied to a specific agent or issue.
 
