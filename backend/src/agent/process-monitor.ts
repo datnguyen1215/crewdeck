@@ -9,6 +9,8 @@ export class ProcessMonitor {
   private stopped = false;
   // Track sessions already marked finished to avoid duplicate events
   private finished = new Set<string>();
+  // Track last captured output per session for diff-based streaming
+  private lastOutput = new Map<string, string>();
 
   constructor(private readonly adapter: AgentAdapter) {}
 
@@ -56,6 +58,23 @@ export class ProcessMonitor {
         const alive = await this.adapter.isAlive(session.tmux_session_name);
         if (alive) {
           this.finished.delete(session.id);
+
+          // Stream output diff to frontend
+          const prev = this.lastOutput.get(session.id) ?? "";
+          if (lastOutput && lastOutput !== prev) {
+            // Send only the new portion of output
+            const newContent = lastOutput.startsWith(prev)
+              ? lastOutput.slice(prev.length)
+              : lastOutput;
+            if (newContent) {
+              eventBus.emit("session.output", {
+                session_id: session.id,
+                project_id: session.project_id,
+                output: newContent,
+              });
+            }
+            this.lastOutput.set(session.id, lastOutput);
+          }
           return;
         }
 
@@ -71,6 +90,22 @@ export class ProcessMonitor {
             status: "completed",
             context: mergeContext(session.context, { final_output: lastOutput }),
           });
+
+          // Send final output diff before session.ended
+          const prev = this.lastOutput.get(session.id) ?? "";
+          if (lastOutput && lastOutput !== prev) {
+            const newContent = lastOutput.startsWith(prev)
+              ? lastOutput.slice(prev.length)
+              : lastOutput;
+            if (newContent) {
+              eventBus.emit("session.output", {
+                session_id: session.id,
+                project_id: session.project_id,
+                output: newContent,
+              });
+            }
+          }
+          this.lastOutput.delete(session.id);
 
           eventBus.emit("session.ended", {
             session_id: session.id,
@@ -102,6 +137,10 @@ export class ProcessMonitor {
     const activeIds = new Set(sessions.map((s) => s.id));
     for (const id of this.finished) {
       if (!activeIds.has(id)) this.finished.delete(id);
+    }
+    // Clean up stale output tracking for sessions no longer running
+    for (const id of this.lastOutput.keys()) {
+      if (!activeIds.has(id)) this.lastOutput.delete(id);
     }
   }
 }
