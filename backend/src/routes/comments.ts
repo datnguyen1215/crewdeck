@@ -27,6 +27,9 @@ router.post("/", validate(CreateCommentSchema), (req: Request<{ projectId: strin
   res.status(201).json(comment);
 });
 
+// Decision: no per-user ownership check on edit/delete — the app has no auth system yet,
+// so there is no "current user" to verify against. All user-facing endpoints share this
+// limitation. Add ownership checks here once authentication is implemented.
 router.patch("/:commentId", (req: Request<{ projectId: string; issueId: string; commentId: string }>, res) => {
   const issue = getIssue(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {
