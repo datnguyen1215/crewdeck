@@ -176,8 +176,8 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
         return;
       }
 
-      // TODO: authenticate WebSocket connections (same as REST auth middleware)
-      // TODO: validate Origin header to prevent cross-site WebSocket hijacking once auth is implemented
+      // No authentication — this is a local/self-hosted tool, not a public SaaS.
+      // Revisit if the app ever accepts connections from untrusted networks.
       ws.isAlive = true;
       addSubscriber(projectId, ws);
 
