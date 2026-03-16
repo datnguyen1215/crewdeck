@@ -48,6 +48,9 @@ const FilesSchema = z.object({
 router.post("/signal", validate(SignalSchema), (req, res) => {
   const { session_id, agent_id, issue_id, project_id, event, data } = req.body;
 
+  const agent = getAgent(agent_id);
+  if (!agent) throw new NotFoundError("Agent not found");
+
   if (event === "work-complete") {
     eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: "worker" });
   } else if (event === "review-complete") {

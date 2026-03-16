@@ -59,7 +59,7 @@ function seedDatabase(dbPath: string) {
   db.prepare("INSERT INTO Crew (id, project_id, name) VALUES (?, ?, ?)").run(
     crewId, projectId, "test-crew",
   );
-  db.prepare("INSERT INTO Agent (id, crew_id, name, role, system_prompt) VALUES (?, ?, ?, ?, ?)").run(
+  db.prepare("INSERT INTO Agent (id, crew_id, name, title, system_prompt) VALUES (?, ?, ?, ?, ?)").run(
     agentId, crewId, "test-agent", "worker", "test",
   );
   db.prepare("INSERT INTO Issue (id, project_id, title, description) VALUES (?, ?, ?, ?)").run(

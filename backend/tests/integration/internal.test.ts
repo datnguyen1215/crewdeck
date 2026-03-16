@@ -73,7 +73,7 @@ describe("POST /api/v1/internal/signal", () => {
         agent_id: agentId,
         issue_id: issueId,
         project_id: projectId,
-        role: "developer",
+        role: "worker",
       }),
     );
 

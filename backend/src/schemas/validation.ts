@@ -65,7 +65,7 @@ export const CreateAgentSchema = z.object({
 export const UpdateAgentSchema = CreateAgentSchema.partial();
 
 export const GenerateAgentSchema = z.object({
-  prompt: z.string().min(1),
+  prompt: z.string().min(1).max(2000),
 });
 
 export const CreateIssueSchema = z.object({

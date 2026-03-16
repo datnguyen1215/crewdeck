@@ -12,7 +12,7 @@ import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
 import { NotFoundError, ConflictError } from "../middleware/errors.js";
 import { CreateAgentSchema, UpdateAgentSchema, GenerateAgentSchema } from "../schemas/validation.js";
-import { callClaude } from "../orchestrator/index.js";
+import { callClaude } from "../utils/claude.js";
 
 const router = Router({ mergeParams: true });
 
@@ -26,6 +26,10 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
 
 router.post("/generate", validate(GenerateAgentSchema), async (req: Request<{ projectId: string }>, res, next) => {
   try {
+    const { projectId } = req.params;
+    if (!getProject(projectId)) throw new NotFoundError("Project not found");
+    if (!getCrew(projectId)) throw new NotFoundError("Crew not found");
+
     const { prompt } = req.body as { prompt: string };
     const systemPrompt = `You are a helper that generates AI agent configurations. Given a short description, generate a JSON object with these four fields:
 - "name": a short first name for the agent (e.g. "Alice", "Rex", "Nova")
