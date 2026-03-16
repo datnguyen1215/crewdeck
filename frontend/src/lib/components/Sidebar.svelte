@@ -43,6 +43,7 @@
 			{@render navItem(`/projects/${projectId}`, 'Issues', 'issues', isActive(`/projects/${projectId}`))}
 			{@render navItem(`/projects/${projectId}/crew`, 'Crew', 'crew', isActive(`/projects/${projectId}/crew`))}
 			{@render navItem(`/projects/${projectId}/activity`, 'Activity', 'activity', isActive(`/projects/${projectId}/activity`))}
+			{@render navItem(`/projects/${projectId}/settings`, 'Settings', 'settings', isActive(`/projects/${projectId}/settings`))}
 
 			<div class="border-t border-edge my-1"></div>
 

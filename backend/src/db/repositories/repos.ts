@@ -14,7 +14,7 @@ function validateSegments(url: string, owner: string, name: string) {
   return { owner, name };
 }
 
-function parseGithubUrl(url: string): { owner: string; name: string } {
+export function parseGithubUrl(url: string): { owner: string; name: string } {
   // https://github.com/owner/repo or https://github.com/owner/repo.git
   const httpsMatch = url.match(/github\.com\/([^/]+)\/([^/.]+)/);
   if (httpsMatch) return validateSegments(url, httpsMatch[1], httpsMatch[2]);
