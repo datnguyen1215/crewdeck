@@ -54,8 +54,11 @@ The orchestrator is a persistent AI session scoped to a single project. It is th
 - **Manages the review pipeline** — routes completed work to reviewers in the appropriate order, tracks review rounds, and handles feedback loops.
 - **Creates draft issues** — can propose new issues (e.g., breaking a large issue into sub-tasks, identifying related problems). All orchestrator-created issues start in Draft status and require human approval.
 - **Manages dependencies** — understands which issues depend on others and sequences work accordingly, including basing worktrees on previous branches when needed.
+- **Logs decisions to the captain chat** — after each decision, stores a `CaptainMessage` with its reasoning, building a timeline of orchestrator activity visible to the user.
 
-The orchestrator does not run continuously. It has a persistent session ID stored in the database. The backend resumes the orchestrator's session when events occur (new issue approved, agent finished work, review posted). This approach is resource-efficient and maintains full context across invocations.
+The orchestrator does not run continuously. It has a persistent session ID stored in the database. The backend resumes the orchestrator's session when events occur (new issue approved, agent finished work, review posted, user captain message). This approach is resource-efficient and maintains full context across invocations.
+
+Users can send messages directly to the captain via the captain chat to influence orchestrator behavior (e.g., reprioritize work, provide direction). These messages trigger an immediate orchestrator resumption.
 
 The orchestrator's AI persona is defined by the **captain** agent: the system prompt of whichever crew agent has `is_captain = true` is passed as the system prompt when invoking Claude. If no captain is designated, the orchestrator skips processing until one is set.
 

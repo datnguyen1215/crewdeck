@@ -352,6 +352,7 @@ The backend resumes the orchestrator when these events occur:
 | Review completed | Check if all reviewers approved, route back to agent or mark ready |
 | Max rounds reached | Flag for human escalation |
 | New comment from user | Re-evaluate priorities or adjust approach |
+| User captain message | Re-evaluate based on user direction sent via the captain chat |
 
 ### Captain Requirement
 
@@ -402,6 +403,8 @@ The orchestrator is prompted to respond in **structured JSON format**. The backe
 - **no_action** — nothing to do right now.
 
 The backend validates the JSON structure, executes the action, updates the database, and emits events on the event bus. The event bus then triggers WebSocket broadcasts, activity logging, and any follow-up processing.
+
+After executing the action, the backend stores a `CaptainMessage` record containing the orchestrator's reasoning and the action taken. This builds the captain chat timeline visible to the user.
 
 ## Future Adapters
 
