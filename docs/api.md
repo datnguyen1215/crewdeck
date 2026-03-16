@@ -626,6 +626,39 @@ POST /projects/:projectId/issues/:issueId/comments
 
 **Note:** Agent and orchestrator comments are created internally by the system, not through this endpoint.
 
+#### Edit Comment
+
+```
+PATCH /projects/:projectId/issues/:issueId/comments/:commentId
+```
+
+**Request Body:**
+```json
+{
+  "content": "Updated comment text."
+}
+```
+
+**Response:** `200 OK` — The updated comment object.
+
+**Error:** `403 Forbidden` — Cannot edit agent or orchestrator comments (author_type ≠ `user`).
+
+**Side effects:**
+- WebSocket event: `comment.updated`.
+
+#### Delete Comment
+
+```
+DELETE /projects/:projectId/issues/:issueId/comments/:commentId
+```
+
+**Response:** `204 No Content`
+
+**Error:** `403 Forbidden` — Cannot delete agent or orchestrator comments (author_type ≠ `user`).
+
+**Side effects:**
+- WebSocket event: `comment.deleted`.
+
 ---
 
 ### Sessions
@@ -738,6 +771,63 @@ GET /projects/:projectId/orchestrator/status
   "last_activity": "ISO 8601"
 }
 ```
+
+---
+
+### Captain Messages
+
+#### List Captain Messages
+
+```
+GET /projects/:projectId/captain/messages
+```
+
+Returns the captain's decision timeline for the project, ordered by `created_at` ascending.
+
+**Response:** `200 OK` — Array of CaptainMessage objects.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "author_type": "captain",
+    "author_id": "uuid | null",
+    "content": "Assigned Alice to issue #12 based on her backend expertise.",
+    "context": { "action": "assign", "issue_id": "uuid", "agent_id": "uuid" },
+    "created_at": "ISO 8601"
+  }
+]
+```
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Send Captain Message
+
+```
+POST /projects/:projectId/captain/messages
+```
+
+Send a user message to influence captain behavior. The orchestrator is resumed after the message is stored.
+
+**Request Body:**
+```json
+{
+  "content": "Please prioritize the authentication issues."
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| content | Yes | Message content (max 10000 chars). |
+
+**Response:** `201 Created` — The created CaptainMessage object (author_type = `user`).
+
+**Side effects:**
+- WebSocket event emitted: `captain.message`.
+- Orchestrator session resumed.
+
+**Error:** `404 Not Found` — Project does not exist.
 
 ---
 
@@ -889,6 +979,8 @@ All events follow this structure:
 | Event | Description | Data |
 |-------|-------------|------|
 | `comment.added` | New comment on an issue | Full comment object |
+| `comment.updated` | User comment was edited | Full comment object |
+| `comment.deleted` | User comment was deleted | `{ comment_id, issue_id }` |
 
 #### Session Events
 
@@ -926,6 +1018,12 @@ All events follow this structure:
 |-------|-------------|------|
 | `orchestrator.decision` | Orchestrator made a decision | `{ action, details }` |
 | `orchestrator.draft_issue` | Orchestrator proposed a new issue | Full draft issue object |
+
+#### Captain Events
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `captain.message` | New captain or user message in the project chat | Full CaptainMessage object |
 
 ---
 

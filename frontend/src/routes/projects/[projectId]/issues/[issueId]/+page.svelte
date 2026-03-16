@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
-	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
+	import { getIssue, addComment, editComment, deleteComment, approveIssue, discardIssue, updateIssue, listSessions, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
@@ -34,6 +34,12 @@
 
 	// Copy state for branch name
 	let copied = $state(false);
+
+	// Comment edit/delete state
+	let editingCommentId = $state<string | null>(null);
+	let editingCommentText = $state('');
+	let deletingCommentId = $state<string | null>(null);
+	let commentWorking = $state(false);
 
 	// Tab navigation
 	let activeTab = $state<'description' | 'comments' | 'activity' | 'terminal'>('description');
@@ -107,6 +113,8 @@
 			ws.on('issue.status_changed', reloadIssue),
 			ws.on('issue.approved', reloadIssue),
 			ws.on('comment.added', reloadIssue),
+			ws.on('comment.updated', reloadIssue),
+			ws.on('comment.deleted', reloadIssue),
 			ws.on('review.completed', reloadIssue),
 			ws.on('pr.created', reloadIssue),
 			ws.on('pr.status_changed', reloadIssue),
@@ -217,6 +225,39 @@ function esc(s: string) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to post comment', 'error');
 		} finally {
 			posting = false;
+		}
+	}
+
+	function startEditComment(comment: any) {
+		editingCommentId = comment.id;
+		editingCommentText = comment.content;
+	}
+
+	async function saveEditComment() {
+		if (!editingCommentId || !editingCommentText.trim() || !issue) return;
+		commentWorking = true;
+		try {
+			const updated = await editComment(projectId, issueId, editingCommentId, { content: editingCommentText });
+			issue = { ...issue, comments: issue.comments.map(c => c.id === updated.id ? updated : c) };
+			editingCommentId = null;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to edit comment', 'error');
+		} finally {
+			commentWorking = false;
+		}
+	}
+
+	async function confirmDeleteComment() {
+		if (!deletingCommentId || !issue) return;
+		commentWorking = true;
+		try {
+			await deleteComment(projectId, issueId, deletingCommentId);
+			issue = { ...issue, comments: issue.comments.filter(c => c.id !== deletingCommentId) };
+			deletingCommentId = null;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to delete comment', 'error');
+		} finally {
+			commentWorking = false;
 		}
 	}
 
@@ -475,10 +516,53 @@ function esc(s: string) {
 											<span class="text-xs text-muted" title={new Date(comment.created_at).toLocaleString()}>
 												{relTime(comment.created_at)}
 											</span>
+											{#if comment.author_type === 'user'}
+												<div class="ml-auto flex gap-1">
+													<button
+														onclick={() => startEditComment(comment)}
+														class="text-xs text-muted hover:text-secondary transition-colors px-1"
+														title="Edit comment"
+													>edit</button>
+													{#if deletingCommentId === comment.id}
+														<span class="text-xs text-red">Delete?
+															<button onclick={confirmDeleteComment} disabled={commentWorking} class="hover:underline">yes</button>
+															/
+															<button onclick={() => deletingCommentId = null} class="hover:underline text-muted">no</button>
+														</span>
+													{:else}
+														<button
+															onclick={() => deletingCommentId = comment.id}
+															class="text-xs text-muted hover:text-red transition-colors px-1"
+															title="Delete comment"
+														>delete</button>
+													{/if}
+												</div>
+											{/if}
 										</div>
-										<div class="issue-prose text-secondary text-sm leading-relaxed">
-											{@html md(comment.content)}
-										</div>
+										{#if editingCommentId === comment.id}
+											<div class="flex flex-col gap-2">
+												<textarea
+													bind:value={editingCommentText}
+													rows={3}
+													class="w-full bg-base border border-edge rounded px-3 py-2 text-secondary text-sm resize-none focus:border-cyan focus:outline-none"
+												></textarea>
+												<div class="flex gap-2">
+													<button
+														onclick={saveEditComment}
+														disabled={commentWorking || !editingCommentText.trim()}
+														class="px-3 py-1 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors"
+													>Save</button>
+													<button
+														onclick={() => editingCommentId = null}
+														class="px-3 py-1 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors"
+													>Cancel</button>
+												</div>
+											</div>
+										{:else}
+											<div class="issue-prose text-secondary text-sm leading-relaxed">
+												{@html md(comment.content)}
+											</div>
+										{/if}
 									</div>
 								{/each}
 							</div>
