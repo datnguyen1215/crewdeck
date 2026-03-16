@@ -33,6 +33,7 @@ spawn(options: SpawnOptions) → SessionHandle
 | prompt | string | Yes | The initial prompt/instruction to send to the agent. |
 | systemPrompt | string | No | System prompt defining the agent's persona. How this is passed depends on the adapter (e.g., Claude Code uses `--system-prompt` flag). |
 | env | Record<string, string> | No | Additional environment variables to set in the tmux session. |
+| print | boolean | No | When true, runs in `--print` mode: prompt is passed as a positional arg and the process exits after printing structured output. Used by the orchestrator. |
 
 **SessionHandle:**
 
@@ -124,13 +125,25 @@ The default adapter implementation for Claude Code CLI.
 
 ### Command Construction
 
-When spawning a Claude Code session, the adapter constructs the CLI command:
+When spawning a Claude Code session, the adapter constructs the CLI command. There are two modes:
+
+**Interactive mode** (workers and reviewers — `print: false`, the default):
 
 ```
 claude --dangerously-skip-permissions \
        --system-prompt "<agent system prompt>" \
        --prompt "<initial task prompt>"
 ```
+
+**Print mode** (orchestrator — `print: true`):
+
+```
+claude --dangerously-skip-permissions \
+       --system-prompt "<system prompt>" \
+       --print "<initial task prompt>"
+```
+
+In print mode the prompt is passed as a positional argument (not `--prompt`). Claude exits immediately after writing its response to stdout, which the adapter captures and parses as structured JSON.
 
 **Notes:**
 - `--dangerously-skip-permissions` is used because agents need to operate autonomously without approval prompts. The human oversight comes from CrewDeck's review pipeline instead.
@@ -334,6 +347,12 @@ The Session.context field (JSON) stores:
 ## Orchestrator Runtime
 
 The orchestrator is a special case of the agent runtime. It follows the same adapter interface but differs in:
+
+### How the Orchestrator Runs
+
+The orchestrator uses `adapter.spawn()` with `print: true`. Each invocation creates a tmux session, runs Claude in `--print` mode (exits after printing its JSON response), and the backend polls `isAlive()` until the session exits, then captures the output with `getOutput()` and parses the JSON action. This means each orchestrator decision is a short-lived tmux session rather than a long-running interactive one.
+
+The `session.started` event emitted for orchestrator sessions omits `agent_id` and `issue_id` (both are optional in this event) since orchestrator sessions are not tied to a specific agent or issue.
 
 ### Session Persistence
 
