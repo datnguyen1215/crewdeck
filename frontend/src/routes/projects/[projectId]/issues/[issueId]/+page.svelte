@@ -138,17 +138,7 @@
 		return () => unsubs.forEach(fn => fn());
 	});
 
-	function rel(iso: string) {
-		const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-		if (m < 1) return 'just now';
-		if (m < 60) return `${m}m ago`;
-		const h = Math.floor(m / 60);
-		if (h < 24) return `${h}h ago`;
-		const d = Math.floor(h / 24);
-		return d < 7 ? `${d}d ago` : `${Math.floor(d / 7)}w ago`;
-	}
-
-	function esc(s: string) {
+function esc(s: string) {
 		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 
@@ -483,7 +473,7 @@
 												{commentAuthorLabel(comment)}
 											</span>
 											<span class="text-xs text-muted" title={new Date(comment.created_at).toLocaleString()}>
-												{rel(comment.created_at)}
+												{relTime(comment.created_at)}
 											</span>
 										</div>
 										<div class="issue-prose text-secondary text-sm leading-relaxed">
@@ -693,11 +683,11 @@
 					<!-- Timestamps -->
 					<div class="flex items-center gap-2">
 						<span class="text-muted w-20 shrink-0">Created</span>
-						<span class="text-secondary" title={new Date(issue.created_at).toLocaleString()}>{rel(issue.created_at)}</span>
+						<span class="text-secondary" title={new Date(issue.created_at).toLocaleString()}>{relTime(issue.created_at)}</span>
 					</div>
 					<div class="flex items-center gap-2">
 						<span class="text-muted w-20 shrink-0">Updated</span>
-						<span class="text-secondary" title={new Date(issue.updated_at).toLocaleString()}>{rel(issue.updated_at)}</span>
+						<span class="text-secondary" title={new Date(issue.updated_at).toLocaleString()}>{relTime(issue.updated_at)}</span>
 					</div>
 
 					<!-- Created by -->
