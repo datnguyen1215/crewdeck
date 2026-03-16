@@ -34,56 +34,44 @@ describe("createAgent", () => {
     const crew = getCrew(p.id)!;
     const agent = createAgent(crew.id, {
       name: "Alice",
-      role: "developer",
+      title: "Senior Developer",
       system_prompt: "you are alice",
     });
     expect(agent.id).toBeTruthy();
     expect(agent.name).toBe("Alice");
-    expect(agent.expertise).toEqual([]);
-    expect(agent.can_review).toBe(true);
+    expect(agent.title).toBe("Senior Developer");
+    expect(agent.description).toBeNull();
   });
 
-  it("stores and parses expertise array", () => {
+  it("stores description", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
     const agent = createAgent(crew.id, {
       name: "Expert",
-      role: "specialist",
+      title: "Specialist",
       system_prompt: "you are an expert",
-      expertise: ["TypeScript", "Node.js"],
+      description: "Handles complex backend tasks",
     });
-    expect(agent.expertise).toEqual(["TypeScript", "Node.js"]);
-  });
-
-  it("respects can_review=false", () => {
-    const p = createProject({ name: "P" });
-    const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, {
-      name: "Coder",
-      role: "dev",
-      system_prompt: "code",
-      can_review: false,
-    });
-    expect(agent.can_review).toBe(false);
+    expect(agent.description).toBe("Handles complex backend tasks");
   });
 });
 
 describe("updateAgent", () => {
-  it("updates name and role", () => {
+  it("updates name and title", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "Old", role: "dev", system_prompt: "s" });
-    const updated = updateAgent(agent.id, { name: "New", role: "reviewer" });
+    const agent = createAgent(crew.id, { name: "Old", title: "Dev", system_prompt: "s" });
+    const updated = updateAgent(agent.id, { name: "New", title: "Reviewer" });
     expect(updated.name).toBe("New");
-    expect(updated.role).toBe("reviewer");
+    expect(updated.title).toBe("Reviewer");
   });
 
-  it("updates expertise", () => {
+  it("updates description", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
-    const updated = updateAgent(agent.id, { expertise: ["Go"] });
-    expect(updated.expertise).toEqual(["Go"]);
+    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
+    const updated = updateAgent(agent.id, { description: "Updated desc" });
+    expect(updated.description).toBe("Updated desc");
   });
 });
 
@@ -91,7 +79,7 @@ describe("deleteAgent", () => {
   it("deletes the agent", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
     deleteAgent(agent.id);
     expect(getAgent(agent.id)).toBeNull();
   });
@@ -99,7 +87,7 @@ describe("deleteAgent", () => {
   it("nulls out agent_id on sessions instead of deleting them", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
     createSession({ project_id: p.id, session_type: "agent", agent_id: agent.id });
     deleteAgent(agent.id);
     expect(getAgent(agent.id)).toBeNull();
@@ -113,8 +101,8 @@ describe("listAgents", () => {
   it("returns agents for crew", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
-    createAgent(crew.id, { name: "B", role: "dev", system_prompt: "s" });
+    createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
+    createAgent(crew.id, { name: "B", title: "Dev", system_prompt: "s" });
     expect(listAgents(crew.id).length).toBe(2);
   });
 });
@@ -123,14 +111,14 @@ describe("hasActiveIssues", () => {
   it("returns false when agent has no issues", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
     expect(hasActiveIssues(agent.id)).toBe(false);
   });
 
   it("returns true when agent has open issue", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     updateIssue(issue.id, { assigned_agent_id: agent.id });
     expect(hasActiveIssues(agent.id)).toBe(true);
@@ -139,7 +127,7 @@ describe("hasActiveIssues", () => {
   it("returns false when agent's issue is closed", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     updateIssue(issue.id, { assigned_agent_id: agent.id, status: "closed" });
     expect(hasActiveIssues(agent.id)).toBe(false);
@@ -148,7 +136,7 @@ describe("hasActiveIssues", () => {
   it("returns false when agent's issue is done", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     updateIssue(issue.id, { assigned_agent_id: agent.id, status: "done" });
     expect(hasActiveIssues(agent.id)).toBe(false);

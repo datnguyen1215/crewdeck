@@ -1,44 +1,29 @@
 import { db } from "../index.js";
 import type { Agent, CreateAgentInput, UpdateAgentInput } from "../../types/entities.js";
 
-type AgentRow = Omit<Agent, "expertise" | "can_review"> & {
-  expertise: string | null;
-  can_review: number;
-};
-
-function fromRow(row: AgentRow): Agent {
-  return {
-    ...row,
-    expertise: row.expertise ? (JSON.parse(row.expertise) as string[]) : [],
-    can_review: row.can_review === 1,
-  };
-}
-
 export function listAgents(crewId: string): Agent[] {
-  const rows = db
+  return db
     .prepare("SELECT * FROM Agent WHERE crew_id = ? ORDER BY created_at ASC")
-    .all(crewId) as AgentRow[];
-  return rows.map(fromRow);
+    .all(crewId) as Agent[];
 }
 
 export function getAgent(id: string): Agent | null {
-  const row = db.prepare("SELECT * FROM Agent WHERE id = ?").get(id) as AgentRow | undefined;
-  return row ? fromRow(row) : null;
+  const row = db.prepare("SELECT * FROM Agent WHERE id = ?").get(id) as Agent | undefined;
+  return row ?? null;
 }
 
 export function createAgent(crewId: string, input: CreateAgentInput): Agent {
   const id = crypto.randomUUID();
   db.prepare(
-    `INSERT INTO Agent (id, crew_id, name, role, expertise, system_prompt, can_review)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO Agent (id, crew_id, name, title, description, system_prompt)
+     VALUES (?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     crewId,
     input.name,
-    input.role,
-    input.expertise ? JSON.stringify(input.expertise) : null,
-    input.system_prompt,
-    input.can_review !== undefined ? (input.can_review ? 1 : 0) : 1
+    input.title,
+    input.description ?? null,
+    input.system_prompt
   );
   return getAgent(id)!;
 }
@@ -48,10 +33,9 @@ export function updateAgent(id: string, input: UpdateAgentInput): Agent {
   const values: unknown[] = [];
 
   if (input.name !== undefined) { fields.push("name = ?"); values.push(input.name); }
-  if (input.role !== undefined) { fields.push("role = ?"); values.push(input.role); }
-  if (input.expertise !== undefined) { fields.push("expertise = ?"); values.push(JSON.stringify(input.expertise)); }
+  if (input.title !== undefined) { fields.push("title = ?"); values.push(input.title); }
+  if (input.description !== undefined) { fields.push("description = ?"); values.push(input.description); }
   if (input.system_prompt !== undefined) { fields.push("system_prompt = ?"); values.push(input.system_prompt); }
-  if (input.can_review !== undefined) { fields.push("can_review = ?"); values.push(input.can_review ? 1 : 0); }
 
   if (fields.length > 0) {
     fields.push("updated_at = CURRENT_TIMESTAMP");
@@ -62,9 +46,6 @@ export function updateAgent(id: string, input: UpdateAgentInput): Agent {
 }
 
 export function deleteAgent(id: string): void {
-  // IssueAgent.agent_id is NOT NULL — must delete before the agent.
-  // Session.agent_id is nullable but still has a FK reference — null it out rather than
-  // deleting sessions, since sessions are historical records we want to keep.
   db.transaction(() => {
     db.prepare("DELETE FROM IssueAgent WHERE agent_id = ?").run(id);
     db.prepare("UPDATE Session SET agent_id = NULL WHERE agent_id = ?").run(id);
@@ -73,8 +54,6 @@ export function deleteAgent(id: string): void {
 }
 
 export function hasActiveIssues(agentId: string): boolean {
-  // 'done' is the terminal status in this system; 'closed'/'cancelled' are included
-  // defensively in case the orchestrator introduces them later.
   const row = db
     .prepare(
       `SELECT COUNT(*) as count FROM Issue

@@ -48,11 +48,10 @@ const FilesSchema = z.object({
 router.post("/signal", validate(SignalSchema), (req, res) => {
   const { session_id, agent_id, issue_id, project_id, event, data } = req.body;
 
+  if (!getAgent(agent_id)) throw new NotFoundError("Agent not found");
+
   if (event === "work-complete") {
-    // Look up the agent's role so the orchestrator can route correctly
-    const agent = getAgent(agent_id);
-    if (!agent) throw new NotFoundError("Agent not found");
-    eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: agent.role });
+    eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: "worker" });
   } else if (event === "review-complete") {
     // verdict is guaranteed present by SignalSchema .refine()
     eventBus.emit("review.completed", { session_id, issue_id, agent_id, project_id, verdict: data!.verdict! });

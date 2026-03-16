@@ -128,13 +128,23 @@ export function createAgent(
   projectId: string,
   data: {
     name: string;
-    role: string;
-    expertise?: string[];
+    title: string;
+    description?: string;
     system_prompt: string;
-    can_review?: boolean;
   },
 ) {
   return request<Agent>("POST", `/projects/${e(projectId)}/crew/agents`, data);
+}
+
+export function generateAgent(
+  projectId: string,
+  data: { prompt: string },
+) {
+  return request<{ name: string; title: string; description: string; system_prompt: string }>(
+    "POST",
+    `/projects/${e(projectId)}/crew/agents/generate`,
+    data,
+  );
 }
 
 export function updateAgent(
@@ -396,10 +406,9 @@ export interface Agent {
   id: string;
   crew_id: string;
   name: string;
-  role: string;
-  expertise: string[];
+  title: string;
+  description: string | null;
   system_prompt: string;
-  can_review: boolean;
   created_at: string;
   updated_at: string;
 }

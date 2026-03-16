@@ -64,14 +64,13 @@ describe("POST /api/v1/projects/:projectId/crew/agents", () => {
       .post(`/api/v1/projects/${projectId}/crew/agents`)
       .send({
         name: "Agent One",
-        role: "developer",
+        title: "developer",
         system_prompt: "You are a dev",
       });
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty("id");
     expect(res.body.name).toBe("Agent One");
-    expect(res.body.role).toBe("developer");
-    expect(res.body).toHaveProperty("expertise");
+    expect(res.body.title).toBe("developer");
   });
 
   it("validates required fields", async () => {
@@ -84,7 +83,7 @@ describe("POST /api/v1/projects/:projectId/crew/agents", () => {
   it("returns 404 for non-existent project", async () => {
     const res = await request(app)
       .post(`/api/v1/projects/${FAKE_ID}/crew/agents`)
-      .send({ name: "Agent", role: "dev", system_prompt: "prompt" });
+      .send({ name: "Agent", title: "dev", system_prompt: "prompt" });
     expect(res.status).toBe(404);
   });
 });
@@ -93,7 +92,7 @@ describe("GET /api/v1/projects/:projectId/crew/agents (after creation)", () => {
   beforeAll(async () => {
     const res = await request(app)
       .post(`/api/v1/projects/${projectId}/crew/agents`)
-      .send({ name: "List Agent", role: "dev", system_prompt: "prompt" });
+      .send({ name: "List Agent", title: "dev", system_prompt: "prompt" });
     expect(res.status).toBe(201);
   });
 
@@ -110,7 +109,7 @@ describe("GET /api/v1/projects/:projectId/crew (with agents)", () => {
   beforeAll(async () => {
     const res = await request(app)
       .post(`/api/v1/projects/${projectId}/crew/agents`)
-      .send({ name: "Crew Agent", role: "dev", system_prompt: "prompt" });
+      .send({ name: "Crew Agent", title: "dev", system_prompt: "prompt" });
     expect(res.status).toBe(201);
   });
 
@@ -129,7 +128,7 @@ describe("PATCH /api/v1/projects/:projectId/crew/agents/:agentId", () => {
       .post(`/api/v1/projects/${projectId}/crew/agents`)
       .send({
         name: "Patchable",
-        role: "tester",
+        title: "tester",
         system_prompt: "test prompt",
       });
     expect(res.status).toBe(201);
@@ -158,7 +157,7 @@ describe("DELETE /api/v1/projects/:projectId/crew/agents/:agentId", () => {
   beforeAll(async () => {
     const res = await request(app)
       .post(`/api/v1/projects/${projectId}/crew/agents`)
-      .send({ name: "Deletable", role: "disposable", system_prompt: "bye" });
+      .send({ name: "Deletable", title: "disposable", system_prompt: "bye" });
     expect(res.status).toBe(201);
     agentId = res.body.id;
   });
@@ -185,7 +184,7 @@ describe("DELETE /api/v1/projects/:projectId/crew/agents/:agentId (conflict)", (
     // Create an agent
     const agentRes = await request(app)
       .post(`/api/v1/projects/${projectId}/crew/agents`)
-      .send({ name: "Busy Agent", role: "worker", system_prompt: "working" });
+      .send({ name: "Busy Agent", title: "worker", system_prompt: "working" });
     expect(agentRes.status).toBe(201);
     agentId = agentRes.body.id;
 

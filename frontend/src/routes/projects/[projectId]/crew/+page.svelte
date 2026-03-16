@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent, type CrewWithAgents } from '$lib/api/http.js';
+	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent, generateAgent, type CrewWithAgents } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
@@ -49,15 +49,17 @@
 	// Agent modal (create / edit)
 	let showModal = $state(false);
 	let editTarget = $state<AgentData | null>(null);
-	// f-prefix distinguishes form state from data model fields (e.g. fname vs agent.name)
 	let fname = $state('');
-	let frole = $state('');
-	let fexpertise = $state<string[]>([]);
+	let ftitle = $state('');
+	let fdescription = $state('');
 	let fprompt = $state('');
-	let fcanReview = $state(true);
-	let tagInput = $state('');
 	let submitting = $state(false);
 	let formErrors = $state<Record<string, string>>({});
+
+	// Generate flow
+	let generateInput = $state('');
+	let generating = $state(false);
+	let generated = $state(false);
 
 	// Delete confirmation
 	let deleteTarget = $state<AgentData | null>(null);
@@ -113,7 +115,7 @@
 	function onNameKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter') saveName();
 		if (e.key === 'Escape') {
-			nameInput = crew!.name; // restore original before blur fires
+			nameInput = crew!.name;
 			editingName = false;
 		}
 	}
@@ -123,11 +125,12 @@
 	function openCreate() {
 		editTarget = null;
 		fname = '';
-		frole = '';
-		fexpertise = [];
+		ftitle = '';
+		fdescription = '';
 		fprompt = '';
-		fcanReview = true;
-		tagInput = '';
+		generateInput = '';
+		generating = false;
+		generated = false;
 		formErrors = {};
 		showModal = true;
 	}
@@ -135,37 +138,36 @@
 	function openEdit(agent: AgentData) {
 		editTarget = agent;
 		fname = agent.name;
-		frole = agent.role;
-		fexpertise = [...agent.expertise];
+		ftitle = agent.title;
+		fdescription = agent.description ?? '';
 		fprompt = agent.system_prompt;
-		fcanReview = agent.can_review;
-		tagInput = '';
+		generateInput = '';
+		generating = false;
+		generated = true;
 		formErrors = {};
 		showModal = true;
 	}
 
 	function closeModal() {
-		if (!submitting) showModal = false;
+		if (!submitting && !generating) showModal = false;
 	}
 
-	// --- Tag input ---
+	// --- Generate ---
 
-	function addTag() {
-		const tag = tagInput.trim().replace(/,$/, '');
-		if (tag && !fexpertise.includes(tag)) fexpertise = [...fexpertise, tag];
-		tagInput = '';
-	}
-
-	function removeTag(tag: string) {
-		fexpertise = fexpertise.filter((t) => t !== tag);
-	}
-
-	function onTagKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' || e.key === ',') {
-			e.preventDefault();
-			addTag();
-		} else if (e.key === 'Backspace' && !tagInput && fexpertise.length > 0) {
-			fexpertise = fexpertise.slice(0, -1);
+	async function handleGenerate() {
+		if (!generateInput.trim() || generating) return;
+		generating = true;
+		try {
+			const result = await generateAgent(projectId, { prompt: generateInput.trim() });
+			fname = result.name;
+			ftitle = result.title;
+			fdescription = result.description;
+			fprompt = result.system_prompt;
+			generated = true;
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to generate agent', 'error');
+		} finally {
+			generating = false;
 		}
 	}
 
@@ -174,7 +176,7 @@
 	function validate(): boolean {
 		const errs: Record<string, string> = {};
 		if (!fname.trim()) errs.name = 'Name is required';
-		if (!frole.trim()) errs.role = 'Role is required';
+		if (!ftitle.trim()) errs.title = 'Title is required';
 		if (!fprompt.trim()) errs.prompt = 'System prompt is required';
 		formErrors = errs;
 		return Object.keys(errs).length === 0;
@@ -187,10 +189,9 @@
 		try {
 			const data = {
 				name: fname.trim(),
-				role: frole.trim(),
-				expertise: fexpertise,
-				system_prompt: fprompt.trim(),
-				can_review: fcanReview
+				title: ftitle.trim(),
+				description: fdescription.trim() || undefined,
+				system_prompt: fprompt.trim()
 			};
 			if (editTarget) {
 				const updated = await updateAgent(projectId, editTarget.id, data);
@@ -302,13 +303,8 @@
 							<div class="skeleton h-4 w-3/5 rounded mb-1.5"></div>
 							<div class="skeleton h-3 w-2/5 rounded"></div>
 						</div>
-						<div class="skeleton h-3 w-16 rounded"></div>
 					</div>
-					<div class="flex gap-1 mb-3">
-						{#each Array(3) as _}
-							<div class="skeleton h-5 w-14 rounded"></div>
-						{/each}
-					</div>
+					<div class="skeleton h-3 w-4/5 rounded mb-3"></div>
 					<div class="mt-auto pt-3 border-t border-edge">
 						<div class="skeleton h-4 w-20 rounded mb-2"></div>
 					</div>
@@ -334,37 +330,20 @@
 		{:else}
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
 				{#each crew.agents as agent, i (agent.id)}
-					<!-- Defensive fallback — status is always one of idle/working/reviewing from getCrew() -->
-				{@const cfg = STATUS_CFG[agent.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.idle}
+					{@const cfg = STATUS_CFG[agent.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.idle}
 					<div
 						class="agent-card flex flex-col p-4 bg-surface border rounded hover:-translate-y-0.5 transition-all duration-200 fade-up {cfg.cardBorder}"
 						style="{cfg.cardGlow ? `box-shadow: ${cfg.cardGlow};` : ''}animation-delay: {i * 50}ms"
 					>
-						<!-- Name + role -->
-						<div class="flex items-start justify-between gap-2 mb-3">
-							<div class="min-w-0">
-								<h2 class="text-primary font-semibold truncate">{agent.name}</h2>
-								<p class="text-cyan text-xs mt-0.5 truncate">{agent.role}</p>
-							</div>
-							{#if agent.can_review}
-								<span class="text-xs text-green flex-shrink-0 mt-0.5">✓ reviewer</span>
-							{:else}
-								<span class="text-xs text-muted flex-shrink-0 mt-0.5">✗ no review</span>
-							{/if}
+						<!-- Name + title -->
+						<div class="mb-3">
+							<h2 class="text-primary font-semibold truncate">{agent.name}</h2>
+							<p class="text-cyan text-xs mt-0.5 truncate">{agent.title}</p>
 						</div>
 
-						<!-- Expertise tags -->
-						{#if agent.expertise.length > 0}
-							<div class="flex flex-wrap gap-1 mb-3">
-								{#each agent.expertise as tag (tag)}
-									<span
-										class="text-xs px-1.5 py-0.5 rounded border border-edge text-muted"
-										style="text-shadow: 0 0 6px rgba(161,161,170,0.2)"
-									>
-										{tag}
-									</span>
-								{/each}
-							</div>
+						<!-- Description -->
+						{#if agent.description}
+							<p class="text-muted text-xs mb-3 line-clamp-2">{agent.description}</p>
 						{/if}
 
 						<!-- Status -->
@@ -434,123 +413,141 @@
 				</button>
 			</div>
 
-			<form onsubmit={handleSubmit} class="space-y-4">
-				<!-- Name -->
-				<div>
-					<label for="agent-name" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						Name <span class="text-red">*</span>
-					</label>
-					<input
-						id="agent-name"
-						bind:value={fname}
-						placeholder="e.g. Alice"
-						class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors {formErrors.name ? 'border-red' : 'border-edge focus:border-cyan'}"
-					/>
-					{#if formErrors.name}
-						<p class="text-red text-xs mt-1">{formErrors.name}</p>
-					{/if}
-				</div>
+			<!-- Generate step (only for create, before fields are generated) -->
+			{#if !editTarget && !generated}
+				<div class="space-y-4">
+					<div>
+						<label for="agent-generate" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+							Describe your agent
+						</label>
+						<textarea
+							id="agent-generate"
+							bind:value={generateInput}
+							rows="3"
+							placeholder="e.g. frontend dev who's good at React and accessibility"
+							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors focus:border-cyan resize-y"
+							onkeydown={(e) => {
+								if (e.key === 'Enter' && !e.shiftKey) {
+									e.preventDefault();
+									handleGenerate();
+								}
+							}}
+						></textarea>
+						<p class="text-muted text-xs mt-1">Claude will generate the agent's name, title, description, and system prompt</p>
+					</div>
 
-				<!-- Role -->
-				<div>
-					<label for="agent-role" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						Role <span class="text-red">*</span>
-					</label>
-					<input
-						id="agent-role"
-						bind:value={frole}
-						placeholder="e.g. Senior Software Engineer"
-						class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors {formErrors.role ? 'border-red' : 'border-edge focus:border-cyan'}"
-					/>
-					{#if formErrors.role}
-						<p class="text-red text-xs mt-1">{formErrors.role}</p>
-					{/if}
+					<div class="flex gap-3">
+						<button
+							onclick={handleGenerate}
+							disabled={generating || !generateInput.trim()}
+							class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
+						>
+							{generating ? 'Generating…' : 'Generate'}
+						</button>
+						<button
+							type="button"
+							onclick={() => { generated = true; }}
+							class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors"
+						>
+							Skip
+						</button>
+					</div>
 				</div>
+			{:else}
+				<!-- Editable fields -->
+				<form onsubmit={handleSubmit} class="space-y-4">
+					{#if !editTarget}
+						<button
+							type="button"
+							onclick={() => { generated = false; }}
+							class="text-xs text-muted hover:text-cyan transition-colors mb-2"
+						>
+							← Back to generate
+						</button>
+					{/if}
 
-				<!-- Expertise tags -->
-				<div>
-					<label class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						Expertise
-					</label>
-					<div
-						class="w-full bg-base border border-edge rounded px-3 py-2 flex flex-wrap gap-1.5 min-h-[40px] focus-within:border-cyan transition-colors"
-					>
-						{#each fexpertise as tag (tag)}
-							<span class="inline-flex items-center gap-1 text-xs bg-surface-hi border border-edge px-1.5 py-0.5 rounded text-secondary">
-								{tag}
-								<button
-									type="button"
-									onclick={() => removeTag(tag)}
-									class="text-muted hover:text-red transition-colors leading-none"
-									aria-label="Remove {tag}"
-								>
-									×
-								</button>
-							</span>
-						{/each}
+					<!-- Name -->
+					<div>
+						<label for="agent-name" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+							Name <span class="text-red">*</span>
+						</label>
 						<input
-							bind:value={tagInput}
-							onkeydown={onTagKeydown}
-							placeholder={fexpertise.length === 0 ? 'Type and press Enter…' : ''}
-							class="flex-1 min-w-[120px] bg-transparent text-sm text-primary placeholder:text-muted outline-none"
+							id="agent-name"
+							bind:value={fname}
+							placeholder="e.g. Alice"
+							class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors {formErrors.name ? 'border-red' : 'border-edge focus:border-cyan'}"
+						/>
+						{#if formErrors.name}
+							<p class="text-red text-xs mt-1">{formErrors.name}</p>
+						{/if}
+					</div>
+
+					<!-- Title -->
+					<div>
+						<label for="agent-title" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+							Title <span class="text-red">*</span>
+						</label>
+						<input
+							id="agent-title"
+							bind:value={ftitle}
+							placeholder="e.g. Senior Frontend Engineer"
+							class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors {formErrors.title ? 'border-red' : 'border-edge focus:border-cyan'}"
+						/>
+						{#if formErrors.title}
+							<p class="text-red text-xs mt-1">{formErrors.title}</p>
+						{/if}
+					</div>
+
+					<!-- Description -->
+					<div>
+						<label for="agent-description" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+							Description
+						</label>
+						<input
+							id="agent-description"
+							bind:value={fdescription}
+							placeholder="A brief summary of the agent's purpose"
+							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors focus:border-cyan"
 						/>
 					</div>
-					<p class="text-muted text-xs mt-1">Press Enter or comma to add a tag</p>
-				</div>
 
-				<!-- System Prompt -->
-				<div>
-					<label for="agent-prompt" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						System Prompt <span class="text-red">*</span>
-					</label>
-					<textarea
-						id="agent-prompt"
-						bind:value={fprompt}
-						rows="5"
-						placeholder="You are {fname || 'an AI agent'}…"
-						class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors resize-y {formErrors.prompt ? 'border-red' : 'border-edge focus:border-cyan'}"
-					></textarea>
-					{#if formErrors.prompt}
-						<p class="text-red text-xs mt-1">{formErrors.prompt}</p>
-					{/if}
-				</div>
+					<!-- System Prompt -->
+					<div>
+						<label for="agent-prompt" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+							System Prompt <span class="text-red">*</span>
+						</label>
+						<textarea
+							id="agent-prompt"
+							bind:value={fprompt}
+							rows="6"
+							placeholder="You are {fname || 'an AI agent'}…"
+							class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors resize-y {formErrors.prompt ? 'border-red' : 'border-edge focus:border-cyan'}"
+						></textarea>
+						{#if formErrors.prompt}
+							<p class="text-red text-xs mt-1">{formErrors.prompt}</p>
+						{/if}
+					</div>
 
-				<!-- Can Review toggle -->
-				<div class="flex items-center justify-between py-1">
-					<span class="text-xs text-muted uppercase tracking-widest">Can Review</span>
-					<button
-						type="button"
-						onclick={() => (fcanReview = !fcanReview)}
-						class="relative w-10 h-5 rounded-full transition-colors duration-200 {fcanReview ? 'bg-green/30 border border-green/50' : 'bg-surface-hi border border-edge'}"
-						aria-label="Toggle can review"
-						role="switch"
-						aria-checked={fcanReview}
-					>
-						<span
-							class="absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200 {fcanReview ? 'left-5 bg-green' : 'left-0.5 bg-muted'}"
-						></span>
-					</button>
-				</div>
-
-				<!-- Submit -->
-				<div class="flex gap-3 pt-1">
-					<button
-						type="submit"
-						disabled={submitting}
-						class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
-					>
-						{submitting ? (editTarget ? 'Saving…' : 'Adding…') : (editTarget ? 'Save Changes' : 'Add Agent')}
-					</button>
-					<button
-						type="button"
-						onclick={closeModal}
-						disabled={submitting}
-						class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors disabled:opacity-50"
-					>
-						Cancel
-					</button>
-				</div>
-			</form>
+					<!-- Submit -->
+					<div class="flex gap-3 pt-1">
+						<button
+							type="submit"
+							disabled={submitting}
+							class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
+						>
+							{submitting ? (editTarget ? 'Saving…' : 'Adding…') : (editTarget ? 'Save Changes' : 'Add Agent')}
+						</button>
+						<button
+							type="button"
+							onclick={closeModal}
+							disabled={submitting}
+							class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors disabled:opacity-50"
+						>
+							Cancel
+						</button>
+					</div>
+				</form>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -572,7 +569,7 @@
 				<!-- Blocked: agent is active -->
 				<div class="mb-5">
 					<p class="text-amber text-sm mb-2">
-						⚠ Cannot delete <span class="text-primary font-semibold">{deleteTarget.name}</span> while they're assigned to an active issue.
+						Cannot delete <span class="text-primary font-semibold">{deleteTarget.name}</span> while they're assigned to an active issue.
 					</p>
 					<p class="text-muted text-xs">
 						Currently {deleteTarget.status} on: <span class="text-secondary">"{deleteTarget.current_issue.title}"</span>
@@ -611,7 +608,6 @@
 {/if}
 
 <style>
-	/* Pulse animation for working/reviewing status dots */
 	.status-dot.pulse {
 		animation: status-pulse 2s ease-in-out infinite;
 	}
@@ -621,7 +617,6 @@
 		50% { opacity: 0.4; }
 	}
 
-	/* Subtle hover lift for agent cards */
 	.agent-card {
 		cursor: default;
 	}

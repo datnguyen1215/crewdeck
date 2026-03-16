@@ -36,8 +36,8 @@ describe("getCrewWithAgents", () => {
   it("returns crew with agents", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    createAgent(crew.id, { name: "Alice", role: "dev", system_prompt: "you are alice" });
-    createAgent(crew.id, { name: "Bob", role: "reviewer", system_prompt: "you are bob" });
+    createAgent(crew.id, { name: "Alice", title: "dev", system_prompt: "you are alice" });
+    createAgent(crew.id, { name: "Bob", title: "reviewer", system_prompt: "you are bob" });
 
     const result = getCrewWithAgents(p.id);
     expect(result).not.toBeNull();
