@@ -42,7 +42,7 @@ export async function historyCommand(argv: string[]): Promise<void> {
         process.exit(1);
       }
 
-      const summary = rest[summaryIdx + 1];
+      const summary = rest.slice(summaryIdx + 1).join(" ");
       await post("/internal/history", { project_id, agent_id, summary }, api_url);
       console.log("History entry saved.");
       break;
