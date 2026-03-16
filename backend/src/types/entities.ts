@@ -148,8 +148,13 @@ export interface ProjectWithStats extends Project {
   orchestrator_status: "none" | "active" | "error" | "idle";
 }
 
+export interface AgentWithStatus extends Agent {
+  status: "idle" | "working" | "reviewing";
+  current_issue: { id: string; title: string } | null;
+}
+
 export interface CrewWithAgents extends Crew {
-  agents: Agent[];
+  agents: AgentWithStatus[];
 }
 
 export interface IssueWithDetails extends Issue {
