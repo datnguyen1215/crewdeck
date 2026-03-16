@@ -91,12 +91,13 @@
 		if (!ws) return;
 		const unsubs = [
 			ws.on('session.started', (data) => {
-				// Reload orchestrator session when a new session starts
+				// Only react to orchestrator sessions (they omit agent_id)
+				if (data.agent_id) return;
 				listSessions(projectId, { type: 'orchestrator' })
 					.then((sessions) => {
 						if (sessions.length > 0) {
 							orchestratorSession = sessions[0];
-							terminalStatus = 'running';
+							terminalStatus = sessions[0].status === 'running' ? 'running' : 'completed';
 						}
 					})
 					.catch(() => {});
