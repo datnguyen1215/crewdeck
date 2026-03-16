@@ -4,6 +4,7 @@
 	import { getContext } from 'svelte';
 	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
+	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
@@ -122,7 +123,16 @@
 					sessionStatus = 'completed';
 				}
 			}),
-			ws.on('*', reloadActivity),
+			ws.on('issue.status_changed', reloadActivity),
+			ws.on('issue.assigned', reloadActivity),
+			ws.on('comment.added', reloadActivity),
+			ws.on('session.started', reloadActivity),
+			ws.on('session.ended', reloadActivity),
+			ws.on('orchestrator.decision', reloadActivity),
+			ws.on('review.completed', reloadActivity),
+			ws.on('agent.finished', reloadActivity),
+			ws.on('agent.error', reloadActivity),
+			ws.on('pr.created', reloadActivity),
 		];
 		return () => unsubs.forEach(fn => fn());
 	});
@@ -272,56 +282,11 @@
 		setTimeout(() => (copied = false), 2000);
 	}
 
-	// Activity timeline config
-	const ACT_ACTOR_CFG: Record<string, { icon: string; color: string }> = {
-		user: { icon: '○', color: 'text-primary' },
-		agent: { icon: '⬡', color: 'text-cyan' },
-		orchestrator: { icon: '◈', color: 'text-purple' },
-		captain: { icon: '★', color: 'text-amber' },
-		system: { icon: '⚙', color: 'text-muted' }
-	};
-
-	const ACT_LABELS: Record<string, (d: Record<string, unknown>) => string> = {
-		'issue.created': () => 'Created issue',
-		'issue.status_changed': (d) => `Status: ${String(d.from).replace(/_/g, ' ')} → ${String(d.to).replace(/_/g, ' ')}`,
-		'agent.assigned': (d) => `Assigned ${d.agent_name}`,
-		'session.started': () => 'Started work session',
-		'session.ended': (d) => `Session ended (${d.status})`,
-		'comment.added': () => 'Posted a comment',
-		'pr.created': (d) => `Created PR #${d.pr_number}`,
-		'captain.decision': (d) => `Decision: ${String(d.action).replace(/_/g, ' ')}`,
-		'review.completed': (d) => `Review ${d.verdict === 'approved' ? 'approved' : 'requested changes'}`,
-		'agent.finished': (d) => `Finished (${d.role ?? 'worker'})`,
-		'agent.error': (d) => `Error${d.message ? `: ${String(d.message).slice(0, 80)}` : ''}`,
-		'agent.needs_help': (d) => `Needs help${d.message ? `: ${String(d.message).slice(0, 80)}` : ''}`
-	};
-
-	function actLabel(entry: ActivityLog): string {
-		const fn = ACT_LABELS[entry.action];
-		return fn ? fn((entry.details as Record<string, unknown>) ?? {}) : entry.action;
-	}
-
-	function actActorName(entry: ActivityLog): string {
-		if (entry.actor_type === 'agent' && entry.actor_id) {
-			const n = String(entry.actor_id).replace('agent-', '');
-			return n.charAt(0).toUpperCase() + n.slice(1);
-		}
-		if (entry.actor_type === 'captain') return 'Captain';
-		if (entry.actor_type === 'orchestrator') return 'Orchestrator';
-		if (entry.actor_type === 'system') return 'System';
-		return 'User';
-	}
-
 	function toggleActivityExpand(id: string) {
 		const next = new Set(activityExpanded);
 		if (next.has(id)) next.delete(id);
 		else next.add(id);
 		activityExpanded = next;
-	}
-
-	function hasActivityDetails(entry: ActivityLog): boolean {
-		const d = (entry.details as Record<string, unknown>) ?? {};
-		return !!(d.reasoning || d.message || d.verdict);
 	}
 
 	const STATUS_CFG: Record<
@@ -569,9 +534,9 @@
 								<div class="absolute left-[9px] top-2 bottom-0 w-px bg-edge pointer-events-none"></div>
 								<div class="flex flex-col">
 									{#each activityEntries as entry, i (entry.id)}
-										{@const acfg = ACT_ACTOR_CFG[entry.actor_type] ?? ACT_ACTOR_CFG.system}
+										{@const acfg = ACTOR_CFG[entry.actor_type] ?? ACTOR_CFG.system}
 										{@const details = (entry.details as Record<string, unknown>) ?? {}}
-										{@const expandable = hasActivityDetails(entry)}
+										{@const expandable = hasExpandableDetails(entry)}
 										{@const isExp = activityExpanded.has(entry.id)}
 										<div class="flex gap-3 pb-4 relative" style="animation: fade-up 0.2s ease both; animation-delay: {Math.min(i * 25, 200)}ms">
 											<div class="flex-shrink-0 w-5 flex justify-center pt-0.5 relative z-10">
@@ -581,12 +546,12 @@
 											</div>
 											<div class="flex-1 min-w-0 pt-0.5">
 												<div class="flex items-center gap-2 mb-0.5 flex-wrap">
-													<span class="text-xs font-semibold {acfg.color}">{actActorName(entry)}</span>
+													<span class="text-xs font-semibold {acfg.color}">{actorName(entry)}</span>
 													<span class="text-muted text-xs font-mono" title={new Date(entry.created_at).toLocaleString()}>
 														{relTime(entry.created_at)}
 													</span>
 												</div>
-												<p class="text-secondary text-sm">{actLabel(entry)}</p>
+												<p class="text-secondary text-sm">{actionLabel(entry)}</p>
 												{#if expandable}
 													<button
 														onclick={() => toggleActivityExpand(entry.id)}
