@@ -17,11 +17,14 @@ function buildLaunchScript(prompt: string, systemPrompt?: string, print?: boolea
   const promptLine = `PROMPT=$(printf '%s' ${encode(prompt)} | base64 -d)`;
   const printFlag = print ? " --print" : "";
 
+  // --print takes the prompt as a positional arg; interactive mode needs --prompt
+  const promptArg = print ? '"$PROMPT"' : '--prompt "$PROMPT"';
+
   if (systemPrompt) {
     const sysLine = `SYSTEM_PROMPT=$(printf '%s' ${encode(systemPrompt)} | base64 -d)`;
-    return `#!/bin/bash\n${promptLine}\n${sysLine}\nexec claude --dangerously-skip-permissions${printFlag} --system-prompt "$SYSTEM_PROMPT" "$PROMPT"\n`;
+    return `#!/bin/bash\n${promptLine}\n${sysLine}\nexec claude --dangerously-skip-permissions${printFlag} --system-prompt "$SYSTEM_PROMPT" ${promptArg}\n`;
   }
-  return `#!/bin/bash\n${promptLine}\nexec claude --dangerously-skip-permissions${printFlag} "$PROMPT"\n`;
+  return `#!/bin/bash\n${promptLine}\nexec claude --dangerously-skip-permissions${printFlag} ${promptArg}\n`;
 }
 
 export class ClaudeCodeAdapter implements AgentAdapter {

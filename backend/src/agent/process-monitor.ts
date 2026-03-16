@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { listRunningSessions, updateSession } from "../db/repositories/sessions.js";
+import { getSession, listRunningSessions, updateSession } from "../db/repositories/sessions.js";
 import { eventBus } from "../events/bus.js";
 import { mergeContext, type AgentAdapter } from "./types.js";
 
@@ -13,6 +13,21 @@ export class ProcessMonitor {
   private lastOutput = new Map<string, string>();
 
   constructor(private readonly adapter: AgentAdapter) {}
+
+  /** Emit only the new portion of output since last check. */
+  private emitOutputDiff(sessionId: string, projectId: string, output: string): void {
+    const prev = this.lastOutput.get(sessionId) ?? "";
+    if (!output || output === prev) return;
+    const newContent = output.startsWith(prev) ? output.slice(prev.length) : output;
+    if (newContent) {
+      eventBus.emit("session.output", {
+        session_id: sessionId,
+        project_id: projectId,
+        output: newContent,
+      });
+    }
+    this.lastOutput.set(sessionId, output);
+  }
 
   start(): void {
     if (this.timer) return;
@@ -59,22 +74,7 @@ export class ProcessMonitor {
         if (alive) {
           this.finished.delete(session.id);
 
-          // Stream output diff to frontend
-          const prev = this.lastOutput.get(session.id) ?? "";
-          if (lastOutput && lastOutput !== prev) {
-            // Send only the new portion of output
-            const newContent = lastOutput.startsWith(prev)
-              ? lastOutput.slice(prev.length)
-              : lastOutput;
-            if (newContent) {
-              eventBus.emit("session.output", {
-                session_id: session.id,
-                project_id: session.project_id,
-                output: newContent,
-              });
-            }
-            this.lastOutput.set(session.id, lastOutput);
-          }
+          this.emitOutputDiff(session.id, session.project_id, lastOutput);
           return;
         }
 
@@ -86,25 +86,19 @@ export class ProcessMonitor {
         }
 
         try {
+          // Re-check session status — the orchestrator may have already completed it
+          const fresh = getSession(session.id);
+          if (fresh && fresh.status !== "running") {
+            this.lastOutput.delete(session.id);
+            return;
+          }
+
           updateSession(session.id, {
             status: "completed",
             context: mergeContext(session.context, { final_output: lastOutput }),
           });
 
-          // Send final output diff before session.ended
-          const prev = this.lastOutput.get(session.id) ?? "";
-          if (lastOutput && lastOutput !== prev) {
-            const newContent = lastOutput.startsWith(prev)
-              ? lastOutput.slice(prev.length)
-              : lastOutput;
-            if (newContent) {
-              eventBus.emit("session.output", {
-                session_id: session.id,
-                project_id: session.project_id,
-                output: newContent,
-              });
-            }
-          }
+          this.emitOutputDiff(session.id, session.project_id, lastOutput);
           this.lastOutput.delete(session.id);
 
           eventBus.emit("session.ended", {

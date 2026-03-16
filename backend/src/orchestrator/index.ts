@@ -619,14 +619,14 @@ export class OrchestratorManager {
     }
 
     // Wait for the tmux session to finish (claude --print exits after responding)
+    let timedOut = true;
     const deadline = Date.now() + ORCH_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise<void>((r) => setTimeout(r, ORCH_POLL_MS));
-      if (!(await this.adapter.isAlive(tmuxName))) break;
+      if (!(await this.adapter.isAlive(tmuxName))) { timedOut = false; break; }
     }
 
-    // If still alive after timeout, kill it
-    if (await this.adapter.isAlive(tmuxName)) {
+    if (timedOut) {
       logger.warn({ projectId }, "Orchestrator: tmux session timed out, killing");
       await this.adapter.kill(tmuxName);
     }
