@@ -18,18 +18,21 @@ export function createCaptainMessage(
   input: CreateCaptainMessageInput,
 ): CaptainMessage {
   const id = crypto.randomUUID();
+  const authorId = input.author_id ?? null;
+  const contextJson = input.context ? JSON.stringify(input.context) : null;
   db.prepare(
     `INSERT INTO CaptainMessage (id, project_id, author_type, author_id, content, context)
      VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(
+  ).run(id, projectId, input.author_type, authorId, input.content, contextJson);
+  return {
     id,
-    projectId,
-    input.author_type,
-    input.author_id ?? null,
-    input.content,
-    input.context ? JSON.stringify(input.context) : null,
-  );
-  return getCaptainMessage(id)!;
+    project_id: projectId,
+    author_type: input.author_type,
+    author_id: authorId,
+    content: input.content,
+    context: input.context ?? null,
+    created_at: new Date().toISOString(),
+  };
 }
 
 function deserialize(row: CaptainMessage): CaptainMessage {

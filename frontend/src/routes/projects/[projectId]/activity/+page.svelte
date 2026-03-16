@@ -4,6 +4,7 @@
 	import { listActivity, listIssues, type ActivityLog, type Issue } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { relTime } from '$lib/utils/time.js';
 
 	type ActivityEntry = ActivityLog;
 
@@ -116,17 +117,6 @@
 	let actionTypes = $derived([...new Set(allEntries.map((e) => e.action))].sort());
 	let issueMap = $derived(Object.fromEntries(issues.map((i) => [i.id, i.title])));
 
-	// Intentional: static relative time — acceptable for a log viewer, not worth a timer.
-	function relTime(dateStr: string): string {
-		const diff = Date.now() - new Date(dateStr).getTime();
-		const mins = Math.floor(diff / 60000);
-		const hours = Math.floor(diff / 3_600_000);
-		const days = Math.floor(diff / 86_400_000);
-		if (days > 0) return `${days}d ago`;
-		if (hours > 0) return `${hours}h ago`;
-		if (mins > 0) return `${mins}m ago`;
-		return 'just now';
-	}
 
 	function actorName(entry: ActivityEntry): string {
 		if (entry.actor_type === 'agent' && entry.actor_id) {
