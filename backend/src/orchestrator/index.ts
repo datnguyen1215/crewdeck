@@ -27,7 +27,7 @@ import { config } from "../config.js";
 
 // Build the initial prompt that tells the captain what CLI commands are available
 // and provides any saved decision history for context continuity.
-function buildCaptainInitialPrompt(projectId: string): string {
+function buildCaptainInitialPrompt(projectId: string, maxConcurrency: number): string {
   let prompt = `You are the captain of this project. You drive all decisions using the crewdeck CLI.
 
 ## Available Commands
@@ -52,7 +52,7 @@ crewdeck history list             — list your decision history
 
 ## Rules
 
-- Max 1 issue in progress at a time (for now).
+- Max ${maxConcurrency} issue${maxConcurrency === 1 ? "" : "s"} in progress at a time.
 - Only assign idle agents to open/draft issues.
 - After an agent finishes, route to a reviewer.
 - After review approval, the issue is done.
@@ -430,7 +430,7 @@ export class OrchestratorManager {
     }
 
     const tmuxName = captainSessionName(projectId);
-    const initialPrompt = buildCaptainInitialPrompt(projectId);
+    const initialPrompt = buildCaptainInitialPrompt(projectId, project.max_concurrency);
 
     const session = createSession({
       project_id: projectId,

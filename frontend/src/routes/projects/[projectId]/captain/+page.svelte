@@ -90,8 +90,9 @@
 		const ws = getWs();
 		if (!ws) return;
 		const unsubs = [
-			ws.on('session.started', () => {
-				// Re-fetch captain session on any session start
+			ws.on('session.started', (data) => {
+				// Only re-fetch when a captain session starts (no issue_id)
+				if (data.issue_id) return;
 				listSessions(projectId, { type: 'captain' })
 					.then((sessions) => {
 						if (sessions.length > 0) {
