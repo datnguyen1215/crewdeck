@@ -8,11 +8,6 @@ export function listCaptainMessages(projectId: string): CaptainMessage[] {
   return rows.map(deserialize);
 }
 
-export function getCaptainMessage(id: string): CaptainMessage | null {
-  const row = db.prepare("SELECT * FROM CaptainMessage WHERE id = ?").get(id) as CaptainMessage | undefined;
-  return row ? deserialize(row) : null;
-}
-
 export function createCaptainMessage(
   projectId: string,
   input: CreateCaptainMessageInput,
