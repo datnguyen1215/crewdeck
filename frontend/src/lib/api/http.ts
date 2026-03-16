@@ -131,6 +131,7 @@ export function createAgent(
     title: string;
     description?: string;
     system_prompt: string;
+    is_captain?: boolean;
   },
 ) {
   return request<Agent>("POST", `/projects/${e(projectId)}/crew/agents`, data);
@@ -409,6 +410,7 @@ export interface Agent {
   title: string;
   description: string | null;
   system_prompt: string;
+  is_captain: boolean;
   created_at: string;
   updated_at: string;
 }

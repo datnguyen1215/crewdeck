@@ -56,6 +56,9 @@
 	let submitting = $state(false);
 	let formErrors = $state<Record<string, string>>({});
 
+	// Captain toggle
+	let fisCaptain = $state(false);
+
 	// Generate flow
 	let generateInput = $state('');
 	let generating = $state(false);
@@ -128,6 +131,7 @@
 		ftitle = '';
 		fdescription = '';
 		fprompt = '';
+		fisCaptain = false;
 		generateInput = '';
 		generating = false;
 		generated = false;
@@ -141,6 +145,7 @@
 		ftitle = agent.title;
 		fdescription = agent.description ?? '';
 		fprompt = agent.system_prompt;
+		fisCaptain = !!agent.is_captain;
 		generateInput = '';
 		generating = false;
 		generated = true;
@@ -191,7 +196,8 @@
 				name: fname.trim(),
 				title: ftitle.trim(),
 				description: fdescription.trim() || undefined,
-				system_prompt: fprompt.trim()
+				system_prompt: fprompt.trim(),
+				is_captain: fisCaptain || undefined
 			};
 			if (editTarget) {
 				const updated = await updateAgent(projectId, editTarget.id, data);
@@ -337,7 +343,12 @@
 					>
 						<!-- Name + title -->
 						<div class="mb-3">
-							<h2 class="text-primary font-semibold truncate">{agent.name}</h2>
+							<div class="flex items-center gap-2">
+								<h2 class="text-primary font-semibold truncate">{agent.name}</h2>
+								{#if agent.is_captain}
+									<span class="text-[10px] font-bold uppercase tracking-wider text-amber bg-amber/10 border border-amber/30 px-1.5 py-0.5 rounded leading-none flex-shrink-0">Captain</span>
+								{/if}
+							</div>
 							<p class="text-cyan text-xs mt-0.5 truncate">{agent.title}</p>
 						</div>
 
@@ -527,6 +538,19 @@
 							<p class="text-red text-xs mt-1">{formErrors.prompt}</p>
 						{/if}
 					</div>
+
+					<!-- Captain toggle -->
+					<label class="flex items-center gap-3 cursor-pointer group">
+						<input
+							type="checkbox"
+							bind:checked={fisCaptain}
+							class="w-4 h-4 rounded border border-edge bg-base accent-amber cursor-pointer"
+						/>
+						<div>
+							<span class="text-sm text-primary group-hover:text-amber transition-colors">Designate as Captain</span>
+							<p class="text-muted text-xs mt-0.5">The captain coordinates the crew — routes issues, assigns reviewers, and makes decisions</p>
+						</div>
+					</label>
 
 					<!-- Submit -->
 					<div class="flex gap-3 pt-1">

@@ -16,6 +16,7 @@ import type { AgentAdapter, SessionHandle } from "../../src/agent/types.js";
 
 let projectId: string;
 let crewId: string;
+let captainId: string;
 let agentId: string;
 let reviewerAgentId: string;
 let issueId: string;
@@ -34,8 +35,21 @@ function seedProject(): void {
 }
 
 function seedAgents(): void {
+  captainId = crypto.randomUUID();
   agentId = crypto.randomUUID();
   reviewerAgentId = crypto.randomUUID();
+  // Captain agent — coordinates the crew
+  db.prepare(
+    "INSERT INTO Agent (id, crew_id, name, title, description, system_prompt, is_captain) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  ).run(
+    captainId,
+    crewId,
+    "Captain",
+    "project coordinator",
+    null,
+    "You are the captain.",
+    1,
+  );
   db.prepare(
     "INSERT INTO Agent (id, crew_id, name, title, description, system_prompt) VALUES (?, ?, ?, ?, ?, ?)",
   ).run(

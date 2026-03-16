@@ -23,7 +23,8 @@ function fmtIssue(i: Issue): string {
 }
 
 function fmtAgent(a: Agent): string {
-  return `  - [${a.id}] ${escapeXml(a.name)} | title: ${escapeXml(a.title)}${a.description ? ` | ${escapeXml(a.description)}` : ""}`;
+  const captainTag = a.is_captain ? " [CAPTAIN]" : "";
+  return `  - [${a.id}] ${escapeXml(a.name)} | title: ${escapeXml(a.title)}${a.description ? ` | ${escapeXml(a.description)}` : ""}${captainTag}`;
 }
 
 export function buildOrchestratorPrompt(state: OrchestratorState, eventDescription: string): string {

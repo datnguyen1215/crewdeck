@@ -12,18 +12,33 @@ export function getAgent(id: string): Agent | null {
   return row ?? null;
 }
 
+export function getCaptain(crewId: string): Agent | null {
+  const row = db
+    .prepare("SELECT * FROM Agent WHERE crew_id = ? AND is_captain = 1")
+    .get(crewId) as Agent | undefined;
+  return row ?? null;
+}
+
 export function createAgent(crewId: string, input: CreateAgentInput): Agent {
   const id = crypto.randomUUID();
+  const isCaptain = input.is_captain ? 1 : 0;
+
+  // Enforce one captain per crew
+  if (isCaptain) {
+    db.prepare("UPDATE Agent SET is_captain = 0 WHERE crew_id = ? AND is_captain = 1").run(crewId);
+  }
+
   db.prepare(
-    `INSERT INTO Agent (id, crew_id, name, title, description, system_prompt)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO Agent (id, crew_id, name, title, description, system_prompt, is_captain)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     crewId,
     input.name,
     input.title,
     input.description ?? null,
-    input.system_prompt
+    input.system_prompt,
+    isCaptain
   );
   return getAgent(id)!;
 }
@@ -36,6 +51,17 @@ export function updateAgent(id: string, input: UpdateAgentInput): Agent {
   if (input.title !== undefined) { fields.push("title = ?"); values.push(input.title); }
   if (input.description !== undefined) { fields.push("description = ?"); values.push(input.description); }
   if (input.system_prompt !== undefined) { fields.push("system_prompt = ?"); values.push(input.system_prompt); }
+  if (input.is_captain !== undefined) {
+    const isCaptain = input.is_captain ? 1 : 0;
+    // Enforce one captain per crew
+    if (isCaptain) {
+      const agent = getAgent(id);
+      if (agent) {
+        db.prepare("UPDATE Agent SET is_captain = 0 WHERE crew_id = ? AND is_captain = 1 AND id != ?").run(agent.crew_id, id);
+      }
+    }
+    fields.push("is_captain = ?"); values.push(isCaptain);
+  }
 
   if (fields.length > 0) {
     fields.push("updated_at = CURRENT_TIMESTAMP");

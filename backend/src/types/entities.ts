@@ -52,6 +52,7 @@ export interface Agent {
   title: string;
   description: string | null;
   system_prompt: string;
+  is_captain: number;
   created_at: string;
   updated_at: string;
 }
@@ -192,6 +193,7 @@ export interface CreateAgentInput {
   title: string;
   description?: string;
   system_prompt: string;
+  is_captain?: boolean;
 }
 
 export interface UpdateAgentInput {
@@ -199,6 +201,7 @@ export interface UpdateAgentInput {
   title?: string;
   description?: string;
   system_prompt?: string;
+  is_captain?: boolean;
 }
 
 export interface CreateIssueInput {
