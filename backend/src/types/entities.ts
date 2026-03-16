@@ -134,6 +134,23 @@ export interface ActivityLog {
   created_at: string;
 }
 
+export interface CaptainMessage {
+  id: string;
+  project_id: string;
+  author_type: string;
+  author_id: string | null;
+  content: string;
+  context: unknown;
+  created_at: string;
+}
+
+export interface CreateCaptainMessageInput {
+  author_type: string;
+  author_id?: string;
+  content: string;
+  context?: unknown;
+}
+
 // Composite types
 export interface ProjectWithStats extends Project {
   repo_count: number;

@@ -15,6 +15,7 @@ import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listRepos } from "../db/repositories/repos.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
 import { createComment, listComments } from "../db/repositories/comments.js";
+import { createCaptainMessage } from "../db/repositories/captain-messages.js";
 import {
   listIssueAgents,
   listActiveReviewerAgentIds,
@@ -465,6 +466,15 @@ export class OrchestratorManager {
         `A user posted a comment on issue ${comment.issue_id}:\n<user_comment>${escapeXml(comment.content.slice(0, 200))}</user_comment>`
       );
     });
+
+    this.bus.on("captain.message", ({ message, project_id }) => {
+      // Only resume on user messages, not captain's own messages
+      if (message.author_type !== "user") return;
+      void this.resume(
+        project_id,
+        `User sent a message to the captain:\n<user_message>${escapeXml(message.content.slice(0, 500))}</user_message>`
+      );
+    });
   }
 
   private handleReviewVerdict(
@@ -602,6 +612,15 @@ export class OrchestratorManager {
     });
 
     await executeAction(action, state, this.bus, this.adapter);
+
+    // Store captain message for the chat timeline
+    const captainMsg = createCaptainMessage(projectId, {
+      author_type: "captain",
+      author_id: captain.id,
+      content: action.reasoning ?? `Action: ${action.action}`,
+      context: { action: action.action, params: action.params },
+    });
+    this.bus.emit("captain.message", { message: captainMsg, project_id: projectId });
 
     persistContext(orchestratorSessionId, action);
   }

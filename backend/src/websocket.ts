@@ -120,6 +120,9 @@ export function subscribeEvents(bus: EventBus): void {
 
   bus.on("orchestrator.draft_issue", ({ issue, project_id }) =>
     broadcast(project_id, "orchestrator.draft_issue", issue));
+
+  bus.on("captain.message", ({ message, project_id }) =>
+    broadcast(project_id, "captain.message", message));
 }
 
 interface ExtendedWebSocket extends WebSocket {

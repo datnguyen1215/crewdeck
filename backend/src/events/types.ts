@@ -1,3 +1,5 @@
+import type { CaptainMessage } from "../types/entities.js";
+
 // Issue, Comment, and IssuePR are redeclared here rather than imported from a shared types file
 // because no shared entity types module exists yet. Once one is added (e.g. src/types/entities.ts),
 // these should be replaced with imports or Pick<> aliases from that module to avoid drift.
@@ -71,4 +73,5 @@ export interface EventMap {
   "orchestrator.decision": { project_id: string; action: string; details: unknown };
   "orchestrator.draft_issue": { issue: Issue; project_id: string };
   "review.completed": { session_id: string; issue_id: string; agent_id: string; project_id: string; verdict: string };
+  "captain.message": { message: CaptainMessage; project_id: string };
 }

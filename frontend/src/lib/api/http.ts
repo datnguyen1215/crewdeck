@@ -358,6 +358,28 @@ export function listActivity(
 }
 
 // ---------------------------------------------------------------------------
+// Captain Messages
+// ---------------------------------------------------------------------------
+
+export function listCaptainMessages(projectId: string) {
+  return request<CaptainMessage[]>(
+    "GET",
+    `/projects/${e(projectId)}/captain/messages`,
+  );
+}
+
+export function sendCaptainMessage(
+  projectId: string,
+  data: { content: string },
+) {
+  return request<CaptainMessage>(
+    "POST",
+    `/projects/${e(projectId)}/captain/messages`,
+    data,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -534,4 +556,14 @@ export interface DeviceCodePollResponse {
   status?: string;
   error?: string;
   error_description?: string;
+}
+
+export interface CaptainMessage {
+  id: string;
+  project_id: string;
+  author_type: string;
+  author_id: string | null;
+  content: string;
+  context: Record<string, unknown> | null;
+  created_at: string;
 }

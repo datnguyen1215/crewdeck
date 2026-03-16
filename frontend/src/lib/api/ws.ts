@@ -22,7 +22,8 @@ export type WsEvent =
   | "pr.created"
   | "pr.status_changed"
   | "orchestrator.decision"
-  | "orchestrator.draft_issue";
+  | "orchestrator.draft_issue"
+  | "captain.message";
 
 export interface WsMessage {
   event: WsEvent;
