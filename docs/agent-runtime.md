@@ -353,6 +353,10 @@ The backend resumes the orchestrator when these events occur:
 | Max rounds reached | Flag for human escalation |
 | New comment from user | Re-evaluate priorities or adjust approach |
 
+### Captain Requirement
+
+The orchestrator requires a designated **captain** agent. If no agent in the crew has `is_captain = true`, the orchestrator skips processing entirely until one is set. The captain's system prompt is passed as the system prompt when invoking Claude, defining the orchestrator's AI persona.
+
 ### Orchestrator Prompt Construction
 
 When resuming the orchestrator, the backend builds a prompt containing:
@@ -366,7 +370,7 @@ function buildOrchestratorPrompt(project, event):
     prompt += "Available agents: " + list of idle agents
     prompt += "Concurrency: " + current active / max_concurrency
     prompt += "\n## Event\n" + description of what triggered this resumption
-    prompt += "\n## Crew\n" + list of agents with names, titles, and descriptions
+    prompt += "\n## Crew\n" + list of agents with names, titles, descriptions, and [CAPTAIN] tag if applicable
     prompt += "\n## Instructions\n"
     prompt += "Decide what action to take based on the event and current state."
     prompt += "Respond with a structured action (assign, route_review, escalate, create_draft_issue, etc.)"
