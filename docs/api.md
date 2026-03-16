@@ -98,31 +98,25 @@ POST /projects
 **Request Body:**
 ```json
 {
-  "name": "My Project",
-  "description": "Optional description",
-  "max_concurrency": 3,
-  "max_review_rounds": 3,
   "github_url": "https://github.com/owner/repo",
-  "default_branch": "main",
+  "name": "Optional override",
+  "description": "Optional override",
   "github_account_id": "uuid"
 }
 ```
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| name | Yes | — | Project name. |
-| description | No | null | Project description. |
-| max_concurrency | No | 1 | Max concurrent issues. |
-| max_review_rounds | No | 3 | Default max review rounds. |
-| github_url | No | — | GitHub URL of the repository to link to this project. |
-| default_branch | No | main | Default branch for the linked repo. Only used when `github_url` is provided. |
+| github_url | Yes | — | GitHub URL of the repository to link to this project. |
+| name | No | Repo name from GitHub API | Project name. |
+| description | No | Repo description from GitHub API | Project description. |
 | github_account_id | No | null | ID of a connected GitHubAccount to use for git operations in this project. |
 
 **Response:** `201 Created` — The created project object.
 
-**Error:** `400 VALIDATION_ERROR` — If `github_url` is provided but the repository cannot be cloned (e.g., invalid URL, unreachable host, missing permissions).
+**Error:** `400 VALIDATION_ERROR` — If `github_url` is invalid or the repository cannot be cloned.
 
-**Side effects:** If `github_url` is provided, the backend clones the repository and creates a linked repo record in one step.
+**Side effects:** The backend fetches repo metadata (name, description, default branch) from the GitHub API and clones the repository. If `github_account_id` is provided, the token is used for the API call and git operations; otherwise metadata is fetched unauthenticated with a fallback to URL-derived values on failure.
 
 #### Update Project
 
