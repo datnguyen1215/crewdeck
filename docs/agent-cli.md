@@ -34,6 +34,7 @@ The CLI is available in every agent's tmux session. The backend sets the followi
 | `CREWDECK_ISSUE_ID` | The issue ID the agent is working on |
 | `CREWDECK_AGENT_ID` | The agent's ID |
 | `CREWDECK_PROJECT_ID` | The project ID |
+| `GH_TOKEN` | GitHub OAuth token for the project's linked GitHub account. Set only when a GitHub account is connected to the project. Used for git operations (clone, push, PR creation). |
 
 These environment variables are automatically set by the Agent Runtime when spawning the tmux session, so the agent does not need to provide them manually.
 
