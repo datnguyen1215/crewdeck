@@ -417,8 +417,8 @@ export interface Agent {
 
 export interface CrewWithAgents extends Crew {
   agents: (Agent & {
-    status?: "idle" | "working" | "reviewing";
-    current_issue?: { id: string; title: string } | null;
+    status: "idle" | "working" | "reviewing";
+    current_issue: { id: string; title: string } | null;
   })[];
 }
 
