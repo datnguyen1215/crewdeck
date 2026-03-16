@@ -40,7 +40,7 @@ router.post("/generate", validate(GenerateAgentSchema), async (req: Request<{ pr
 
 Respond with ONLY a valid JSON object. No markdown, no explanation.`;
 
-    const fullPrompt = `${systemPrompt}\n\nUser description: ${escapeXml(prompt)}`;
+    const fullPrompt = `${systemPrompt}\n\n<user_description>${escapeXml(prompt)}</user_description>`;
     const output = await callClaude(fullPrompt);
 
     // Extract JSON from possible markdown code blocks
