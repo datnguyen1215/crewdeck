@@ -103,7 +103,8 @@ POST /projects
   "max_concurrency": 3,
   "max_review_rounds": 3,
   "github_url": "https://github.com/owner/repo",
-  "default_branch": "main"
+  "default_branch": "main",
+  "github_account_id": "uuid"
 }
 ```
 
@@ -115,6 +116,7 @@ POST /projects
 | max_review_rounds | No | 3 | Default max review rounds. |
 | github_url | No | — | GitHub URL of the repository to link to this project. |
 | default_branch | No | main | Default branch for the linked repo. Only used when `github_url` is provided. |
+| github_account_id | No | null | ID of a connected GitHubAccount to use for git operations in this project. |
 
 **Response:** `201 Created` — The created project object.
 
@@ -141,6 +143,89 @@ DELETE /projects/:id
 **Response:** `204 No Content`
 
 **Side effects:** Stops all active sessions, cleans up worktrees, deletes all related data (cascading).
+
+---
+
+### GitHub Accounts
+
+Manages GitHub accounts connected via Device Flow OAuth. Requires `GITHUB_CLIENT_ID` (and optionally `GITHUB_CLIENT_SECRET`) to be configured on the backend.
+
+#### Initiate Device Flow
+
+```
+POST /github-accounts/device-code
+```
+
+**Request Body:**
+```json
+{
+  "client_id": "optional-override"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| client_id | No | Overrides `GITHUB_CLIENT_ID` env var. |
+
+**Response:** `200 OK` — GitHub device code response (user_code, verification_uri, device_code, expires_in, interval).
+
+#### Poll for Token
+
+```
+POST /github-accounts/device-code/poll
+```
+
+Polls GitHub for an access token after the user has authorized on GitHub.
+
+**Request Body:**
+```json
+{
+  "device_code": "...",
+  "client_id": "optional-override"
+}
+```
+
+**Response:**
+
+On success (`201 Created`): GitHubAccount object (without `oauth_token`):
+```json
+{
+  "id": "uuid",
+  "account_name": "octocat",
+  "github_username": "octocat",
+  "scopes": "repo,read:org",
+  "created_at": "ISO 8601"
+}
+```
+
+While pending (`200 OK`):
+```json
+{
+  "status": "pending",
+  "error": "authorization_pending",
+  "error_description": "..."
+}
+```
+
+#### List GitHub Accounts
+
+```
+GET /github-accounts
+```
+
+**Response:** `200 OK` — Array of GitHubAccount objects (without `oauth_token`).
+
+#### Delete GitHub Account
+
+```
+DELETE /github-accounts/:id
+```
+
+Disconnects the account. Best-effort token revocation is attempted. Projects referencing this account will have `github_account_id` set to null.
+
+**Response:** `204 No Content`
+
+**Error:** `404 Not Found` — Account does not exist.
 
 ---
 

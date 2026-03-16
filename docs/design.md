@@ -360,8 +360,10 @@ On SIGTERM or SIGINT, the backend:
 
 ## Security and Access
 
-- Agents use the host machine's existing `gh` CLI authentication.
-- All PRs are created under the authenticated user's GitHub account.
+- GitHub authentication is managed in-app via Device Flow OAuth (Settings → GitHub Accounts). No host-level `gh auth login` is required.
+- OAuth tokens are stored in SQLite and injected as `GH_TOKEN` into agent tmux sessions at spawn time. They are never persisted in `.git/config`.
+- Each project can be linked to a specific GitHub account, enabling per-project identity for git operations.
+- All PRs are created under the authenticated GitHub account linked to the project.
 - The system runs locally — no data leaves the machine except through GitHub API calls.
 - Full audit trail of all agent actions is maintained in the database.
 

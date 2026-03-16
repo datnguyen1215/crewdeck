@@ -5,8 +5,8 @@ A dashboard for managing autonomous Claude Code agents across GitHub repositorie
 ## Prerequisites
 
 - Docker & Docker Compose
-- [GitHub CLI](https://cli.github.com/) authenticated (`gh auth login`)
 - [Claude Code](https://claude.ai/claude-code) configured on host
+- A [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) (for GitHub authentication via Device Flow)
 
 ## Quick Start
 
