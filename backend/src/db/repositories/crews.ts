@@ -22,13 +22,14 @@ const agentStatusStmt = `
   WHERE ia.agent_id IN (SELECT id FROM Agent WHERE crew_id = ?)
     AND ia.status = 'active'
     AND i.status NOT IN ('done', 'closed', 'cancelled')
+  ORDER BY CASE ia.role WHEN 'reviewer' THEN 1 ELSE 0 END
 `;
 
 function enrichAgentsWithStatus(crewId: string, agents: Agent[]): AgentWithStatus[] {
   const rows = db.prepare(agentStatusStmt).all(crewId) as AgentStatusRow[];
   const statusMap = new Map<string, AgentStatusRow>();
   for (const row of rows) {
-    // First active assignment wins (implementer takes priority over reviewer)
+    // First active assignment wins — non-reviewer roles come first via ORDER BY
     if (!statusMap.has(row.agent_id)) statusMap.set(row.agent_id, row);
   }
 
