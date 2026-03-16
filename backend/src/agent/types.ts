@@ -36,3 +36,7 @@ export function agentSessionName(issueId: string, agentId: string, role: string)
 export function orchestratorSessionName(projectId: string): string {
   return `${CREWDECK_SESSION_PREFIX}orchestrator-${projectId.slice(0, 8)}`;
 }
+
+export function captainSessionName(projectId: string): string {
+  return `${CREWDECK_SESSION_PREFIX}captain-${projectId.slice(0, 8)}`;
+}

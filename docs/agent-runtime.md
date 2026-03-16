@@ -1,6 +1,6 @@
 ---
 title: CrewDeck Agent Runtime
-version: 0.2.0
+version: 0.3.0
 status: draft
 ---
 
@@ -162,20 +162,25 @@ This approach means we never depend on Claude Code's session management. Every i
 
 ```
 crewdeck-<issueId-short>-<agentId-short>-<role>
+crewdeck-captain-<projectId-8chars>
 ```
 
 Examples (8-char hex prefixes):
-- `crewdeck-a1b2c3d4-e5f6g7h8-worker`
-- `crewdeck-a1b2c3d4-i9j0k1l2-reviewer`
-- `crewdeck-orchestrator-<projectId-8chars>`
+- `crewdeck-a1b2c3d4-e5f6g7h8-worker` — worker agent session
+- `crewdeck-a1b2c3d4-i9j0k1l2-reviewer` — reviewer agent session
+- `crewdeck-captain-a1b2c3d4` — persistent captain session for a project
 
 ### Detecting Completion
 
-Completion is detected through two complementary mechanisms:
+Completion detection differs between worker/reviewer sessions and the captain session.
+
+#### Worker and Reviewer Sessions
+
+Workers and reviewers run in one-shot mode (`--prompt`). Completion is detected through two complementary mechanisms:
 
 1. **CrewDeck CLI signal (primary)** — the agent's system prompt instructs it to call `crewdeck signal --event work-complete` when it finishes its task. The CLI makes an HTTP call to the backend's internal API, which emits an event on the event bus. This is the most reliable method because the agent explicitly declares "I'm done."
 
-2. **Process exit (fallback)** — the Agent Runtime polls `isAlive()` to detect when the Claude Code process exits. This catches cases where the agent crashes or exits without signaling. Claude Code is invoked with `--prompt` (single prompt mode) so it exits after completing the task.
+2. **Process exit (fallback)** — the Agent Runtime polls `isAlive()` to detect when the Claude Code process exits. This catches cases where the agent crashes or exits without signaling.
 
 ```
 Agent (in tmux)                    CrewDeck CLI              Backend Event Bus
@@ -194,7 +199,16 @@ When completion is detected (via either mechanism), the backend:
 - Captures the final output.
 - Stores relevant context in the Session table.
 - Emits events on the event bus (`agent.finished`).
-- The event bus triggers: WebSocket broadcast, Activity Logger, Orchestrator Manager.
+- The event bus triggers: WebSocket broadcast, Activity Logger, and the Orchestrator (which relays the event to the captain).
+
+#### Captain Session
+
+The captain runs as a persistent interactive session. It does not "complete" in the traditional sense. Instead:
+
+- The captain remains idle between events, waiting for input.
+- The orchestrator relays events to the captain via `tmux send-keys`.
+- The captain processes the event, executes CLI commands, and returns to an idle state.
+- The session only ends if explicitly killed or if the captain process crashes. On crash, the backend restores the session from saved history (see [Orchestrator Runtime](#orchestrator-runtime)).
 
 See [Agent CLI](agent-cli.md) for the full CLI specification.
 
@@ -333,78 +347,77 @@ The Session.context field (JSON) stores:
 
 ## Orchestrator Runtime
 
-The orchestrator is a special case of the agent runtime. It follows the same adapter interface but differs in:
+The orchestrator is a thin event relay between the backend event bus and a persistent captain tmux session. It does not call Claude directly or parse agent output. All decision-making happens inside the captain session.
 
-### Session Persistence
+### Architecture
 
-- The orchestrator has one long-lived Session record per project.
-- It is not always running — it is resumed on events.
-- Its context field stores the orchestrator's understanding of project state, priorities, and pending decisions.
+```
+Backend Event Bus          Orchestrator (relay)         Captain (tmux session)
+     │                          │                              │
+     │  event fired ──────────→ │                              │
+     │                          │  format event text           │
+     │                          │  tmux send-keys ───────────→ │
+     │                          │                              │  reads event
+     │                          │                              │  decides action
+     │                          │                              │  runs: crewdeck assign ...
+     │                          │                              │  runs: crewdeck route-review ...
+     │  ← event bus updated ────│←── crewdeck CLI calls ──────│
+     │                          │                              │  returns to idle
+```
 
-### Event-Driven Resumption
+### Captain Session
 
-The backend resumes the orchestrator when these events occur:
+The captain is a persistent interactive Claude Code session running in tmux. Unlike worker/reviewer sessions that use one-shot `--prompt` mode, the captain runs in interactive mode and persists across multiple issues.
 
-| Event | What the orchestrator does |
-|-------|---------------------------|
-| Issue approved | Analyze priority, decide assignment, update queue |
-| Agent finished work | Route to reviewers, update issue status |
-| Review completed | Check if all reviewers approved, route back to agent or mark ready |
-| Max rounds reached | Flag for human escalation |
-| New comment from user | Re-evaluate priorities or adjust approach |
-| User captain message | Re-evaluate based on user direction sent via the captain chat |
+**Session name:** `crewdeck-captain-<projectId-8chars>`
+
+**Spawning:**
+
+```
+claude --dangerously-skip-permissions \
+       --system-prompt "<captain system prompt>"
+```
+
+The captain is spawned without `--prompt` so it starts in interactive mode, waiting for input. The system prompt defines the captain's persona, available CLI commands, and decision-making guidelines.
 
 ### Captain Requirement
 
-The orchestrator requires a designated **captain** agent. If no agent in the crew has `is_captain = true`, the orchestrator skips processing entirely until one is set. The captain's system prompt is passed as the system prompt when invoking Claude, defining the orchestrator's AI persona.
+The orchestrator requires a designated **captain** agent. If no agent in the crew has `is_captain = true`, the orchestrator skips processing entirely until one is set. The captain's system prompt is passed via the `--system-prompt` flag when spawning the session.
 
-### Orchestrator Prompt Construction
+### Event Relay
 
-When resuming the orchestrator, the backend builds a prompt containing:
+The orchestrator is event-driven. When an event fires, the orchestrator formats it as text and sends it to the captain session via `tmux send-keys`.
 
-```
-function buildOrchestratorPrompt(project, event):
-    prompt = ""
-    prompt += "## Project State\n"
-    prompt += "Open issues: " + list of open issues with priorities
-    prompt += "In-progress issues: " + list with assigned agents
-    prompt += "Available agents: " + list of idle agents
-    prompt += "Concurrency: " + current active / max_concurrency
-    prompt += "\n## Event\n" + description of what triggered this resumption
-    prompt += "\n## Crew\n" + list of agents with names, titles, descriptions, and [CAPTAIN] tag if applicable
-    prompt += "\n## Instructions\n"
-    prompt += "Decide what action to take based on the event and current state."
-    prompt += "Respond with a structured action (assign, route_review, escalate, create_draft_issue, etc.)"
-    return prompt
-```
+| Event | What gets relayed to the captain |
+|-------|----------------------------------|
+| Issue approved | Issue details, priority, available agents, project state |
+| Agent finished work | Issue status, agent output summary, review routing options |
+| Review completed | Review outcome, reviewer comments, approve/reject decision |
+| Max rounds reached | Escalation context, round history |
+| New comment from user | Comment content, issue context |
+| User captain message | User's direct message to the captain |
 
-### Orchestrator Output Parsing
+The orchestrator does not interpret the captain's response. The captain acts by calling CrewDeck CLI commands directly from within its tmux session.
 
-The orchestrator is prompted to respond in **structured JSON format**. The backend parses the JSON to extract actions:
+### Captain CLI Commands
 
-```json
-{
-  "action": "assign",
-  "params": {
-    "issue_id": "uuid",
-    "agent_id": "uuid"
-  },
-  "reasoning": "Alice's title and description best match the backend requirements of this issue"
-}
-```
+Instead of returning structured JSON, the captain executes CLI commands to take action:
 
-**Supported actions:**
+- `crewdeck assign --issue <id> --agent <id>` — assign an agent to an issue.
+- `crewdeck route-review --issue <id>` — send an issue to the next reviewer.
+- `crewdeck escalate --issue <id>` — flag an issue for human attention.
+- `crewdeck create-issue --title "..." --description "..."` — propose a new issue.
+- `crewdeck reorder --issue <id> --priority <n>` — change issue priority.
 
-- **assign** — assign an agent to an issue.
-- **route_review** — send an issue to the next reviewer.
-- **escalate** — flag an issue for human attention.
-- **create_draft_issue** — propose a new issue (enters Draft status).
-- **reorder** — change issue priorities.
-- **no_action** — nothing to do right now.
+Each CLI command makes an HTTP call to the backend's internal API, which updates the database and emits events on the event bus. The captain can run multiple commands in sequence when handling a single event.
 
-The backend validates the JSON structure, executes the action, updates the database, and emits events on the event bus. The event bus then triggers WebSocket broadcasts, activity logging, and any follow-up processing.
+### Session Persistence and Recovery
 
-After executing the action, the backend stores a `CaptainMessage` record containing the orchestrator's reasoning and the action taken. This builds the captain chat timeline visible to the user.
+The captain session persists across multiple events and issues. To handle crashes or restarts:
+
+- **History saved to DB** — the captain's conversation history is periodically saved to the database.
+- **Session restore** — when a captain session is lost (process crash, container restart), the orchestrator detects the missing session via `isAlive()` and respawns it. The saved history is restored into the new session so the captain retains context from prior decisions.
+- **CaptainMessage records** — the backend stores a `CaptainMessage` record for each event relay and captain action. This builds the captain chat timeline visible to the user in the frontend.
 
 ## Future Adapters
 

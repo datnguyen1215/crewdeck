@@ -10,6 +10,7 @@ import { getAgent } from "../db/repositories/agents.js";
 import { getSession, updateSession } from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
+import { createCaptainHistory, listCaptainHistory } from "../db/repositories/captain-history.js";
 
 const router = Router();
 
@@ -111,6 +112,53 @@ router.post("/files", validate(FilesSchema), (req, res) => {
   });
 
   res.json({ ok: true });
+});
+
+// POST /assign — captain requests agent assignment
+const AssignSchema = z.object({
+  project_id: z.string(),
+  issue_id: z.string(),
+  agent_id: z.string(),
+});
+
+router.post("/assign", validate(AssignSchema), (req, res) => {
+  const { project_id, issue_id, agent_id } = req.body;
+  eventBus.emit("captain.assign", { project_id, issue_id, agent_id });
+  res.json({ ok: true, message: `Assignment requested: issue ${issue_id} to agent ${agent_id}` });
+});
+
+// POST /route-review — captain requests review routing
+const RouteReviewSchema = z.object({
+  project_id: z.string(),
+  issue_id: z.string(),
+  reviewer_agent_id: z.string(),
+});
+
+router.post("/route-review", validate(RouteReviewSchema), (req, res) => {
+  const { project_id, issue_id, reviewer_agent_id } = req.body;
+  eventBus.emit("captain.route_review", { project_id, issue_id, reviewer_agent_id });
+  res.json({ ok: true, message: `Review routing requested: issue ${issue_id} to reviewer ${reviewer_agent_id}` });
+});
+
+// POST /history — save captain decision history
+const HistorySaveSchema = z.object({
+  project_id: z.string(),
+  agent_id: z.string().optional(),
+  summary: z.string().min(1),
+});
+
+router.post("/history", validate(HistorySaveSchema), (req, res) => {
+  const { project_id, agent_id, summary } = req.body;
+  const entry = createCaptainHistory(project_id, { agent_id, summary });
+  res.status(201).json(entry);
+});
+
+// GET /history — list captain decision history
+router.get("/history", (req, res) => {
+  const project_id = req.query.project_id as string;
+  if (!project_id) { res.status(400).json({ message: "project_id query param required" }); return; }
+  const entries = listCaptainHistory(project_id);
+  res.json(entries);
 });
 
 export default router;
