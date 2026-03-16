@@ -46,7 +46,10 @@ router.patch("/:commentId", (req: Request<{ projectId: string; issueId: string; 
     return;
   }
   const updated = updateComment(req.params.commentId, content);
-  eventBus.emit("comment.updated", { comment: updated!, project_id: issue.project_id });
+  if (!updated) {
+    throw new NotFoundError("Comment not found");
+  }
+  eventBus.emit("comment.updated", { comment: updated, project_id: issue.project_id });
   res.json(updated);
 });
 

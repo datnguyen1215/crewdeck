@@ -12,17 +12,12 @@ export function getComment(id: string): Comment | null {
 }
 
 export function updateComment(id: string, content: string): Comment | null {
-  const existing = getComment(id);
-  if (!existing || existing.author_type !== "user") return null;
   db.prepare("UPDATE Comment SET content = ? WHERE id = ?").run(content, id);
-  return getComment(id)!;
+  return getComment(id);
 }
 
-export function deleteComment(id: string): boolean {
-  const existing = getComment(id);
-  if (!existing || existing.author_type !== "user") return false;
+export function deleteComment(id: string): void {
   db.prepare("DELETE FROM Comment WHERE id = ?").run(id);
-  return true;
 }
 
 export function createComment(issueId: string, input: CreateCommentInput): Comment {
