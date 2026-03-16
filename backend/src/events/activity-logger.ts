@@ -5,7 +5,7 @@ import { eventBus } from "./bus.js";
 // Exhaustive set of actor types written to the audit log.
 // Any value outside this set is clamped to "unknown" to prevent callers
 // from writing arbitrary strings into actor_type (e.g. via issue.created_by).
-const VALID_ACTOR_TYPES = new Set(["user", "agent", "orchestrator", "system"]);
+const VALID_ACTOR_TYPES = new Set(["user", "agent", "orchestrator", "system", "captain"]);
 
 function sanitizeActorType(value: string): string {
   return VALID_ACTOR_TYPES.has(value) ? value : "unknown";
@@ -106,6 +106,60 @@ export function initActivityLogger(): void {
       actor_type: "user",
       action: "pr.created",
       details: { pr_number: issue_pr.pr_number, pr_url: issue_pr.pr_url },
+    });
+  });
+
+  eventBus.on("orchestrator.decision", ({ project_id, action, details, reasoning, issue_id, agent_id }) => {
+    log({
+      project_id,
+      issue_id: issue_id ?? null,
+      actor_type: "captain",
+      action: "captain.decision",
+      details: { action, reasoning, agent_id, ...(details as object) },
+    });
+  });
+
+  eventBus.on("review.completed", ({ project_id, issue_id, agent_id, verdict }) => {
+    log({
+      project_id,
+      issue_id,
+      actor_type: "agent",
+      actor_id: agent_id,
+      action: "review.completed",
+      details: { verdict },
+    });
+  });
+
+  eventBus.on("agent.finished", ({ project_id, issue_id, agent_id, role }) => {
+    log({
+      project_id,
+      issue_id,
+      actor_type: "agent",
+      actor_id: agent_id,
+      action: "agent.finished",
+      details: { role },
+    });
+  });
+
+  eventBus.on("agent.error", ({ project_id, issue_id, agent_id, message }) => {
+    log({
+      project_id,
+      issue_id,
+      actor_type: "agent",
+      actor_id: agent_id,
+      action: "agent.error",
+      details: { message },
+    });
+  });
+
+  eventBus.on("agent.needs_help", ({ project_id, issue_id, agent_id, message }) => {
+    log({
+      project_id,
+      issue_id,
+      actor_type: "agent",
+      actor_id: agent_id,
+      action: "agent.needs_help",
+      details: { message },
     });
   });
 }

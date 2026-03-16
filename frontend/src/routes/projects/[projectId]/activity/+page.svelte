@@ -19,6 +19,12 @@
 			border: 'border-purple',
 			glow: 'var(--glow-purple)'
 		},
+		captain: {
+			icon: '★',
+			color: 'text-amber',
+			border: 'border-amber',
+			glow: 'var(--glow-amber)'
+		},
 		system: { icon: '⚙', color: 'text-muted', border: 'border-edge', glow: '' }
 	};
 
@@ -34,7 +40,12 @@
 		'review.comment': () => 'Left a review comment',
 		'review.approved': () => 'Approved the changes',
 		'pr.created': (d) => `Created PR #${d.pr_number}`,
-		'pr.merged': (d) => `Merged PR #${d.pr_number}`
+		'pr.merged': (d) => `Merged PR #${d.pr_number}`,
+		'captain.decision': (d) => `Decision: ${String(d.action).replace(/_/g, ' ')}`,
+		'review.completed': (d) => `Review ${d.verdict === 'approved' ? 'approved' : 'requested changes'}`,
+		'agent.finished': (d) => `Finished (${d.role ?? 'worker'})`,
+		'agent.error': (d) => `Error${d.message ? `: ${String(d.message).slice(0, 100)}` : ''}`,
+		'agent.needs_help': (d) => `Needs help${d.message ? `: ${String(d.message).slice(0, 100)}` : ''}`
 	};
 
 	const ACTION_DISPLAY: Record<string, string> = {
@@ -48,7 +59,12 @@
 		'review.comment': 'Review Comment',
 		'review.approved': 'Review Approved',
 		'pr.created': 'PR Created',
-		'pr.merged': 'PR Merged'
+		'pr.merged': 'PR Merged',
+		'captain.decision': 'Captain Decision',
+		'review.completed': 'Review Completed',
+		'agent.finished': 'Agent Finished',
+		'agent.error': 'Agent Error',
+		'agent.needs_help': 'Agent Needs Help'
 	};
 
 	// Client-side pagination over fetched entries.
@@ -123,6 +139,7 @@
 			const n = String(entry.actor_id).replace('agent-', '');
 			return n.charAt(0).toUpperCase() + n.slice(1);
 		}
+		if (entry.actor_type === 'captain') return 'Captain';
 		if (entry.actor_type === 'orchestrator') return 'Orchestrator';
 		if (entry.actor_type === 'system') return 'System';
 		// TODO: Resolve actor_id to actual user name when multi-user support is added.
@@ -137,7 +154,7 @@
 	// Returns whether this entry has detail content worth expanding.
 	function hasExpandable(entry: ActivityEntry): boolean {
 		const d = (entry.details as Record<string, unknown>) ?? {};
-		return !!(d.text || d.comment || d.reason || d.note || d.branch);
+		return !!(d.text || d.comment || d.reason || d.reasoning || d.note || d.branch || d.message || d.verdict);
 	}
 
 	function toggleActor(actor: string) {
@@ -164,6 +181,12 @@
 	// Entries within the last 2 hours get a subtle glow treatment.
 	function isRecent(dateStr: string): boolean {
 		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
+	}
+
+	// When filtered by issue, detect handoff groups (captain decision + assignment + session)
+	const HANDOFF_ACTIONS = new Set(['captain.decision', 'agent.assigned', 'session.started', 'agent.finished', 'review.completed']);
+	function isHandoffEntry(entry: ActivityEntry): boolean {
+		return HANDOFF_ACTIONS.has(entry.action);
 	}
 </script>
 
@@ -284,7 +307,8 @@
 						{@const expandable = hasExpandable(entry)}
 						{@const isExpanded = expanded.has(entry.id)}
 						{@const details = (entry.details as Record<string, unknown>) ?? {}}
-						<div class="flex gap-4 pb-5 relative" style="animation: fade-up 0.25s ease both; animation-delay: {Math.min(i * 30, 300)}ms">
+						{@const handoff = filterIssue && isHandoffEntry(entry)}
+						<div class="flex gap-4 pb-5 relative {handoff ? 'ml-1 border-l-2 border-purple/30 pl-2' : ''}" style="animation: fade-up 0.25s ease both; animation-delay: {Math.min(i * 30, 300)}ms">
 							<!-- Actor dot on the timeline -->
 							<div class="flex-shrink-0 w-10 flex justify-center pt-0.5 relative z-10">
 								<div
@@ -342,6 +366,15 @@
 											{/if}
 											{#if details.comment}
 												<p class="text-primary">"{details.comment}"</p>
+											{/if}
+											{#if details.reasoning}
+												<p class="text-secondary whitespace-pre-wrap">{details.reasoning}</p>
+											{/if}
+											{#if details.verdict}
+												<p class="mt-1 {details.verdict === 'approved' ? 'text-green' : 'text-amber'}">Verdict: {details.verdict}</p>
+											{/if}
+											{#if details.message}
+												<p class="text-secondary mt-1">{details.message}</p>
 											{/if}
 											{#if details.reason}
 												<p class="text-muted mt-1">Reason: {details.reason}</p>

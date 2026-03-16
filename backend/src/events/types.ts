@@ -70,7 +70,7 @@ export interface EventMap {
   "agent.status_changed": { agent_id: string; issue_id: string; project_id: string; state: string };
   "pr.created": { issue_pr: IssuePR; project_id: string };
   "pr.status_changed": { pr_id: string; project_id: string; from: string; to: string };
-  "orchestrator.decision": { project_id: string; action: string; details: unknown };
+  "orchestrator.decision": { project_id: string; action: string; details: unknown; reasoning?: string; issue_id?: string; agent_id?: string };
   "orchestrator.draft_issue": { issue: Issue; project_id: string };
   "review.completed": { session_id: string; issue_id: string; agent_id: string; project_id: string; verdict: string };
   "captain.message": { message: CaptainMessage; project_id: string };

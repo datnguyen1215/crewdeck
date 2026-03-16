@@ -2,7 +2,8 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
-	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions, type IssueWithDetails } from '$lib/api/http.js';
+	import { getIssue, addComment, approveIssue, discardIssue, updateIssue, listSessions, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
+	import { relTime } from '$lib/utils/time.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
@@ -34,7 +35,12 @@
 	let copied = $state(false);
 
 	// Tab navigation
-	let activeTab = $state<'description' | 'comments' | 'terminal'>('description');
+	let activeTab = $state<'description' | 'comments' | 'activity' | 'terminal'>('description');
+
+	// Activity timeline
+	let activityEntries = $state<ActivityLog[]>([]);
+	let activityLoading = $state(true);
+	let activityExpanded = $state<Set<string>>(new Set());
 
 	// Terminal session state
 	let activeSessionId = $state<string | null>(null);
@@ -72,12 +78,28 @@
 		return () => { cancelled = true; };
 	});
 
+	// Fetch activity for this issue
+	$effect(() => {
+		activityLoading = true;
+		let cancelled = false;
+		listActivity(projectId, { issue_id: issueId, limit: 200 })
+			.then((entries) => { if (!cancelled) activityEntries = entries; })
+			.catch(() => {})
+			.finally(() => { if (!cancelled) activityLoading = false; });
+		return () => { cancelled = true; };
+	});
+
 	// WebSocket real-time updates
 	$effect(() => {
 		const ws = getWs();
 		if (!ws) return;
 		const reloadIssue = () => {
 			getIssue(projectId, issueId).then((d) => { issue = d; }).catch(() => {});
+		};
+		const reloadActivity = () => {
+			listActivity(projectId, { issue_id: issueId, limit: 200 })
+				.then((entries) => { activityEntries = entries; })
+				.catch(() => {});
 		};
 		const unsubs = [
 			ws.on('issue.updated', reloadIssue),
@@ -100,6 +122,7 @@
 					sessionStatus = 'completed';
 				}
 			}),
+			ws.on('*', reloadActivity),
 		];
 		return () => unsubs.forEach(fn => fn());
 	});
@@ -249,6 +272,58 @@
 		setTimeout(() => (copied = false), 2000);
 	}
 
+	// Activity timeline config
+	const ACT_ACTOR_CFG: Record<string, { icon: string; color: string }> = {
+		user: { icon: '○', color: 'text-primary' },
+		agent: { icon: '⬡', color: 'text-cyan' },
+		orchestrator: { icon: '◈', color: 'text-purple' },
+		captain: { icon: '★', color: 'text-amber' },
+		system: { icon: '⚙', color: 'text-muted' }
+	};
+
+	const ACT_LABELS: Record<string, (d: Record<string, unknown>) => string> = {
+		'issue.created': () => 'Created issue',
+		'issue.status_changed': (d) => `Status: ${String(d.from).replace(/_/g, ' ')} → ${String(d.to).replace(/_/g, ' ')}`,
+		'agent.assigned': (d) => `Assigned ${d.agent_name}`,
+		'session.started': () => 'Started work session',
+		'session.ended': (d) => `Session ended (${d.status})`,
+		'comment.added': () => 'Posted a comment',
+		'pr.created': (d) => `Created PR #${d.pr_number}`,
+		'captain.decision': (d) => `Decision: ${String(d.action).replace(/_/g, ' ')}`,
+		'review.completed': (d) => `Review ${d.verdict === 'approved' ? 'approved' : 'requested changes'}`,
+		'agent.finished': (d) => `Finished (${d.role ?? 'worker'})`,
+		'agent.error': (d) => `Error${d.message ? `: ${String(d.message).slice(0, 80)}` : ''}`,
+		'agent.needs_help': (d) => `Needs help${d.message ? `: ${String(d.message).slice(0, 80)}` : ''}`
+	};
+
+	function actLabel(entry: ActivityLog): string {
+		const fn = ACT_LABELS[entry.action];
+		return fn ? fn((entry.details as Record<string, unknown>) ?? {}) : entry.action;
+	}
+
+	function actActorName(entry: ActivityLog): string {
+		if (entry.actor_type === 'agent' && entry.actor_id) {
+			const n = String(entry.actor_id).replace('agent-', '');
+			return n.charAt(0).toUpperCase() + n.slice(1);
+		}
+		if (entry.actor_type === 'captain') return 'Captain';
+		if (entry.actor_type === 'orchestrator') return 'Orchestrator';
+		if (entry.actor_type === 'system') return 'System';
+		return 'User';
+	}
+
+	function toggleActivityExpand(id: string) {
+		const next = new Set(activityExpanded);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		activityExpanded = next;
+	}
+
+	function hasActivityDetails(entry: ActivityLog): boolean {
+		const d = (entry.details as Record<string, unknown>) ?? {};
+		return !!(d.reasoning || d.message || d.verdict);
+	}
+
 	const STATUS_CFG: Record<
 		string,
 		{ label: string; dot: string; text: string; border: string; glow?: string; pulse?: boolean; dashed?: boolean }
@@ -375,6 +450,10 @@
 						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'comments' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
 					>Comments ({issue.comments.length})</button>
 					<button
+						onclick={() => activeTab = 'activity'}
+						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'activity' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
+					>Activity ({activityEntries.length})</button>
+					<button
 						onclick={() => activeTab = 'terminal'}
 						class="px-4 py-2.5 border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'terminal' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
 					>
@@ -469,6 +548,73 @@
 								</button>
 							</div>
 						</div>
+
+					{:else if activeTab === 'activity'}
+						{#if activityLoading}
+							<div class="flex flex-col gap-3">
+								{#each Array(5) as _, i}
+									<div class="flex gap-3 animate-pulse" style="animation-delay: {i * 50}ms">
+										<div class="skeleton w-5 h-5 rounded-full shrink-0"></div>
+										<div class="flex-1">
+											<div class="skeleton h-3 w-24 rounded mb-1"></div>
+											<div class="skeleton h-4 w-3/4 rounded"></div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{:else if activityEntries.length === 0}
+							<p class="text-muted text-sm py-8 text-center">No activity yet.</p>
+						{:else}
+							<div class="relative">
+								<div class="absolute left-[9px] top-2 bottom-0 w-px bg-edge pointer-events-none"></div>
+								<div class="flex flex-col">
+									{#each activityEntries as entry, i (entry.id)}
+										{@const acfg = ACT_ACTOR_CFG[entry.actor_type] ?? ACT_ACTOR_CFG.system}
+										{@const details = (entry.details as Record<string, unknown>) ?? {}}
+										{@const expandable = hasActivityDetails(entry)}
+										{@const isExp = activityExpanded.has(entry.id)}
+										<div class="flex gap-3 pb-4 relative" style="animation: fade-up 0.2s ease both; animation-delay: {Math.min(i * 25, 200)}ms">
+											<div class="flex-shrink-0 w-5 flex justify-center pt-0.5 relative z-10">
+												<div class="w-5 h-5 rounded-full bg-base border border-edge flex items-center justify-center">
+													<span class="text-[9px] leading-none {acfg.color}">{acfg.icon}</span>
+												</div>
+											</div>
+											<div class="flex-1 min-w-0 pt-0.5">
+												<div class="flex items-center gap-2 mb-0.5 flex-wrap">
+													<span class="text-xs font-semibold {acfg.color}">{actActorName(entry)}</span>
+													<span class="text-muted text-xs font-mono" title={new Date(entry.created_at).toLocaleString()}>
+														{relTime(entry.created_at)}
+													</span>
+												</div>
+												<p class="text-secondary text-sm">{actLabel(entry)}</p>
+												{#if expandable}
+													<button
+														onclick={() => toggleActivityExpand(entry.id)}
+														class="mt-1 text-xs text-muted hover:text-secondary transition-colors flex items-center gap-1"
+													>
+														<span class="font-mono text-[10px]">{isExp ? '▾' : '▸'}</span>
+														<span>{isExp ? 'Hide' : 'Details'}</span>
+													</button>
+													{#if isExp}
+														<div class="mt-1.5 p-2 bg-base-hi border border-edge rounded text-xs text-secondary font-mono leading-relaxed">
+															{#if details.reasoning}
+																<p class="whitespace-pre-wrap">{details.reasoning}</p>
+															{/if}
+															{#if details.verdict}
+																<p class="{details.verdict === 'approved' ? 'text-green' : 'text-amber'}">Verdict: {details.verdict}</p>
+															{/if}
+															{#if details.message}
+																<p>{details.message}</p>
+															{/if}
+														</div>
+													{/if}
+												{/if}
+											</div>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
 
 					{:else if activeTab === 'terminal'}
 						{#if activeSessionId}
