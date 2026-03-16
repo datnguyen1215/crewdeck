@@ -2,7 +2,9 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
-	import { getIssue, addComment, editComment, deleteComment, approveIssue, discardIssue, updateIssue, listSessions, type IssueWithDetails } from '$lib/api/http.js';
+	import { getIssue, addComment, editComment, deleteComment, approveIssue, discardIssue, updateIssue, listSessions, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
+	import { relTime } from '$lib/utils/time.js';
+	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
@@ -40,7 +42,12 @@
 	let commentWorking = $state(false);
 
 	// Tab navigation
-	let activeTab = $state<'description' | 'terminal'>('description');
+	let activeTab = $state<'description' | 'comments' | 'activity' | 'terminal'>('description');
+
+	// Activity timeline
+	let activityEntries = $state<ActivityLog[]>([]);
+	let activityLoading = $state(true);
+	let activityExpanded = $state<Set<string>>(new Set());
 
 	// Terminal session state
 	let activeSessionId = $state<string | null>(null);
@@ -78,12 +85,28 @@
 		return () => { cancelled = true; };
 	});
 
+	// Fetch activity for this issue
+	$effect(() => {
+		activityLoading = true;
+		let cancelled = false;
+		listActivity(projectId, { issue_id: issueId, limit: 200 })
+			.then((entries) => { if (!cancelled) activityEntries = entries; })
+			.catch(() => {})
+			.finally(() => { if (!cancelled) activityLoading = false; });
+		return () => { cancelled = true; };
+	});
+
 	// WebSocket real-time updates
 	$effect(() => {
 		const ws = getWs();
 		if (!ws) return;
 		const reloadIssue = () => {
 			getIssue(projectId, issueId).then((d) => { issue = d; }).catch(() => {});
+		};
+		const reloadActivity = () => {
+			listActivity(projectId, { issue_id: issueId, limit: 200 })
+				.then((entries) => { activityEntries = entries; })
+				.catch(() => {});
 		};
 		const unsubs = [
 			ws.on('issue.updated', reloadIssue),
@@ -108,21 +131,22 @@
 					sessionStatus = 'completed';
 				}
 			}),
+			ws.on('issue.status_changed', reloadActivity),
+			ws.on('issue.assigned', reloadActivity),
+			ws.on('comment.added', reloadActivity),
+			ws.on('session.started', reloadActivity),
+			ws.on('session.ended', reloadActivity),
+			ws.on('orchestrator.decision', reloadActivity),
+			ws.on('review.completed', reloadActivity),
+			ws.on('agent.finished', reloadActivity),
+			ws.on('agent.error', reloadActivity),
+			ws.on('agent.needs_help', reloadActivity),
+			ws.on('pr.created', reloadActivity),
 		];
 		return () => unsubs.forEach(fn => fn());
 	});
 
-	function rel(iso: string) {
-		const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-		if (m < 1) return 'just now';
-		if (m < 60) return `${m}m ago`;
-		const h = Math.floor(m / 60);
-		if (h < 24) return `${h}h ago`;
-		const d = Math.floor(h / 24);
-		return d < 7 ? `${d}d ago` : `${Math.floor(d / 7)}w ago`;
-	}
-
-	function esc(s: string) {
+function esc(s: string) {
 		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 
@@ -290,6 +314,13 @@
 		setTimeout(() => (copied = false), 2000);
 	}
 
+	function toggleActivityExpand(id: string) {
+		const next = new Set(activityExpanded);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		activityExpanded = next;
+	}
+
 	const STATUS_CFG: Record<
 		string,
 		{ label: string; dot: string; text: string; border: string; glow?: string; pulse?: boolean; dashed?: boolean }
@@ -412,6 +443,14 @@
 						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'description' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
 					>Description</button>
 					<button
+						onclick={() => activeTab = 'comments'}
+						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'comments' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
+					>Comments ({issue.comments.length})</button>
+					<button
+						onclick={() => activeTab = 'activity'}
+						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'activity' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
+					>Activity ({activityEntries.length})</button>
+					<button
 						onclick={() => activeTab = 'terminal'}
 						class="px-4 py-2.5 border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'terminal' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
 					>
@@ -461,6 +500,177 @@
 							{/if}
 						{/if}
 
+					{:else if activeTab === 'comments'}
+						{#if issue.comments.length > 0}
+							<div class="flex flex-col gap-3 mb-6">
+								{#each issue.comments as comment (comment.id)}
+									{@const cs = commentStyle(comment.author_type, comment.content)}
+									<div
+										class="border border-edge rounded-r rounded-tl rounded-bl bg-base p-4"
+										style="border-left: 3px solid {cs.border}"
+									>
+										<div class="flex items-center gap-2 mb-2 flex-wrap">
+											<span class="text-xs font-semibold {cs.textColor}">
+												{commentAuthorLabel(comment)}
+											</span>
+											<span class="text-xs text-muted" title={new Date(comment.created_at).toLocaleString()}>
+												{relTime(comment.created_at)}
+											</span>
+											{#if comment.author_type === 'user'}
+												<div class="ml-auto flex gap-1">
+													<button
+														onclick={() => startEditComment(comment)}
+														class="text-xs text-muted hover:text-secondary transition-colors px-1"
+														title="Edit comment"
+													>edit</button>
+													{#if deletingCommentId === comment.id}
+														<span class="text-xs text-red">Delete?
+															<button onclick={confirmDeleteComment} disabled={commentWorking} class="hover:underline">yes</button>
+															/
+															<button onclick={() => deletingCommentId = null} class="hover:underline text-muted">no</button>
+														</span>
+													{:else}
+														<button
+															onclick={() => deletingCommentId = comment.id}
+															class="text-xs text-muted hover:text-red transition-colors px-1"
+															title="Delete comment"
+														>delete</button>
+													{/if}
+												</div>
+											{/if}
+										</div>
+										{#if editingCommentId === comment.id}
+											<div class="flex flex-col gap-2">
+												<textarea
+													bind:value={editingCommentText}
+													rows={3}
+													class="w-full bg-base border border-edge rounded px-3 py-2 text-secondary text-sm resize-none focus:border-cyan focus:outline-none"
+												></textarea>
+												<div class="flex gap-2">
+													<button
+														onclick={saveEditComment}
+														disabled={commentWorking || !editingCommentText.trim()}
+														class="px-3 py-1 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors"
+													>Save</button>
+													<button
+														onclick={() => editingCommentId = null}
+														class="px-3 py-1 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors"
+													>Cancel</button>
+												</div>
+											</div>
+										{:else}
+											<div class="issue-prose text-secondary text-sm leading-relaxed">
+												{@html md(comment.content)}
+											</div>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-muted text-sm mb-6">No comments yet.</p>
+						{/if}
+
+						<!-- Add comment form -->
+						<div class="border border-edge rounded p-4">
+							<textarea
+								bind:value={commentText}
+								rows={3}
+								placeholder="Type your comment here..."
+								class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
+							></textarea>
+							<div class="flex justify-end mt-3 pt-3 border-t border-edge">
+								<button
+									onclick={postComment}
+									disabled={posting || !commentText.trim()}
+									class="px-4 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+								>
+									{posting ? 'Posting...' : 'Post Comment'}
+								</button>
+							</div>
+						</div>
+
+					{:else if activeTab === 'activity'}
+						{#if activityLoading}
+							<div class="flex flex-col gap-3">
+								{#each Array(5) as _, i}
+									<div class="flex gap-3 animate-pulse" style="animation-delay: {i * 50}ms">
+										<div class="skeleton w-5 h-5 rounded-full shrink-0"></div>
+										<div class="flex-1">
+											<div class="skeleton h-3 w-24 rounded mb-1"></div>
+											<div class="skeleton h-4 w-3/4 rounded"></div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{:else if activityEntries.length === 0}
+							<p class="text-muted text-sm py-8 text-center">No activity yet.</p>
+						{:else}
+							<div class="relative">
+								<div class="absolute left-[9px] top-2 bottom-0 w-px bg-edge pointer-events-none"></div>
+								<div class="flex flex-col">
+									{#each activityEntries as entry, i (entry.id)}
+										{@const acfg = ACTOR_CFG[entry.actor_type] ?? ACTOR_CFG.system}
+										{@const details = (entry.details as Record<string, unknown>) ?? {}}
+										{@const expandable = hasExpandableDetails(entry)}
+										{@const isExp = activityExpanded.has(entry.id)}
+										<div class="flex gap-3 pb-4 relative" style="animation: fade-up 0.2s ease both; animation-delay: {Math.min(i * 25, 200)}ms">
+											<div class="flex-shrink-0 w-5 flex justify-center pt-0.5 relative z-10">
+												<div class="w-5 h-5 rounded-full bg-base border border-edge flex items-center justify-center">
+													<span class="text-[9px] leading-none {acfg.color}">{acfg.icon}</span>
+												</div>
+											</div>
+											<div class="flex-1 min-w-0 pt-0.5">
+												<div class="flex items-center gap-2 mb-0.5 flex-wrap">
+													<span class="text-xs font-semibold {acfg.color}">{actorName(entry)}</span>
+													<span class="text-muted text-xs font-mono" title={new Date(entry.created_at).toLocaleString()}>
+														{relTime(entry.created_at)}
+													</span>
+												</div>
+												<p class="text-secondary text-sm">{actionLabel(entry)}</p>
+												{#if expandable}
+													<button
+														onclick={() => toggleActivityExpand(entry.id)}
+														class="mt-1 text-xs text-muted hover:text-secondary transition-colors flex items-center gap-1"
+													>
+														<span class="font-mono text-[10px]">{isExp ? '▾' : '▸'}</span>
+														<span>{isExp ? 'Hide' : 'Details'}</span>
+													</button>
+													{#if isExp}
+														<div class="mt-1.5 p-2 bg-base-hi border border-edge rounded text-xs text-secondary font-mono leading-relaxed">
+															{#if details.text}
+																<p class="text-primary">"{details.text}"</p>
+															{/if}
+															{#if details.content_preview}
+																<p class="text-primary">"{details.content_preview}"</p>
+															{/if}
+															{#if details.reasoning}
+																<p class="whitespace-pre-wrap">{details.reasoning}</p>
+															{/if}
+															{#if details.verdict}
+																<p class="mt-1 {details.verdict === 'approved' ? 'text-green' : 'text-amber'}">Verdict: {details.verdict}</p>
+															{/if}
+															{#if details.message}
+																<p class="mt-1">{details.message}</p>
+															{/if}
+															{#if details.reason}
+																<p class="text-muted mt-1">Reason: {details.reason}</p>
+															{/if}
+															{#if details.branch}
+																<p class="text-muted mt-1">Branch: {details.branch}</p>
+															{/if}
+															{#if details.note}
+																<p class="text-muted mt-1">{details.note}</p>
+															{/if}
+														</div>
+													{/if}
+												{/if}
+											</div>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
 					{:else if activeTab === 'terminal'}
 						{#if activeSessionId}
 							<Terminal {projectId} sessionId={activeSessionId} agentName={sessionAgentName} status={sessionStatus} />
@@ -472,102 +682,6 @@
 							</div>
 						{/if}
 					{/if}
-				</div>
-			</div>
-
-			<!-- Comments section (below tabs) -->
-			<div class="bg-surface border border-edge rounded overflow-hidden lg:col-span-2">
-				<div class="px-6 py-4 border-b border-edge">
-					<span class="text-xs text-muted uppercase tracking-widest">Comments ({issue.comments.length})</span>
-				</div>
-				<div class="p-6">
-					{#if issue.comments.length > 0}
-						<div class="flex flex-col gap-3 mb-6">
-							{#each issue.comments as comment (comment.id)}
-								{@const cs = commentStyle(comment.author_type, comment.content)}
-								<div
-									class="border border-edge rounded-r rounded-tl rounded-bl bg-base p-4"
-									style="border-left: 3px solid {cs.border}"
-								>
-									<div class="flex items-center gap-2 mb-2 flex-wrap">
-										<span class="text-xs font-semibold {cs.textColor}">
-											{commentAuthorLabel(comment)}
-										</span>
-										<span class="text-xs text-muted" title={new Date(comment.created_at).toLocaleString()}>
-											{rel(comment.created_at)}
-										</span>
-										{#if comment.author_type === 'user'}
-											<div class="ml-auto flex gap-1">
-												<button
-													onclick={() => startEditComment(comment)}
-													class="text-xs text-muted hover:text-secondary transition-colors px-1"
-													title="Edit comment"
-												>edit</button>
-												{#if deletingCommentId === comment.id}
-													<span class="text-xs text-red">Delete?
-														<button onclick={confirmDeleteComment} disabled={commentWorking} class="hover:underline">yes</button>
-														/
-														<button onclick={() => deletingCommentId = null} class="hover:underline text-muted">no</button>
-													</span>
-												{:else}
-													<button
-														onclick={() => deletingCommentId = comment.id}
-														class="text-xs text-muted hover:text-red transition-colors px-1"
-														title="Delete comment"
-													>delete</button>
-												{/if}
-											</div>
-										{/if}
-									</div>
-									{#if editingCommentId === comment.id}
-										<div class="flex flex-col gap-2">
-											<textarea
-												bind:value={editingCommentText}
-												rows={3}
-												class="w-full bg-base border border-edge rounded px-3 py-2 text-secondary text-sm resize-none focus:border-cyan focus:outline-none"
-											></textarea>
-											<div class="flex gap-2">
-												<button
-													onclick={saveEditComment}
-													disabled={commentWorking || !editingCommentText.trim()}
-													class="px-3 py-1 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors"
-												>Save</button>
-												<button
-													onclick={() => editingCommentId = null}
-													class="px-3 py-1 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors"
-												>Cancel</button>
-											</div>
-										</div>
-									{:else}
-										<div class="issue-prose text-secondary text-sm leading-relaxed">
-											{@html md(comment.content)}
-										</div>
-									{/if}
-								</div>
-							{/each}
-						</div>
-					{:else}
-						<p class="text-muted text-sm mb-6">No comments yet.</p>
-					{/if}
-
-					<!-- Add comment form -->
-					<div class="border border-edge rounded p-4">
-						<textarea
-							bind:value={commentText}
-							rows={3}
-							placeholder="Type your comment here..."
-							class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
-						></textarea>
-						<div class="flex justify-end mt-3 pt-3 border-t border-edge">
-							<button
-								onclick={postComment}
-								disabled={posting || !commentText.trim()}
-								class="px-4 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-							>
-								{posting ? 'Posting...' : 'Post Comment'}
-							</button>
-						</div>
-					</div>
 				</div>
 			</div>
 
@@ -653,11 +767,11 @@
 					<!-- Timestamps -->
 					<div class="flex items-center gap-2">
 						<span class="text-muted w-20 shrink-0">Created</span>
-						<span class="text-secondary" title={new Date(issue.created_at).toLocaleString()}>{rel(issue.created_at)}</span>
+						<span class="text-secondary" title={new Date(issue.created_at).toLocaleString()}>{relTime(issue.created_at)}</span>
 					</div>
 					<div class="flex items-center gap-2">
 						<span class="text-muted w-20 shrink-0">Updated</span>
-						<span class="text-secondary" title={new Date(issue.updated_at).toLocaleString()}>{rel(issue.updated_at)}</span>
+						<span class="text-secondary" title={new Date(issue.updated_at).toLocaleString()}>{relTime(issue.updated_at)}</span>
 					</div>
 
 					<!-- Created by -->

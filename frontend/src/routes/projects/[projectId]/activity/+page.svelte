@@ -5,51 +5,11 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { relTime } from '$lib/utils/time.js';
+	import { ACTOR_CFG, ACTION_DISPLAY, HANDOFF_ACTIONS, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
 
 	type ActivityEntry = ActivityLog;
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
-
-	const ACTOR_CFG: Record<string, { icon: string; color: string; border: string; glow: string }> = {
-		user: { icon: '○', color: 'text-primary', border: 'border-edge-hi', glow: '' },
-		agent: { icon: '⬡', color: 'text-cyan', border: 'border-cyan', glow: 'var(--glow-cyan)' },
-		orchestrator: {
-			icon: '◈',
-			color: 'text-purple',
-			border: 'border-purple',
-			glow: 'var(--glow-purple)'
-		},
-		system: { icon: '⚙', color: 'text-muted', border: 'border-edge', glow: '' }
-	};
-
-	const ACTION_LABELS: Record<string, (d: Record<string, unknown>) => string> = {
-		'issue.created': () => 'Created issue',
-		'issue.status_changed': (d) =>
-			`Status: ${String(d.from).replace(/_/g, ' ')} → ${String(d.to).replace(/_/g, ' ')}`,
-		'issue.priority_set': (d) => `Set priority to ${d.priority}`,
-		'agent.assigned': (d) => `Assigned ${d.agent_name} to this issue`,
-		'session.started': (d) => `Started work session${d.agent_name ? ` for ${d.agent_name}` : ''}`,
-		'comment.added': () => 'Posted a comment',
-		'review.requested': (d) => `Requested review from ${d.reviewer_name}`,
-		'review.comment': () => 'Left a review comment',
-		'review.approved': () => 'Approved the changes',
-		'pr.created': (d) => `Created PR #${d.pr_number}`,
-		'pr.merged': (d) => `Merged PR #${d.pr_number}`
-	};
-
-	const ACTION_DISPLAY: Record<string, string> = {
-		'issue.created': 'Issue Created',
-		'issue.status_changed': 'Status Changed',
-		'issue.priority_set': 'Priority Set',
-		'agent.assigned': 'Agent Assigned',
-		'session.started': 'Session Started',
-		'comment.added': 'Comment Added',
-		'review.requested': 'Review Requested',
-		'review.comment': 'Review Comment',
-		'review.approved': 'Review Approved',
-		'pr.created': 'PR Created',
-		'pr.merged': 'PR Merged'
-	};
 
 	// Client-side pagination over fetched entries.
 	const PAGE_SIZE = 50;
@@ -118,28 +78,6 @@
 	let issueMap = $derived(Object.fromEntries(issues.map((i) => [i.id, i.title])));
 
 
-	function actorName(entry: ActivityEntry): string {
-		if (entry.actor_type === 'agent' && entry.actor_id) {
-			const n = String(entry.actor_id).replace('agent-', '');
-			return n.charAt(0).toUpperCase() + n.slice(1);
-		}
-		if (entry.actor_type === 'orchestrator') return 'Orchestrator';
-		if (entry.actor_type === 'system') return 'System';
-		// TODO: Resolve actor_id to actual user name when multi-user support is added.
-		return 'User';
-	}
-
-	function actionLabel(entry: ActivityEntry): string {
-		const fn = ACTION_LABELS[entry.action];
-		return fn ? fn((entry.details as Record<string, unknown>) ?? {}) : entry.action;
-	}
-
-	// Returns whether this entry has detail content worth expanding.
-	function hasExpandable(entry: ActivityEntry): boolean {
-		const d = (entry.details as Record<string, unknown>) ?? {};
-		return !!(d.text || d.comment || d.reason || d.note || d.branch);
-	}
-
 	function toggleActor(actor: string) {
 		filterActors = filterActors.includes(actor)
 			? filterActors.filter((a) => a !== actor)
@@ -165,6 +103,7 @@
 	function isRecent(dateStr: string): boolean {
 		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
 	}
+
 </script>
 
 <div class="p-6 h-full overflow-auto">
@@ -281,10 +220,11 @@
 					{#each visible as entry, i (entry.id)}
 						{@const cfg = ACTOR_CFG[entry.actor_type] ?? ACTOR_CFG.system}
 						{@const recent = isRecent(entry.created_at)}
-						{@const expandable = hasExpandable(entry)}
+						{@const expandable = hasExpandableDetails(entry)}
 						{@const isExpanded = expanded.has(entry.id)}
 						{@const details = (entry.details as Record<string, unknown>) ?? {}}
-						<div class="flex gap-4 pb-5 relative" style="animation: fade-up 0.25s ease both; animation-delay: {Math.min(i * 30, 300)}ms">
+						{@const handoff = filterIssue && HANDOFF_ACTIONS.has(entry.action)}
+						<div class="flex gap-4 pb-5 relative {handoff ? 'ml-1 border-l-2 border-purple/30 pl-2' : ''}" style="animation: fade-up 0.25s ease both; animation-delay: {Math.min(i * 30, 300)}ms">
 							<!-- Actor dot on the timeline -->
 							<div class="flex-shrink-0 w-10 flex justify-center pt-0.5 relative z-10">
 								<div
@@ -340,8 +280,17 @@
 											{#if details.text}
 												<p class="text-primary">"{details.text}"</p>
 											{/if}
-											{#if details.comment}
-												<p class="text-primary">"{details.comment}"</p>
+											{#if details.content_preview}
+												<p class="text-primary">"{details.content_preview}"</p>
+											{/if}
+											{#if details.reasoning}
+												<p class="text-secondary whitespace-pre-wrap">{details.reasoning}</p>
+											{/if}
+											{#if details.verdict}
+												<p class="mt-1 {details.verdict === 'approved' ? 'text-green' : 'text-amber'}">Verdict: {details.verdict}</p>
+											{/if}
+											{#if details.message}
+												<p class="text-secondary mt-1">{details.message}</p>
 											{/if}
 											{#if details.reason}
 												<p class="text-muted mt-1">Reason: {details.reason}</p>

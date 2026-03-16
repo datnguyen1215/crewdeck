@@ -609,6 +609,9 @@ export class OrchestratorManager {
       project_id: projectId,
       action: action.action,
       details: action.params,
+      reasoning: action.reasoning,
+      issue_id: action.params.issue_id as string | undefined,
+      agent_id: action.params.agent_id as string | undefined,
     });
 
     await executeAction(action, state, this.bus, this.adapter);
