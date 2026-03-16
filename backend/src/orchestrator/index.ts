@@ -21,7 +21,6 @@ import {
 } from "../db/repositories/issue-agents.js";
 import {
   createSession,
-  getSession,
   updateSession,
 } from "../db/repositories/sessions.js";
 import { config } from "../config.js";
@@ -94,6 +93,13 @@ async function executeAssign(
 
   const agent = getAgent(agentId);
   if (!agent) { logger.warn({ agentId }, "assign: agent not found"); return; }
+
+  const crew = getCrewWithAgents(projectId);
+  if (!crew) return;
+  if (agent.crew_id !== crew.id) {
+    logger.warn({ agentId, crew_id: crew.id }, "assign: agent does not belong to project crew");
+    return;
+  }
 
   const project = getProject(projectId);
   if (!project) return;
@@ -224,6 +230,13 @@ async function executeRouteReview(
 
   const reviewer = getAgent(reviewerAgentId);
   if (!reviewer) { logger.warn({ reviewerAgentId }, "route_review: reviewer not found"); return; }
+
+  const crew = getCrewWithAgents(projectId);
+  if (!crew) return;
+  if (reviewer.crew_id !== crew.id) {
+    logger.warn({ reviewerAgentId, crew_id: crew.id }, "route_review: reviewer does not belong to project crew");
+    return;
+  }
 
   const project = getProject(projectId);
   if (!project) return;
@@ -462,7 +475,9 @@ export class OrchestratorManager {
       logger.debug({ projectId, message: message.slice(0, 100) }, "Sent message to captain");
     } catch (err) {
       logger.error({ err, projectId }, "Failed to send message to captain");
+      const sessionId = this.captainSessions.get(projectId);
       this.captainSessions.delete(projectId);
+      if (sessionId) updateSession(sessionId, { status: "error" });
     }
   }
 
