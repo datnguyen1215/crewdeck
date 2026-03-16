@@ -37,26 +37,24 @@ function seedAgents(): void {
   agentId = crypto.randomUUID();
   reviewerAgentId = crypto.randomUUID();
   db.prepare(
-    "INSERT INTO Agent (id, crew_id, name, role, expertise, system_prompt, can_review) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO Agent (id, crew_id, name, title, description, system_prompt) VALUES (?, ?, ?, ?, ?, ?)",
   ).run(
     agentId,
     crewId,
     "Alice",
     "developer",
-    JSON.stringify(["TypeScript"]),
+    null,
     "You are Alice",
-    0,
   );
   db.prepare(
-    "INSERT INTO Agent (id, crew_id, name, role, expertise, system_prompt, can_review) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO Agent (id, crew_id, name, title, description, system_prompt) VALUES (?, ?, ?, ?, ?, ?)",
   ).run(
     reviewerAgentId,
     crewId,
     "Bob",
     "reviewer",
-    JSON.stringify(["review"]),
+    null,
     "You are Bob",
-    1,
   );
 }
 
@@ -410,34 +408,6 @@ describe("OrchestratorManager", () => {
       expect(ia!.review_order).toBe(1);
     });
 
-    it("rejects agent without can_review permission", async () => {
-      seedIssue("in_progress");
-      mockClaude.mockResolvedValue(
-        JSON.stringify({
-          action: "route_review",
-          params: {
-            issue_id: issueId,
-            reviewer_agent_id: agentId,
-            review_order: 1,
-          },
-          reasoning: "Alice can't review",
-        }),
-      );
-
-      bus.emit("agent.finished", {
-        session_id: "s1",
-        agent_id: agentId,
-        issue_id: issueId,
-        project_id: projectId,
-        role: "worker",
-      });
-      await flushPromises();
-
-      const updated = db
-        .prepare("SELECT status FROM Issue WHERE id = ?")
-        .get(issueId) as { status: string };
-      expect(updated.status).toBe("in_progress");
-    });
   });
 
   // --- escalate action ---

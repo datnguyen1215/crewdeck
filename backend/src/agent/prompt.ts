@@ -36,7 +36,7 @@ export function buildReviewerPrompt(
     : "";
 
   parts.push(`## Instructions
-You are ${escapeXml(reviewer.name)}, a ${escapeXml(reviewer.role)} reviewer. Review the code changes for the issue above.${diffInstruction}
+You are ${escapeXml(reviewer.name)}, a ${escapeXml(reviewer.title)} reviewer. Review the code changes for the issue above.${diffInstruction}
 
 Evaluate correctness, quality, and completeness. Then signal your verdict:
 
@@ -81,7 +81,7 @@ export function buildAgentPrompt(
   }
 
   parts.push(`## Instructions
-You are ${escapeXml(agent.name)}, a ${escapeXml(agent.role)} agent. Work on the issue described above.
+You are ${escapeXml(agent.name)}, a ${escapeXml(agent.title)} agent. Work on the issue described above.
 
 When your work is complete, run:
   crewdeck signal --event work-complete

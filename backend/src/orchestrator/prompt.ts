@@ -23,7 +23,7 @@ function fmtIssue(i: Issue): string {
 }
 
 function fmtAgent(a: Agent): string {
-  return `  - [${a.id}] ${escapeXml(a.name)} | role: ${escapeXml(a.role)} | expertise: ${escapeXml(a.expertise.join(", "))} | can_review: ${a.can_review}`;
+  return `  - [${a.id}] ${escapeXml(a.name)} | title: ${escapeXml(a.title)}${a.description ? ` | ${escapeXml(a.description)}` : ""}`;
 }
 
 export function buildOrchestratorPrompt(state: OrchestratorState, eventDescription: string): string {
@@ -70,7 +70,7 @@ Rules:
 - Only assign if concurrency allows (${allActive.length} / ${project.max_concurrency})
 - Only assign idle agents (listed above under "Idle agents")
 - Only assign issues with status "open" or "draft"
-- For route_review: the reviewer agent must have can_review: true
+- For route_review: any agent can be assigned as a reviewer
 - Use full UUIDs from the state above — not partial IDs
 - Output ONLY the raw JSON object. No markdown, no explanation.`);
 

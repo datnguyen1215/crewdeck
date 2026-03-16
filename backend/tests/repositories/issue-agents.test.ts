@@ -30,7 +30,7 @@ describe("createIssueAgent", () => {
   it("creates with defaults", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     const ia = createIssueAgent({ issue_id: issue.id, agent_id: agent.id, role: "developer" });
@@ -45,7 +45,7 @@ describe("updateIssueAgent", () => {
   it("updates status", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     const ia = createIssueAgent({ issue_id: issue.id, agent_id: agent.id, role: "developer" });
 
@@ -56,7 +56,7 @@ describe("updateIssueAgent", () => {
   it("updates review_order", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     const ia = createIssueAgent({ issue_id: issue.id, agent_id: agent.id, role: "reviewer" });
 
@@ -69,8 +69,8 @@ describe("listIssueAgents", () => {
   it("returns agents for issue", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const a1 = createAgent(crew.id, { name: "A1", role: "dev", system_prompt: "s" });
-    const a2 = createAgent(crew.id, { name: "A2", role: "reviewer", system_prompt: "s" });
+    const a1 = createAgent(crew.id, { name: "A1", title: "dev", system_prompt: "s" });
+    const a2 = createAgent(crew.id, { name: "A2", title: "reviewer", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     createIssueAgent({ issue_id: issue.id, agent_id: a1.id, role: "developer" });
     createIssueAgent({ issue_id: issue.id, agent_id: a2.id, role: "reviewer" });

@@ -19,10 +19,9 @@ const agentAlice: Agent = {
   id: "agent-alice-uuid",
   crew_id: "crew-1",
   name: "Alice",
-  role: "backend developer",
-  expertise: ["TypeScript", "Node.js"],
+  title: "backend developer",
+  description: null,
   system_prompt: "You are Alice",
-  can_review: false,
   created_at: "2026-01-01",
   updated_at: "2026-01-01",
 };
@@ -31,10 +30,9 @@ const agentBob: Agent = {
   id: "agent-bob-uuid",
   crew_id: "crew-1",
   name: "Bob",
-  role: "reviewer",
-  expertise: ["code review"],
+  title: "reviewer",
+  description: null,
   system_prompt: "You are Bob",
-  can_review: true,
   created_at: "2026-01-01",
   updated_at: "2026-01-01",
 };
@@ -149,11 +147,10 @@ describe("buildOrchestratorPrompt", () => {
     expect(prompt).toContain("A new issue was created: Fix auth bug");
   });
 
-  it("includes agent expertise and can_review flag", () => {
+  it("includes agent title in agent list", () => {
     const prompt = buildOrchestratorPrompt(makeState(), "Test event");
-    expect(prompt).toContain("TypeScript");
-    expect(prompt).toContain("can_review: false");
-    expect(prompt).toContain("can_review: true");
+    expect(prompt).toContain("backend developer");
+    expect(prompt).toContain("reviewer");
   });
 
   it("includes supported actions in instructions", () => {

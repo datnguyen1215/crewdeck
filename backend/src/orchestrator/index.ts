@@ -203,7 +203,7 @@ async function executeAssign(
 
   // Post orchestrator comment
   const comment = createComment(issue_id, {
-    content: `Assigned to ${agent.name} (${agent.role}). Session started.`,
+    content: `Assigned to ${agent.name} (${agent.title}). Session started.`,
     author_type: "orchestrator",
   });
   bus.emit("comment.added", { comment, project_id: projectId });
@@ -239,11 +239,6 @@ async function executeRouteReview(
     logger.warn({ reviewer_agent_id, crew_id: state.crew.id }, "route_review: reviewer does not belong to project crew");
     return;
   }
-  if (!reviewer.can_review) {
-    logger.warn({ reviewer_agent_id }, "route_review: agent cannot review");
-    return;
-  }
-
   // Update issue to in_review — only increment round when starting a new review cycle
   // (transitioning from in_progress/feedback), not when adding another reviewer to the same cycle.
   const newRound = issue.status !== "in_review"

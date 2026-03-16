@@ -49,10 +49,9 @@ export interface Agent {
   id: string;
   crew_id: string;
   name: string;
-  role: string;
-  expertise: string[];
+  title: string;
+  description: string | null;
   system_prompt: string;
-  can_review: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -190,18 +189,16 @@ export interface UpdateCrewInput {
 
 export interface CreateAgentInput {
   name: string;
-  role: string;
-  expertise?: string[];
+  title: string;
+  description?: string;
   system_prompt: string;
-  can_review?: boolean;
 }
 
 export interface UpdateAgentInput {
   name?: string;
-  role?: string;
-  expertise?: string[];
+  title?: string;
+  description?: string;
   system_prompt?: string;
-  can_review?: boolean;
 }
 
 export interface CreateIssueInput {

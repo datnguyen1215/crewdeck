@@ -71,7 +71,7 @@ describe("listIssues", () => {
   it("filters by assigned_agent_id", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "dev", system_prompt: "s" });
     const i1 = createIssue(p.id, { title: "Assigned", description: "D" });
     updateIssue(i1.id, { assigned_agent_id: agent.id });
     createIssue(p.id, { title: "Unassigned", description: "D" });
@@ -140,7 +140,7 @@ describe("getIssueWithDetails", () => {
       github_url: "https://github.com/acme/x",
     });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", role: "dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, { name: "A", title: "dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     createComment(issue.id, { content: "A comment" });
