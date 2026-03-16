@@ -291,7 +291,8 @@ GET /projects/:projectId/crew
       "id": "uuid",
       "name": "Alice",
       "title": "Senior Software Engineer",
-      "description": "Focuses on backend services and API design."
+      "description": "Focuses on backend services and API design.",
+      "is_captain": false
     }
   ],
   "created_at": "ISO 8601",
@@ -348,7 +349,8 @@ POST /projects/:projectId/crew/agents
   "name": "Alice",
   "title": "Senior Software Engineer",
   "description": "Focuses on backend services and API design.",
-  "system_prompt": "You are a senior software engineer..."
+  "system_prompt": "You are a senior software engineer...",
+  "is_captain": false
 }
 ```
 
@@ -358,6 +360,7 @@ POST /projects/:projectId/crew/agents
 | title | Yes | — | Professional title. |
 | description | No | null | Short description of the agent's focus. |
 | system_prompt | Yes | — | Full system prompt. |
+| is_captain | No | false | Designate this agent as the crew's captain. Only one captain is allowed per crew — setting this demotes the previous captain. |
 
 **Response:** `201 Created` — The created agent object.
 

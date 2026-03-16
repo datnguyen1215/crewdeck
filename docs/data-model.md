@@ -127,6 +127,7 @@ A specialized AI persona within a crew.
 | title | TEXT | NOT NULL | Professional title (e.g., "Senior Software Engineer"). |
 | description | TEXT | | Optional 1-2 sentence summary of what this agent does. |
 | system_prompt | TEXT | NOT NULL | Full system prompt defining this agent's persona and behavior. |
+| is_captain | INTEGER | NOT NULL, DEFAULT 0 | Whether this agent is the crew's captain. Stored as 0/1; exposed as boolean. At most one captain per crew. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 

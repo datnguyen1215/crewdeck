@@ -41,6 +41,7 @@ An agent is a specialized AI persona defined by a custom system prompt. Agents h
 - A name and title (e.g., "Senior Software Engineer", "Security Expert").
 - An optional description providing additional context for the orchestrator.
 - A system prompt generated through AI assistance from a short prompt.
+- An optional **captain** designation (`is_captain`). At most one agent per crew can be captain. The captain's system prompt is used by the orchestrator when coordinating the crew. If no captain is designated, orchestration is skipped.
 
 Agent creation is AI-assisted: the user describes the role they want, and the system uses the CLI tool to generate and refine a detailed system prompt for that agent.
 
@@ -55,6 +56,8 @@ The orchestrator is a persistent AI session scoped to a single project. It is th
 - **Manages dependencies** — understands which issues depend on others and sequences work accordingly, including basing worktrees on previous branches when needed.
 
 The orchestrator does not run continuously. It has a persistent session ID stored in the database. The backend resumes the orchestrator's session when events occur (new issue approved, agent finished work, review posted). This approach is resource-efficient and maintains full context across invocations.
+
+The orchestrator's AI persona is defined by the **captain** agent: the system prompt of whichever crew agent has `is_captain = true` is passed as the system prompt when invoking Claude. If no captain is designated, the orchestrator skips processing until one is set.
 
 ### Issue
 
