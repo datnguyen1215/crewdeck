@@ -30,6 +30,15 @@ vi.mock("node:child_process", async (importOriginal) => {
   };
 });
 
+// Mock GitHub repo metadata fetch — prevents network calls during project creation
+vi.mock("../../src/github/repo-metadata.js", () => ({
+  fetchRepoMetadata: vi.fn(async (owner: string, name: string) => ({
+    name,
+    description: null,
+    default_branch: "main",
+  })),
+}));
+
 // Mock filesystem calls used by repo cloning
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();

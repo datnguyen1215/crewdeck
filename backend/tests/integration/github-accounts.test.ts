@@ -199,7 +199,7 @@ describe("GitHub Accounts API", () => {
 
       const project = await request(app)
         .post("/api/v1/projects")
-        .send({ name: `gh-acct-test-${Date.now()}`, github_account_id: account.body.id });
+        .send({ name: `gh-acct-test-${Date.now()}`, github_url: "https://github.com/test/repo", github_account_id: account.body.id });
 
       expect(project.status).toBe(201);
       expect(project.body.github_account_id).toBe(account.body.id);
@@ -220,7 +220,7 @@ describe("GitHub Accounts API", () => {
 
       const project = await request(app)
         .post("/api/v1/projects")
-        .send({ name: `cascade-test-${Date.now()}`, github_account_id: account.body.id });
+        .send({ name: `cascade-test-${Date.now()}`, github_url: "https://github.com/test/repo", github_account_id: account.body.id });
       expect(project.body.github_account_id).toBe(account.body.id);
 
       // Delete the account

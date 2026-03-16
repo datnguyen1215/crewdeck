@@ -23,7 +23,7 @@ beforeAll(async () => {
   // Create project
   const projRes = await request(app)
     .post("/api/v1/projects")
-    .send({ name: `internal-test-${Date.now()}` });
+    .send({ name: `internal-test-${Date.now()}`, github_url: "https://github.com/test/repo" });
   expect(projRes.status).toBe(201);
   projectId = projRes.body.id;
 

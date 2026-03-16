@@ -13,18 +13,19 @@ describe("Repos API", () => {
     app = await getApp();
     const res = await request(app)
       .post(`${BASE}`)
-      .send({ name: "repos-test-project" });
+      .send({ name: "repos-test-project", github_url: "https://github.com/test/repo" });
     projectId = res.body.id;
   });
 
   describe("GET /api/v1/projects/:projectId/repos", () => {
-    it("returns empty array for project with no repos", async () => {
+    it("returns the repo created with the project", async () => {
       const res = await request(app).get(`${BASE}/${projectId}/repos`);
       expect(res.status).toBe(200);
-      expect(res.body).toEqual([]);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].github_url).toBe("https://github.com/test/repo");
     });
 
-    it("returns repos after adding some", async () => {
+    it("returns repos after adding more", async () => {
       await request(app)
         .post(`${BASE}/${projectId}/repos`)
         .send({ github_url: "https://github.com/octocat/hello-world" });
@@ -34,7 +35,7 @@ describe("Repos API", () => {
 
       const res = await request(app).get(`${BASE}/${projectId}/repos`);
       expect(res.status).toBe(200);
-      expect(res.body).toHaveLength(2);
+      expect(res.body).toHaveLength(3);
     });
 
     it("returns 404 for non-existent project", async () => {
@@ -49,7 +50,7 @@ describe("Repos API", () => {
     beforeAll(async () => {
       const res = await request(app)
         .post(`${BASE}`)
-        .send({ name: "repos-post-test-project" });
+        .send({ name: "repos-post-test-project", github_url: "https://github.com/test/repo" });
       freshProjectId = res.body.id;
     });
 
@@ -89,7 +90,7 @@ describe("Repos API", () => {
     beforeAll(async () => {
       const projRes = await request(app)
         .post(`${BASE}`)
-        .send({ name: "repos-delete-test-project" });
+        .send({ name: "repos-delete-test-project", github_url: "https://github.com/test/repo" });
       deleteProjectId = projRes.body.id;
 
       const repoRes = await request(app)
@@ -108,13 +109,15 @@ describe("Repos API", () => {
     it("verifies repo is actually gone after deletion", async () => {
       const res = await request(app).get(`${BASE}/${deleteProjectId}/repos`);
       expect(res.status).toBe(200);
-      expect(res.body).toEqual([]);
+      // Only the inline repo from project creation should remain
+      expect(res.body).toHaveLength(1);
+      expect(res.body.every((r: { id: string }) => r.id !== repoId)).toBe(true);
     });
 
     it("rejects deleting a repo that belongs to a different project", async () => {
       const otherProjRes = await request(app)
         .post(`${BASE}`)
-        .send({ name: "repos-other-project" });
+        .send({ name: "repos-other-project", github_url: "https://github.com/test/repo" });
       const otherProjectId = otherProjRes.body.id;
 
       const repoRes = await request(app)

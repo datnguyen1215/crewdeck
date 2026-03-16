@@ -9,7 +9,7 @@ const prefix = `orch-${Date.now()}`;
 const createProject = async (app: Express, label: string): Promise<string> => {
   const res = await request(app)
     .post(PROJECTS)
-    .send({ name: `${prefix}-${label}` });
+    .send({ name: `${prefix}-${label}`, github_url: "https://github.com/test/repo" });
   expect(res.status).toBe(201);
   return res.body.id as string;
 };
