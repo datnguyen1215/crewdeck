@@ -786,6 +786,89 @@ Send a user message to influence captain behavior. The orchestrator is resumed a
 
 ---
 
+### Environment Variables
+
+Per-project environment variables that are automatically injected into agent sessions when work or review is assigned.
+
+**Note:** Secret values (`is_secret: true`) are masked as `••••••••` in all API responses. They are stored in plaintext server-side for agent injection only.
+
+#### List Environment Variables
+
+```
+GET /projects/:projectId/environment
+```
+
+**Response:** `200 OK` — Array of environment variable objects, ordered by key ascending.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "key": "API_KEY",
+    "value": "abc123",
+    "is_secret": false,
+    "created_at": "ISO 8601",
+    "updated_at": "ISO 8601"
+  }
+]
+```
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Create Environment Variable
+
+```
+POST /projects/:projectId/environment
+```
+
+**Request Body:**
+```json
+{
+  "key": "API_KEY",
+  "value": "abc123",
+  "is_secret": false
+}
+```
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| key | Yes | — | Environment variable name. Must match `[A-Za-z_][A-Za-z0-9_]*`. |
+| value | Yes | — | Value string. |
+| is_secret | No | false | If true, the value is masked in all API responses. |
+
+**Response:** `201 Created` — The created environment variable object (value masked if secret).
+
+**Error:** `400 VALIDATION_ERROR` — Key fails name format validation.
+
+**Error:** `409 CONFLICT` — A variable with this key already exists in the project.
+
+#### Update Environment Variable
+
+```
+PATCH /projects/:projectId/environment/:envVarId
+```
+
+**Request Body:** Any subset of fields (key, value, is_secret).
+
+**Response:** `200 OK` — The updated environment variable object.
+
+**Error:** `404 Not Found` — Environment variable does not exist or belongs to a different project.
+
+**Error:** `409 CONFLICT` — Updating key conflicts with an existing variable.
+
+#### Delete Environment Variable
+
+```
+DELETE /projects/:projectId/environment/:envVarId
+```
+
+**Response:** `204 No Content`
+
+**Error:** `404 Not Found` — Environment variable does not exist or belongs to a different project.
+
+---
+
 ### Internal API (Agent CLI)
 
 These endpoints are used exclusively by the CrewDeck CLI running inside agent tmux sessions. They are not intended for frontend or external use. See [Agent CLI](agent-cli.md) for the full CLI specification.
