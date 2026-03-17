@@ -212,6 +212,54 @@ describe("JsonlWatcher", () => {
     expect(onText.mock.calls[1][0]).toBe("Was partial");
   });
 
+  it("auto-stops after MAX_MISS_COUNT when no isAlive is provided", async () => {
+    vi.mocked(stat).mockResolvedValue({ size: 0 } as never);
+
+    watcher.start();
+    expect(watcher.isRunning()).toBe(true);
+
+    // Advance 60 polls (60 seconds)
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(watcher.isRunning()).toBe(false);
+    expect(onText).not.toHaveBeenCalled();
+  });
+
+  it("resets missCount and stays alive when isAlive returns true", async () => {
+    const isAlive = vi.fn().mockResolvedValue(true);
+    const aliveWatcher = new JsonlWatcher("alive-session", "/tmp", onText, isAlive);
+
+    vi.mocked(stat).mockResolvedValue({ size: 0 } as never);
+
+    aliveWatcher.start();
+    expect(aliveWatcher.isRunning()).toBe(true);
+
+    // Advance 60 polls — isAlive should be called and watcher stays alive
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(isAlive).toHaveBeenCalled();
+    expect(aliveWatcher.isRunning()).toBe(true);
+
+    aliveWatcher.stop();
+  });
+
+  it("auto-stops when isAlive returns false", async () => {
+    const isAlive = vi.fn().mockResolvedValue(false);
+    const deadWatcher = new JsonlWatcher("dead-session", "/tmp", onText, isAlive);
+
+    vi.mocked(stat).mockResolvedValue({ size: 0 } as never);
+
+    deadWatcher.start();
+
+    // Advance 60 polls — isAlive returns false so watcher should stop
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(isAlive).toHaveBeenCalled();
+    expect(deadWatcher.isRunning()).toBe(false);
+
+    deadWatcher.stop();
+  });
+
   it("handles missing file gracefully", async () => {
     vi.mocked(stat).mockRejectedValue(new Error("ENOENT"));
 

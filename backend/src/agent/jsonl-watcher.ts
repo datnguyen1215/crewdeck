@@ -17,6 +17,7 @@ export interface JsonlEntry {
 }
 
 export type OnAssistantText = (text: string, uuid: string) => void;
+export type IsAliveCheck = () => Promise<boolean>;
 
 /**
  * Watches a Claude Code JSONL session file for new assistant text entries.
@@ -33,6 +34,7 @@ export class JsonlWatcher {
     private readonly claudeSessionId: string,
     private readonly workdir: string,
     private readonly onText: OnAssistantText,
+    private readonly isAlive?: IsAliveCheck,
   ) {
     // Claude Code stores JSONL at ~/.claude/projects/<encoded-workdir>/<session-id>.jsonl
     const encoded = workdir.replace(/\//g, "-");
@@ -53,6 +55,10 @@ export class JsonlWatcher {
     logger.debug({ path: this.filePath }, "JSONL watcher stopped");
   }
 
+  isRunning(): boolean {
+    return this.interval !== null;
+  }
+
   private async poll(): Promise<void> {
     let fh;
     try {
@@ -60,6 +66,13 @@ export class JsonlWatcher {
       if (!info || info.size <= this.offset) {
         this.missCount++;
         if (this.missCount >= MAX_MISS_COUNT) {
+          if (this.isAlive) {
+            const alive = await this.isAlive();
+            if (alive) {
+              this.missCount = 0;
+              return;
+            }
+          }
           logger.debug({ path: this.filePath }, "JSONL watcher auto-stopping after prolonged inactivity");
           this.stop();
         }
