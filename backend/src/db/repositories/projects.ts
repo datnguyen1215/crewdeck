@@ -139,6 +139,7 @@ export function deleteProject(id: string): void {
   // by the current data model — IssuePRs are expected to reference repos in the same
   // project as the issue. Not fixing now; enforce at the route layer when repos are created.
   db.transaction(() => {
+    db.prepare("DELETE FROM EnvironmentVariable WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM ActivityLog WHERE project_id = ?").run(id);
     db.prepare(
       "DELETE FROM IssueAgent WHERE issue_id IN (SELECT id FROM Issue WHERE project_id = ?)",
