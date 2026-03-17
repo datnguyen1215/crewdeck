@@ -9,6 +9,7 @@ Subcommands:
   list              List all issues for the project
   get <issue_id>    Get details for a specific issue
   create            Create a new issue
+  close <issue_id>  Close/cancel an issue
 
 Options for create:
   --title <title>           Issue title (required)
@@ -18,7 +19,8 @@ Options for create:
 Examples:
   crewdeck issues list
   crewdeck issues get abc123
-  crewdeck issues create --title "Fix bug" --description "Details here"`;
+  crewdeck issues create --title "Fix bug" --description "Details here"
+  crewdeck issues close abc123`;
 
 /**
  * Parses a named flag value from argv.
@@ -81,6 +83,17 @@ export async function issuesCommand(argv: string[]): Promise<void> {
 
       const data = await post("/internal/issues/create", body, api_url);
       console.log(JSON.stringify(data, null, 2));
+      break;
+    }
+    case "close": {
+      const issueId = rest[0];
+      if (!issueId) {
+        console.error("Error: <issue_id> is required\n");
+        console.error(USAGE);
+        process.exit(1);
+      }
+      await post("/internal/issues/close", { project_id, issue_id: issueId }, api_url);
+      console.log(`Issue ${issueId} closed.`);
       break;
     }
     default:
