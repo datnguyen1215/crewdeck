@@ -164,11 +164,12 @@ crewdeck files --modified src/auth/middleware.ts src/auth/session.ts tests/auth.
 
 ### issues
 
-List or get project issues. Used by the captain to inspect issue state.
+List or get project issues. Used by the captain to inspect issue state, and by workers/reviewers to re-read issue details.
 
 ```
 crewdeck issues list
 crewdeck issues get <issue_id>
+crewdeck issues close <issue_id>
 ```
 
 **Subcommands:**
@@ -178,7 +179,7 @@ crewdeck issues get <issue_id>
 | `list` | List all issues in the project |
 | `get <issue_id>` | Get details for a specific issue |
 | `update <issue_id> --priority <n>` | Update issue priority |
-| `close <issue_id>` | Close/cancel an issue |
+| `close <issue_id>` | Close/cancel an issue (transitions to `done`) |
 
 **Examples:**
 
@@ -191,6 +192,7 @@ crewdeck issues get issue_abc123
 
 # Update issue priority
 crewdeck issues update issue_abc123 --priority 2
+
 
 # Close/cancel an issue
 crewdeck issues close issue_abc123
@@ -269,7 +271,7 @@ crewdeck route-review issue_abc123 agent_reviewer01
 
 ### activity
 
-Fetch comments and activity log for an issue. Used by the captain to review progress before making decisions.
+Fetch comments and activity log for an issue. Used by the captain to review progress before making decisions, and by workers/reviewers to check issue activity.
 
 ```
 crewdeck activity <issue_id>
@@ -365,6 +367,8 @@ Available commands:
 - `crewdeck signal --event needs-help --data '{"message": "..."}'` — call this if you need human assistance
 - `crewdeck comment --message "..."` — post a comment on the issue to report progress or findings
 - `crewdeck files --modified <files...>` — report which files you modified
+- `crewdeck issues get <issue_id>` — re-read issue details
+- `crewdeck activity <issue_id>` — see comments and activity on an issue
 
 IMPORTANT: Always call `crewdeck signal --event work-complete` when you are done with your task.
 ```

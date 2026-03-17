@@ -9,6 +9,7 @@ import { assignCommand } from "./commands/assign.js";
 import { routeReviewCommand } from "./commands/route-review.js";
 import { activityCommand } from "./commands/activity.js";
 import { historyCommand } from "./commands/history.js";
+import { sessionsCommand } from "./commands/sessions.js";
 
 const USAGE = `Usage: crewdeck <command> [options]
 
@@ -23,6 +24,7 @@ Commands:
   route-review    Route a review to an agent
   activity        Get activity for an issue
   history         Save or list agent history
+  sessions        List or stop agent sessions
 
 Run "crewdeck <command> --help" for command-specific usage.`;
 
@@ -59,6 +61,9 @@ async function main() {
       break;
     case "history":
       await historyCommand(args);
+      break;
+    case "sessions":
+      await sessionsCommand(args);
       break;
     default:
       if (!command || command === "--help" || command === "-h") {

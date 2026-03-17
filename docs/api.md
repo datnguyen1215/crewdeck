@@ -895,13 +895,14 @@ Captain updates an issue's fields (e.g. priority).
 
 **Side effects:** Emits `issue.updated` on the event bus.
 
+
 #### Close Issue (Internal)
 
 ```
 POST /internal/issues/close
 ```
 
-Captain closes or cancels an issue. No-op if the issue is already done.
+Captain closes/cancels an issue, transitioning it to `done` status. Any running sessions for the issue are also marked completed.
 
 **Request Body:**
 ```json
@@ -914,6 +915,8 @@ Captain closes or cancels an issue. No-op if the issue is already done.
 **Response:** `200 OK` — The updated issue object.
 
 **Side effects:** Emits `issue.status_changed` on the event bus. Marks any running sessions for the issue as completed.
+
+**Note:** Idempotent — if the issue is already `done`, returns the issue unchanged.
 
 ---
 

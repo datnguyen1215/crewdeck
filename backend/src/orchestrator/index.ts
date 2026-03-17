@@ -3,6 +3,7 @@ import { eventBus } from "../events/bus.js";
 import type { EventBus } from "../events/bus.js";
 import type { AgentAdapter } from "../agent/types.js";
 import { captainSessionName } from "../agent/types.js";
+import { JsonlWatcher } from "../agent/jsonl-watcher.js";
 import { escapeXml } from "../utils/xml.js";
 import { getProject, updateProject, listProjects } from "../db/repositories/projects.js";
 import { getIssue } from "../db/repositories/issues.js";
@@ -11,8 +12,10 @@ import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listCaptainHistory } from "../db/repositories/captain-history.js";
 import {
   createSession,
+  getSession,
   updateSession,
 } from "../db/repositories/sessions.js";
+import { createCaptainMessage } from "../db/repositories/captain-messages.js";
 import { config } from "../config.js";
 import { executeAssign } from "./assignment-service.js";
 import { executeRouteReview, handleReviewVerdict } from "./review-service.js";
@@ -30,11 +33,14 @@ crewdeck issues get <issue_id>    — get issue details
 crewdeck agents list              — list project agents (with idle/busy status)
 crewdeck assign <issue_id> <agent_id>          — assign an agent to work on an issue
 crewdeck route-review <issue_id> <agent_id>    — route an issue to a reviewer
+crewdeck issues create --title "..." --description "..."  — create a new issue
 crewdeck issues update <issue_id> --priority <n>  — update issue priority
 crewdeck issues close <issue_id>       — close/cancel an issue
 crewdeck activity <issue_id>      — fetch comments and activity for an issue
 crewdeck history save --summary "..."  — save a decision summary
 crewdeck history list             — list your decision history
+crewdeck sessions list            — list project sessions
+crewdeck sessions stop <session_id>  — stop a running session
 \`\`\`
 
 ## How It Works
@@ -66,6 +72,7 @@ Start by listing issues and agents to understand the current state.`;
 export class OrchestratorManager {
   private readonly captainSessions = new Map<string, string>(); // projectId → sessionId
   private readonly captainSpawning = new Map<string, Promise<string | null>>(); // in-flight spawn guards
+  private readonly jsonlWatchers = new Map<string, JsonlWatcher>(); // projectId → watcher
 
   constructor(
     private readonly bus: EventBus,
@@ -80,6 +87,10 @@ export class OrchestratorManager {
 
     this.bus.on("captain.route_review", ({ project_id, issue_id, reviewer_agent_id }) => {
       void executeRouteReview(project_id, issue_id, reviewer_agent_id, this.bus, this.adapter);
+    });
+
+    this.bus.on("session.stop_requested", ({ session_id, project_id }) => {
+      void this.handleSessionStop(session_id, project_id);
     });
 
     // Events that get relayed to the captain via tmux send-keys
@@ -129,6 +140,25 @@ export class OrchestratorManager {
     });
   }
 
+  private async handleSessionStop(sessionId: string, projectId: string): Promise<void> {
+    const session = getSession(sessionId);
+    if (!session?.tmux_session_name) return;
+    try {
+      await this.adapter.kill(session.tmux_session_name);
+    } catch { /* already gone */ }
+    updateSession(sessionId, { status: "completed" });
+
+    // Clean up captainSessions if the stopped session is a captain session
+    for (const [projId, sessId] of this.captainSessions) {
+      if (sessId === sessionId) {
+        this.captainSessions.delete(projId);
+        break;
+      }
+    }
+
+    logger.info({ sessionId, projectId }, "Session stopped by captain");
+  }
+
   async ensureCaptainSession(projectId: string): Promise<string | null> {
     const existingSessionId = this.captainSessions.get(projectId);
     if (existingSessionId) {
@@ -137,6 +167,7 @@ export class OrchestratorManager {
         return tmuxName;
       }
       // Session died — clean up and respawn
+      this.stopWatcher(projectId);
       this.captainSessions.delete(projectId);
       updateSession(existingSessionId, { status: "completed" });
     }
@@ -169,6 +200,7 @@ export class OrchestratorManager {
 
     const tmuxName = captainSessionName(projectId);
     const initialPrompt = buildCaptainInitialPrompt(projectId, project.max_concurrency);
+    const claudeSessionId = crypto.randomUUID();
 
     const session = createSession({
       project_id: projectId,
@@ -187,6 +219,7 @@ export class OrchestratorManager {
         workdir: "/tmp",
         prompt: initialPrompt,
         systemPrompt: captain.system_prompt,
+        claudeSessionId,
         env: {
           CREWDECK_PROJECT_ID: projectId,
           CREWDECK_AGENT_ID: captain.id,
@@ -202,6 +235,17 @@ export class OrchestratorManager {
 
     this.captainSessions.set(projectId, session.id);
     updateProject(projectId, { orchestrator_session_id: session.id });
+
+    // Start watching the JSONL session file for assistant responses
+    const watcher = new JsonlWatcher(claudeSessionId, "/tmp", (text) => {
+      const message = createCaptainMessage(projectId, {
+        author_type: "captain",
+        content: text,
+      });
+      this.bus.emit("captain.message", { message, project_id: projectId });
+    });
+    watcher.start();
+    this.jsonlWatchers.set(projectId, watcher);
 
     this.bus.emit("session.started", {
       session_id: session.id,
@@ -223,6 +267,7 @@ export class OrchestratorManager {
       logger.debug({ projectId, message: message.slice(0, 100) }, "Sent message to captain");
     } catch (err) {
       logger.error({ err, projectId }, "Failed to send message to captain");
+      this.stopWatcher(projectId);
       const sessionId = this.captainSessions.get(projectId);
       this.captainSessions.delete(projectId);
       if (sessionId) updateSession(sessionId, { status: "error" });
@@ -241,6 +286,7 @@ export class OrchestratorManager {
   }
 
   async killCaptainSession(projectId: string): Promise<void> {
+    this.stopWatcher(projectId);
     const tmuxName = captainSessionName(projectId);
     try {
       await this.adapter.kill(tmuxName);
@@ -249,6 +295,14 @@ export class OrchestratorManager {
     if (sessionId) {
       updateSession(sessionId, { status: "completed" });
       this.captainSessions.delete(projectId);
+    }
+  }
+
+  private stopWatcher(projectId: string): void {
+    const watcher = this.jsonlWatchers.get(projectId);
+    if (watcher) {
+      watcher.stop();
+      this.jsonlWatchers.delete(projectId);
     }
   }
 }
