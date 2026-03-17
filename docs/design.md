@@ -66,7 +66,7 @@ An issue is the fundamental unit of work. Issues have:
 - An assigned agent (set by the orchestrator).
 - A comment thread where agents and humans post updates, findings, and review feedback.
 - Linked branch/worktree information (recorded when an agent begins work).
-- Linked pull requests (created manually via the frontend when ready).
+- Linked pull requests (created automatically by the captain after all reviewers approve).
 - An activity log recording every state change and action.
 - A configurable max review rounds (overrides project default if set).
 
@@ -83,13 +83,12 @@ Humans can also post comments to provide direction or additional context.
 
 ### Pull Request
 
-A pull request is created manually by the user via a button in the frontend. Before PR creation, the system tracks:
+A pull request is created automatically by the captain after all reviewers approve an issue. The captain runs `crewdeck create-pr <issue_id>`, which:
 
-- The branch name and worktree path where work was done.
-- The target repository.
-- The linked issue.
-
-After the user clicks the create button, the system uses `gh` CLI to create the PR on GitHub and records the PR URL and status back on the issue.
+- Pushes the issue's worktree branch using the project's OAuth token.
+- Runs `gh pr create` to open the PR on GitHub.
+- Records the PR URL and status in the `IssuePR` table.
+- Transitions the issue to `pr_created` and emits `pr.created` on the event bus.
 
 ## Issue Lifecycle
 
@@ -209,7 +208,7 @@ The frontend and backend are separate directories (not a monorepo with workspace
 - Renders project dashboard, issue board, crew management, activity log.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
 - Embeds xterm.js for live terminal views of agent tmux sessions.
-- Provides approval buttons for draft issues and PR creation.
+- Provides approval buttons for draft issues.
 
 **Backend (Node.js + TypeScript)**
 - Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, crews, agents, issues, comments.
