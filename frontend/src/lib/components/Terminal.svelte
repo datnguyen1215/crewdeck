@@ -3,13 +3,12 @@
 	import '@xterm/xterm/css/xterm.css';
 
 	interface Props {
-		projectId: string;
 		sessionId: string;
 		agentName: string;
 		status: 'running' | 'completed' | 'idle';
 	}
 
-	let { projectId, sessionId, agentName, status }: Props = $props();
+	let { sessionId, agentName, status }: Props = $props();
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
 	let destroyed = false;

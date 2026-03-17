@@ -673,7 +673,7 @@ function esc(s: string) {
 
 					{:else if activeTab === 'terminal'}
 						{#if activeSessionId}
-							<Terminal {projectId} sessionId={activeSessionId} agentName={sessionAgentName} status={sessionStatus} />
+							<Terminal sessionId={activeSessionId} agentName={sessionAgentName} status={sessionStatus} />
 						{:else}
 							<div class="flex flex-col items-center justify-center py-16 gap-3 text-center">
 								<span class="text-3xl text-muted opacity-40">⬛</span>
