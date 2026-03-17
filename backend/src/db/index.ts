@@ -99,7 +99,72 @@ export function createDb(path: string): Database.Database {
   // Migration: add is_captain column to Agent if missing.
   const agentCols2 = db.pragma("table_info(Agent)") as { name: string }[];
   if (!agentCols2.some((c) => c.name === "is_captain")) {
-    db.exec("ALTER TABLE Agent ADD COLUMN is_captain INTEGER NOT NULL DEFAULT 0");
+    db.exec(
+      "ALTER TABLE Agent ADD COLUMN is_captain INTEGER NOT NULL DEFAULT 0",
+    );
+  }
+
+  // Migration: fix broken FK references caused by table renames (Agent_old, Issue_rebuild, etc.).
+  // SQLite auto-updates FK refs when a table is renamed, leaving dangling references after
+  // the renamed table is dropped. Fix by checking all table DDLs for stale references.
+  const allDdls = db
+    .prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND sql IS NOT NULL",
+    )
+    .all() as { sql: string }[];
+  const hasBrokenFks = allDdls.some(
+    (r) => r.sql.includes("Agent_old") || r.sql.includes("_rebuild"),
+  );
+  if (hasBrokenFks) {
+    db.pragma("foreign_keys = OFF");
+    db.transaction(() => {
+      // Save data from all tables that need rebuilding
+      db.exec(`
+        CREATE TABLE _tmp_Issue AS SELECT * FROM Issue;
+        CREATE TABLE _tmp_Comment AS SELECT * FROM Comment;
+        CREATE TABLE _tmp_Session AS SELECT * FROM Session;
+        CREATE TABLE _tmp_IssueAgent AS SELECT * FROM IssueAgent;
+        CREATE TABLE _tmp_IssuePR AS SELECT * FROM IssuePR;
+        CREATE TABLE _tmp_ActivityLog AS SELECT * FROM ActivityLog;
+        CREATE TABLE _tmp_CaptainHistory AS SELECT * FROM CaptainHistory;
+        CREATE TABLE _tmp_CaptainMessage AS SELECT * FROM CaptainMessage;
+
+        -- Drop tables in reverse dependency order
+        DROP TABLE IF EXISTS ActivityLog;
+        DROP TABLE IF EXISTS CaptainHistory;
+        DROP TABLE IF EXISTS CaptainMessage;
+        DROP TABLE IF EXISTS IssuePR;
+        DROP TABLE IF EXISTS IssueAgent;
+        DROP TABLE IF EXISTS Comment;
+        DROP TABLE IF EXISTS Session;
+        DROP TABLE IF EXISTS Issue;
+      `);
+
+      // Recreate from schema (these are clean definitions with correct FK refs)
+      db.exec(schema);
+
+      // INSERT OR IGNORE is safe: schema constraints haven't changed, only FK target names were fixed.
+      db.exec(`
+        INSERT OR IGNORE INTO Issue SELECT * FROM _tmp_Issue;
+        INSERT OR IGNORE INTO Comment SELECT * FROM _tmp_Comment;
+        INSERT OR IGNORE INTO Session SELECT * FROM _tmp_Session;
+        INSERT OR IGNORE INTO IssueAgent SELECT * FROM _tmp_IssueAgent;
+        INSERT OR IGNORE INTO IssuePR SELECT * FROM _tmp_IssuePR;
+        INSERT OR IGNORE INTO ActivityLog SELECT * FROM _tmp_ActivityLog;
+        INSERT OR IGNORE INTO CaptainHistory SELECT * FROM _tmp_CaptainHistory;
+        INSERT OR IGNORE INTO CaptainMessage SELECT * FROM _tmp_CaptainMessage;
+
+        DROP TABLE _tmp_Issue;
+        DROP TABLE _tmp_Comment;
+        DROP TABLE _tmp_Session;
+        DROP TABLE _tmp_IssueAgent;
+        DROP TABLE _tmp_IssuePR;
+        DROP TABLE _tmp_ActivityLog;
+        DROP TABLE _tmp_CaptainHistory;
+        DROP TABLE _tmp_CaptainMessage;
+      `);
+    })();
+    db.pragma("foreign_keys = ON");
   }
 
   return db;
