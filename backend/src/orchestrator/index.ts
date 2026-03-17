@@ -3,6 +3,7 @@ import { eventBus } from "../events/bus.js";
 import type { EventBus } from "../events/bus.js";
 import type { AgentAdapter } from "../agent/types.js";
 import { captainSessionName } from "../agent/types.js";
+import { JsonlWatcher } from "../agent/jsonl-watcher.js";
 import { escapeXml } from "../utils/xml.js";
 import { getProject, updateProject, listProjects } from "../db/repositories/projects.js";
 import { getIssue } from "../db/repositories/issues.js";
@@ -13,6 +14,7 @@ import {
   createSession,
   updateSession,
 } from "../db/repositories/sessions.js";
+import { createCaptainMessage } from "../db/repositories/captain-messages.js";
 import { config } from "../config.js";
 import { executeAssign } from "./assignment-service.js";
 import { executeRouteReview, handleReviewVerdict } from "./review-service.js";
@@ -64,6 +66,7 @@ Start by listing issues and agents to understand the current state.`;
 export class OrchestratorManager {
   private readonly captainSessions = new Map<string, string>(); // projectId → sessionId
   private readonly captainSpawning = new Map<string, Promise<string | null>>(); // in-flight spawn guards
+  private readonly jsonlWatchers = new Map<string, JsonlWatcher>(); // projectId → watcher
 
   constructor(
     private readonly bus: EventBus,
@@ -135,6 +138,7 @@ export class OrchestratorManager {
         return tmuxName;
       }
       // Session died — clean up and respawn
+      this.stopWatcher(projectId);
       this.captainSessions.delete(projectId);
       updateSession(existingSessionId, { status: "completed" });
     }
@@ -167,6 +171,7 @@ export class OrchestratorManager {
 
     const tmuxName = captainSessionName(projectId);
     const initialPrompt = buildCaptainInitialPrompt(projectId, project.max_concurrency);
+    const claudeSessionId = crypto.randomUUID();
 
     const session = createSession({
       project_id: projectId,
@@ -185,6 +190,7 @@ export class OrchestratorManager {
         workdir: "/tmp",
         prompt: initialPrompt,
         systemPrompt: captain.system_prompt,
+        claudeSessionId,
         env: {
           CREWDECK_PROJECT_ID: projectId,
           CREWDECK_AGENT_ID: captain.id,
@@ -200,6 +206,17 @@ export class OrchestratorManager {
 
     this.captainSessions.set(projectId, session.id);
     updateProject(projectId, { orchestrator_session_id: session.id });
+
+    // Start watching the JSONL session file for assistant responses
+    const watcher = new JsonlWatcher(claudeSessionId, "/tmp", (text) => {
+      const message = createCaptainMessage(projectId, {
+        author_type: "captain",
+        content: text,
+      });
+      this.bus.emit("captain.message", { message, project_id: projectId });
+    });
+    watcher.start();
+    this.jsonlWatchers.set(projectId, watcher);
 
     this.bus.emit("session.started", {
       session_id: session.id,
@@ -221,6 +238,7 @@ export class OrchestratorManager {
       logger.debug({ projectId, message: message.slice(0, 100) }, "Sent message to captain");
     } catch (err) {
       logger.error({ err, projectId }, "Failed to send message to captain");
+      this.stopWatcher(projectId);
       const sessionId = this.captainSessions.get(projectId);
       this.captainSessions.delete(projectId);
       if (sessionId) updateSession(sessionId, { status: "error" });
@@ -239,6 +257,7 @@ export class OrchestratorManager {
   }
 
   async killCaptainSession(projectId: string): Promise<void> {
+    this.stopWatcher(projectId);
     const tmuxName = captainSessionName(projectId);
     try {
       await this.adapter.kill(tmuxName);
@@ -247,6 +266,14 @@ export class OrchestratorManager {
     if (sessionId) {
       updateSession(sessionId, { status: "completed" });
       this.captainSessions.delete(projectId);
+    }
+  }
+
+  private stopWatcher(projectId: string): void {
+    const watcher = this.jsonlWatchers.get(projectId);
+    if (watcher) {
+      watcher.stop();
+      this.jsonlWatchers.delete(projectId);
     }
   }
 }

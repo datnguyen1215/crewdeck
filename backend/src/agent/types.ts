@@ -6,6 +6,8 @@ export interface SpawnOptions {
   env?: Record<string, string>;
   /** Run claude with --print flag (non-interactive, stdout-only). Session exits when done. */
   print?: boolean;
+  /** Fixed session ID for Claude Code — controls the JSONL file path. */
+  claudeSessionId?: string;
 }
 
 export interface SessionHandle {
