@@ -345,9 +345,10 @@ On startup, the backend:
 2. Initializes SQLite database (runs `schema.sql` if tables don't exist).
 3. Scans for orphaned tmux sessions from previous crashes (sessions prefixed with `crewdeck-`).
 4. Cleans up orphaned sessions: kills tmux sessions, updates Session records to `error` status.
-5. Starts the Express HTTP server.
-6. Starts the WebSocket server.
-7. Logs startup complete via pino.
+5. Initializes the activity logger (registers event listeners that persist activity entries to the ActivityLog table).
+6. Starts the Express HTTP server.
+7. Starts the WebSocket server.
+8. Logs startup complete via pino.
 
 ### Graceful Shutdown
 
