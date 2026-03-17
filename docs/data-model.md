@@ -210,7 +210,7 @@ Tracks AI CLI session context. Owned by CrewDeck, not the underlying CLI tool.
 |-------|------|-------------|-------------|
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. Used as the session reference. |
 | project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| session_type | TEXT | NOT NULL | Type of session. One of: `orchestrator`, `worker`, `reviewer`, `utility`. |
+| session_type | TEXT | NOT NULL | Type of session. One of: `captain`, `worker`, `reviewer`, `utility`. |
 | agent_id | TEXT | FOREIGN KEY → Agent.id, NULLABLE | The agent this session belongs to. NULL for orchestrator sessions. |
 | issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue this session is working on. NULL for orchestrator sessions. |
 | tmux_session_name | TEXT | NULLABLE | Name of the tmux session (if active). |
@@ -220,9 +220,23 @@ Tracks AI CLI session context. Owned by CrewDeck, not the underlying CLI tool.
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
+### CaptainHistory
+
+A record of a captain decision. Written by the captain via `crewdeck history save` after each significant action. Loaded on captain session start to restore context across restarts.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id, ON DELETE CASCADE | Owning project. |
+| agent_id | TEXT | FOREIGN KEY → Agent.id, NULLABLE | The agent involved in this decision, if applicable. |
+| summary | TEXT | NOT NULL | Human-readable summary of the decision. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+
+---
+
 ### CaptainMessage
 
-A message in the project-level captain chat. Created by the orchestrator after each decision or by the user to influence captain behavior.
+A message in the project-level captain chat. Created by the captain session or by the user to influence captain behavior.
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
@@ -262,6 +276,7 @@ Immutable audit trail of every action in the system.
 | Project → Session | One-to-Many | A project has multiple sessions (orchestrator + agent sessions). |
 | Project → ActivityLog | One-to-Many | A project has many activity log entries. |
 | Project → CaptainMessage | One-to-Many | A project has many captain chat messages. |
+| Project → CaptainHistory | One-to-Many | A project has many captain decision history entries. |
 | Crew → Agent | One-to-Many | A crew has multiple agents. |
 | Issue → Comment | One-to-Many | An issue has many comments. |
 | Issue → IssueAgent | One-to-Many | An issue has many agent assignments. |
@@ -292,3 +307,4 @@ The following indexes should be created for query performance:
 - `idx_activity_created` on ActivityLog(project_id, created_at)
 - `idx_captain_message_project` on CaptainMessage(project_id)
 - `idx_captain_message_created` on CaptainMessage(project_id, created_at)
+- `idx_captain_history_created` on CaptainHistory(project_id, created_at)
