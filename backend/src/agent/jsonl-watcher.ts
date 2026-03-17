@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { logger } from "../logger.js";
 
 const POLL_INTERVAL = 1000;
+const MAX_MISS_COUNT = 60; // auto-stop after 60 consecutive failed polls (~60s)
 
 export interface JsonlEntry {
   type: string;
@@ -25,6 +26,7 @@ export class JsonlWatcher {
   private interval: ReturnType<typeof setInterval> | null = null;
   private offset = 0;
   private seenUuids = new Set<string>();
+  private missCount = 0;
   private readonly filePath: string;
 
   constructor(
@@ -55,7 +57,15 @@ export class JsonlWatcher {
     let fh;
     try {
       const info = await stat(this.filePath).catch(() => null);
-      if (!info || info.size <= this.offset) return;
+      if (!info || info.size <= this.offset) {
+        this.missCount++;
+        if (this.missCount >= MAX_MISS_COUNT) {
+          logger.debug({ path: this.filePath }, "JSONL watcher auto-stopping after prolonged inactivity");
+          this.stop();
+        }
+        return;
+      }
+      this.missCount = 0;
 
       fh = await open(this.filePath, "r");
       const buf = Buffer.alloc(info.size - this.offset);
