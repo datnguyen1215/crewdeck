@@ -1,7 +1,7 @@
 /** CLI command for listing, fetching, and creating issues. */
 
 import { getCaptainEnv } from "../env-captain.js";
-import { get, postJson } from "../http.js";
+import { get, post } from "../http.js";
 
 const USAGE = `Usage: crewdeck issues <subcommand>
 
@@ -70,9 +70,16 @@ export async function issuesCommand(argv: string[]): Promise<void> {
       }
 
       const body: Record<string, unknown> = { project_id, title, description };
-      if (priorityRaw !== undefined) body.priority = Number(priorityRaw);
+      if (priorityRaw !== undefined) {
+        const priority = Number(priorityRaw);
+        if (!Number.isInteger(priority)) {
+          console.error(`Error: --priority must be an integer, got "${priorityRaw}"`);
+          process.exit(1);
+        }
+        body.priority = priority;
+      }
 
-      const data = await postJson("/internal/issues/create", body, api_url);
+      const data = await post("/internal/issues/create", body, api_url);
       console.log(JSON.stringify(data, null, 2));
       break;
     }
