@@ -170,7 +170,6 @@ List, get, create, update, or close project issues. Used by the captain to inspe
 crewdeck issues list
 crewdeck issues get <issue_id>
 crewdeck issues create --title "..." --description "..." [--priority <n>]
-crewdeck issues update <issue_id> --priority <n>
 crewdeck issues close <issue_id>
 ```
 
@@ -181,7 +180,6 @@ crewdeck issues close <issue_id>
 | `list` | List all issues in the project |
 | `get <issue_id>` | Get details for a specific issue |
 | `create` | Create a new issue |
-| `update <issue_id> --priority <n>` | Update issue priority |
 | `close <issue_id>` | Close/cancel an issue (transitions to `done`) |
 
 **Options for `create`:**
@@ -204,9 +202,6 @@ crewdeck issues get issue_abc123
 # Create a new issue
 crewdeck issues create --title "Fix login bug" --description "The login endpoint returns 500 when..."
 crewdeck issues create --title "Add caching" --description "Cache the results of..." --priority 2
-
-# Update issue priority
-crewdeck issues update issue_abc123 --priority 2
 
 # Close/cancel an issue
 crewdeck issues close issue_abc123
@@ -282,6 +277,30 @@ crewdeck route-review issue_abc123 agent_reviewer01
 ```
 
 **Backend behavior:** Spawns a new tmux session for the reviewer agent, providing the issue context and any previous work output.
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
+
+### reorder
+
+Change the priority of an issue. Captain-only command.
+
+```
+crewdeck reorder --issue <id> --priority <n>
+```
+
+**Options:**
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--issue` | Yes | The issue ID to reorder |
+| `--priority` | Yes | New priority level (integer) |
+
+**Examples:**
+
+```bash
+# Change issue priority
+crewdeck reorder --issue issue_abc123 --priority 2
+```
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
 
