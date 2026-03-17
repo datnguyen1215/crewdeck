@@ -161,4 +161,22 @@ router.get("/history", (req, res) => {
   res.json(entries);
 });
 
+// POST /sessions/stop — captain stops a stuck agent session
+const SessionStopSchema = z.object({
+  project_id: z.string(),
+  session_id: z.string(),
+});
+
+router.post("/sessions/stop", validate(SessionStopSchema), (req, res) => {
+  const { project_id, session_id } = req.body;
+
+  const session = getSession(session_id);
+  if (!session) throw new NotFoundError("Session not found");
+
+  eventBus.emit("session.stop_requested", { session_id, project_id });
+  updateSession(session_id, { status: "completed" });
+
+  res.json({ ok: true });
+});
+
 export default router;

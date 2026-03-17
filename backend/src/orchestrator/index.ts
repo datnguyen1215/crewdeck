@@ -11,6 +11,7 @@ import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listCaptainHistory } from "../db/repositories/captain-history.js";
 import {
   createSession,
+  getSession,
   updateSession,
 } from "../db/repositories/sessions.js";
 import { config } from "../config.js";
@@ -33,6 +34,8 @@ crewdeck route-review <issue_id> <agent_id>    — route an issue to a reviewer
 crewdeck activity <issue_id>      — fetch comments and activity for an issue
 crewdeck history save --summary "..."  — save a decision summary
 crewdeck history list             — list your decision history
+crewdeck sessions list            — list project sessions
+crewdeck sessions stop <session_id>  — stop a running session
 \`\`\`
 
 ## How It Works
@@ -80,6 +83,10 @@ export class OrchestratorManager {
       void executeRouteReview(project_id, issue_id, reviewer_agent_id, this.bus, this.adapter);
     });
 
+    this.bus.on("session.stop_requested", ({ session_id, project_id }) => {
+      void this.handleSessionStop(session_id, project_id);
+    });
+
     // Events that get relayed to the captain via tmux send-keys
     this.bus.on("issue.created", ({ issue }) => {
       if (issue.created_by === "orchestrator") return;
@@ -125,6 +132,15 @@ export class OrchestratorManager {
         `User message: ${escapeXml(message.content.slice(0, 500))}`,
       );
     });
+  }
+
+  private async handleSessionStop(sessionId: string, projectId: string): Promise<void> {
+    const session = getSession(sessionId);
+    if (!session?.tmux_session_name) return;
+    try {
+      await this.adapter.kill(session.tmux_session_name);
+    } catch { /* already gone */ }
+    logger.info({ sessionId, projectId }, "Session stopped by captain");
   }
 
   async ensureCaptainSession(projectId: string): Promise<string | null> {
