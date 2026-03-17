@@ -79,20 +79,33 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       `tmux send-keys -t ${shellQuote(sessionName)} ${shellQuote(runCmd)} Enter`,
     );
 
-    // Auto-accept the workspace trust prompt.
-    // The CLI shows: "1. Yes, I trust this folder" / "2. No, exit" with
-    // "No, exit" selected by default. Send Up to select "Yes", then Enter.
+    // Auto-accept the workspace trust prompt by polling capture-pane until the
+    // prompt text appears, then sending Enter. "Yes, I trust this folder" is
+    // selected by default so no arrow keys are needed.
     if (!print) {
-      const sn = shellQuote(sessionName);
-      const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-      delay(3000)
-        .then(() => execAsync(`tmux send-keys -t ${sn} Up`))
-        .then(() => delay(500))
-        .then(() => execAsync(`tmux send-keys -t ${sn} Enter`))
-        .catch(() => {}); // Session may already be gone
+      this.waitForTrustPrompt(sessionName).catch(() => {});
     }
 
     return { sessionName };
+  }
+
+  private async waitForTrustPrompt(sessionName: string): Promise<void> {
+    const sn = shellQuote(sessionName);
+    const deadline = Date.now() + 15_000;
+    const interval = 500;
+
+    while (Date.now() < deadline) {
+      await new Promise<void>((r) => setTimeout(r, interval));
+      try {
+        const { stdout } = await execAsync(`tmux capture-pane -t ${sn} -p`);
+        if (stdout.includes("trust this folder")) {
+          await execAsync(`tmux send-keys -t ${sn} Enter`);
+          return;
+        }
+      } catch {
+        return; // Session gone
+      }
+    }
   }
 
   async send(sessionName: string, message: string): Promise<void> {
