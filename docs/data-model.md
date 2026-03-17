@@ -24,7 +24,7 @@ All persistent state is stored in a local SQLite database. This document defines
 └──────────┘                          └──────────┘
      │1
      │
-     │ (project has one orchestrator session)
+     │ (project has one captain session)
      │
 ┌──────────────┐
 │   Session    │
@@ -211,8 +211,8 @@ Tracks AI CLI session context. Owned by CrewDeck, not the underlying CLI tool.
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. Used as the session reference. |
 | project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
 | session_type | TEXT | NOT NULL | Type of session. One of: `captain`, `worker`, `reviewer`, `utility`. |
-| agent_id | TEXT | FOREIGN KEY → Agent.id, NULLABLE | The agent this session belongs to. NULL for orchestrator sessions. |
-| issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue this session is working on. NULL for orchestrator sessions. |
+| agent_id | TEXT | FOREIGN KEY → Agent.id, NULLABLE | The agent this session belongs to. NULL for captain sessions. |
+| issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue this session is working on. NULL for captain sessions. |
 | tmux_session_name | TEXT | NULLABLE | Name of the tmux session (if active). |
 | tmux_pane_id | TEXT | NULLABLE | The tmux pane ID for capturing output. |
 | status | TEXT | NOT NULL, DEFAULT 'idle' | Session status. One of: `idle`, `running`, `completed`, `error`. |
@@ -273,7 +273,7 @@ Immutable audit trail of every action in the system.
 | Project → Repo | One-to-Many | A project has multiple repos. |
 | Project → Crew | One-to-One | A project has exactly one crew. |
 | Project → Issue | One-to-Many | A project has multiple issues. |
-| Project → Session | One-to-Many | A project has multiple sessions (orchestrator + agent sessions). |
+| Project → Session | One-to-Many | A project has multiple sessions (captain + agent sessions). |
 | Project → ActivityLog | One-to-Many | A project has many activity log entries. |
 | Project → CaptainMessage | One-to-Many | A project has many captain chat messages. |
 | Project → CaptainHistory | One-to-Many | A project has many captain decision history entries. |

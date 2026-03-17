@@ -309,35 +309,6 @@ export function getSession(projectId: string, sessionId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Orchestrator
-// ---------------------------------------------------------------------------
-
-export function getOrchestratorStatus(projectId: string) {
-  return request<OrchestratorStatus>(
-    "GET",
-    `/projects/${e(projectId)}/orchestrator/status`,
-  );
-}
-
-export function startOrchestrator(
-  projectId: string,
-  context?: Record<string, unknown>,
-) {
-  return request<Session>(
-    "POST",
-    `/projects/${e(projectId)}/orchestrator/start`,
-    context ? { context } : undefined,
-  );
-}
-
-export function stopOrchestrator(projectId: string) {
-  return request<{ status: string }>(
-    "POST",
-    `/projects/${e(projectId)}/orchestrator/stop`,
-  );
-}
-
-// ---------------------------------------------------------------------------
 // GitHub Accounts
 // ---------------------------------------------------------------------------
 
@@ -546,13 +517,6 @@ export interface ActivityLog {
   action: string;
   details: Record<string, unknown>;
   created_at: string;
-}
-
-export interface OrchestratorStatus {
-  project_id: string;
-  orchestrator_session_id: string | null;
-  status: string;
-  session: Session | null;
 }
 
 export interface GitHubAccount {
