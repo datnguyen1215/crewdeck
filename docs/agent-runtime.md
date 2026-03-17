@@ -100,7 +100,10 @@ isAlive(sessionName: string) → boolean
 ```
 function isAlive(sessionName):
     check if tmux session exists (tmux has-session)
-    return true if session exists, false otherwise
+    if session does not exist, return false
+    get pane PID via tmux list-panes
+    check for child processes of pane PID via pgrep -P
+    return true if child processes exist, false otherwise
 ```
 
 #### kill
