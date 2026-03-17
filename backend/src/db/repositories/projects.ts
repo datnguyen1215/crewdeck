@@ -10,6 +10,10 @@ import { getGitHubAccount } from "./github-accounts.js";
 import { getSession } from "./sessions.js";
 import { buildAndRunUpdate } from "./utils.js";
 
+const DEFAULT_CAPTAIN_PROMPT = `You are the captain of this project. Your role is to coordinate agents, assign issues based on priority and agent availability, route code reviews, and maintain project momentum.
+
+Be proactive — check for idle agents and unassigned issues regularly. Make data-driven assignment decisions based on agent workload and issue priority. Document key decisions using the history command.`;
+
 export function listProjects(): Project[] {
   return db
     .prepare("SELECT * FROM Project ORDER BY created_at DESC")
@@ -121,6 +125,19 @@ export function createProject(input: CreateProjectInput): Project {
         default_branch: input.default_branch,
       });
     }
+
+    // Auto-create a captain agent so the user doesn't have to configure one manually.
+    db.prepare(
+      `INSERT INTO Agent (id, crew_id, name, title, description, system_prompt, is_captain)
+       VALUES (?, ?, ?, ?, ?, ?, 1)`,
+    ).run(
+      crypto.randomUUID(),
+      crewId,
+      "Captain",
+      "Project Captain",
+      null,
+      DEFAULT_CAPTAIN_PROMPT,
+    );
   })();
 
   return getProject(id)!;
