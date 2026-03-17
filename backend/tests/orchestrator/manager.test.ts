@@ -121,6 +121,20 @@ describe("OrchestratorManager", () => {
       expect(call.env?.CREWDECK_PROJECT_ID).toBe(projectId);
     });
 
+    it("passes a claudeSessionId UUID to the adapter", async () => {
+      seedIssue();
+      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      bus.emit("issue.created", { issue: issue as never });
+      await flushPromises();
+
+      const call = vi.mocked(adapter.spawn).mock.calls[0][0];
+      expect(call.claudeSessionId).toBeDefined();
+      // Valid UUID v4 format
+      expect(call.claudeSessionId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
+    });
+
     it("reuses existing captain session for subsequent events", async () => {
       // Make isAlive return true so the session appears alive
       vi.mocked(adapter.isAlive).mockResolvedValue(true);
@@ -138,6 +152,18 @@ describe("OrchestratorManager", () => {
       await flushPromises();
       expect(adapter.spawn).toHaveBeenCalledTimes(1); // still 1
       expect(adapter.send).toHaveBeenCalled(); // sends message instead
+    });
+
+    it("cleans up JSONL watcher when killing captain session", async () => {
+      vi.mocked(adapter.isAlive).mockResolvedValue(true);
+      await manager.ensureCaptainSession(projectId);
+
+      // Watcher should exist
+      const watchers = (manager as any).jsonlWatchers as Map<string, unknown>;
+      expect(watchers.has(projectId)).toBe(true);
+
+      await manager.killCaptainSession(projectId);
+      expect(watchers.has(projectId)).toBe(false);
     });
 
     it("respawns captain if session died", async () => {

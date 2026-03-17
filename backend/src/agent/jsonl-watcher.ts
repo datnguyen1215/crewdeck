@@ -60,16 +60,21 @@ export class JsonlWatcher {
       fh = await open(this.filePath, "r");
       const buf = Buffer.alloc(info.size - this.offset);
       await fh.read(buf, 0, buf.length, this.offset);
-      this.offset = info.size;
 
       const chunk = buf.toString("utf-8");
-      for (const line of chunk.split("\n")) {
+      // Only advance offset past complete lines — incomplete trailing data
+      // (from a mid-write) is left for the next poll to re-read.
+      const lastNewline = chunk.lastIndexOf("\n");
+      if (lastNewline === -1) return; // no complete line yet
+      this.offset += Buffer.byteLength(chunk.slice(0, lastNewline + 1), "utf-8");
+
+      for (const line of chunk.slice(0, lastNewline).split("\n")) {
         if (!line.trim()) continue;
         try {
           const entry = JSON.parse(line) as JsonlEntry;
           this.processEntry(entry);
         } catch {
-          // Partial line at chunk boundary — will be picked up next poll
+          // Malformed line — skip it
         }
       }
     } catch (err) {
