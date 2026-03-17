@@ -7,7 +7,6 @@ import { homedir } from "os";
 
 interface TerminalSession {
   pty: IPty;
-  ws: WebSocket;
   sessionId: string;
 }
 
@@ -53,8 +52,10 @@ export function setupTerminalWs(server: Server): WebSocketServer {
         },
       });
 
-      const termSession: TerminalSession = { pty, ws, sessionId };
-      activeSessions.set(ws, termSession);
+      // No authentication — this is a local/self-hosted tool, not a public SaaS.
+      // Unlike the read-only events WS, this endpoint grants bidirectional terminal
+      // access. Revisit if the app ever accepts connections from untrusted networks.
+      activeSessions.set(ws, { pty, sessionId });
 
       pty.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) {
@@ -77,7 +78,9 @@ export function setupTerminalWs(server: Server): WebSocketServer {
           try {
             const parsed = JSON.parse(msg);
             if (parsed.type === "resize" && parsed.cols && parsed.rows) {
-              pty.resize(parsed.cols, parsed.rows);
+              const cols = Math.max(1, Math.min(500, Math.floor(parsed.cols)));
+              const rows = Math.max(1, Math.min(500, Math.floor(parsed.rows)));
+              pty.resize(cols, rows);
               return;
             }
           } catch {
@@ -89,14 +92,12 @@ export function setupTerminalWs(server: Server): WebSocketServer {
       });
 
       ws.on("close", () => {
-        activeSessions.delete(ws);
-        pty.kill();
+        if (activeSessions.delete(ws)) pty.kill();
       });
 
       ws.on("error", (err) => {
         logger.error({ err, sessionId }, "Terminal WebSocket error");
-        activeSessions.delete(ws);
-        pty.kill();
+        if (activeSessions.delete(ws)) pty.kill();
       });
 
       logger.info({ sessionId, tmux: session.tmux_session_name }, "Terminal WebSocket connected");
