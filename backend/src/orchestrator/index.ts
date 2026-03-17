@@ -236,7 +236,6 @@ export class OrchestratorManager {
     }
 
     this.captainSessions.set(projectId, session.id);
-    this.claudeSessionIds.set(projectId, claudeSessionId);
     updateProject(projectId, { orchestrator_session_id: session.id });
 
     // Start watching the JSONL session file for assistant responses
@@ -303,6 +302,7 @@ export class OrchestratorManager {
 
   private startWatcher(projectId: string, claudeSessionId: string): void {
     this.stopWatcher(projectId);
+    this.claudeSessionIds.set(projectId, claudeSessionId);
     const tmuxName = captainSessionName(projectId);
     const watcher = new JsonlWatcher(
       claudeSessionId,
