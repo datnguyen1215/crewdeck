@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
   server: {
     proxy: {
-      "/api": backendUrl,
+      "/api": { target: backendUrl, timeout: 120000 },
     },
   },
 });
