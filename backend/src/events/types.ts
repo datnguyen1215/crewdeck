@@ -58,7 +58,6 @@ export interface EventMap {
     project_id: string;
     tmux_session_name: string;
   };
-  "session.output": { session_id: string; project_id: string; output: string };
   "session.ended": { session_id: string; project_id: string; status: string };
   "agent.finished": {
     session_id: string;

@@ -1,32 +1,65 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { getContext } from 'svelte';
 	import '@xterm/xterm/css/xterm.css';
-	import type { ProjectWebSocket } from '$lib/api/ws.js';
 
 	interface Props {
-		projectId: string;
 		sessionId: string;
 		agentName: string;
 		status: 'running' | 'completed' | 'idle';
 	}
 
-	let { projectId, sessionId, agentName, status }: Props = $props();
-
-	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+	let { sessionId, agentName, status }: Props = $props();
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
 	let destroyed = false;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let term: any = null;
 	let ro: ResizeObserver | null = null;
-	let unsubOutput: (() => void) | null = null;
+	let termWs: WebSocket | null = null;
+	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let reconnectDelay = 1000;
+	const MAX_RECONNECT_DELAY = 30000;
 
 	const isRunning = $derived(status === 'running');
 
+	function connectTerminalWs() {
+		if (destroyed || !term) return;
+
+		const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+		const url = `${protocol}//${location.host}/terminal-ws?sessionId=${encodeURIComponent(sessionId)}`;
+		const ws = new WebSocket(url);
+
+		ws.onopen = () => {
+			reconnectDelay = 1000;
+			// Send initial resize
+			ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+		};
+
+		ws.onmessage = (event) => {
+			if (term) term.write(event.data);
+		};
+
+		ws.onclose = () => {
+			termWs = null;
+			if (!destroyed && status === 'running') {
+				reconnectTimer = setTimeout(() => {
+					connectTerminalWs();
+					reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
+				}, reconnectDelay);
+			}
+		};
+
+		ws.onerror = () => {
+			// onclose fires after onerror
+		};
+
+		termWs = ws;
+	}
+
 	onDestroy(() => {
 		destroyed = true;
-		unsubOutput?.();
+		if (reconnectTimer) clearTimeout(reconnectTimer);
+		termWs?.close();
 		ro?.disconnect();
 		term?.dispose();
 	});
@@ -78,17 +111,23 @@
 		fitAddon.fit();
 		term = t;
 
-		// Subscribe to WS session.output events
-		const ws = getWs();
-		if (ws) {
-			unsubOutput = ws.on('session.output', (data) => {
-				if (data.session_id === sessionId && term) {
-					term.write(data.output as string);
-				}
-			});
-		}
+		// Send terminal input to PTY
+		t.onData((data: string) => {
+			if (termWs?.readyState === WebSocket.OPEN) {
+				termWs.send(data);
+			}
+		});
 
-		ro = new ResizeObserver(() => fitAddon.fit());
+		// Connect to terminal WebSocket for live PTY streaming
+		connectTerminalWs();
+
+		ro = new ResizeObserver(() => {
+			fitAddon.fit();
+			// Notify server of resize
+			if (termWs?.readyState === WebSocket.OPEN && term) {
+				termWs.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+			}
+		});
 		ro.observe(containerEl!);
 	});
 

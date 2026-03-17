@@ -256,7 +256,6 @@
 	<div class="w-[500px] flex-shrink-0 border-l border-edge flex flex-col">
 		{#if orchestratorSession}
 			<Terminal
-				{projectId}
 				sessionId={orchestratorSession.id}
 				agentName="Captain"
 				status={terminalStatus}

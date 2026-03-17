@@ -942,13 +942,28 @@ Any status can transition to `done` if manually closed by the user.
 
 ## WebSocket API
 
-### Connection
+### Project Events Connection
 
 ```
 ws://localhost:<port>/ws?projectId=<uuid>
 ```
 
 Clients connect with a project ID to receive events scoped to that project.
+
+### Terminal PTY Connection
+
+```
+ws://localhost:<port>/terminal-ws?sessionId=<uuid>
+```
+
+Opens a bidirectional PTY connection to a session's tmux terminal via `node-pty`. Raw terminal data (ANSI escape sequences, cursor positioning, colors) flows from the PTY to the client, and terminal input flows from the client to the PTY.
+
+**Client → Server messages:**
+- Raw terminal input (keystrokes): sent as plain text
+- Resize: `{ "type": "resize", "cols": <number>, "rows": <number> }`
+
+**Server → Client messages:**
+- Raw PTY output (binary/text terminal data)
 
 ### Event Format
 
@@ -987,7 +1002,6 @@ All events follow this structure:
 | Event | Description | Data |
 |-------|-------------|------|
 | `session.started` | New tmux session created | `{ session_id, tmux_session_name, agent_id?, issue_id? }` — `agent_id` and `issue_id` are omitted for orchestrator sessions |
-| `session.output` | Terminal output chunk | `{ session_id, output }` |
 | `session.ended` | Session completed or stopped | `{ session_id, status }` |
 
 #### Agent Events

@@ -6,6 +6,7 @@ import { ProcessMonitor } from "./agent/process-monitor.js";
 import { cleanupOrphans, gracefulShutdown } from "./agent/orphan-cleanup.js";
 import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
+import { setupTerminalWs, shutdownTerminalWs } from "./terminal-ws.js";
 import { initOrchestrator } from "./orchestrator/index.js";
 import { createApp } from "./app.js";
 
@@ -28,8 +29,10 @@ async function main(): Promise<void> {
   });
 
   const wss = setupWebSocket(server, eventBus);
+  setupTerminalWs(server);
 
   async function shutdown() {
+    shutdownTerminalWs();
     shutdownWebSocket(wss);
     processMonitor.stop();
     try {

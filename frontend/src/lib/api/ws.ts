@@ -14,7 +14,6 @@ export type WsEvent =
   | "comment.updated"
   | "comment.deleted"
   | "session.started"
-  | "session.output"
   | "session.ended"
   | "agent.finished"
   | "agent.status_changed"

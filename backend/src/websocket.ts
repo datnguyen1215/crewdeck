@@ -11,9 +11,6 @@ const PONG_TIMEOUT = 10_000;
 // projectId → connected clients
 export const subscribers = new Map<string, Set<WebSocket>>();
 
-// sessionId → output buffer for debouncing session.output
-const outputBuffers = new Map<string, { chunks: string[]; timer: ReturnType<typeof setTimeout> | null }>();
-
 // Interval handle so we can clear it on shutdown
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -44,14 +41,6 @@ export function broadcast(projectId: string, event: string, data: unknown): void
   }
 }
 
-function flushSessionOutput(sessionId: string, projectId: string): void {
-  const buf = outputBuffers.get(sessionId);
-  if (!buf) return;
-  const output = buf.chunks.join("");
-  outputBuffers.delete(sessionId);
-  broadcast(projectId, "session.output", { session_id: sessionId, output });
-}
-
 export function subscribeEvents(bus: EventBus): void {
   bus.on("issue.created", ({ issue }) =>
     broadcast(issue.project_id, "issue.created", issue));
@@ -80,23 +69,7 @@ export function subscribeEvents(bus: EventBus): void {
   bus.on("session.started", ({ session_id, agent_id, issue_id, project_id, tmux_session_name }) =>
     broadcast(project_id, "session.started", { session_id, agent_id, issue_id, tmux_session_name }));
 
-  bus.on("session.output", ({ session_id, project_id, output }) => {
-    let buf = outputBuffers.get(session_id);
-    if (!buf) {
-      buf = { chunks: [], timer: null };
-      outputBuffers.set(session_id, buf);
-    }
-    buf.chunks.push(output);
-    if (!buf.timer) {
-      buf.timer = setTimeout(() => flushSessionOutput(session_id, project_id), 100);
-    }
-  });
-
   bus.on("session.ended", ({ session_id, project_id, status }) => {
-    // Flush any buffered output before the ended event
-    const buf = outputBuffers.get(session_id);
-    if (buf?.timer) clearTimeout(buf.timer);
-    flushSessionOutput(session_id, project_id);
     broadcast(project_id, "session.ended", { session_id, status });
   });
 
@@ -219,9 +192,5 @@ export function shutdownWebSocket(wss: WebSocketServer): void {
     }
   }
   subscribers.clear();
-  for (const buf of outputBuffers.values()) {
-    if (buf.timer) clearTimeout(buf.timer);
-  }
-  outputBuffers.clear();
   wss.close();
 }
