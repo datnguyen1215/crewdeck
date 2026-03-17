@@ -1,7 +1,7 @@
 import { exec } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { config } from "../../config.js";
 import type { AgentAdapter, SpawnOptions, SessionHandle } from "../types.js";
@@ -31,9 +31,15 @@ function buildLaunchScript(opts: LaunchScriptOptions): string {
   if (claudeSessionId)
     flags.push(`--session-id ${shellQuote(claudeSessionId)}`);
 
+  // Put the CLI dist directory on PATH so spawned agents can run `crewdeck`.
+  const cliDistPath = resolve(config.cliDir, "dist");
+
   // Export env vars directly in the script so claude inherits them.
   // Clear CLAUDECODE to prevent nested-agent detection from forcing the permission prompt.
-  const envLines = ["export CLAUDECODE="];
+  const envLines = [
+    `export PATH=${shellQuote(cliDistPath)}:"$PATH"`,
+    "export CLAUDECODE=",
+  ];
   for (const [key, value] of Object.entries(env)) {
     envLines.push(`export ${key}=${shellQuote(value)}`);
   }
