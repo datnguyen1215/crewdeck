@@ -38,6 +38,8 @@ The CLI is available in every agent's tmux session. The backend sets environment
 | `CREWDECK_PROJECT_ID` | The project ID |
 | `GH_TOKEN` | GitHub OAuth token for the project's linked GitHub account. Set only when a GitHub account is connected to the project. Used for git operations (clone, push, PR creation). |
 
+In addition to the variables above, any project-level environment variables configured via the [Environment Variables API](api.md#environment-variables) are also injected into worker and reviewer sessions. These are merged before the `CREWDECK_*` variables, so `CREWDECK_*` names always take precedence.
+
 ### Captain Sessions
 
 Captain sessions orchestrate work across agents and do not operate on a single issue or session. They receive a smaller set of environment variables:
