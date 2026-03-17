@@ -164,6 +164,24 @@ router.get("/history", (req, res) => {
   res.json(entries);
 });
 
+// POST /issues/update — captain updates issue fields (e.g. priority)
+const IssueUpdateSchema = z.object({
+  project_id: z.string(),
+  issue_id: z.string(),
+  priority: z.number().int(),
+});
+
+router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
+  const { project_id, issue_id, priority } = req.body;
+
+  const issue = getIssue(issue_id);
+  if (!issue || issue.project_id !== project_id) throw new NotFoundError("Issue not found");
+
+  const updated = updateIssue(issue_id, { priority });
+  eventBus.emit("issue.updated", { issue_id, project_id, changes: { priority } });
+  res.json(updated);
+});
+
 // POST /issues/close — captain closes/cancels an issue
 const CloseIssueSchema = z.object({
   project_id: z.string(),
