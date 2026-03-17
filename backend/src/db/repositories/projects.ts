@@ -8,6 +8,7 @@ import type {
 import { ensureCloned, insertRepo } from "./repos.js";
 import { getGitHubAccount } from "./github-accounts.js";
 import { getSession } from "./sessions.js";
+import { buildAndRunUpdate } from "./utils.js";
 
 export function listProjects(): Project[] {
   return db
@@ -126,42 +127,7 @@ export function createProject(input: CreateProjectInput): Project {
 }
 
 export function updateProject(id: string, input: UpdateProjectInput): Project {
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (input.name !== undefined) {
-    fields.push("name = ?");
-    values.push(input.name);
-  }
-  if (input.description !== undefined) {
-    fields.push("description = ?");
-    values.push(input.description);
-  }
-  if (input.max_concurrency !== undefined) {
-    fields.push("max_concurrency = ?");
-    values.push(input.max_concurrency);
-  }
-  if (input.max_review_rounds !== undefined) {
-    fields.push("max_review_rounds = ?");
-    values.push(input.max_review_rounds);
-  }
-  if (input.orchestrator_session_id !== undefined) {
-    fields.push("orchestrator_session_id = ?");
-    values.push(input.orchestrator_session_id);
-  }
-  if (input.github_account_id !== undefined) {
-    fields.push("github_account_id = ?");
-    values.push(input.github_account_id);
-  }
-
-  if (fields.length > 0) {
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    db.prepare(`UPDATE Project SET ${fields.join(", ")} WHERE id = ?`).run(
-      ...values,
-      id,
-    );
-  }
-
+  buildAndRunUpdate("Project", id, input);
   return getProject(id)!;
 }
 
