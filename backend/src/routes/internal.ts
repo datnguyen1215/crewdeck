@@ -322,6 +322,7 @@ router.post("/issues/close", validate(CloseIssueSchema), (req, res) => {
 });
 
 // POST /create-pr — captain requests PR creation for an approved issue
+// Fire-and-forget: PR creation runs async; success/failure posted as issue comments
 const CreatePRSchema = z.object({
   project_id: z.string(),
   issue_id: z.string(),

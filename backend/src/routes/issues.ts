@@ -137,7 +137,7 @@ router.post("/:issueId/create-pr", verifyIssueOwnership, (req, res) => {
     project_id: issue.project_id,
     issue_id: issue.id,
   });
-  res.json(issue);
+  res.json({ ok: true });
 });
 
 export default router;
