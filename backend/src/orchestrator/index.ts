@@ -151,6 +151,7 @@ export class OrchestratorManager {
     // Clean up captainSessions if the stopped session is a captain session
     for (const [projId, sessId] of this.captainSessions) {
       if (sessId === sessionId) {
+        this.stopWatcher(projId);
         this.captainSessions.delete(projId);
         break;
       }
@@ -243,7 +244,7 @@ export class OrchestratorManager {
         content: text,
       });
       this.bus.emit("captain.message", { message, project_id: projectId });
-    });
+    }, () => this.adapter.isAlive(tmuxName));
     watcher.start();
     this.jsonlWatchers.set(projectId, watcher);
 
@@ -261,6 +262,10 @@ export class OrchestratorManager {
   private async sendToCaptain(projectId: string, message: string): Promise<void> {
     const tmuxName = await this.ensureCaptainSession(projectId);
     if (!tmuxName) return;
+
+    const watcher = this.jsonlWatchers.get(projectId);
+    if (!watcher || !watcher.isRunning())
+      logger.warn({ projectId }, "Captain watcher not running when sending message");
 
     try {
       await this.adapter.send(tmuxName, message);
