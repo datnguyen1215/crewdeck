@@ -10,10 +10,11 @@ import { NotFoundError } from "./errors.js";
 declare global {
   namespace Express {
     interface Request {
-      project?: ReturnType<typeof getProject>;
+      project?: NonNullable<ReturnType<typeof getProject>>;
       issue?: NonNullable<ReturnType<typeof getIssue>>;
       issueWithDetails?: NonNullable<ReturnType<typeof getIssueWithDetails>>;
       repo?: NonNullable<ReturnType<typeof getRepo>>;
+      // Shadows Express's built-in `session` (from express-session) — safe because express-session is not used
       session?: NonNullable<ReturnType<typeof getSession>>;
       comment?: NonNullable<ReturnType<typeof getComment>>;
     }
