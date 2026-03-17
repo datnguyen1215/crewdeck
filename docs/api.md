@@ -903,6 +903,31 @@ Captain creates a new issue. The issue is created with `created_by: "orchestrato
 
 **Side effects:** Emits `issue.created` on the event bus.
 
+#### Stop Session (Internal)
+
+```
+POST /internal/sessions/stop
+```
+
+Captain stops a stuck or runaway agent session. Kills the tmux session and marks it as `completed`.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "session_id": "uuid"
+}
+```
+
+**Response:** `200 OK`
+```json
+{ "ok": true }
+```
+
+**Error:** `404 Not Found` — Session does not exist or belongs to a different project.
+
+**Side effects:** Emits `session.stop_requested` on the event bus. The orchestrator kills the tmux session and updates session status to `completed`.
+
 #### Update Issue (Internal)
 
 ```
