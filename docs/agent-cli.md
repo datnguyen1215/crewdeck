@@ -25,7 +25,9 @@ Without the CLI, the backend would have to rely solely on polling tmux output or
 
 ## Installation and Environment
 
-The CLI is available in every agent's tmux session. The backend sets environment variables when spawning a session. The variables differ depending on session type.
+The CLI is available in every agent's tmux session. When spawning a session, the backend prepends the CLI's `dist/` directory to `PATH` so agents can run `crewdeck` without any global install. The path is derived from the `CREWDECK_CLI_DIR` config option (defaults to `../cli` relative to the backend). For Docker deployments, set `CREWDECK_CLI_DIR` to the absolute path where the CLI is installed inside the container.
+
+The backend also sets environment variables when spawning a session. The variables differ depending on session type.
 
 ### Worker/Reviewer Sessions
 
