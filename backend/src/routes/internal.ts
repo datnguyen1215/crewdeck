@@ -172,9 +172,9 @@ router.post("/sessions/stop", validate(SessionStopSchema), (req, res) => {
 
   const session = getSession(session_id);
   if (!session) throw new NotFoundError("Session not found");
+  if (session.project_id !== project_id) throw new NotFoundError("Session not found");
 
   eventBus.emit("session.stop_requested", { session_id, project_id });
-  updateSession(session_id, { status: "completed" });
 
   res.json({ ok: true });
 });

@@ -140,6 +140,16 @@ export class OrchestratorManager {
     try {
       await this.adapter.kill(session.tmux_session_name);
     } catch { /* already gone */ }
+    updateSession(sessionId, { status: "completed" });
+
+    // Clean up captainSessions if the stopped session is a captain session
+    for (const [projId, sessId] of this.captainSessions) {
+      if (sessId === sessionId) {
+        this.captainSessions.delete(projId);
+        break;
+      }
+    }
+
     logger.info({ sessionId, projectId }, "Session stopped by captain");
   }
 
