@@ -5,6 +5,7 @@ import { claudeCodeAdapter } from "./agent/adapters/claude-code.js";
 import { ProcessMonitor } from "./agent/process-monitor.js";
 import { cleanupOrphans, gracefulShutdown } from "./agent/orphan-cleanup.js";
 import { eventBus } from "./events/bus.js";
+import { initActivityLogger } from "./events/activity-logger.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { setupTerminalWs, shutdownTerminalWs } from "./terminal-ws.js";
 import { initOrchestrator } from "./orchestrator/index.js";
