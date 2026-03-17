@@ -895,6 +895,26 @@ Captain updates an issue's fields (e.g. priority).
 
 **Side effects:** Emits `issue.updated` on the event bus.
 
+#### Close Issue (Internal)
+
+```
+POST /internal/issues/close
+```
+
+Captain closes or cancels an issue. No-op if the issue is already done.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid"
+}
+```
+
+**Response:** `200 OK` — The updated issue object.
+
+**Side effects:** Emits `issue.status_changed` on the event bus. Marks any running sessions for the issue as completed.
+
 ---
 
 ## Status Transition Rules
