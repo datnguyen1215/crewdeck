@@ -20,6 +20,7 @@ export const config = {
   agentKillTimeout: parseIntEnv("AGENT_KILL_TIMEOUT", 5000),
   nodeEnv: optional("NODE_ENV", "development"),
   reposDir: optional("CREWDECK_REPOS_DIR", "./data/repos"),
+  cliDir: optional("CREWDECK_CLI_DIR", "../cli"),
   reposHostPath: process.env.CREWDECK_REPOS_HOST_PATH || "",
   reposContainerPath: process.env.CREWDECK_REPOS_CONTAINER_PATH || "",
   githubClientId: process.env.GITHUB_CLIENT_ID ?? "",
