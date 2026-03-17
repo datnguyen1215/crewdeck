@@ -79,14 +79,14 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       `tmux send-keys -t ${shellQuote(sessionName)} ${shellQuote(runCmd)} Enter`,
     );
 
-    // Auto-accept the dangerous-mode permission prompt.
-    // The CLI shows a selection menu with "1. No, exit" selected by default.
-    // Send Down arrow to select "2. Yes, I accept", then Enter to confirm.
+    // Auto-accept the workspace trust prompt.
+    // The CLI shows: "1. Yes, I trust this folder" / "2. No, exit" with
+    // "No, exit" selected by default. Send Up to select "Yes", then Enter.
     if (!print) {
       const sn = shellQuote(sessionName);
       const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
       delay(3000)
-        .then(() => execAsync(`tmux send-keys -t ${sn} Down`))
+        .then(() => execAsync(`tmux send-keys -t ${sn} Up`))
         .then(() => delay(500))
         .then(() => execAsync(`tmux send-keys -t ${sn} Enter`))
         .catch(() => {}); // Session may already be gone
