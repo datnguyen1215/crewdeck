@@ -177,6 +177,7 @@ crewdeck issues get <issue_id>
 |------------|-------------|
 | `list` | List all issues in the project |
 | `get <issue_id>` | Get details for a specific issue |
+| `update <issue_id> --priority <n>` | Update issue priority |
 
 **Examples:**
 
@@ -186,6 +187,9 @@ crewdeck issues list
 
 # Get details for a specific issue
 crewdeck issues get issue_abc123
+
+# Update issue priority
+crewdeck issues update issue_abc123 --priority 2
 ```
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
@@ -323,6 +327,7 @@ POST /api/v1/internal/status
 POST /api/v1/internal/files
 POST /api/v1/internal/assign
 POST /api/v1/internal/route-review
+POST /api/v1/internal/issues/update
 POST /api/v1/internal/history
 GET  /api/v1/internal/history
 ```

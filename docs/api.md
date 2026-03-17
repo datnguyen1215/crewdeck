@@ -874,6 +874,27 @@ Agent reports which files were modified.
 
 **Response:** `200 OK`
 
+#### Update Issue (Internal)
+
+```
+POST /internal/issues/update
+```
+
+Captain updates an issue's fields (e.g. priority).
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid",
+  "priority": 2
+}
+```
+
+**Response:** `200 OK` — The updated issue object.
+
+**Side effects:** Emits `issue.updated` on the event bus.
+
 ---
 
 ## Status Transition Rules
