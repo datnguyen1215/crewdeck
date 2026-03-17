@@ -141,10 +141,9 @@ export function createDb(path: string): Database.Database {
       `);
 
       // Recreate from schema (these are clean definitions with correct FK refs)
-      const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
       db.exec(schema);
 
-      // Restore data
+      // INSERT OR IGNORE is safe: schema constraints haven't changed, only FK target names were fixed.
       db.exec(`
         INSERT OR IGNORE INTO Issue SELECT * FROM _tmp_Issue;
         INSERT OR IGNORE INTO Comment SELECT * FROM _tmp_Comment;
