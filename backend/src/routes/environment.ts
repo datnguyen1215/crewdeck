@@ -8,7 +8,7 @@ import {
 } from "../db/repositories/environment-variables.js";
 import { validate } from "../middleware/validate.js";
 import { verifyProject } from "../middleware/ownership.js";
-import { NotFoundError } from "../middleware/errors.js";
+import { NotFoundError, ConflictError } from "../middleware/errors.js";
 import {
   CreateEnvironmentVariableSchema,
   UpdateEnvironmentVariableSchema,
@@ -35,8 +35,20 @@ router.post(
   verifyProject,
   validate(CreateEnvironmentVariableSchema),
   (req: Request<{ projectId: string }>, res) => {
-    const envVar = createEnvironmentVariable(req.params.projectId, req.body);
-    res.status(201).json(maskSecrets(envVar));
+    try {
+      const envVar = createEnvironmentVariable(req.params.projectId, req.body);
+      res.status(201).json(maskSecrets(envVar));
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message.includes("UNIQUE constraint failed")
+      ) {
+        throw new ConflictError(
+          "Environment variable with this key already exists",
+        );
+      }
+      throw err;
+    }
   },
 );
 
@@ -49,8 +61,20 @@ router.patch(
     if (!existing || existing.project_id !== req.params.projectId) {
       throw new NotFoundError("Environment variable not found");
     }
-    const updated = updateEnvironmentVariable(existing.id, req.body);
-    res.json(maskSecrets(updated));
+    try {
+      const updated = updateEnvironmentVariable(existing.id, req.body);
+      res.json(maskSecrets(updated));
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message.includes("UNIQUE constraint failed")
+      ) {
+        throw new ConflictError(
+          "Environment variable with this key already exists",
+        );
+      }
+      throw err;
+    }
   },
 );
 

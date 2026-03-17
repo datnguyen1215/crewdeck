@@ -11,12 +11,10 @@ describe("Environment Variables API", () => {
 
   beforeAll(async () => {
     app = await getApp();
-    const res = await request(app)
-      .post(`${BASE}`)
-      .send({
-        name: "env-test-project",
-        github_url: "https://github.com/test/repo",
-      });
+    const res = await request(app).post(`${BASE}`).send({
+      name: "env-test-project",
+      github_url: "https://github.com/test/repo",
+    });
     projectId = res.body.id;
   });
 
@@ -37,12 +35,10 @@ describe("Environment Variables API", () => {
     let freshProjectId: string;
 
     beforeAll(async () => {
-      const res = await request(app)
-        .post(`${BASE}`)
-        .send({
-          name: "env-post-project",
-          github_url: "https://github.com/test/repo",
-        });
+      const res = await request(app).post(`${BASE}`).send({
+        name: "env-post-project",
+        github_url: "https://github.com/test/repo",
+      });
       freshProjectId = res.body.id;
     });
 
@@ -81,6 +77,16 @@ describe("Environment Variables API", () => {
       expect(res.status).toBe(400);
     });
 
+    it("returns 409 for duplicate key", async () => {
+      await request(app)
+        .post(`${BASE}/${freshProjectId}/environment`)
+        .send({ key: "DUPLICATE_KEY", value: "first" });
+      const res = await request(app)
+        .post(`${BASE}/${freshProjectId}/environment`)
+        .send({ key: "DUPLICATE_KEY", value: "second" });
+      expect(res.status).toBe(409);
+    });
+
     it("returns 404 for non-existent project", async () => {
       const res = await request(app)
         .post(`${BASE}/nonexistent/environment`)
@@ -94,12 +100,10 @@ describe("Environment Variables API", () => {
     let envVarId: string;
 
     beforeAll(async () => {
-      const projRes = await request(app)
-        .post(`${BASE}`)
-        .send({
-          name: "env-patch-project",
-          github_url: "https://github.com/test/repo",
-        });
+      const projRes = await request(app).post(`${BASE}`).send({
+        name: "env-patch-project",
+        github_url: "https://github.com/test/repo",
+      });
       patchProjectId = projRes.body.id;
 
       const envRes = await request(app)
@@ -117,16 +121,26 @@ describe("Environment Variables API", () => {
     });
 
     it("returns 404 for env var in different project", async () => {
-      const otherRes = await request(app)
-        .post(`${BASE}`)
-        .send({
-          name: "env-other-project",
-          github_url: "https://github.com/test/repo",
-        });
+      const otherRes = await request(app).post(`${BASE}`).send({
+        name: "env-other-project",
+        github_url: "https://github.com/test/repo",
+      });
       const res = await request(app)
         .patch(`${BASE}/${otherRes.body.id}/environment/${envVarId}`)
         .send({ value: "hacked" });
       expect(res.status).toBe(404);
+    });
+
+    it("returns 409 when updating key to one that already exists", async () => {
+      const envRes = await request(app)
+        .post(`${BASE}/${patchProjectId}/environment`)
+        .send({ key: "EXISTING_KEY", value: "taken" });
+      expect(envRes.status).toBe(201);
+
+      const res = await request(app)
+        .patch(`${BASE}/${patchProjectId}/environment/${envVarId}`)
+        .send({ key: "EXISTING_KEY" });
+      expect(res.status).toBe(409);
     });
 
     it("returns 404 for non-existent env var", async () => {
@@ -142,12 +156,10 @@ describe("Environment Variables API", () => {
     let envVarId: string;
 
     beforeAll(async () => {
-      const projRes = await request(app)
-        .post(`${BASE}`)
-        .send({
-          name: "env-delete-project",
-          github_url: "https://github.com/test/repo",
-        });
+      const projRes = await request(app).post(`${BASE}`).send({
+        name: "env-delete-project",
+        github_url: "https://github.com/test/repo",
+      });
       deleteProjectId = projRes.body.id;
 
       const envRes = await request(app)
@@ -171,12 +183,10 @@ describe("Environment Variables API", () => {
     });
 
     it("returns 404 for env var in different project", async () => {
-      const otherRes = await request(app)
-        .post(`${BASE}`)
-        .send({
-          name: "env-del-other",
-          github_url: "https://github.com/test/repo",
-        });
+      const otherRes = await request(app).post(`${BASE}`).send({
+        name: "env-del-other",
+        github_url: "https://github.com/test/repo",
+      });
       const envRes = await request(app)
         .post(`${BASE}/${otherRes.body.id}/environment`)
         .send({ key: "OTHER_KEY", value: "v" });
@@ -190,12 +200,10 @@ describe("Environment Variables API", () => {
 
   describe("secret masking on GET", () => {
     it("masks secret values but shows non-secret values", async () => {
-      const projRes = await request(app)
-        .post(`${BASE}`)
-        .send({
-          name: "env-mask-project",
-          github_url: "https://github.com/test/repo",
-        });
+      const projRes = await request(app).post(`${BASE}`).send({
+        name: "env-mask-project",
+        github_url: "https://github.com/test/repo",
+      });
       const pid = projRes.body.id;
 
       await request(app)
