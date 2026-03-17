@@ -260,6 +260,34 @@ describe("JsonlWatcher", () => {
     deadWatcher.stop();
   });
 
+  it("resumes from initialOffset without replaying old data", async () => {
+    const oldEntry = jsonlLine(assistantEntry("Old message"));
+    const newEntry = jsonlLine(assistantEntry("New message"));
+    const fullContent = oldEntry + newEntry;
+    const fullBuf = Buffer.from(fullContent, "utf-8");
+    const resumeOffset = Buffer.byteLength(oldEntry, "utf-8");
+
+    vi.mocked(stat).mockResolvedValue({ size: fullBuf.length } as never);
+    vi.mocked(open).mockResolvedValue({
+      read: vi.fn().mockImplementation(async (target: Buffer, _offset: number, length: number, position: number) => {
+        fullBuf.copy(target, 0, position, position + length);
+        return { bytesRead: length };
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    // Create watcher starting at the offset after the old entry
+    const resumedWatcher = new JsonlWatcher("resumed-session", "/tmp", onText, undefined, resumeOffset);
+    resumedWatcher.start();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // Should only emit the new message, not the old one
+    expect(onText).toHaveBeenCalledTimes(1);
+    expect(onText.mock.calls[0][0]).toBe("New message");
+
+    resumedWatcher.stop();
+  });
+
   it("handles missing file gracefully", async () => {
     vi.mocked(stat).mockRejectedValue(new Error("ENOENT"));
 

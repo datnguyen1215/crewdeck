@@ -301,6 +301,9 @@ export class OrchestratorManager {
   }
 
   private startWatcher(projectId: string, claudeSessionId: string): void {
+    // Snapshot byte offset from old watcher so the new one resumes where it left off
+    const oldWatcher = this.jsonlWatchers.get(projectId);
+    const resumeOffset = oldWatcher ? oldWatcher.getOffset() : 0;
     this.stopWatcher(projectId);
     this.claudeSessionIds.set(projectId, claudeSessionId);
     const tmuxName = captainSessionName(projectId);
@@ -315,6 +318,7 @@ export class OrchestratorManager {
         this.bus.emit("captain.message", { message, project_id: projectId });
       },
       () => this.adapter.isAlive(tmuxName),
+      resumeOffset,
     );
     watcher.start();
     this.jsonlWatchers.set(projectId, watcher);

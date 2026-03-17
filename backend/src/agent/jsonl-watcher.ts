@@ -25,7 +25,7 @@ export type IsAliveCheck = () => Promise<boolean>;
  */
 export class JsonlWatcher {
   private interval: ReturnType<typeof setInterval> | null = null;
-  private offset = 0;
+  private offset: number;
   private seenUuids = new Set<string>();
   private missCount = 0;
   private readonly filePath: string;
@@ -35,7 +35,9 @@ export class JsonlWatcher {
     private readonly workdir: string,
     private readonly onText: OnAssistantText,
     private readonly isAlive?: IsAliveCheck,
+    initialOffset = 0,
   ) {
+    this.offset = initialOffset;
     // Claude Code stores JSONL at ~/.claude/projects/<encoded-workdir>/<session-id>.jsonl
     const encoded = workdir.replace(/\//g, "-");
     this.filePath = join(homedir(), ".claude", "projects", encoded, `${claudeSessionId}.jsonl`);
@@ -57,6 +59,10 @@ export class JsonlWatcher {
 
   isRunning(): boolean {
     return this.interval !== null;
+  }
+
+  getOffset(): number {
+    return this.offset;
   }
 
   private async poll(): Promise<void> {
