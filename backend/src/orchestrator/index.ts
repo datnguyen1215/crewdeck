@@ -129,8 +129,21 @@ async function executeAssign(
       worktreePath = wt.path;
       createdBranchName = wt.branchName;
     } catch (err) {
-      logger.error({ err, issueId }, "assign: failed to create worktree, using /tmp");
-      repo = null;
+      logger.error({ err, issueId }, "assign: failed to create worktree");
+      updateIssueAgent(issueAgent.id, { status: "error" });
+      updateIssue(issueId, {
+        status: issue.status,
+        assigned_agent_id: issue.assigned_agent_id,
+        worktree_path: issue.worktree_path ?? null,
+        branch_name: issue.branch_name ?? null,
+        base_branch: issue.base_branch ?? null,
+      });
+      const comment = createComment(issueId, {
+        content: "Assignment failed — could not create worktree.",
+        author_type: "orchestrator",
+      });
+      bus.emit("comment.added", { comment, project_id: projectId });
+      return;
     }
   }
 
