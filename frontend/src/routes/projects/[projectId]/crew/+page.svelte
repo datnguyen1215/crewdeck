@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
 	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent, generateAgent, type CrewWithAgents } from '$lib/api/http.js';
-	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	type CrewData = CrewWithAgents;

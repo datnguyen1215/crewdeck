@@ -25,8 +25,9 @@
 	function connectTerminalWs() {
 		if (destroyed || !term) return;
 
-		const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-		const url = `${protocol}//${location.host}/terminal-ws?sessionId=${encodeURIComponent(sessionId)}`;
+		const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+		const base = backendUrl ? backendUrl.replace(/^http/, 'ws') : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+		const url = `${base}/terminal-ws?sessionId=${encodeURIComponent(sessionId)}`;
 		const ws = new WebSocket(url);
 
 		ws.onopen = () => {

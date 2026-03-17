@@ -5,7 +5,7 @@
 	import { getIssue, addComment, editComment, deleteComment, approveIssue, discardIssue, updateIssue, listSessions, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
-	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
 

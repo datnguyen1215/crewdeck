@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
 	import { listIssues, listAgents, listRepos, createIssue, type Issue, type Agent, type Repo } from '$lib/api/http.js';
-	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 

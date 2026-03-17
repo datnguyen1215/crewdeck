@@ -111,7 +111,7 @@ interface ExtendedWebSocket extends WebSocket {
 
 export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
   // TODO: add per-IP connection cap
-  const wss = new WebSocketServer({ server, path: "/ws" });
+  const wss = new WebSocketServer({ noServer: true });
 
   heartbeatInterval = setInterval(() => {
     for (const [projectId, clients] of subscribers) {

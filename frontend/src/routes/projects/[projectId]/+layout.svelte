@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { onDestroy } from 'svelte';
-	import { ProjectWebSocket } from '$lib/api/ws.js';
+	import { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { setContext } from 'svelte';
-	import type { WsEvent } from '$lib/api/ws.js';
+	import type { WsEvent } from '$lib/api/ws.svelte.js';
 
 	let { children } = $props();
 

@@ -15,7 +15,7 @@ const activeSessions = new Map<WebSocket, TerminalSession>();
 let wss: WebSocketServer | null = null;
 
 export function setupTerminalWs(server: Server): WebSocketServer {
-  wss = new WebSocketServer({ server, path: "/terminal-ws" });
+  wss = new WebSocketServer({ noServer: true });
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     try {

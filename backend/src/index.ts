@@ -33,7 +33,18 @@ async function main(): Promise<void> {
   });
 
   const wss = setupWebSocket(server, eventBus);
-  setupTerminalWs(server);
+  const terminalWss = setupTerminalWs(server);
+
+  server.on("upgrade", (req, socket, head) => {
+    const pathname = new URL(req.url ?? "", "http://localhost").pathname;
+    if (pathname === "/ws") {
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+    } else if (pathname === "/terminal-ws") {
+      terminalWss.handleUpgrade(req, socket, head, (ws) => terminalWss.emit("connection", ws, req));
+    } else {
+      socket.destroy();
+    }
+  });
 
   async function shutdown() {
     shutdownTerminalWs();

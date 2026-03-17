@@ -8,7 +8,7 @@
 		type CaptainMessage,
 		type Session
 	} from '$lib/api/http.js';
-	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { relTime } from '$lib/utils/time.js';
 	import Terminal from '$lib/components/Terminal.svelte';
