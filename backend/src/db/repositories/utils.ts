@@ -58,3 +58,12 @@ export function buildAndRunUpdate<T extends object>(
     id,
   );
 }
+
+/**
+ * Parse a JSON string column into its deserialized value, returning null for
+ * null/undefined inputs. Used by repository fromRow() functions to convert
+ * stringified JSON columns back into objects.
+ */
+export function deserializeJson(value: string | null | undefined): unknown {
+  return value ? (JSON.parse(value) as unknown) : null;
+}
