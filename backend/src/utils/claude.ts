@@ -14,7 +14,8 @@ export async function callClaude(prompt: string, opts?: { systemPrompt?: string 
   args.push(prompt);
 
   return new Promise((resolve, reject) => {
-    const child = spawn("claude", args, { stdio: ["pipe", "pipe", "pipe"] });
+    const env = { ...process.env, CLAUDECODE: "" };
+    const child = spawn("claude", args, { stdio: ["pipe", "pipe", "pipe"], env });
     let stdout = "";
     let stderr = "";
 

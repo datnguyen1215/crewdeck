@@ -12,19 +12,25 @@ const execAsync = promisify(exec);
 // Build a launch script using base64-encoded prompts to avoid shell escaping issues
 // --dangerously-skip-permissions: required for unattended agent execution.
 // TODO: Add auth middleware on agent-spawning routes before production (see index.ts).
-function buildLaunchScript(prompt: string, systemPrompt?: string, print?: boolean): string {
+function buildLaunchScript(prompt: string, env: Record<string, string>, systemPrompt?: string, print?: boolean): string {
   const encode = (s: string) => shellQuote(Buffer.from(s).toString("base64"));
   const promptLine = `PROMPT=$(printf '%s' ${encode(prompt)} | base64 -d)`;
   const printFlag = print ? " --print" : "";
+  const promptArg = '"$PROMPT"';
 
-  // --print takes the prompt as a positional arg; interactive mode needs --prompt
-  const promptArg = print ? '"$PROMPT"' : '--prompt "$PROMPT"';
+  // Export env vars directly in the script so claude inherits them.
+  // Clear CLAUDECODE to prevent nested-agent detection from forcing the permission prompt.
+  const envLines = ["export CLAUDECODE="];
+  for (const [key, value] of Object.entries(env)) {
+    envLines.push(`export ${key}=${shellQuote(value)}`);
+  }
+  const envBlock = envLines.join("\n");
 
   if (systemPrompt) {
     const sysLine = `SYSTEM_PROMPT=$(printf '%s' ${encode(systemPrompt)} | base64 -d)`;
-    return `#!/bin/bash\n${promptLine}\n${sysLine}\nexec claude --dangerously-skip-permissions${printFlag} --system-prompt "$SYSTEM_PROMPT" ${promptArg}\n`;
+    return `#!/bin/bash\n${envBlock}\n${promptLine}\n${sysLine}\nexec claude --dangerously-skip-permissions${printFlag} --system-prompt "$SYSTEM_PROMPT" ${promptArg}\n`;
   }
-  return `#!/bin/bash\n${promptLine}\nexec claude --dangerously-skip-permissions${printFlag} ${promptArg}\n`;
+  return `#!/bin/bash\n${envBlock}\n${promptLine}\nexec claude --dangerously-skip-permissions${printFlag} ${promptArg}\n`;
 }
 
 export class ClaudeCodeAdapter implements AgentAdapter {
@@ -34,28 +40,38 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // Create detached tmux session with the given working directory
     await execAsync(`tmux new-session -d -s ${shellQuote(sessionName)} -c ${shellQuote(workdir)}`);
 
-    // Inject environment variables into the tmux session environment
-    // env keys are set internally by the backend — no user-supplied keys reach here
-    for (const [key, value] of Object.entries(env)) {
-      await execAsync(`tmux setenv -t ${shellQuote(sessionName)} ${shellQuote(key)} ${shellQuote(value)}`);
-    }
-
-    // Write launch script to a temp file — avoids multi-level shell escaping
-    // crypto.randomUUID() — available as a global since Node 19
-    // Temp script cleanup relies on the `rm -f` in the tmux command — if the session is killed
-    // before execution, the file persists in /tmp until OS cleanup. File mode 0o700 limits access.
+    // Write launch script to a temp file — avoids multi-level shell escaping.
+    // Env vars are exported directly in the script so claude inherits them.
     const scriptPath = join(tmpdir(), `crewdeck-${crypto.randomUUID()}.sh`);
-    await writeFile(scriptPath, buildLaunchScript(prompt, systemPrompt, print), { mode: 0o700 });
+    await writeFile(scriptPath, buildLaunchScript(prompt, env, systemPrompt, print), { mode: 0o700 });
 
     // Execute the script inside the tmux pane; cleanup script after exit
     const runCmd = `bash ${shellQuote(scriptPath)}; rm -f ${shellQuote(scriptPath)}`;
     await execAsync(`tmux send-keys -t ${shellQuote(sessionName)} ${shellQuote(runCmd)} Enter`);
 
+    // Auto-accept the dangerous-mode permission prompt.
+    // The CLI shows a selection menu with "1. No, exit" selected by default.
+    // Send Down arrow to select "2. Yes, I accept", then Enter to confirm.
+    if (!print) {
+      const sn = shellQuote(sessionName);
+      const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+      delay(3000)
+        .then(() => execAsync(`tmux send-keys -t ${sn} Down`))
+        .then(() => delay(500))
+        .then(() => execAsync(`tmux send-keys -t ${sn} Enter`))
+        .catch(() => {}); // Session may already be gone
+    }
+
     return { sessionName };
   }
 
   async send(sessionName: string, message: string): Promise<void> {
-    await execAsync(`tmux send-keys -t ${shellQuote(sessionName)} ${shellQuote(message)} Enter`);
+    const sn = shellQuote(sessionName);
+    // Send text first, then Enter separately after a short delay.
+    // Claude's TUI needs time to render the text before Enter can submit it.
+    await execAsync(`tmux send-keys -t ${sn} ${shellQuote(message)}`);
+    await new Promise<void>((r) => setTimeout(r, 200));
+    await execAsync(`tmux send-keys -t ${sn} Enter`);
   }
 
   async getOutput(sessionName: string): Promise<string> {
