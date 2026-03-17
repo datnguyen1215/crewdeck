@@ -19,7 +19,11 @@ async function main(): Promise<void> {
   // races between orphan cleanup, process monitoring, and incoming requests.
   await cleanupOrphans();
   processMonitor.start();
-  initOrchestrator(claudeCodeAdapter);
+  const orchestrator = initOrchestrator(claudeCodeAdapter);
+  // Start captain sessions for all projects in the background
+  orchestrator.startAllCaptains().catch((err) => {
+    logger.error({ err }, "Failed to auto-start captain sessions");
+  });
 
   const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const s = app.listen(config.port, config.host, () => {

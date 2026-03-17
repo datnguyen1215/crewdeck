@@ -6,7 +6,7 @@ import { agentSessionName, captainSessionName } from "../agent/types.js";
 import { buildAgentPrompt, buildReviewerPrompt } from "../agent/prompt.js";
 import { createWorktree, cleanupWorktree } from "../agent/worktree.js";
 import { escapeXml } from "../utils/xml.js";
-import { getProject, updateProject } from "../db/repositories/projects.js";
+import { getProject, updateProject, listProjects } from "../db/repositories/projects.js";
 import { listIssues, getIssue, updateIssue } from "../db/repositories/issues.js";
 import { getAgent, getCaptain } from "../db/repositories/agents.js";
 import { getCrewWithAgents } from "../db/repositories/crews.js";
@@ -538,6 +538,17 @@ export class OrchestratorManager {
       logger.warn({ issue_id, agent_id, verdict }, "handleReviewVerdict: unknown verdict");
       updateIssueAgent(reviewerRecord.id, { status: "error" });
     }
+  }
+
+  async startAllCaptains(): Promise<void> {
+    const projects = listProjects();
+    await Promise.all(
+      projects.map((p) =>
+        this.ensureCaptainSession(p.id).catch((err) => {
+          logger.error({ err, projectId: p.id }, "Failed to auto-start captain session");
+        })
+      )
+    );
   }
 
   async killCaptainSession(projectId: string): Promise<void> {
