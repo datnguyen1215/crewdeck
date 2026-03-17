@@ -874,6 +874,35 @@ Agent reports which files were modified.
 
 **Response:** `200 OK`
 
+#### Create Issue (Internal)
+
+```
+POST /internal/issues/create
+```
+
+Captain creates a new issue. The issue is created with `created_by: "orchestrator"`.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "title": "Fix authentication bug",
+  "description": "The login endpoint returns 500 when...",
+  "priority": 5
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| project_id | Yes | The project to create the issue in. |
+| title | Yes | Issue title (non-empty). |
+| description | Yes | Issue description (non-empty). |
+| priority | No | Priority level (integer). |
+
+**Response:** `201 Created` — The created issue object.
+
+**Side effects:** Emits `issue.created` on the event bus.
+
 #### Stop Session (Internal)
 
 ```

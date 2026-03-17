@@ -164,11 +164,13 @@ crewdeck files --modified src/auth/middleware.ts src/auth/session.ts tests/auth.
 
 ### issues
 
-List or get project issues. Used by the captain to inspect issue state, and by workers/reviewers to re-read issue details.
+List, get, create, update, or close project issues. Used by the captain to inspect and manage issue state.
 
 ```
 crewdeck issues list
 crewdeck issues get <issue_id>
+crewdeck issues create --title "..." --description "..." [--priority <n>]
+crewdeck issues update <issue_id> --priority <n>
 crewdeck issues close <issue_id>
 ```
 
@@ -178,8 +180,17 @@ crewdeck issues close <issue_id>
 |------------|-------------|
 | `list` | List all issues in the project |
 | `get <issue_id>` | Get details for a specific issue |
+| `create` | Create a new issue |
 | `update <issue_id> --priority <n>` | Update issue priority |
 | `close <issue_id>` | Close/cancel an issue (transitions to `done`) |
+
+**Options for `create`:**
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--title` | Yes | Issue title |
+| `--description` | Yes | Issue description |
+| `--priority` | No | Priority level (integer) |
 
 **Examples:**
 
@@ -190,13 +201,18 @@ crewdeck issues list
 # Get details for a specific issue
 crewdeck issues get issue_abc123
 
+# Create a new issue
+crewdeck issues create --title "Fix login bug" --description "The login endpoint returns 500 when..."
+crewdeck issues create --title "Add caching" --description "Cache the results of..." --priority 2
+
 # Update issue priority
 crewdeck issues update issue_abc123 --priority 2
-
 
 # Close/cancel an issue
 crewdeck issues close issue_abc123
 ```
+
+**Backend behavior:** `create` posts to `/internal/issues/create` with `created_by: "orchestrator"` and emits `issue.created` on the event bus.
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
 
@@ -369,6 +385,7 @@ POST /api/v1/internal/issues/update
 POST /api/v1/internal/issues/close
 POST /api/v1/internal/history
 GET  /api/v1/internal/history
+POST /api/v1/internal/issues/create
 POST /api/v1/internal/sessions/stop
 ```
 
