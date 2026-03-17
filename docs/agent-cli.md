@@ -213,18 +213,41 @@ crewdeck issues close issue_abc123
 
 ### agents
 
-List project agents with their current status. Used by the captain.
+List or create project agents. Used by the captain.
 
 ```
 crewdeck agents list
+crewdeck agents create --name <name> --title <title> --system-prompt <prompt> [--description <desc>]
 ```
+
+**Subcommands:**
+
+| Subcommand | Description |
+|------------|-------------|
+| `list` | List all agents and their status |
+| `create` | Create a new worker agent |
+
+**Options for `create`:**
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--name` | Yes | Agent name |
+| `--title` | Yes | Agent title |
+| `--system-prompt` | Yes | System prompt for the agent |
+| `--description` | No | Agent description |
 
 **Examples:**
 
 ```bash
 # List all agents and their status
 crewdeck agents list
+
+# Create a new worker agent
+crewdeck agents create --name "Alice" --title "Frontend Engineer" --system-prompt "You are a frontend specialist..."
+crewdeck agents create --name "Bob" --title "Backend Engineer" --system-prompt "You are a backend specialist..." --description "Handles API work"
 ```
+
+**Backend behavior:** `create` POSTs to `POST /projects/:projectId/crew/agents` and prints the created agent JSON to stdout.
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
 
