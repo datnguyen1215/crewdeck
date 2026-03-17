@@ -317,6 +317,53 @@ describe("JsonlWatcher", () => {
     expect(onText).not.toHaveBeenCalled();
   });
 
+  it("does not auto-stop when isAlive returns true", async () => {
+    const isAlive = vi.fn().mockResolvedValue(true);
+    watcher.stop();
+    watcher = new JsonlWatcher("test-session-id", "/tmp", onText, isAlive);
+
+    // File doesn't exist — every poll is a miss
+    vi.mocked(stat).mockResolvedValue(null as never);
+
+    watcher.start();
+    // Advance past MAX_MISS_COUNT (60 polls)
+    await vi.advanceTimersByTimeAsync(61_000);
+
+    expect(isAlive).toHaveBeenCalled();
+    expect(watcher.isRunning()).toBe(true);
+  });
+
+  it("auto-stops when isAlive returns false", async () => {
+    const isAlive = vi.fn().mockResolvedValue(false);
+    watcher.stop();
+    watcher = new JsonlWatcher("test-session-id", "/tmp", onText, isAlive);
+
+    vi.mocked(stat).mockResolvedValue(null as never);
+
+    watcher.start();
+    await vi.advanceTimersByTimeAsync(61_000);
+
+    expect(isAlive).toHaveBeenCalled();
+    expect(watcher.isRunning()).toBe(false);
+  });
+
+  it("auto-stops normally when no isAlive is provided", async () => {
+    vi.mocked(stat).mockResolvedValue(null as never);
+
+    watcher.start();
+    await vi.advanceTimersByTimeAsync(61_000);
+
+    expect(watcher.isRunning()).toBe(false);
+  });
+
+  it("isRunning() returns correct state", () => {
+    expect(watcher.isRunning()).toBe(false);
+    watcher.start();
+    expect(watcher.isRunning()).toBe(true);
+    watcher.stop();
+    expect(watcher.isRunning()).toBe(false);
+  });
+
   it("skips malformed complete lines without breaking", async () => {
     const content =
       jsonlLine(assistantEntry("Before")) +
