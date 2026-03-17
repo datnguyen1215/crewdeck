@@ -76,7 +76,11 @@ export class JsonlWatcher {
         } catch {
           continue; // malformed line — skip it
         }
-        this.processEntry(entry);
+        try {
+          this.processEntry(entry);
+        } catch (err) {
+          logger.warn({ err, path: this.filePath }, "JSONL processEntry error");
+        }
       }
     } catch (err) {
       logger.debug({ err, path: this.filePath }, "JSONL poll error");
