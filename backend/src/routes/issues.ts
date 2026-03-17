@@ -6,8 +6,15 @@ import {
   deleteIssue,
 } from "../db/repositories/issues.js";
 import { validate } from "../middleware/validate.js";
-import { InvalidTransitionError, ValidationError } from "../middleware/errors.js";
-import { verifyProject, verifyIssueOwnership, verifyIssueWithDetails } from "../middleware/ownership.js";
+import {
+  InvalidTransitionError,
+  ValidationError,
+} from "../middleware/errors.js";
+import {
+  verifyProject,
+  verifyIssueOwnership,
+  verifyIssueWithDetails,
+} from "../middleware/ownership.js";
 import { CreateIssueSchema, UpdateIssueSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
 import type { IssueFilters } from "../types/entities.js";
@@ -35,13 +42,17 @@ const router = Router({ mergeParams: true });
 
 router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
-  const { status, agent, created_by, sort, order } = req.query as Record<string, string>;
+  const { status, agent, created_by, sort, order } = req.query as Record<
+    string,
+    string
+  >;
 
   const filters: IssueFilters = {};
   if (status) filters.status = status.split(",");
   if (agent) filters.assigned_agent_id = agent;
   if (created_by) filters.created_by = created_by;
-  if (sort === "priority" || sort === "created_at" || sort === "updated_at") filters.sort = sort;
+  if (sort === "priority" || sort === "created_at" || sort === "updated_at")
+    filters.sort = sort;
   if (order === "asc" || order === "desc") filters.order = order;
 
   res.json(listIssues(projectId, filters));
@@ -51,33 +62,43 @@ router.get("/:issueId", verifyIssueWithDetails, (req, res) => {
   res.json(req.issueWithDetails);
 });
 
-router.post("/", verifyProject, validate(CreateIssueSchema), (req: Request<{ projectId: string }>, res) => {
-  const { projectId } = req.params;
-  const issue = createIssue(projectId, { ...req.body, created_by: "user" });
-  eventBus.emit("issue.created", { issue });
-  res.status(201).json(issue);
-});
+router.post(
+  "/",
+  verifyProject,
+  validate(CreateIssueSchema),
+  (req: Request<{ projectId: string }>, res) => {
+    const { projectId } = req.params;
+    const issue = createIssue(projectId, { ...req.body, created_by: "user" });
+    eventBus.emit("issue.created", { issue });
+    res.status(201).json(issue);
+  },
+);
 
-router.patch("/:issueId", verifyIssueOwnership, validate(UpdateIssueSchema), (req, res) => {
-  const existing = req.issue!;
+router.patch(
+  "/:issueId",
+  verifyIssueOwnership,
+  validate(UpdateIssueSchema),
+  (req, res) => {
+    const existing = req.issue!;
 
-  if (req.body.status && req.body.status !== existing.status) {
-    assertTransition(existing.status, req.body.status);
-  }
+    if (req.body.status && req.body.status !== existing.status) {
+      assertTransition(existing.status, req.body.status);
+    }
 
-  const updated = updateIssue(existing.id, req.body);
+    const updated = updateIssue(existing.id, req.body);
 
-  if (req.body.status && req.body.status !== existing.status) {
-    eventBus.emit("issue.status_changed", {
-      issue_id: updated.id,
-      project_id: updated.project_id,
-      from: existing.status,
-      to: updated.status,
-    });
-  }
+    if (req.body.status && req.body.status !== existing.status) {
+      eventBus.emit("issue.status_changed", {
+        issue_id: updated.id,
+        project_id: updated.project_id,
+        from: existing.status,
+        to: updated.status,
+      });
+    }
 
-  res.json(updated);
-});
+    res.json(updated);
+  },
+);
 
 router.delete("/:issueId", verifyIssueOwnership, (req, res) => {
   deleteIssue(req.issue!.id);
@@ -106,20 +127,17 @@ router.post("/:issueId/discard", verifyIssueOwnership, (req, res) => {
   res.status(204).send();
 });
 
-// POST /create-pr — ready → pr_created, emit event
+// POST /create-pr — push branch and create GitHub PR for a ready issue
 router.post("/:issueId/create-pr", verifyIssueOwnership, (req, res) => {
   const issue = req.issue!;
   if (issue.status !== "ready") {
     throw new InvalidTransitionError(issue.status, "pr_created");
   }
-  const updated = updateIssue(issue.id, { status: "pr_created" });
-  eventBus.emit("issue.status_changed", {
-    issue_id: updated.id,
-    project_id: updated.project_id,
-    from: issue.status,
-    to: updated.status,
+  eventBus.emit("captain.create_pr", {
+    project_id: issue.project_id,
+    issue_id: issue.id,
   });
-  res.json(updated);
+  res.json(issue);
 });
 
 export default router;
