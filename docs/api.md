@@ -874,6 +874,28 @@ Agent reports which files were modified.
 
 **Response:** `200 OK`
 
+#### Update Issue (Internal)
+
+```
+POST /internal/issues/update
+```
+
+Captain updates an issue's fields (e.g. priority).
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid",
+  "priority": 2
+}
+```
+
+**Response:** `200 OK` — The updated issue object.
+
+**Side effects:** Emits `issue.updated` on the event bus.
+
+
 #### Close Issue (Internal)
 
 ```
@@ -891,6 +913,8 @@ Captain closes/cancels an issue, transitioning it to `done` status. Any running 
 ```
 
 **Response:** `200 OK` — The updated issue object.
+
+**Side effects:** Emits `issue.status_changed` on the event bus. Marks any running sessions for the issue as completed.
 
 **Note:** Idempotent — if the issue is already `done`, returns the issue unchanged.
 
