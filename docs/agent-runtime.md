@@ -437,6 +437,7 @@ The captain session persists across multiple events and issues. To handle crashe
 
 - **History saved to DB** — the captain's conversation history is periodically saved to the database.
 - **Session restore** — when a captain session is lost (process crash, container restart), the orchestrator detects the missing session via `isAlive()` and respawns it. The saved history is restored into the new session so the captain retains context from prior decisions.
+- **JSONL watcher liveness** — the JSONL watcher that tails the captain's output file uses the session liveness check (`isAlive()`) to stay running during captain idle periods. It only auto-stops when the captain session itself is no longer alive.
 - **CaptainMessage records** — the backend stores a `CaptainMessage` record for each event relay, captain action, and assistant text response surfaced via JSONL. This builds the captain chat timeline visible to the user in the frontend.
 
 ## Future Adapters
