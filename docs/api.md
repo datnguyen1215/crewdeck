@@ -899,6 +899,50 @@ Captain stops a stuck or runaway agent session. Kills the tmux session and marks
 
 **Side effects:** Emits `session.stop_requested` on the event bus. The orchestrator kills the tmux session and updates session status to `completed`.
 
+#### Update Issue (Internal)
+
+```
+POST /internal/issues/update
+```
+
+Captain updates an issue's fields (e.g. priority).
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid",
+  "priority": 2
+}
+```
+
+**Response:** `200 OK` — The updated issue object.
+
+**Side effects:** Emits `issue.updated` on the event bus.
+
+
+#### Close Issue (Internal)
+
+```
+POST /internal/issues/close
+```
+
+Captain closes/cancels an issue, transitioning it to `done` status. Any running sessions for the issue are also marked completed.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid"
+}
+```
+
+**Response:** `200 OK` — The updated issue object.
+
+**Side effects:** Emits `issue.status_changed` on the event bus. Marks any running sessions for the issue as completed.
+
+**Note:** Idempotent — if the issue is already `done`, returns the issue unchanged.
+
 ---
 
 ## Status Transition Rules
