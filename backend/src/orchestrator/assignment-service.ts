@@ -18,9 +18,14 @@ import { config } from "../config.js";
 import { createComment, listComments } from "../db/repositories/comments.js";
 import {
   createIssueAgent,
+  listIssueAgents,
   updateIssueAgent,
 } from "../db/repositories/issue-agents.js";
-import { createSession, updateSession } from "../db/repositories/sessions.js";
+import {
+  createSession,
+  listSessions,
+  updateSession,
+} from "../db/repositories/sessions.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 
 // Execute an assign action triggered by the captain via CLI
@@ -43,12 +48,46 @@ export async function executeAssign(
     );
     return;
   }
+  // Allow re-assignment for in_progress/feedback issues when no session is
+  // actively running (e.g. previous session errored or completed without
+  // proper cleanup). For truly active sessions we still reject to avoid
+  // double-spawning.
+  const reassignable = ["in_progress", "feedback"];
+  let isReassignment = false;
   if (!["open", "draft"].includes(issue.status)) {
-    logger.warn(
-      { issueId, status: issue.status },
-      "assign: issue is not in assignable state",
+    if (!reassignable.includes(issue.status)) {
+      logger.warn(
+        { issueId, status: issue.status },
+        "assign: issue is not in assignable state",
+      );
+      return;
+    }
+
+    const runningSessions = listSessions(projectId, {
+      issue_id: issueId,
+      status: "running",
+    });
+    if (runningSessions.length > 0) {
+      logger.warn(
+        { issueId, status: issue.status, sessions: runningSessions.length },
+        "assign: issue has an active running session, skipping re-assignment",
+      );
+      return;
+    }
+
+    // Clean up stale issue-agent records from the previous attempt
+    const staleAgents = listIssueAgents(issueId).filter(
+      (ia) => ia.status === "active",
     );
-    return;
+    for (const ia of staleAgents) {
+      updateIssueAgent(ia.id, { status: "error" });
+    }
+
+    isReassignment = true;
+    logger.info(
+      { issueId, status: issue.status },
+      "assign: re-assigning issue after previous session ended",
+    );
   }
 
   const agent = getAgent(agentId);
@@ -70,10 +109,13 @@ export async function executeAssign(
   const project = getProject(projectId);
   if (!project) return;
 
-  // Concurrency check
+  // Concurrency check — exclude the current issue on re-assignment since
+  // it already occupies a slot.
   const all = listIssues(projectId);
-  const activeCount = all.filter((i) =>
-    ["in_progress", "in_review", "feedback"].includes(i.status),
+  const activeCount = all.filter(
+    (i) =>
+      ["in_progress", "in_review", "feedback"].includes(i.status) &&
+      !(isReassignment && i.id === issueId),
   ).length;
   if (activeCount >= project.max_concurrency) {
     logger.info(
@@ -91,13 +133,24 @@ export async function executeAssign(
     assigned_agent_id: agentId,
     status: "in_progress",
   });
-  const issueAgent = createIssueAgent({
-    issue_id: issueId,
-    agent_id: agentId,
-    role: "worker",
-    status: "active",
-    review_round: 0,
-  });
+
+  // Reuse an existing stale IssueAgent record if one exists (same agent+role+round),
+  // otherwise create a new one. This avoids hitting the UNIQUE constraint on re-assignment.
+  const existingIa = listIssueAgents(issueId).find(
+    (ia) =>
+      ia.agent_id === agentId &&
+      ia.role === "worker" &&
+      (ia.review_round ?? 0) === 0,
+  );
+  const issueAgent = existingIa
+    ? updateIssueAgent(existingIa.id, { status: "active", session_id: null })
+    : createIssueAgent({
+        issue_id: issueId,
+        agent_id: agentId,
+        role: "worker",
+        status: "active",
+        review_round: 0,
+      });
 
   // Create worktree if repo is configured
   const repos = listRepos(projectId);
