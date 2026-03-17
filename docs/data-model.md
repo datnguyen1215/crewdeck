@@ -259,7 +259,7 @@ Immutable audit trail of every action in the system.
 | issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | Related issue, if applicable. |
 | actor_type | TEXT | NOT NULL | Who performed the action. One of: `user`, `agent`, `orchestrator`, `system`, `captain`. |
 | actor_id | TEXT | NULLABLE | Agent.id if actor_type is `agent`. |
-| action | TEXT | NOT NULL | Action identifier (e.g., `issue.created`, `issue.status_changed`, `comment.added`, `agent.assigned`, `session.started`, `pr.created`, `captain.decision`, `review.completed`, `agent.finished`, `agent.error`, `agent.needs_help`). |
+| action | TEXT | NOT NULL | Action identifier (e.g., `issue.created`, `issue.status_changed`, `comment.added`, `agent.assigned`, `session.started`, `session.stop_requested`, `pr.created`, `captain.decision`, `review.completed`, `agent.finished`, `agent.error`, `agent.needs_help`). |
 | details | TEXT | | JSON blob with action-specific data (e.g., `{"from": "open", "to": "in_progress"}`). |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
