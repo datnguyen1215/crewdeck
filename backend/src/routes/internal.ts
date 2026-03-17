@@ -5,7 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
-import { getIssue, updateIssue } from "../db/repositories/issues.js";
+import { createIssue, getIssue, updateIssue } from "../db/repositories/issues.js";
 import { getAgent } from "../db/repositories/agents.js";
 import { getSession, listSessions, updateSession } from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
@@ -164,6 +164,21 @@ router.get("/history", (req, res) => {
   res.json(entries);
 });
 
+// POST /issues/create — captain creates a new issue
+const CreateIssueSchema = z.object({
+  project_id: z.string(),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  priority: z.number().int().optional(),
+});
+
+router.post("/issues/create", validate(CreateIssueSchema), (req, res) => {
+  const { project_id, title, description, priority } = req.body;
+  const issue = createIssue(project_id, { title, description, priority, created_by: "orchestrator" });
+  eventBus.emit("issue.created", { issue });
+  res.status(201).json(issue);
+});
+
 // POST /sessions/stop — captain stops a stuck agent session
 const SessionStopSchema = z.object({
   project_id: z.string(),
@@ -197,7 +212,7 @@ router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
 
   const updated = updateIssue(issue_id, { priority });
   eventBus.emit("issue.updated", { issue_id, project_id, changes: { priority } });
-  res.json(updated);
+  res.json(updated)
 });
 
 // POST /issues/close — captain closes/cancels an issue
