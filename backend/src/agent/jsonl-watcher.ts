@@ -70,12 +70,13 @@ export class JsonlWatcher {
 
       for (const line of chunk.slice(0, lastNewline).split("\n")) {
         if (!line.trim()) continue;
+        let entry: JsonlEntry;
         try {
-          const entry = JSON.parse(line) as JsonlEntry;
-          this.processEntry(entry);
+          entry = JSON.parse(line) as JsonlEntry;
         } catch {
-          // Malformed line — skip it
+          continue; // malformed line — skip it
         }
+        this.processEntry(entry);
       }
     } catch (err) {
       logger.debug({ err, path: this.filePath }, "JSONL poll error");
