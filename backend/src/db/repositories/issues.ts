@@ -10,6 +10,7 @@ import { listComments } from "./comments.js";
 import { listIssueAgents } from "./issue-agents.js";
 import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
+import { buildAndRunUpdate } from "./utils.js";
 
 export function listIssues(projectId: string, filters: IssueFilters = {}): Issue[] {
   const conditions: string[] = ["project_id = ?"];
@@ -81,26 +82,7 @@ export function createIssue(projectId: string, input: CreateIssueInput): Issue {
 }
 
 export function updateIssue(id: string, input: UpdateIssueInput): Issue {
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (input.title !== undefined) { fields.push("title = ?"); values.push(input.title); }
-  if (input.description !== undefined) { fields.push("description = ?"); values.push(input.description); }
-  if (input.status !== undefined) { fields.push("status = ?"); values.push(input.status); }
-  if (input.priority !== undefined) { fields.push("priority = ?"); values.push(input.priority); }
-  if (input.assigned_agent_id !== undefined) { fields.push("assigned_agent_id = ?"); values.push(input.assigned_agent_id); }
-  if (input.max_review_rounds !== undefined) { fields.push("max_review_rounds = ?"); values.push(input.max_review_rounds); }
-  if (input.current_review_round !== undefined) { fields.push("current_review_round = ?"); values.push(input.current_review_round); }
-  if (input.branch_name !== undefined) { fields.push("branch_name = ?"); values.push(input.branch_name); }
-  if (input.worktree_path !== undefined) { fields.push("worktree_path = ?"); values.push(input.worktree_path); }
-  if (input.base_branch !== undefined) { fields.push("base_branch = ?"); values.push(input.base_branch); }
-  if (input.repo_id !== undefined) { fields.push("repo_id = ?"); values.push(input.repo_id); }
-
-  if (fields.length > 0) {
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    db.prepare(`UPDATE Issue SET ${fields.join(", ")} WHERE id = ?`).run(...values, id);
-  }
-
+  buildAndRunUpdate("Issue", id, input);
   // Note: getIssue(id)! asserts non-null. If called with a non-existent id the update
   // no-ops and the ! assertion throws. Callers are expected to verify existence first.
   return getIssue(id)!;

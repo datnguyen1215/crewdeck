@@ -1,5 +1,6 @@
 import { db } from "../index.js";
 import type { Agent, CreateAgentInput, UpdateAgentInput } from "../../types/entities.js";
+import { buildAndRunUpdate } from "./utils.js";
 
 function normalize(row: Agent): Agent {
   return { ...row, is_captain: !!row.is_captain };
@@ -49,13 +50,8 @@ export function createAgent(crewId: string, input: CreateAgentInput): Agent {
 }
 
 export function updateAgent(id: string, input: UpdateAgentInput): Agent {
-  const fields: string[] = [];
-  const values: unknown[] = [];
+  const overrides: Record<string, unknown> = {};
 
-  if (input.name !== undefined) { fields.push("name = ?"); values.push(input.name); }
-  if (input.title !== undefined) { fields.push("title = ?"); values.push(input.title); }
-  if (input.description !== undefined) { fields.push("description = ?"); values.push(input.description); }
-  if (input.system_prompt !== undefined) { fields.push("system_prompt = ?"); values.push(input.system_prompt); }
   if (input.is_captain !== undefined) {
     const isCaptain = input.is_captain ? 1 : 0;
     // Enforce one captain per crew
@@ -65,14 +61,10 @@ export function updateAgent(id: string, input: UpdateAgentInput): Agent {
         db.prepare("UPDATE Agent SET is_captain = 0 WHERE crew_id = ? AND is_captain = 1 AND id != ?").run(agent.crew_id, id);
       }
     }
-    fields.push("is_captain = ?"); values.push(isCaptain);
+    overrides.is_captain = isCaptain;
   }
 
-  if (fields.length > 0) {
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    db.prepare(`UPDATE Agent SET ${fields.join(", ")} WHERE id = ?`).run(...values, id);
-  }
-
+  buildAndRunUpdate("Agent", id, input, overrides);
   return getAgent(id)!;
 }
 

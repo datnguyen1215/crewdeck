@@ -1,5 +1,6 @@
 import { db } from "../index.js";
 import type { Session, CreateSessionInput, UpdateSessionInput, SessionFilters } from "../../types/entities.js";
+import { buildAndRunUpdate } from "./utils.js";
 
 type SessionRow = Omit<Session, "context"> & { context: string | null };
 
@@ -53,21 +54,11 @@ export function listRunningSessions(): Session[] {
 }
 
 export function updateSession(id: string, input: UpdateSessionInput): Session {
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (input.session_type !== undefined) { fields.push("session_type = ?"); values.push(input.session_type); }
-  if (input.agent_id !== undefined) { fields.push("agent_id = ?"); values.push(input.agent_id); }
-  if (input.issue_id !== undefined) { fields.push("issue_id = ?"); values.push(input.issue_id); }
-  if (input.tmux_session_name !== undefined) { fields.push("tmux_session_name = ?"); values.push(input.tmux_session_name); }
-  if (input.tmux_pane_id !== undefined) { fields.push("tmux_pane_id = ?"); values.push(input.tmux_pane_id); }
-  if (input.status !== undefined) { fields.push("status = ?"); values.push(input.status); }
-  if (input.context !== undefined) { fields.push("context = ?"); values.push(JSON.stringify(input.context)); }
-
-  if (fields.length > 0) {
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    db.prepare(`UPDATE Session SET ${fields.join(", ")} WHERE id = ?`).run(...values, id);
+  const overrides: Record<string, unknown> = {};
+  if (input.context !== undefined) {
+    overrides.context = JSON.stringify(input.context);
   }
 
+  buildAndRunUpdate("Session", id, input, overrides);
   return getSession(id)!;
 }
