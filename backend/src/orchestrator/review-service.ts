@@ -9,16 +9,14 @@ import { getAgent } from "../db/repositories/agents.js";
 import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listRepos } from "../db/repositories/repos.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
+import { config } from "../config.js";
 import { createComment, listComments } from "../db/repositories/comments.js";
 import {
   listIssueAgents,
   createIssueAgent,
   updateIssueAgent,
 } from "../db/repositories/issue-agents.js";
-import {
-  createSession,
-  updateSession,
-} from "../db/repositories/sessions.js";
+import { createSession, updateSession } from "../db/repositories/sessions.js";
 
 // Execute a route-review action triggered by the captain via CLI
 export async function executeRouteReview(
@@ -29,32 +27,48 @@ export async function executeRouteReview(
   adapter: AgentAdapter,
 ): Promise<void> {
   const issue = getIssue(issueId);
-  if (!issue) { logger.warn({ issueId }, "route_review: issue not found"); return; }
+  if (!issue) {
+    logger.warn({ issueId }, "route_review: issue not found");
+    return;
+  }
   if (issue.project_id !== projectId) {
-    logger.warn({ issueId, projectId }, "route_review: issue does not belong to project");
+    logger.warn(
+      { issueId, projectId },
+      "route_review: issue does not belong to project",
+    );
     return;
   }
   if (!["in_progress", "feedback"].includes(issue.status)) {
-    logger.warn({ issueId, status: issue.status }, "route_review: issue is not in a reviewable state");
+    logger.warn(
+      { issueId, status: issue.status },
+      "route_review: issue is not in a reviewable state",
+    );
     return;
   }
 
   const reviewer = getAgent(reviewerAgentId);
-  if (!reviewer) { logger.warn({ reviewerAgentId }, "route_review: reviewer not found"); return; }
+  if (!reviewer) {
+    logger.warn({ reviewerAgentId }, "route_review: reviewer not found");
+    return;
+  }
 
   const crew = getCrewWithAgents(projectId);
   if (!crew) return;
   if (reviewer.crew_id !== crew.id) {
-    logger.warn({ reviewerAgentId, crew_id: crew.id }, "route_review: reviewer does not belong to project crew");
+    logger.warn(
+      { reviewerAgentId, crew_id: crew.id },
+      "route_review: reviewer does not belong to project crew",
+    );
     return;
   }
 
   const project = getProject(projectId);
   if (!project) return;
 
-  const newRound = issue.status !== "in_review"
-    ? (issue.current_review_round ?? 0) + 1
-    : issue.current_review_round ?? 1;
+  const newRound =
+    issue.status !== "in_review"
+      ? (issue.current_review_round ?? 0) + 1
+      : (issue.current_review_round ?? 1);
   const updatedIssue = updateIssue(issueId, {
     status: "in_review",
     current_review_round: newRound,
@@ -106,18 +120,30 @@ export async function executeRouteReview(
         CREWDECK_AGENT_ID: reviewerAgentId,
         CREWDECK_ISSUE_ID: issueId,
         CREWDECK_PROJECT_ID: projectId,
+        CREWDECK_API_URL: `http://${config.host}:${config.port}/api/v1`,
         ...(ghAccount ? { GH_TOKEN: ghAccount.oauth_token } : {}),
       },
     });
   } catch (err) {
-    logger.error({ err, sessionName }, "route_review: failed to spawn reviewer session");
+    logger.error(
+      { err, sessionName },
+      "route_review: failed to spawn reviewer session",
+    );
     updateSession(session.id, { status: "error" });
     updateIssueAgent(issueAgent.id, { status: "error" });
-    updateIssue(issueId, { status: issue.status, current_review_round: issue.current_review_round ?? null });
+    updateIssue(issueId, {
+      status: issue.status,
+      current_review_round: issue.current_review_round ?? null,
+    });
     return;
   }
 
-  bus.emit("issue.status_changed", { issue_id: issueId, project_id: projectId, from: issue.status, to: "in_review" });
+  bus.emit("issue.status_changed", {
+    issue_id: issueId,
+    project_id: projectId,
+    from: issue.status,
+    to: "in_review",
+  });
   bus.emit("issue.assigned", {
     issue_id: issueId,
     project_id: projectId,
@@ -149,7 +175,12 @@ export function handleReviewVerdict(
 ): void {
   const agents = listIssueAgents(issue_id);
   const reviewerRecord = agents
-    .filter((ia) => ia.agent_id === agent_id && ia.role === "reviewer" && ia.status === "active")
+    .filter(
+      (ia) =>
+        ia.agent_id === agent_id &&
+        ia.role === "reviewer" &&
+        ia.status === "active",
+    )
     .at(-1);
 
   if (!reviewerRecord) return;
@@ -164,7 +195,11 @@ export function handleReviewVerdict(
       (ia) => ia.role === "reviewer" && ia.review_round === currentRound,
     );
     const allApproved = allForRound.every((ia) => ia.status === "approved");
-    if (allApproved && allForRound.length > 0 && freshIssue?.status === "in_review") {
+    if (
+      allApproved &&
+      allForRound.length > 0 &&
+      freshIssue?.status === "in_review"
+    ) {
       const issue = updateIssue(issue_id, { status: "ready" });
       bus.emit("issue.status_changed", {
         issue_id,
@@ -185,7 +220,10 @@ export function handleReviewVerdict(
       to: "feedback",
     });
   } else {
-    logger.warn({ issue_id, agent_id, verdict }, "handleReviewVerdict: unknown verdict");
+    logger.warn(
+      { issue_id, agent_id, verdict },
+      "handleReviewVerdict: unknown verdict",
+    );
     updateIssueAgent(reviewerRecord.id, { status: "error" });
   }
 }
