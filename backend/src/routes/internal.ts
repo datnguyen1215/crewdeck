@@ -51,6 +51,9 @@ router.post("/signal", validate(SignalSchema), (req, res) => {
 
   if (!getAgent(agent_id)) throw new NotFoundError("Agent not found");
 
+  const session = getSession(session_id);
+  if (session?.status !== "running") return res.json({ ok: true });
+
   if (event === "work-complete") {
     eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: "worker" });
   } else if (event === "review-complete") {
