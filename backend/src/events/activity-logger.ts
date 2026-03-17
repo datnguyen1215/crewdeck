@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "../db/index.js";
 import { getSession } from "../db/repositories/sessions.js";
 import { eventBus } from "./bus.js";
+import type { EventMap } from "./types.js";
 
 // Exhaustive set of actor types written to the audit log.
 // Any value outside this set is clamped to "unknown" to prevent callers
@@ -34,6 +35,28 @@ function log(entry: {
     entry.action,
     entry.details != null ? JSON.stringify(entry.details) : null
   );
+}
+
+/**
+ * Register a handler for events whose payload includes project_id, issue_id,
+ * and agent_id. Covers the common "agent did X" pattern used by several events.
+ */
+function onAgentEvent<K extends keyof EventMap>(
+  event: K,
+  action: string,
+  pickDetails: (data: EventMap[K]) => Record<string, unknown>
+) {
+  eventBus.on(event, (data) => {
+    const d = data as { project_id: string; issue_id: string; agent_id: string };
+    log({
+      project_id: d.project_id,
+      issue_id: d.issue_id,
+      actor_type: "agent",
+      actor_id: d.agent_id,
+      action,
+      details: pickDetails(data),
+    });
+  });
 }
 
 export function initActivityLogger(): void {
@@ -129,47 +152,9 @@ export function initActivityLogger(): void {
     });
   });
 
-  eventBus.on("review.completed", ({ project_id, issue_id, agent_id, verdict }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
-      action: "review.completed",
-      details: { verdict },
-    });
-  });
-
-  eventBus.on("agent.finished", ({ project_id, issue_id, agent_id, role }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
-      action: "agent.finished",
-      details: { role },
-    });
-  });
-
-  eventBus.on("agent.error", ({ project_id, issue_id, agent_id, message }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
-      action: "agent.error",
-      details: { message },
-    });
-  });
-
-  eventBus.on("agent.needs_help", ({ project_id, issue_id, agent_id, message }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
-      action: "agent.needs_help",
-      details: { message },
-    });
-  });
+  // Agent event handlers — all share the same project_id/issue_id/agent_id shape
+  onAgentEvent("review.completed", "review.completed", ({ verdict }) => ({ verdict }));
+  onAgentEvent("agent.finished", "agent.finished", ({ role }) => ({ role }));
+  onAgentEvent("agent.error", "agent.error", ({ message }) => ({ message }));
+  onAgentEvent("agent.needs_help", "agent.needs_help", ({ message }) => ({ message }));
 }

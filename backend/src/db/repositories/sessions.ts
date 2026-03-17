@@ -1,13 +1,13 @@
 import { db } from "../index.js";
 import type { Session, CreateSessionInput, UpdateSessionInput, SessionFilters } from "../../types/entities.js";
-import { buildAndRunUpdate } from "./utils.js";
+import { buildAndRunUpdate, deserializeJson } from "./utils.js";
 
 type SessionRow = Omit<Session, "context"> & { context: string | null };
 
 function fromRow(row: SessionRow): Session {
   return {
     ...row,
-    context: row.context ? (JSON.parse(row.context) as unknown) : null,
+    context: deserializeJson(row.context),
   };
 }
 
