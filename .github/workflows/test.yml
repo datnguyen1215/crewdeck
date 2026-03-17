@@ -7,52 +7,36 @@ on:
     branches: [main]
 
 jobs:
-  backend-unit:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - run: npm ci
         working-directory: backend
-      - run: npm run test:run
-        working-directory: backend
-
-  backend-integration:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci
-        working-directory: backend
-      - run: npm run test:integration
-        working-directory: backend
-
-  cli-unit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
       - run: npm ci
         working-directory: cli
-      - run: npm run test:run
+
+      - name: Backend unit tests
+        run: npm run test:run
+        working-directory: backend
+
+      - name: Backend integration tests
+        run: npm run test:integration
+        working-directory: backend
+
+      - name: Build backend and CLI (needed for CLI integration tests)
+        run: |
+          npm run build --prefix backend
+          npm run build --prefix cli
+
+      - name: CLI unit tests
+        run: npm run test:run
         working-directory: cli
 
-  cli-integration:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci && npm run build
-        working-directory: backend
-      - run: npm ci && npm run build
-        working-directory: cli
-      - run: npm run test:integration
+      - name: CLI integration tests
+        run: npm run test:integration
         working-directory: cli
