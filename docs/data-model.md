@@ -248,6 +248,25 @@ A message in the project-level captain chat. Created by the captain session or b
 | context | TEXT | NULLABLE | JSON blob with structured decision metadata (e.g., action taken, affected issue/agent IDs). Set by the orchestrator; NULL for user messages. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
+### EnvironmentVariable
+
+A per-project environment variable injected into agent sessions at spawn time.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
+| key | TEXT | NOT NULL | Variable name. Must match `[A-Za-z_][A-Za-z0-9_]*`. |
+| value | TEXT | NOT NULL | Variable value. Stored in plaintext; masked in API responses when `is_secret` is true. |
+| is_secret | INTEGER | NOT NULL, DEFAULT 0 | Whether to mask the value in API responses. Stored as 0/1; exposed as boolean. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+
+**Constraints:**
+- UNIQUE(project_id, key) — a key can only appear once per project.
+
+---
+
 ### ActivityLog
 
 Immutable audit trail of every action in the system.
@@ -277,6 +296,7 @@ Immutable audit trail of every action in the system.
 | Project → ActivityLog | One-to-Many | A project has many activity log entries. |
 | Project → CaptainMessage | One-to-Many | A project has many captain chat messages. |
 | Project → CaptainHistory | One-to-Many | A project has many captain decision history entries. |
+| Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent sessions. |
 | Crew → Agent | One-to-Many | A crew has multiple agents. |
 | Issue → Comment | One-to-Many | An issue has many comments. |
 | Issue → IssueAgent | One-to-Many | An issue has many agent assignments. |
@@ -308,3 +328,4 @@ The following indexes should be created for query performance:
 - `idx_captain_message_project` on CaptainMessage(project_id)
 - `idx_captain_message_created` on CaptainMessage(project_id, created_at)
 - `idx_captain_history_created` on CaptainHistory(project_id, created_at)
+- `idx_env_var_project` on EnvironmentVariable(project_id)
