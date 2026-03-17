@@ -175,6 +175,7 @@ router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
   if (!issue || issue.project_id !== project_id) throw new NotFoundError("Issue not found");
 
   const updated = updateIssue(issue_id, { priority });
+  eventBus.emit("issue.updated", { issue_id, project_id, changes: { priority } });
   res.json(updated);
 });
 
