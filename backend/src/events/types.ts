@@ -76,4 +76,6 @@ export interface EventMap {
   "orchestrator.draft_issue": { issue: Issue; project_id: string };
   "review.completed": { session_id: string; issue_id: string; agent_id: string; project_id: string; verdict: string };
   "captain.message": { message: CaptainMessage; project_id: string };
+  "captain.assign": { project_id: string; issue_id: string; agent_id: string };
+  "captain.route_review": { project_id: string; issue_id: string; reviewer_agent_id: string };
 }

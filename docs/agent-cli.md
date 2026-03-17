@@ -1,6 +1,6 @@
 ---
 title: CrewDeck Agent CLI
-version: 0.1.0
+version: 0.2.0
 status: draft
 ---
 
@@ -25,7 +25,9 @@ Without the CLI, the backend would have to rely solely on polling tmux output or
 
 ## Installation and Environment
 
-The CLI is available in every agent's tmux session. The backend sets the following environment variables when spawning a session:
+The CLI is available in every agent's tmux session. The backend sets environment variables when spawning a session. The variables differ depending on session type.
+
+### Worker/Reviewer Sessions
 
 | Variable | Description |
 |----------|-------------|
@@ -35,6 +37,18 @@ The CLI is available in every agent's tmux session. The backend sets the followi
 | `CREWDECK_AGENT_ID` | The agent's ID |
 | `CREWDECK_PROJECT_ID` | The project ID |
 | `GH_TOKEN` | GitHub OAuth token for the project's linked GitHub account. Set only when a GitHub account is connected to the project. Used for git operations (clone, push, PR creation). |
+
+### Captain Sessions
+
+Captain sessions orchestrate work across agents and do not operate on a single issue or session. They receive a smaller set of environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `CREWDECK_API_URL` | Backend API base URL (e.g., `http://localhost:3000/api/v1`) |
+| `CREWDECK_AGENT_ID` | The captain agent's ID |
+| `CREWDECK_PROJECT_ID` | The project ID |
+
+Captain sessions do **not** have `CREWDECK_SESSION_ID` or `CREWDECK_ISSUE_ID` because the captain operates across multiple issues and agents.
 
 These environment variables are automatically set by the Agent Runtime when spawning the tmux session, so the agent does not need to provide them manually.
 
@@ -148,6 +162,156 @@ crewdeck files --modified src/auth/middleware.ts src/auth/session.ts tests/auth.
 
 **Backend behavior:** Updates the Session.context JSON with the list of modified files. This information is used when constructing prompts for reviewers or follow-up sessions.
 
+### issues
+
+List or get project issues. Used by the captain to inspect issue state.
+
+```
+crewdeck issues list
+crewdeck issues get <issue_id>
+```
+
+**Subcommands:**
+
+| Subcommand | Description |
+|------------|-------------|
+| `list` | List all issues in the project |
+| `get <issue_id>` | Get details for a specific issue |
+
+**Examples:**
+
+```bash
+# List all project issues
+crewdeck issues list
+
+# Get details for a specific issue
+crewdeck issues get issue_abc123
+```
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
+
+### agents
+
+List project agents with their current status. Used by the captain.
+
+```
+crewdeck agents list
+```
+
+**Examples:**
+
+```bash
+# List all agents and their status
+crewdeck agents list
+```
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
+
+### assign
+
+Captain assigns an agent to work on an issue. The backend spawns an agent tmux session for the assignment.
+
+```
+crewdeck assign <issue_id> <agent_id>
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `issue_id` | Yes | The issue to assign |
+| `agent_id` | Yes | The agent to assign to the issue |
+
+**Examples:**
+
+```bash
+# Assign an agent to work on an issue
+crewdeck assign issue_abc123 agent_xyz789
+```
+
+**Backend behavior:** Creates an IssueAgent assignment and spawns a new tmux session for the agent to begin work on the issue.
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
+
+### route-review
+
+Captain routes an issue to a reviewer. The backend spawns a reviewer tmux session.
+
+```
+crewdeck route-review <issue_id> <agent_id>
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `issue_id` | Yes | The issue to review |
+| `agent_id` | Yes | The agent to act as reviewer |
+
+**Examples:**
+
+```bash
+# Route an issue to a reviewer
+crewdeck route-review issue_abc123 agent_reviewer01
+```
+
+**Backend behavior:** Spawns a new tmux session for the reviewer agent, providing the issue context and any previous work output.
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
+
+### activity
+
+Fetch comments and activity log for an issue. Used by the captain to review progress before making decisions.
+
+```
+crewdeck activity <issue_id>
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `issue_id` | Yes | The issue to fetch activity for |
+
+**Examples:**
+
+```bash
+# Fetch activity for an issue
+crewdeck activity issue_abc123
+```
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
+
+### history
+
+Save or list captain decision history. Provides context continuity across captain sessions.
+
+```
+crewdeck history save --summary "..."
+crewdeck history list
+```
+
+**Subcommands:**
+
+| Subcommand | Description |
+|------------|-------------|
+| `save --summary "..."` | Save a decision summary to the captain's history |
+| `list` | List previous decision history entries |
+
+**Examples:**
+
+```bash
+# Save a decision summary
+crewdeck history save --summary "Assigned issue_abc123 to agent_xyz789 for implementation. Chose this agent because it has experience with the auth module."
+
+# List previous decision history
+crewdeck history list
+```
+
+**Backend behavior:** `save` creates a history record associated with the captain agent. `list` returns previous entries for context.
+
+**Environment:** Requires `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, and `CREWDECK_AGENT_ID` (for `save`).
+
 ## Internal API Endpoints
 
 The CLI communicates with the backend via these internal endpoints. These are not part of the public REST API and are not intended for frontend use.
@@ -157,6 +321,10 @@ POST /api/v1/internal/signal
 POST /api/v1/internal/comment
 POST /api/v1/internal/status
 POST /api/v1/internal/files
+POST /api/v1/internal/assign
+POST /api/v1/internal/route-review
+POST /api/v1/internal/history
+GET  /api/v1/internal/history
 ```
 
 All requests include the session context from environment variables:

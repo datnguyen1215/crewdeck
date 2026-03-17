@@ -54,10 +54,10 @@
 		};
 	});
 
-	// Load orchestrator session
+	// Load captain session (persistent tmux session)
 	$effect(() => {
 		let cancelled = false;
-		listSessions(projectId, { type: 'orchestrator' })
+		listSessions(projectId, { type: 'captain' })
 			.then((sessions) => {
 				if (cancelled) return;
 				if (sessions.length > 0) {
@@ -91,9 +91,9 @@
 		if (!ws) return;
 		const unsubs = [
 			ws.on('session.started', (data) => {
-				// Only react to orchestrator sessions (they omit agent_id)
-				if (data.agent_id) return;
-				listSessions(projectId, { type: 'orchestrator' })
+				// Only re-fetch when a captain session starts (no issue_id)
+				if (data.issue_id) return;
+				listSessions(projectId, { type: 'captain' })
 					.then((sessions) => {
 						if (sessions.length > 0) {
 							orchestratorSession = sessions[0];

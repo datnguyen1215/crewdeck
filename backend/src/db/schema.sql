@@ -143,6 +143,14 @@ CREATE TABLE IF NOT EXISTS GitHubAccount (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS CaptainHistory (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
+  agent_id TEXT REFERENCES Agent(id),
+  summary TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_repo_project ON Repo(project_id);
 CREATE INDEX IF NOT EXISTS idx_agent_crew ON Agent(crew_id);
@@ -161,3 +169,4 @@ CREATE INDEX IF NOT EXISTS idx_activity_issue ON ActivityLog(issue_id);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON ActivityLog(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_captain_message_project ON CaptainMessage(project_id);
 CREATE INDEX IF NOT EXISTS idx_captain_message_created ON CaptainMessage(project_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_captain_history_created ON CaptainHistory(project_id, created_at);
