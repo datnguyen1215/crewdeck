@@ -19,7 +19,7 @@ Commands:
   status          Update the agent's status
   files           Report modified files
   issues          List or get project issues
-  agents          List project agents
+  agents          List or create project agents
   assign          Assign an issue to an agent
   route-review    Route a review to an agent
   activity        Get activity for an issue
