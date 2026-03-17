@@ -124,15 +124,4 @@ describe("WebSocket integration", () => {
     expect(subscribers.get(projectId)?.size ?? 0).toBe(0);
   });
 
-  it("session.output event is delivered to subscriber", async () => {
-    const ws = await connectWs(port, projectId);
-    const msgPromise = waitForMessage(ws);
-
-    bus.emit("session.output", { session_id: "s1", project_id: projectId, output: "hello" });
-
-    const msg = await msgPromise;
-    expect(msg.event).toBe("session.output");
-    expect((msg.data as Record<string, unknown>).session_id).toBe("s1");
-    ws.close();
-  });
 });

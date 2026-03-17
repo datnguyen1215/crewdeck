@@ -261,10 +261,12 @@ Multiple tmux sessions can run simultaneously, bounded by the project's max_conc
 The frontend renders live terminal views using xterm.js. The data flow:
 
 ```
-tmux pane → adapter.getOutput() → backend WebSocket → frontend xterm.js
+tmux pane → node-pty (tmux attach-session) → terminal WebSocket → frontend xterm.js
 ```
 
-The backend captures tmux pane output via `adapter.getOutput()` and broadcasts it via the `session.output` WebSocket event. The `ProcessMonitor` also captures a final output snapshot when a session ends and stores it in `Session.context`.
+The backend exposes a `/terminal-ws?sessionId=<id>` WebSocket endpoint. When a client connects, the server spawns a PTY via `node-pty` running `tmux attach-session -t <tmux_session_name>`, piping raw terminal data bidirectionally between the PTY and the browser. This gives xterm.js the full ANSI escape sequences it needs for proper rendering, and supports bidirectional input so users can interact with sessions from the browser.
+
+The `ProcessMonitor` still captures a final output snapshot via `adapter.getOutput()` when a session ends and stores it in `Session.context` for post-mortem inspection.
 
 ### Cleanup
 
