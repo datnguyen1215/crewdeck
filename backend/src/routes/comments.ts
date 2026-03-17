@@ -2,7 +2,7 @@ import { Router, type Request } from "express";
 import { listComments, createComment, getComment, updateComment, deleteComment } from "../db/repositories/comments.js";
 import { getIssue } from "../db/repositories/issues.js";
 import { validate } from "../middleware/validate.js";
-import { NotFoundError } from "../middleware/errors.js";
+import { NotFoundError, ForbiddenError, ValidationError } from "../middleware/errors.js";
 import { CreateCommentSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
 
@@ -40,13 +40,11 @@ router.patch("/:commentId", (req: Request<{ projectId: string; issueId: string; 
     throw new NotFoundError("Comment not found");
   }
   if (existing.author_type !== "user") {
-    res.status(403).json({ error: { code: "FORBIDDEN", message: "Can only edit user comments" } });
-    return;
+    throw new ForbiddenError("Can only edit user comments");
   }
   const { content } = req.body;
   if (!content || typeof content !== "string" || !content.trim()) {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Content is required" } });
-    return;
+    throw new ValidationError("Content is required");
   }
   const updated = updateComment(req.params.commentId, content);
   if (!updated) {
@@ -66,8 +64,7 @@ router.delete("/:commentId", (req: Request<{ projectId: string; issueId: string;
     throw new NotFoundError("Comment not found");
   }
   if (existing.author_type !== "user") {
-    res.status(403).json({ error: { code: "FORBIDDEN", message: "Can only delete user comments" } });
-    return;
+    throw new ForbiddenError("Can only delete user comments");
   }
   deleteComment(req.params.commentId);
   eventBus.emit("comment.deleted", { comment_id: req.params.commentId, issue_id: req.params.issueId, project_id: issue.project_id });

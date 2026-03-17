@@ -29,6 +29,15 @@ export class InvalidTransitionError extends Error {
   }
 }
 
+export class ForbiddenError extends Error {
+  readonly code = "FORBIDDEN";
+  readonly status = 403;
+  constructor(message: string) {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
 export class ConflictError extends Error {
   readonly code = "CONFLICT";
   readonly status = 409;
