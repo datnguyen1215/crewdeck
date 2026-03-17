@@ -182,7 +182,7 @@ crewdeck issues close <issue_id>
 | `get <issue_id>` | Get details for a specific issue |
 | `create` | Create a new issue |
 | `update <issue_id> --priority <n>` | Update issue priority |
-| `close <issue_id>` | Close/cancel an issue |
+| `close <issue_id>` | Close/cancel an issue (transitions to `done`) |
 
 **Options for `create`:**
 
@@ -204,6 +204,12 @@ crewdeck issues get issue_abc123
 # Create a new issue
 crewdeck issues create --title "Fix login bug" --description "The login endpoint returns 500 when..."
 crewdeck issues create --title "Add caching" --description "Cache the results of..." --priority 2
+
+# Update issue priority
+crewdeck issues update issue_abc123 --priority 2
+
+# Close/cancel an issue
+crewdeck issues close issue_abc123
 ```
 
 **Backend behavior:** `create` posts to `/internal/issues/create` with `created_by: "orchestrator"` and emits `issue.created` on the event bus.
@@ -281,7 +287,7 @@ crewdeck route-review issue_abc123 agent_reviewer01
 
 ### activity
 
-Fetch comments and activity log for an issue. Used by the captain to review progress before making decisions.
+Fetch comments and activity log for an issue. Used by the captain to review progress before making decisions, and by workers/reviewers to check issue activity.
 
 ```
 crewdeck activity <issue_id>
@@ -343,6 +349,8 @@ POST /api/v1/internal/status
 POST /api/v1/internal/files
 POST /api/v1/internal/assign
 POST /api/v1/internal/route-review
+POST /api/v1/internal/issues/update
+POST /api/v1/internal/issues/close
 POST /api/v1/internal/history
 GET  /api/v1/internal/history
 POST /api/v1/internal/issues/create
@@ -376,6 +384,8 @@ Available commands:
 - `crewdeck signal --event needs-help --data '{"message": "..."}'` — call this if you need human assistance
 - `crewdeck comment --message "..."` — post a comment on the issue to report progress or findings
 - `crewdeck files --modified <files...>` — report which files you modified
+- `crewdeck issues get <issue_id>` — re-read issue details
+- `crewdeck activity <issue_id>` — see comments and activity on an issue
 
 IMPORTANT: Always call `crewdeck signal --event work-complete` when you are done with your task.
 ```
