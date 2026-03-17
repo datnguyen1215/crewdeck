@@ -426,7 +426,7 @@ Instead of returning structured JSON, the captain executes CLI commands to take 
 - `crewdeck assign --issue <id> --agent <id>` — assign an agent to an issue.
 - `crewdeck route-review --issue <id>` — send an issue to the next reviewer.
 - `crewdeck escalate --issue <id>` — flag an issue for human attention.
-- `crewdeck create-issue --title "..." --description "..."` — propose a new issue.
+- `crewdeck issues create --title "..." --description "..." [--priority <n>]` — propose a new issue.
 - `crewdeck reorder --issue <id> --priority <n>` — change issue priority.
 
 Each CLI command makes an HTTP call to the backend's internal API, which updates the database and emits events on the event bus. The captain can run multiple commands in sequence when handling a single event.
