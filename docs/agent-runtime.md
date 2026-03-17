@@ -405,7 +405,7 @@ The captain is spawned without `--print` so it starts in interactive mode, waiti
 
 ### Captain Requirement
 
-The orchestrator requires a designated **captain** agent. If no agent in the crew has `is_captain = true`, the orchestrator skips processing entirely until one is set. The captain's system prompt is passed via the `--system-prompt` flag when spawning the session.
+The orchestrator requires a designated **captain** agent. A default captain agent is automatically created when a project is created, so orchestration works out of the box. If the captain agent is removed and no agent in the crew has `is_captain = true`, the orchestrator skips processing entirely until one is set. The captain's system prompt is passed via the `--system-prompt` flag when spawning the session.
 
 ### Event Relay
 
