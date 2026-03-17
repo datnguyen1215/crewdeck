@@ -9,11 +9,13 @@ Subcommands:
   list                              List all issues for the project
   get <issue_id>                    Get details for a specific issue
   update <issue_id> --priority <n>  Update issue priority
+  close <issue_id>                  Close/cancel an issue
 
 Examples:
   crewdeck issues list
   crewdeck issues get abc123
-  crewdeck issues update abc123 --priority 2`;
+  crewdeck issues update abc123 --priority 2
+  crewdeck issues close abc123`;
 
 export async function issuesCommand(argv: string[]): Promise<void> {
   const [subcommand, ...rest] = argv;
@@ -62,6 +64,17 @@ export async function issuesCommand(argv: string[]): Promise<void> {
       }
       await post("/internal/issues/update", { project_id, issue_id: issueId, priority }, api_url);
       console.log(`Updated issue ${issueId} priority to ${priority}`);
+      break;
+    }
+    case "close": {
+      const issueId = rest[0];
+      if (!issueId) {
+        console.error("Error: <issue_id> is required\n");
+        console.error(USAGE);
+        process.exit(1);
+      }
+      await post("/internal/issues/close", { project_id, issue_id: issueId }, api_url);
+      console.log(`Issue ${issueId} closed.`);
       break;
     }
     default:

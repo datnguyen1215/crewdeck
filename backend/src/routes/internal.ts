@@ -7,7 +7,7 @@ import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
 import { getIssue, updateIssue } from "../db/repositories/issues.js";
 import { getAgent } from "../db/repositories/agents.js";
-import { getSession, updateSession } from "../db/repositories/sessions.js";
+import { getSession, listSessions, updateSession } from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
 import { createCaptainHistory, listCaptainHistory } from "../db/repositories/captain-history.js";
@@ -50,6 +50,9 @@ router.post("/signal", validate(SignalSchema), (req, res) => {
   const { session_id, agent_id, issue_id, project_id, event, data } = req.body;
 
   if (!getAgent(agent_id)) throw new NotFoundError("Agent not found");
+
+  const session = getSession(session_id);
+  if (session?.status !== "running") return res.json({ ok: true });
 
   if (event === "work-complete") {
     eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: "worker" });
@@ -176,6 +179,33 @@ router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
 
   const updated = updateIssue(issue_id, { priority });
   eventBus.emit("issue.updated", { issue_id, project_id, changes: { priority } });
+  res.json(updated);
+});
+
+// POST /issues/close — captain closes/cancels an issue
+const CloseIssueSchema = z.object({
+  project_id: z.string(),
+  issue_id: z.string(),
+});
+
+router.post("/issues/close", validate(CloseIssueSchema), (req, res) => {
+  const { project_id, issue_id } = req.body;
+
+  const issue = getIssue(issue_id);
+  if (!issue || issue.project_id !== project_id) throw new NotFoundError("Issue not found");
+
+  const from = issue.status;
+  if (from === "done") { res.json(issue); return; }
+
+  const updated = updateIssue(issue_id, { status: "done" });
+  eventBus.emit("issue.status_changed", { issue_id, project_id, from, to: "done" });
+
+  // Mark any running sessions as completed so downstream handlers ignore them
+  const runningSessions = listSessions(project_id, { issue_id, status: "running" });
+  for (const session of runningSessions) {
+    updateSession(session.id, { status: "completed" });
+  }
+
   res.json(updated);
 });
 
