@@ -11,7 +11,6 @@ import issuesRouter from "./routes/issues.js";
 import commentsRouter from "./routes/comments.js";
 import sessionsRouter from "./routes/sessions.js";
 import activityRouter from "./routes/activity.js";
-import orchestratorRouter from "./routes/orchestrator.js";
 import internalRouter from "./routes/internal.js";
 import githubAccountsRouter from "./routes/github-accounts.js";
 import captainRouter from "./routes/captain.js";
@@ -50,7 +49,6 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/projects/:projectId/issues/:issueId/comments`, commentsRouter);
   app.use(`${v1}/projects/:projectId/sessions`, sessionsRouter);
   app.use(`${v1}/projects/:projectId/activity`, activityRouter);
-  app.use(`${v1}/projects/:projectId/orchestrator`, orchestratorRouter);
   app.use(`${v1}/projects/:projectId/captain`, captainRouter);
   app.use(`${v1}/internal`, internalRouter);
   app.use(`${v1}/github-accounts`, githubAccountsRouter);

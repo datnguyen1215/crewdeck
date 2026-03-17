@@ -729,51 +729,6 @@ GET /projects/:projectId/activity
 
 ---
 
-### Orchestrator
-
-#### Start Orchestrator
-
-```
-POST /projects/:projectId/orchestrator/start
-```
-
-Creates or resumes the orchestrator session for the project. Feeds it current project state (open issues, agent availability, queue).
-
-**Response:** `200 OK`
-```json
-{
-  "session_id": "uuid",
-  "status": "running"
-}
-```
-
-#### Stop Orchestrator
-
-```
-POST /projects/:projectId/orchestrator/stop
-```
-
-Gracefully stops the orchestrator session.
-
-**Response:** `200 OK`
-
-#### Get Orchestrator Status
-
-```
-GET /projects/:projectId/orchestrator/status
-```
-
-**Response:** `200 OK`
-```json
-{
-  "session_id": "uuid",
-  "status": "running | idle | error",
-  "last_activity": "ISO 8601"
-}
-```
-
----
-
 ### Captain Messages
 
 #### List Captain Messages
