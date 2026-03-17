@@ -292,6 +292,38 @@ crewdeck activity issue_abc123
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
 
+### sessions
+
+List project sessions or stop a running session. Used by the captain to manage stuck or runaway agent sessions.
+
+```
+crewdeck sessions list
+crewdeck sessions stop <session_id>
+```
+
+**Subcommands:**
+
+| Subcommand | Description |
+|------------|-------------|
+| `list` | List all sessions in the project |
+| `stop <session_id>` | Stop a running session by ID |
+
+**Examples:**
+
+```bash
+# List all project sessions
+crewdeck sessions list
+
+# Stop a stuck session
+crewdeck sessions stop session-abc
+```
+
+**Backend behavior:** `stop` emits `session.stop_requested`, which kills the tmux session and marks it as `completed` in the database. If the stopped session is the captain's own session, it is removed from the active captain session map.
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
+
+---
+
 ### history
 
 Save or list captain decision history. Provides context continuity across captain sessions.
@@ -337,6 +369,7 @@ POST /api/v1/internal/issues/update
 POST /api/v1/internal/issues/close
 POST /api/v1/internal/history
 GET  /api/v1/internal/history
+POST /api/v1/internal/sessions/stop
 ```
 
 All requests include the session context from environment variables:
