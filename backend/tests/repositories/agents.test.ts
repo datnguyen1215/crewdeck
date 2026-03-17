@@ -60,7 +60,11 @@ describe("updateAgent", () => {
   it("updates name and title", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "Old", title: "Dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, {
+      name: "Old",
+      title: "Dev",
+      system_prompt: "s",
+    });
     const updated = updateAgent(agent.id, { name: "New", title: "Reviewer" });
     expect(updated.name).toBe("New");
     expect(updated.title).toBe("Reviewer");
@@ -69,7 +73,11 @@ describe("updateAgent", () => {
   it("updates description", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, {
+      name: "A",
+      title: "Dev",
+      system_prompt: "s",
+    });
     const updated = updateAgent(agent.id, { description: "Updated desc" });
     expect(updated.description).toBe("Updated desc");
   });
@@ -79,7 +87,11 @@ describe("deleteAgent", () => {
   it("deletes the agent", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, {
+      name: "A",
+      title: "Dev",
+      system_prompt: "s",
+    });
     deleteAgent(agent.id);
     expect(getAgent(agent.id)).toBeNull();
   });
@@ -87,11 +99,21 @@ describe("deleteAgent", () => {
   it("nulls out agent_id on sessions instead of deleting them", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
-    createSession({ project_id: p.id, session_type: "agent", agent_id: agent.id });
+    const agent = createAgent(crew.id, {
+      name: "A",
+      title: "Dev",
+      system_prompt: "s",
+    });
+    createSession({
+      project_id: p.id,
+      session_type: "agent",
+      agent_id: agent.id,
+    });
     deleteAgent(agent.id);
     expect(getAgent(agent.id)).toBeNull();
-    const sessions = db.prepare("SELECT * FROM Session WHERE project_id = ?").all(p.id) as { agent_id: string | null }[];
+    const sessions = db
+      .prepare("SELECT * FROM Session WHERE project_id = ?")
+      .all(p.id) as { agent_id: string | null }[];
     expect(sessions.length).toBe(1);
     expect(sessions[0].agent_id).toBeNull();
   });
@@ -103,7 +125,7 @@ describe("listAgents", () => {
     const crew = getCrew(p.id)!;
     createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
     createAgent(crew.id, { name: "B", title: "Dev", system_prompt: "s" });
-    expect(listAgents(crew.id).length).toBe(2);
+    expect(listAgents(crew.id).length).toBe(3); // 1 auto-captain + 2 manual
   });
 });
 
@@ -111,14 +133,22 @@ describe("hasActiveIssues", () => {
   it("returns false when agent has no issues", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, {
+      name: "A",
+      title: "Dev",
+      system_prompt: "s",
+    });
     expect(hasActiveIssues(agent.id)).toBe(false);
   });
 
   it("returns true when agent has open issue", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, {
+      name: "A",
+      title: "Dev",
+      system_prompt: "s",
+    });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     updateIssue(issue.id, { assigned_agent_id: agent.id });
     expect(hasActiveIssues(agent.id)).toBe(true);
@@ -127,7 +157,11 @@ describe("hasActiveIssues", () => {
   it("returns false when agent's issue is closed", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, {
+      name: "A",
+      title: "Dev",
+      system_prompt: "s",
+    });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     updateIssue(issue.id, { assigned_agent_id: agent.id, status: "closed" });
     expect(hasActiveIssues(agent.id)).toBe(false);
@@ -136,7 +170,11 @@ describe("hasActiveIssues", () => {
   it("returns false when agent's issue is done", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", title: "Dev", system_prompt: "s" });
+    const agent = createAgent(crew.id, {
+      name: "A",
+      title: "Dev",
+      system_prompt: "s",
+    });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     updateIssue(issue.id, { assigned_agent_id: agent.id, status: "done" });
     expect(hasActiveIssues(agent.id)).toBe(false);

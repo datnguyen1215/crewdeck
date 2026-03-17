@@ -18,10 +18,14 @@
 			.finally(() => { loading = false; });
 	});
 
+	// Only fetch accounts when projects exist (for the modal form).
+	// When projects.length === 0 the wizard manages its own account list.
 	$effect(() => {
-		listGitHubAccounts()
-			.then((data) => { githubAccounts = data; })
-			.catch(() => { /* silently fail — dropdown will just be empty */ });
+		if (projects.length > 0) {
+			listGitHubAccounts()
+				.then((data) => { githubAccounts = data; })
+				.catch(() => { /* silently fail — dropdown will just be empty */ });
+		}
 	});
 
 	function handleProjectCreated(project: Project) {
@@ -262,7 +266,7 @@
 				</button>
 			</div>
 
-			<ProjectForm {githubAccounts} onCreated={handleProjectCreated} />
+			<ProjectForm {githubAccounts} onCreated={handleProjectCreated} onCancel={closeModal} />
 		</div>
 	</div>
 {/if}

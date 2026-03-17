@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { createProject, type Project, type GitHubAccount } from '$lib/api/http.js';
 
-	const { githubAccounts = [], onCreated }: {
+	const { githubAccounts = [], onCreated, onCancel }: {
 		githubAccounts?: GitHubAccount[];
 		onCreated: (project: Project) => void;
+		onCancel?: () => void;
 	} = $props();
 
 	let githubUrl = $state('');
@@ -87,6 +88,16 @@
 
 	<!-- Actions -->
 	<div class="flex gap-3 mt-2">
+		{#if onCancel}
+			<button
+				type="button"
+				onclick={onCancel}
+				disabled={submitting}
+				class="flex-1 px-4 py-2 border border-edge rounded text-sm text-secondary hover:text-primary hover:border-edge-hi transition-colors disabled:opacity-50"
+			>
+				Cancel
+			</button>
+		{/if}
 		<button
 			type="submit"
 			disabled={submitting}

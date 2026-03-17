@@ -114,7 +114,7 @@
 	</button>
 {:else if started}
 	{#if inline}
-		<!-- Inline device flow UI (for wizard) -->
+		<!-- Inline and modal variants are intentionally separate — they share logic but have different container needs. -->
 		{#if deviceFlowError}
 			<div class="text-center py-4">
 				<p class="text-red text-sm mb-4">{deviceFlowError}</p>

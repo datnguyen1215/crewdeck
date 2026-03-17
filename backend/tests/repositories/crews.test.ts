@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "../../src/db/index.js";
 import { createProject } from "../../src/db/repositories/projects.js";
-import { getCrew, getCrewWithAgents, updateCrew } from "../../src/db/repositories/crews.js";
+import {
+  getCrew,
+  getCrewWithAgents,
+  updateCrew,
+} from "../../src/db/repositories/crews.js";
 import { createAgent } from "../../src/db/repositories/agents.js";
 
 function clearAll() {
@@ -36,12 +40,20 @@ describe("getCrewWithAgents", () => {
   it("returns crew with agents", () => {
     const p = createProject({ name: "P" });
     const crew = getCrew(p.id)!;
-    createAgent(crew.id, { name: "Alice", title: "dev", system_prompt: "you are alice" });
-    createAgent(crew.id, { name: "Bob", title: "reviewer", system_prompt: "you are bob" });
+    createAgent(crew.id, {
+      name: "Alice",
+      title: "dev",
+      system_prompt: "you are alice",
+    });
+    createAgent(crew.id, {
+      name: "Bob",
+      title: "reviewer",
+      system_prompt: "you are bob",
+    });
 
     const result = getCrewWithAgents(p.id);
     expect(result).not.toBeNull();
-    expect(result!.agents.length).toBe(2);
+    expect(result!.agents.length).toBe(3); // 1 auto-captain + 2 manual
   });
 
   it("returns null when project not found", () => {

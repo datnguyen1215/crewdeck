@@ -1,7 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { listGitHubAccounts, type GitHubAccount, type Project } from '$lib/api/http.js';
-	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import GitHubConnect from './GitHubConnect.svelte';
 	import ProjectForm from './ProjectForm.svelte';
 
@@ -12,7 +12,7 @@
 
 	const totalSteps = 3;
 
-	$effect(() => {
+	onMount(() => {
 		listGitHubAccounts()
 			.then((data) => {
 				githubAccounts = data;
