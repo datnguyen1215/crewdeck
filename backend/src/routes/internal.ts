@@ -5,7 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
-import { getIssue } from "../db/repositories/issues.js";
+import { createIssue, getIssue } from "../db/repositories/issues.js";
 import { getAgent } from "../db/repositories/agents.js";
 import { getSession, updateSession } from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
@@ -159,6 +159,21 @@ router.get("/history", (req, res) => {
   if (!project_id) { res.status(400).json({ message: "project_id query param required" }); return; }
   const entries = listCaptainHistory(project_id);
   res.json(entries);
+});
+
+// POST /issues/create — captain creates a new issue
+const CreateIssueSchema = z.object({
+  project_id: z.string(),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  priority: z.number().int().optional(),
+});
+
+router.post("/issues/create", validate(CreateIssueSchema), (req, res) => {
+  const { project_id, title, description, priority } = req.body;
+  const issue = createIssue(project_id, { title, description, priority, created_by: "orchestrator" });
+  eventBus.emit("issue.created", { issue });
+  res.status(201).json(issue);
 });
 
 export default router;
