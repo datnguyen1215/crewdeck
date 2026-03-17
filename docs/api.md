@@ -674,7 +674,7 @@ GET /projects/:projectId/sessions
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | status | TEXT | Filter by status (`idle`, `running`, `completed`, `error`). |
-| session_type | TEXT | Filter by type (`orchestrator`, `worker`, `reviewer`, `utility`). |
+| session_type | TEXT | Filter by type (`captain`, `worker`, `reviewer`, `utility`). |
 
 **Response:** `200 OK` — Array of session objects.
 
