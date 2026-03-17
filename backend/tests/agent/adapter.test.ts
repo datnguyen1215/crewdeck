@@ -47,17 +47,18 @@ describe("ClaudeCodeAdapter", () => {
       expect(handle.sessionName).toBe("crewdeck-test");
     });
 
-    it("injects environment variables into the tmux session", async () => {
-      const calls: string[] = [];
+    it("injects environment variables into the launch script", async () => {
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
-        calls.push(cmd as string);
         (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
           null,
           { stdout: "", stderr: "" }
         );
         return {} as ReturnType<typeof exec>;
       });
+
+      const { writeFile } = await import("node:fs/promises");
+      const writeMock = vi.mocked(writeFile);
 
       await adapter.spawn({
         sessionName: "test-env",
@@ -66,10 +67,10 @@ describe("ClaudeCodeAdapter", () => {
         env: { CREWDECK_SESSION_ID: "sess-1", CREWDECK_AGENT_ID: "agent-1" },
       });
 
-      const setenvCalls = calls.filter((c) => c.includes("setenv"));
-      expect(setenvCalls).toHaveLength(2);
-      expect(setenvCalls[0]).toContain("CREWDECK_SESSION_ID");
-      expect(setenvCalls[1]).toContain("CREWDECK_AGENT_ID");
+      expect(writeMock).toHaveBeenCalledOnce();
+      const scriptContent = writeMock.mock.calls[0][1] as string;
+      expect(scriptContent).toContain("CREWDECK_SESSION_ID");
+      expect(scriptContent).toContain("CREWDECK_AGENT_ID");
     });
 
     it("includes system-prompt in the launch script when provided", async () => {
@@ -101,10 +102,10 @@ describe("ClaudeCodeAdapter", () => {
 
   describe("send", () => {
     it("sends keys to the correct tmux session", async () => {
-      let capturedCmd = "";
+      const calls: string[] = [];
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
-        capturedCmd = cmd as string;
+        calls.push(cmd as string);
         (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
           null,
           { stdout: "", stderr: "" }
@@ -114,9 +115,12 @@ describe("ClaudeCodeAdapter", () => {
 
       await adapter.send("my-session", "hello world");
 
-      expect(capturedCmd).toContain("tmux send-keys");
-      expect(capturedCmd).toContain("my-session");
-      expect(capturedCmd).toContain("hello world");
+      // send() issues two exec calls: one with the text, one with Enter
+      expect(calls.length).toBe(2);
+      expect(calls[0]).toContain("tmux send-keys");
+      expect(calls[0]).toContain("my-session");
+      expect(calls[0]).toContain("hello world");
+      expect(calls[1]).toContain("Enter");
     });
   });
 
