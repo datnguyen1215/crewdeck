@@ -45,7 +45,13 @@ If the code looks good:
 
 If changes are needed:
   crewdeck comment --message 'Specific feedback here'
-  crewdeck signal --event review-complete --data '{"verdict":"changes_requested"}'`);
+  crewdeck signal --event review-complete --data '{"verdict":"changes_requested"}'
+
+To re-read issue details:
+  crewdeck issues get <issue_id>
+
+To see comments and activity on an issue:
+  crewdeck activity <issue_id>`);
 
   return parts.join("\n\n");
 }
@@ -90,7 +96,13 @@ Post progress updates with:
   crewdeck comment --message '...'
 
 Report modified files with:
-  crewdeck files --modified <files>`);
+  crewdeck files --modified <files>
+
+To re-read issue details or check related issues:
+  crewdeck issues get <issue_id>
+
+To see comments and activity on an issue:
+  crewdeck activity <issue_id>`);
 
   return parts.join("\n\n");
 }

@@ -31,6 +31,7 @@ crewdeck issues get <issue_id>    — get issue details
 crewdeck agents list              — list project agents (with idle/busy status)
 crewdeck assign <issue_id> <agent_id>          — assign an agent to work on an issue
 crewdeck route-review <issue_id> <agent_id>    — route an issue to a reviewer
+crewdeck issues close <issue_id>       — close/cancel an issue
 crewdeck activity <issue_id>      — fetch comments and activity for an issue
 crewdeck history save --summary "..."  — save a decision summary
 crewdeck history list             — list your decision history
