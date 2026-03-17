@@ -303,6 +303,31 @@ crewdeck route-review issue_abc123 agent_reviewer01
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
 
+### create-pr
+
+Push the issue branch and create a GitHub pull request. Captain-only command, called after all reviewers approve an issue.
+
+```
+crewdeck create-pr <issue_id>
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `issue_id` | Yes | The issue to create a PR for |
+
+**Examples:**
+
+```bash
+# Create a PR for an approved issue
+crewdeck create-pr issue_abc123
+```
+
+**Backend behavior:** Pushes the issue's worktree branch using the project's OAuth token (via `GIT_ASKPASS`), then runs `gh pr create` to open a GitHub PR. Records the PR in the `IssuePR` table, transitions the issue to `pr_created`, and emits `pr.created` on the event bus.
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
+
 ### reorder
 
 Change the priority of an issue. Captain-only command.
@@ -423,6 +448,7 @@ POST /api/v1/internal/status
 POST /api/v1/internal/files
 POST /api/v1/internal/assign
 POST /api/v1/internal/route-review
+POST /api/v1/internal/create-pr
 POST /api/v1/internal/issues/update
 POST /api/v1/internal/issues/close
 POST /api/v1/internal/history
