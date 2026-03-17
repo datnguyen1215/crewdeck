@@ -5,20 +5,22 @@ import { agentSessionName } from "../agent/types.js";
 import { buildAgentPrompt } from "../agent/prompt.js";
 import { createWorktree, cleanupWorktree } from "../agent/worktree.js";
 import { getProject } from "../db/repositories/projects.js";
-import { listIssues, getIssue, updateIssue } from "../db/repositories/issues.js";
+import {
+  listIssues,
+  getIssue,
+  updateIssue,
+} from "../db/repositories/issues.js";
 import { getAgent } from "../db/repositories/agents.js";
 import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listRepos } from "../db/repositories/repos.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
+import { config } from "../config.js";
 import { createComment, listComments } from "../db/repositories/comments.js";
 import {
   createIssueAgent,
   updateIssueAgent,
 } from "../db/repositories/issue-agents.js";
-import {
-  createSession,
-  updateSession,
-} from "../db/repositories/sessions.js";
+import { createSession, updateSession } from "../db/repositories/sessions.js";
 
 // Execute an assign action triggered by the captain via CLI
 export async function executeAssign(
@@ -29,23 +31,38 @@ export async function executeAssign(
   adapter: AgentAdapter,
 ): Promise<void> {
   const issue = getIssue(issueId);
-  if (!issue) { logger.warn({ issueId }, "assign: issue not found"); return; }
+  if (!issue) {
+    logger.warn({ issueId }, "assign: issue not found");
+    return;
+  }
   if (issue.project_id !== projectId) {
-    logger.warn({ issueId, projectId }, "assign: issue does not belong to project");
+    logger.warn(
+      { issueId, projectId },
+      "assign: issue does not belong to project",
+    );
     return;
   }
   if (!["open", "draft"].includes(issue.status)) {
-    logger.warn({ issueId, status: issue.status }, "assign: issue is not in assignable state");
+    logger.warn(
+      { issueId, status: issue.status },
+      "assign: issue is not in assignable state",
+    );
     return;
   }
 
   const agent = getAgent(agentId);
-  if (!agent) { logger.warn({ agentId }, "assign: agent not found"); return; }
+  if (!agent) {
+    logger.warn({ agentId }, "assign: agent not found");
+    return;
+  }
 
   const crew = getCrewWithAgents(projectId);
   if (!crew) return;
   if (agent.crew_id !== crew.id) {
-    logger.warn({ agentId, crew_id: crew.id }, "assign: agent does not belong to project crew");
+    logger.warn(
+      { agentId, crew_id: crew.id },
+      "assign: agent does not belong to project crew",
+    );
     return;
   }
 
@@ -55,10 +72,13 @@ export async function executeAssign(
   // Concurrency check
   const all = listIssues(projectId);
   const activeCount = all.filter((i) =>
-    ["in_progress", "in_review", "feedback"].includes(i.status)
+    ["in_progress", "in_review", "feedback"].includes(i.status),
   ).length;
   if (activeCount >= project.max_concurrency) {
-    logger.info({ projectId, activeCount, max: project.max_concurrency }, "assign: concurrency limit reached");
+    logger.info(
+      { projectId, activeCount, max: project.max_concurrency },
+      "assign: concurrency limit reached",
+    );
     createComment(issueId, {
       content: `Issue queued — concurrency limit reached (${activeCount}/${project.max_concurrency})`,
       author_type: "orchestrator",
@@ -66,8 +86,17 @@ export async function executeAssign(
     return;
   }
 
-  const updatedIssue = updateIssue(issueId, { assigned_agent_id: agentId, status: "in_progress" });
-  const issueAgent = createIssueAgent({ issue_id: issueId, agent_id: agentId, role: "worker", status: "active", review_round: 0 });
+  const updatedIssue = updateIssue(issueId, {
+    assigned_agent_id: agentId,
+    status: "in_progress",
+  });
+  const issueAgent = createIssueAgent({
+    issue_id: issueId,
+    agent_id: agentId,
+    role: "worker",
+    status: "active",
+    review_round: 0,
+  });
 
   // Create worktree if repo is configured
   const repos = listRepos(projectId);
@@ -80,7 +109,10 @@ export async function executeAssign(
       worktreePath = wt.path;
       createdBranchName = wt.branchName;
     } catch (err) {
-      logger.error({ err, issueId }, "assign: failed to create worktree, using /tmp");
+      logger.error(
+        { err, issueId },
+        "assign: failed to create worktree, using /tmp",
+      );
       repo = null;
     }
   }
@@ -118,6 +150,7 @@ export async function executeAssign(
         CREWDECK_AGENT_ID: agentId,
         CREWDECK_ISSUE_ID: issueId,
         CREWDECK_PROJECT_ID: projectId,
+        CREWDECK_API_URL: `http://${config.host}:${config.port}/api/v1`,
         ...(ghAccount ? { GH_TOKEN: ghAccount.oauth_token } : {}),
       },
     });
@@ -133,15 +166,30 @@ export async function executeAssign(
       base_branch: issue.base_branch ?? null,
     });
     if (repo && createdBranchName) {
-      cleanupWorktree(repo, worktreePath, createdBranchName).catch((cleanErr) => {
-        logger.warn({ cleanErr, worktreePath }, "assign: failed to clean up orphaned worktree");
-      });
+      cleanupWorktree(repo, worktreePath, createdBranchName).catch(
+        (cleanErr) => {
+          logger.warn(
+            { cleanErr, worktreePath },
+            "assign: failed to clean up orphaned worktree",
+          );
+        },
+      );
     }
     return;
   }
 
-  bus.emit("issue.status_changed", { issue_id: issueId, project_id: projectId, from: issue.status, to: "in_progress" });
-  bus.emit("issue.assigned", { issue_id: issueId, project_id: projectId, agent_id: agentId, agent_name: agent.name });
+  bus.emit("issue.status_changed", {
+    issue_id: issueId,
+    project_id: projectId,
+    from: issue.status,
+    to: "in_progress",
+  });
+  bus.emit("issue.assigned", {
+    issue_id: issueId,
+    project_id: projectId,
+    agent_id: agentId,
+    agent_name: agent.name,
+  });
   bus.emit("session.started", {
     session_id: session.id,
     agent_id: agentId,
