@@ -5,26 +5,44 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
-import { createIssue, getIssue, updateIssue } from "../db/repositories/issues.js";
+import {
+  createIssue,
+  getIssue,
+  updateIssue,
+} from "../db/repositories/issues.js";
 import { getAgent } from "../db/repositories/agents.js";
-import { getSession, listSessions, updateSession } from "../db/repositories/sessions.js";
+import {
+  getSession,
+  listSessions,
+  updateSession,
+} from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
-import { createCaptainHistory, listCaptainHistory } from "../db/repositories/captain-history.js";
+import {
+  createCaptainHistory,
+  listCaptainHistory,
+} from "../db/repositories/captain-history.js";
 
 const router = Router();
 
-const SignalSchema = z.object({
-  session_id: z.string(),
-  agent_id: z.string(),
-  issue_id: z.string(),
-  project_id: z.string(),
-  event: z.enum(["work-complete", "review-complete", "error", "needs-help"]),
-  data: z.object({ verdict: z.string().optional(), message: z.string().optional() }).optional(),
-}).refine(
-  (d) => d.event !== "review-complete" || !!d.data?.verdict,
-  { message: "verdict is required for review-complete signals", path: ["data", "verdict"] },
-);
+const SignalSchema = z
+  .object({
+    session_id: z.string(),
+    agent_id: z.string(),
+    issue_id: z.string(),
+    project_id: z.string(),
+    event: z.enum(["work-complete", "review-complete", "error", "needs-help"]),
+    data: z
+      .object({
+        verdict: z.string().optional(),
+        message: z.string().optional(),
+      })
+      .optional(),
+  })
+  .refine((d) => d.event !== "review-complete" || !!d.data?.verdict, {
+    message: "verdict is required for review-complete signals",
+    path: ["data", "verdict"],
+  });
 
 const CommentSchema = z.object({
   issue_id: z.string(),
@@ -55,14 +73,38 @@ router.post("/signal", validate(SignalSchema), (req, res) => {
   if (session?.status !== "running") return res.json({ ok: true });
 
   if (event === "work-complete") {
-    eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: "worker" });
+    eventBus.emit("agent.finished", {
+      session_id,
+      agent_id,
+      issue_id,
+      project_id,
+      role: "worker",
+    });
   } else if (event === "review-complete") {
     // verdict is guaranteed present by SignalSchema .refine()
-    eventBus.emit("review.completed", { session_id, issue_id, agent_id, project_id, verdict: data!.verdict! });
+    eventBus.emit("review.completed", {
+      session_id,
+      issue_id,
+      agent_id,
+      project_id,
+      verdict: data!.verdict!,
+    });
   } else if (event === "error") {
-    eventBus.emit("agent.error", { session_id, agent_id, issue_id, project_id, message: data?.message });
+    eventBus.emit("agent.error", {
+      session_id,
+      agent_id,
+      issue_id,
+      project_id,
+      message: data?.message,
+    });
   } else if (event === "needs-help") {
-    eventBus.emit("agent.needs_help", { session_id, agent_id, issue_id, project_id, message: data?.message });
+    eventBus.emit("agent.needs_help", {
+      session_id,
+      agent_id,
+      issue_id,
+      project_id,
+      message: data?.message,
+    });
   }
 
   res.json({ ok: true });
@@ -73,7 +115,8 @@ router.post("/comment", validate(CommentSchema), (req, res) => {
   const { issue_id, project_id, agent_id, content } = req.body;
 
   const issue = getIssue(issue_id);
-  if (!issue || issue.project_id !== project_id) throw new NotFoundError("Issue not found");
+  if (!issue || issue.project_id !== project_id)
+    throw new NotFoundError("Issue not found");
 
   const comment = createComment(issue_id, {
     content,
@@ -92,7 +135,12 @@ router.post("/status", validate(StatusSchema), (req, res) => {
   const agent = getAgent(agent_id);
   if (!agent) throw new NotFoundError("Agent not found");
 
-  eventBus.emit("agent.status_changed", { agent_id, issue_id, project_id, state });
+  eventBus.emit("agent.status_changed", {
+    agent_id,
+    issue_id,
+    project_id,
+    state,
+  });
 
   res.json({ ok: true });
 });
@@ -107,9 +155,10 @@ router.post("/files", validate(FilesSchema), (req, res) => {
 
   const ctx = session.context;
   // Guard needed because session.context is typed as unknown in the DB layer
-  const existing = (typeof ctx === "object" && ctx !== null && !Array.isArray(ctx))
-    ? (ctx as Record<string, unknown>)
-    : {};
+  const existing =
+    typeof ctx === "object" && ctx !== null && !Array.isArray(ctx)
+      ? (ctx as Record<string, unknown>)
+      : {};
   updateSession(session_id, {
     context: { ...existing, modified_files: modified },
   });
@@ -139,7 +188,11 @@ const RouteReviewSchema = z.object({
 
 router.post("/route-review", validate(RouteReviewSchema), (req, res) => {
   const { project_id, issue_id, reviewer_agent_id } = req.body;
-  eventBus.emit("captain.route_review", { project_id, issue_id, reviewer_agent_id });
+  eventBus.emit("captain.route_review", {
+    project_id,
+    issue_id,
+    reviewer_agent_id,
+  });
   res.json({ ok: true });
 });
 
@@ -159,7 +212,10 @@ router.post("/history", validate(HistorySaveSchema), (req, res) => {
 // GET /history — list captain decision history
 router.get("/history", (req, res) => {
   const project_id = req.query.project_id as string;
-  if (!project_id) { res.status(400).json({ message: "project_id query param required" }); return; }
+  if (!project_id) {
+    res.status(400).json({ message: "project_id query param required" });
+    return;
+  }
   const entries = listCaptainHistory(project_id);
   res.json(entries);
 });
@@ -174,7 +230,12 @@ const CreateIssueSchema = z.object({
 
 router.post("/issues/create", validate(CreateIssueSchema), (req, res) => {
   const { project_id, title, description, priority } = req.body;
-  const issue = createIssue(project_id, { title, description, priority, created_by: "orchestrator" });
+  const issue = createIssue(project_id, {
+    title,
+    description,
+    priority,
+    created_by: "orchestrator",
+  });
   eventBus.emit("issue.created", { issue });
   res.status(201).json(issue);
 });
@@ -190,7 +251,8 @@ router.post("/sessions/stop", validate(SessionStopSchema), (req, res) => {
 
   const session = getSession(session_id);
   if (!session) throw new NotFoundError("Session not found");
-  if (session.project_id !== project_id) throw new NotFoundError("Session not found");
+  if (session.project_id !== project_id)
+    throw new NotFoundError("Session not found");
 
   eventBus.emit("session.stop_requested", { session_id, project_id });
 
@@ -208,11 +270,16 @@ router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
   const { project_id, issue_id, priority } = req.body;
 
   const issue = getIssue(issue_id);
-  if (!issue || issue.project_id !== project_id) throw new NotFoundError("Issue not found");
+  if (!issue || issue.project_id !== project_id)
+    throw new NotFoundError("Issue not found");
 
   const updated = updateIssue(issue_id, { priority });
-  eventBus.emit("issue.updated", { issue_id, project_id, changes: { priority } });
-  res.json(updated)
+  eventBus.emit("issue.updated", {
+    issue_id,
+    project_id,
+    changes: { priority },
+  });
+  res.json(updated);
 });
 
 // POST /issues/close — captain closes/cancels an issue
@@ -225,21 +292,46 @@ router.post("/issues/close", validate(CloseIssueSchema), (req, res) => {
   const { project_id, issue_id } = req.body;
 
   const issue = getIssue(issue_id);
-  if (!issue || issue.project_id !== project_id) throw new NotFoundError("Issue not found");
+  if (!issue || issue.project_id !== project_id)
+    throw new NotFoundError("Issue not found");
 
   const from = issue.status;
-  if (from === "done") { res.json(issue); return; }
+  if (from === "done") {
+    res.json(issue);
+    return;
+  }
 
   const updated = updateIssue(issue_id, { status: "done" });
-  eventBus.emit("issue.status_changed", { issue_id, project_id, from, to: "done" });
+  eventBus.emit("issue.status_changed", {
+    issue_id,
+    project_id,
+    from,
+    to: "done",
+  });
 
   // Mark any running sessions as completed so downstream handlers ignore them
-  const runningSessions = listSessions(project_id, { issue_id, status: "running" });
+  const runningSessions = listSessions(project_id, {
+    issue_id,
+    status: "running",
+  });
   for (const session of runningSessions) {
     updateSession(session.id, { status: "completed" });
   }
 
   res.json(updated);
+});
+
+// POST /create-pr — captain requests PR creation for an approved issue
+// Fire-and-forget: PR creation runs async; success/failure posted as issue comments
+const CreatePRSchema = z.object({
+  project_id: z.string(),
+  issue_id: z.string(),
+});
+
+router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
+  const { project_id, issue_id } = req.body;
+  eventBus.emit("captain.create_pr", { project_id, issue_id });
+  res.json({ ok: true });
 });
 
 export default router;

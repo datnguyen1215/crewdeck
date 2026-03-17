@@ -5,7 +5,11 @@ import type { AgentAdapter } from "../agent/types.js";
 import { captainSessionName } from "../agent/types.js";
 import { JsonlWatcher } from "../agent/jsonl-watcher.js";
 import { escapeXml } from "../utils/xml.js";
-import { getProject, updateProject, listProjects } from "../db/repositories/projects.js";
+import {
+  getProject,
+  updateProject,
+  listProjects,
+} from "../db/repositories/projects.js";
 import { getIssue } from "../db/repositories/issues.js";
 import { getAgent, getCaptain } from "../db/repositories/agents.js";
 import { getCrewWithAgents } from "../db/repositories/crews.js";
@@ -19,10 +23,14 @@ import { createCaptainMessage } from "../db/repositories/captain-messages.js";
 import { config } from "../config.js";
 import { executeAssign } from "./assignment-service.js";
 import { executeRouteReview, handleReviewVerdict } from "./review-service.js";
+import { executeCreatePR } from "./pr-service.js";
 
 // Build the initial prompt that tells the captain what CLI commands are available
 // and provides any saved decision history for context continuity.
-function buildCaptainInitialPrompt(projectId: string, maxConcurrency: number): string {
+function buildCaptainInitialPrompt(
+  projectId: string,
+  maxConcurrency: number,
+): string {
   let prompt = `You are the captain of this project. You drive all decisions using the crewdeck CLI.
 
 ## Available Commands
@@ -41,6 +49,7 @@ crewdeck history save --summary "..."  — save a decision summary
 crewdeck history list             — list your decision history
 crewdeck sessions list            — list project sessions
 crewdeck sessions stop <session_id>  — stop a running session
+crewdeck create-pr <issue_id>     — push branch and create a GitHub PR
 \`\`\`
 
 ## How It Works
@@ -55,14 +64,16 @@ crewdeck sessions stop <session_id>  — stop a running session
 - Max ${maxConcurrency} issue${maxConcurrency === 1 ? "" : "s"} in progress at a time.
 - Only assign idle agents to open/draft issues.
 - After an agent finishes, route to a reviewer.
-- After review approval, the issue is done.
+- After review approval, create a PR with \`crewdeck create-pr <issue_id>\`.
 - If a review requests changes, re-assign the original worker.
 
 Start by listing issues and agents to understand the current state.`;
 
   const history = listCaptainHistory(projectId);
   if (history.length > 0) {
-    const entries = history.map((h) => `- [${h.created_at}] ${h.summary}`).join("\n");
+    const entries = history
+      .map((h) => `- [${h.created_at}] ${h.summary}`)
+      .join("\n");
     prompt += `\n\n## Decision History (from previous sessions)\n${entries}`;
   }
 
@@ -83,11 +94,30 @@ export class OrchestratorManager {
   init(): void {
     // Captain action events — triggered by captain CLI commands via internal API
     this.bus.on("captain.assign", ({ project_id, issue_id, agent_id }) => {
-      void executeAssign(project_id, issue_id, agent_id, this.bus, this.adapter);
+      void executeAssign(
+        project_id,
+        issue_id,
+        agent_id,
+        this.bus,
+        this.adapter,
+      );
     });
 
-    this.bus.on("captain.route_review", ({ project_id, issue_id, reviewer_agent_id }) => {
-      void executeRouteReview(project_id, issue_id, reviewer_agent_id, this.bus, this.adapter);
+    this.bus.on(
+      "captain.route_review",
+      ({ project_id, issue_id, reviewer_agent_id }) => {
+        void executeRouteReview(
+          project_id,
+          issue_id,
+          reviewer_agent_id,
+          this.bus,
+          this.adapter,
+        );
+      },
+    );
+
+    this.bus.on("captain.create_pr", ({ project_id, issue_id }) => {
+      void executeCreatePR(project_id, issue_id, this.bus);
     });
 
     this.bus.on("session.stop_requested", ({ session_id, project_id }) => {
@@ -103,25 +133,42 @@ export class OrchestratorManager {
       );
     });
 
-    this.bus.on("agent.finished", ({ issue_id, project_id, agent_id, role }) => {
-      const issue = getIssue(issue_id);
-      const agent = getAgent(agent_id);
-      void this.sendToCaptain(
-        project_id,
-        `Agent ${agent?.name ?? agent_id} finished ${role} work on issue "${escapeXml(issue?.title ?? issue_id)}" (issue_id: ${issue_id}). Use \`crewdeck activity ${issue_id}\` to review and decide next steps.`,
-      );
-    });
+    this.bus.on(
+      "agent.finished",
+      ({ issue_id, project_id, agent_id, role }) => {
+        const issue = getIssue(issue_id);
+        const agent = getAgent(agent_id);
+        void this.sendToCaptain(
+          project_id,
+          `Agent ${agent?.name ?? agent_id} finished ${role} work on issue "${escapeXml(issue?.title ?? issue_id)}" (issue_id: ${issue_id}). Use \`crewdeck activity ${issue_id}\` to review and decide next steps.`,
+        );
+      },
+    );
 
-    this.bus.on("review.completed", ({ issue_id, project_id, agent_id, verdict }) => {
-      handleReviewVerdict(issue_id, project_id, agent_id, verdict, this.bus);
+    this.bus.on(
+      "review.completed",
+      ({ issue_id, project_id, agent_id, verdict }) => {
+        handleReviewVerdict(issue_id, project_id, agent_id, verdict, this.bus);
 
-      const safeVerdict = ["approved", "changes_requested"].includes(verdict) ? verdict : "unknown";
-      const issue = getIssue(issue_id);
-      const agent = getAgent(agent_id);
-      void this.sendToCaptain(
-        project_id,
-        `Review completed on issue "${escapeXml(issue?.title ?? issue_id)}" by ${agent?.name ?? agent_id} with verdict: ${safeVerdict} (round ${issue?.current_review_round ?? "?"}/${issue?.max_review_rounds ?? "?"}).`,
-      );
+        const safeVerdict = ["approved", "changes_requested"].includes(verdict)
+          ? verdict
+          : "unknown";
+        const issue = getIssue(issue_id);
+        const agent = getAgent(agent_id);
+        void this.sendToCaptain(
+          project_id,
+          `Review completed on issue "${escapeXml(issue?.title ?? issue_id)}" by ${agent?.name ?? agent_id} with verdict: ${safeVerdict} (round ${issue?.current_review_round ?? "?"}/${issue?.max_review_rounds ?? "?"}).`,
+        );
+      },
+    );
+
+    this.bus.on("issue.approved", ({ issue }) => {
+      if (issue.status === "ready") {
+        void this.sendToCaptain(
+          issue.project_id,
+          `All reviewers approved issue "${escapeXml(issue.title)}" (ID: ${issue.id}). Create a PR with \`crewdeck create-pr ${issue.id}\`.`,
+        );
+      }
     });
 
     this.bus.on("comment.added", ({ comment, project_id }) => {
@@ -141,12 +188,17 @@ export class OrchestratorManager {
     });
   }
 
-  private async handleSessionStop(sessionId: string, projectId: string): Promise<void> {
+  private async handleSessionStop(
+    sessionId: string,
+    projectId: string,
+  ): Promise<void> {
     const session = getSession(sessionId);
     if (!session?.tmux_session_name) return;
     try {
       await this.adapter.kill(session.tmux_session_name);
-    } catch { /* already gone */ }
+    } catch {
+      /* already gone */
+    }
     updateSession(sessionId, { status: "completed" });
 
     // Clean up captainSessions and watcher if the stopped session is a captain session
@@ -196,12 +248,18 @@ export class OrchestratorManager {
 
     const captain = getCaptain(crew.id);
     if (!captain) {
-      logger.info({ projectId }, "Captain: no captain agent designated, skipping");
+      logger.info(
+        { projectId },
+        "Captain: no captain agent designated, skipping",
+      );
       return null;
     }
 
     const tmuxName = captainSessionName(projectId);
-    const initialPrompt = buildCaptainInitialPrompt(projectId, project.max_concurrency);
+    const initialPrompt = buildCaptainInitialPrompt(
+      projectId,
+      project.max_concurrency,
+    );
     const claudeSessionId = crypto.randomUUID();
 
     const session = createSession({
@@ -252,7 +310,10 @@ export class OrchestratorManager {
     return tmuxName;
   }
 
-  private async sendToCaptain(projectId: string, message: string): Promise<void> {
+  private async sendToCaptain(
+    projectId: string,
+    message: string,
+  ): Promise<void> {
     const tmuxName = await this.ensureCaptainSession(projectId);
     if (!tmuxName) return;
 
@@ -260,13 +321,19 @@ export class OrchestratorManager {
     const watcher = this.jsonlWatchers.get(projectId);
     const claudeSessionId = this.claudeSessionIds.get(projectId);
     if (claudeSessionId && (!watcher || !watcher.isRunning())) {
-      logger.debug({ projectId }, "Restarting JSONL watcher before sending to captain");
+      logger.debug(
+        { projectId },
+        "Restarting JSONL watcher before sending to captain",
+      );
       this.startWatcher(projectId, claudeSessionId);
     }
 
     try {
       await this.adapter.send(tmuxName, message);
-      logger.debug({ projectId, message: message.slice(0, 100) }, "Sent message to captain");
+      logger.debug(
+        { projectId, message: message.slice(0, 100) },
+        "Sent message to captain",
+      );
     } catch (err) {
       logger.error({ err, projectId }, "Failed to send message to captain");
       this.stopWatcher(projectId);
@@ -281,9 +348,12 @@ export class OrchestratorManager {
     await Promise.all(
       projects.map((p) =>
         this.ensureCaptainSession(p.id).catch((err) => {
-          logger.error({ err, projectId: p.id }, "Failed to auto-start captain session");
-        })
-      )
+          logger.error(
+            { err, projectId: p.id },
+            "Failed to auto-start captain session",
+          );
+        }),
+      ),
     );
   }
 
@@ -292,7 +362,9 @@ export class OrchestratorManager {
     const tmuxName = captainSessionName(projectId);
     try {
       await this.adapter.kill(tmuxName);
-    } catch { /* already gone */ }
+    } catch {
+      /* already gone */
+    }
     const sessionId = this.captainSessions.get(projectId);
     if (sessionId) {
       updateSession(sessionId, { status: "completed" });

@@ -16,7 +16,9 @@ const transitionTo = async (
       .patch(`/api/v1/projects/${projectId}/issues/${issueId}`)
       .send({ status });
     if (res.status !== 200) {
-      throw new Error(`transitionTo failed: expected 200 for "${status}", got ${res.status}`);
+      throw new Error(
+        `transitionTo failed: expected 200 for "${status}", got ${res.status}`,
+      );
     }
   }
 };
@@ -46,7 +48,10 @@ describe("Issues API", () => {
     app = await getApp();
     const res = await request(app)
       .post("/api/v1/projects")
-      .send({ name: "issues-test-project", github_url: "https://github.com/test/repo" });
+      .send({
+        name: "issues-test-project",
+        github_url: "https://github.com/test/repo",
+      });
     projectId = res.body.id;
   });
 
@@ -56,7 +61,10 @@ describe("Issues API", () => {
     it("returns empty array when no issues", async () => {
       const proj = await request(app)
         .post("/api/v1/projects")
-        .send({ name: "empty-project", github_url: "https://github.com/test/repo" });
+        .send({
+          name: "empty-project",
+          github_url: "https://github.com/test/repo",
+        });
       const res = await request(app).get(base(proj.body.id));
       expect(res.status).toBe(200);
       expect(res.body).toEqual([]);
@@ -358,7 +366,7 @@ describe("Issues API", () => {
   });
 
   describe("POST /create-pr", () => {
-    it("transitions ready to pr_created", async () => {
+    it("accepts ready issue and returns ok", async () => {
       const issue = await createIssue(app, projectId);
       await transitionTo(app, projectId, issue.id, [
         "in_progress",
@@ -369,7 +377,7 @@ describe("Issues API", () => {
         `${base(projectId)}/${issue.id}/create-pr`,
       );
       expect(res.status).toBe(200);
-      expect(res.body.status).toBe("pr_created");
+      expect(res.body.ok).toBe(true);
     });
 
     it("rejects non-ready issue", async () => {

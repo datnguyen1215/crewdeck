@@ -10,6 +10,7 @@ import { routeReviewCommand } from "./commands/route-review.js";
 import { activityCommand } from "./commands/activity.js";
 import { historyCommand } from "./commands/history.js";
 import { sessionsCommand } from "./commands/sessions.js";
+import { createPRCommand } from "./commands/create-pr.js";
 
 const USAGE = `Usage: crewdeck <command> [options]
 
@@ -25,6 +26,7 @@ Commands:
   activity        Get activity for an issue
   history         Save or list agent history
   sessions        List or stop agent sessions
+  create-pr       Push branch and create a GitHub PR for an issue
 
 Run "crewdeck <command> --help" for command-specific usage.`;
 
@@ -64,6 +66,9 @@ async function main() {
       break;
     case "sessions":
       await sessionsCommand(args);
+      break;
+    case "create-pr":
+      await createPRCommand(args);
       break;
     default:
       if (!command || command === "--help" || command === "-h") {
