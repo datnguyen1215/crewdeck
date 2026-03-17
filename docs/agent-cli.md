@@ -169,6 +169,7 @@ List or get project issues. Used by the captain to inspect issue state.
 ```
 crewdeck issues list
 crewdeck issues get <issue_id>
+crewdeck issues close <issue_id>
 ```
 
 **Subcommands:**
@@ -177,6 +178,7 @@ crewdeck issues get <issue_id>
 |------------|-------------|
 | `list` | List all issues in the project |
 | `get <issue_id>` | Get details for a specific issue |
+| `close <issue_id>` | Close/cancel an issue (transitions to `done`) |
 
 **Examples:**
 
@@ -186,6 +188,9 @@ crewdeck issues list
 
 # Get details for a specific issue
 crewdeck issues get issue_abc123
+
+# Close/cancel an issue
+crewdeck issues close issue_abc123
 ```
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
@@ -323,6 +328,7 @@ POST /api/v1/internal/status
 POST /api/v1/internal/files
 POST /api/v1/internal/assign
 POST /api/v1/internal/route-review
+POST /api/v1/internal/issues/close
 POST /api/v1/internal/history
 GET  /api/v1/internal/history
 ```
