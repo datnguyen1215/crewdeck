@@ -9,7 +9,8 @@
  *  In production, uses the same origin (backend serves both HTTP and WS). */
 function wsBase(): string {
   const backendUrl: string =
-    import.meta.env.VITE_BACKEND_URL || "http://localhost:9381";
+    import.meta.env.VITE_BACKEND_URL ||
+    (import.meta.env.DEV ? "http://localhost:9381" : "");
   if (backendUrl) {
     return backendUrl.replace(/^http/, "ws");
   }

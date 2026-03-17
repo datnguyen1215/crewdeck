@@ -28,10 +28,12 @@ describe("ClaudeCodeAdapter", () => {
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
         calls.push(cmd as string);
-        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
-          null,
-          { stdout: "", stderr: "" }
-        );
+        (
+          callback as (
+            err: null,
+            result: { stdout: string; stderr: string },
+          ) => void
+        )(null, { stdout: "", stderr: "" });
         return {} as ReturnType<typeof exec>;
       });
 
@@ -50,10 +52,12 @@ describe("ClaudeCodeAdapter", () => {
     it("injects environment variables into the launch script", async () => {
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
-        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
-          null,
-          { stdout: "", stderr: "" }
-        );
+        (
+          callback as (
+            err: null,
+            result: { stdout: string; stderr: string },
+          ) => void
+        )(null, { stdout: "", stderr: "" });
         return {} as ReturnType<typeof exec>;
       });
 
@@ -76,10 +80,12 @@ describe("ClaudeCodeAdapter", () => {
     it("includes system-prompt in the launch script when provided", async () => {
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
-        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
-          null,
-          { stdout: "", stderr: "" }
-        );
+        (
+          callback as (
+            err: null,
+            result: { stdout: string; stderr: string },
+          ) => void
+        )(null, { stdout: "", stderr: "" });
         return {} as ReturnType<typeof exec>;
       });
 
@@ -106,10 +112,12 @@ describe("ClaudeCodeAdapter", () => {
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
         calls.push(cmd as string);
-        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
-          null,
-          { stdout: "", stderr: "" }
-        );
+        (
+          callback as (
+            err: null,
+            result: { stdout: string; stderr: string },
+          ) => void
+        )(null, { stdout: "", stderr: "" });
         return {} as ReturnType<typeof exec>;
       });
 
@@ -128,10 +136,12 @@ describe("ClaudeCodeAdapter", () => {
     it("runs tmux capture-pane and returns output", async () => {
       const mockedExec = vi.mocked(exec);
       mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
-        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
-          null,
-          { stdout: "some output\n", stderr: "" }
-        );
+        (
+          callback as (
+            err: null,
+            result: { stdout: string; stderr: string },
+          ) => void
+        )(null, { stdout: "some output\n", stderr: "" });
         return {} as ReturnType<typeof exec>;
       });
 
@@ -145,10 +155,41 @@ describe("ClaudeCodeAdapter", () => {
   });
 
   describe("isAlive", () => {
-    it("returns true when tmux has-session succeeds", async () => {
-      mockExec();
-      const alive = await adapter.isAlive("running-session");
-      expect(alive).toBe(true);
+    it("returns true when tmux session has running child processes", async () => {
+      vi.mocked(exec).mockImplementation((cmd: unknown, callback: unknown) => {
+        const c = cmd as string;
+        let stdout = "";
+        if (c.includes("list-panes")) stdout = "12345\n";
+        else if (c.includes("pgrep")) stdout = "12346\n";
+        (
+          callback as (
+            err: null,
+            result: { stdout: string; stderr: string },
+          ) => void
+        )(null, { stdout, stderr: "" });
+        return {} as ReturnType<typeof exec>;
+      });
+      expect(await adapter.isAlive("running-session")).toBe(true);
+    });
+
+    it("returns false when tmux session exists but has no child processes", async () => {
+      vi.mocked(exec).mockImplementation((cmd: unknown, callback: unknown) => {
+        const c = cmd as string;
+        if (c.includes("pgrep")) {
+          (callback as (err: Error) => void)(new Error("no children"));
+          return {} as ReturnType<typeof exec>;
+        }
+        let stdout = "";
+        if (c.includes("list-panes")) stdout = "12345\n";
+        (
+          callback as (
+            err: null,
+            result: { stdout: string; stderr: string },
+          ) => void
+        )(null, { stdout, stderr: "" });
+        return {} as ReturnType<typeof exec>;
+      });
+      expect(await adapter.isAlive("idle-session")).toBe(false);
     });
 
     it("returns false when tmux has-session fails", async () => {
@@ -169,10 +210,12 @@ describe("ClaudeCodeAdapter", () => {
         callCount++;
         // Simulate: send-keys succeeds, has-session keeps returning success
         // (until kill-session is called)
-        (callback as (err: null | Error, result?: { stdout: string; stderr: string }) => void)(
-          null,
-          { stdout: "", stderr: "" }
-        );
+        (
+          callback as (
+            err: null | Error,
+            result?: { stdout: string; stderr: string },
+          ) => void
+        )(null, { stdout: "", stderr: "" });
         return {} as ReturnType<typeof exec>;
       });
 
@@ -192,5 +235,4 @@ describe("ClaudeCodeAdapter", () => {
       await expect(adapter.kill("dead-session")).resolves.toBeUndefined();
     });
   });
-
 });
