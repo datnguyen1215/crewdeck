@@ -11,10 +11,10 @@ import { db } from "../index.js";
  * @param overrides  Pre-processed field/value pairs that bypass the simple
  *                   `input[key]` lookup (e.g. JSON-serialized or boolean-cast values)
  */
-export function buildAndRunUpdate(
+export function buildAndRunUpdate<T extends object>(
   table: string,
   id: string,
-  input: Record<string, unknown>,
+  input: T,
   overrides: Record<string, unknown> = {},
 ): boolean {
   const fields: string[] = [];
