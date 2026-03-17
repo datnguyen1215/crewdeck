@@ -111,7 +111,7 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 | **In Progress** | An agent is actively working on the issue in a tmux session. |
 | **In Review** | Work is complete. Reviewers are examining the code. |
 | **Feedback** | Reviewers have posted feedback. Original agent needs to address it. |
-| **Ready** | All reviewers have approved. Waiting for human to create PR. |
+| **Ready** | All reviewers have approved. Captain will automatically create the PR. |
 | **PR Created** | Pull request has been created on GitHub. |
 | **Done** | PR merged or issue otherwise resolved. |
 
