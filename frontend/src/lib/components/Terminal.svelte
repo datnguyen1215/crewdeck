@@ -25,7 +25,7 @@
 	function connectTerminalWs() {
 		if (destroyed || !term) return;
 
-		const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+		const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:9381' : '');
 		const base = backendUrl ? backendUrl.replace(/^http/, 'ws') : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
 		const url = `${base}/terminal-ws?sessionId=${encodeURIComponent(sessionId)}`;
 		const ws = new WebSocket(url);

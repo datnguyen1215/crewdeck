@@ -8,7 +8,9 @@
  *  In dev, connects directly to the backend to avoid Vite proxy issues.
  *  In production, uses the same origin (backend serves both HTTP and WS). */
 function wsBase(): string {
-  const backendUrl: string = import.meta.env.VITE_BACKEND_URL || "";
+  const backendUrl: string =
+    import.meta.env.VITE_BACKEND_URL ||
+    (import.meta.env.DEV ? "http://localhost:9381" : "");
   if (backendUrl) {
     return backendUrl.replace(/^http/, "ws");
   }
