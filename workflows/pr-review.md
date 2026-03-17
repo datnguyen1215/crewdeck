@@ -128,14 +128,12 @@ For documented decisions: instruct the bot to add a comment in the code explaini
 
 ## Step 6: Post a Comment on the PR
 
-The deliverable of this workflow is a **comment posted directly on the pull request** using `gh pr comment`. This is how @claude receives instructions to fix things.
+The deliverable of this workflow is a **review comment posted directly on the pull request** using `gh pr comment`.
 
 ### How to post
 
 ```bash
 gh pr comment <number> --body "$(cat <<'EOF'
-@claude Fix the remaining issues and document decisions:
-
 ## Fix these
 
 1. **<concise title>** in `<file>` — <what's wrong and why it matters>.
@@ -155,6 +153,8 @@ EOF
 
 Use a heredoc (`cat <<'EOF'`) to preserve markdown formatting and code blocks in the comment body.
 
+**IMPORTANT:** Do NOT mention `@claude` or any bot handles in the comment. The comment is a review for humans to read and act on.
+
 ### Comment Guidelines
 
 - **Be specific** — include file paths, line numbers, and code snippets
@@ -163,6 +163,7 @@ Use a heredoc (`cat <<'EOF'`) to preserve markdown formatting and code blocks in
 - **Group related issues** — if two issues are in the same file/function, mention them together
 - **Don't re-raise fixed issues** — only include issues that are still present in the current diff
 - **Keep document-only items short** — one line for the decision, one line for the comment to add
+<<<<<<< Updated upstream
 - **Always start with `@claude`** — this triggers the bot to pick up the instructions
 
 ## Step 7: Verify After Fix
@@ -175,6 +176,8 @@ After the bot posts its fix confirmation, re-read the diff to verify:
 - Tests were updated if behavior changed
 
 If new issues surface, repeat from Step 5 with only the new findings.
+=======
+>>>>>>> Stashed changes
 
 ## Anti-Patterns to Avoid
 
