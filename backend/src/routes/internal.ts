@@ -5,7 +5,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
-import { getIssue } from "../db/repositories/issues.js";
+import { getIssue, updateIssue } from "../db/repositories/issues.js";
 import { getAgent } from "../db/repositories/agents.js";
 import { getSession, updateSession } from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
@@ -159,6 +159,23 @@ router.get("/history", (req, res) => {
   if (!project_id) { res.status(400).json({ message: "project_id query param required" }); return; }
   const entries = listCaptainHistory(project_id);
   res.json(entries);
+});
+
+// POST /issues/update — captain updates issue fields (e.g. priority)
+const IssueUpdateSchema = z.object({
+  project_id: z.string(),
+  issue_id: z.string(),
+  priority: z.number().int(),
+});
+
+router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
+  const { project_id, issue_id, priority } = req.body;
+
+  const issue = getIssue(issue_id);
+  if (!issue || issue.project_id !== project_id) throw new NotFoundError("Issue not found");
+
+  const updated = updateIssue(issue_id, { priority });
+  res.json(updated);
 });
 
 export default router;
