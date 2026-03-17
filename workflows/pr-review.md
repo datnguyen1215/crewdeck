@@ -34,6 +34,41 @@ Read the full diff to understand the **current state** of the code — not the s
 
 If the diff is large, focus on the files mentioned in review comments first.
 
+For every changed file in the diff, read the FULL current file — not just the diff hunks. Trace how changed functions are called by other code. Bugs often hide at boundaries between changed and unchanged code.
+
+### What to look for
+
+#### Correctness
+- Bugs, logic errors, broken assumptions, off-by-one errors
+- Null/undefined access, unhandled exceptions, incorrect error paths
+- Missing `await`, unhandled promise rejections, sync throws inside async handlers
+- Race conditions — especially around WebSocket message ordering and connection lifecycle
+- Database consistency: multiple writes that should be in a transaction
+- Whether tests exist for new/changed behavior and actually assert the right thing
+- Whether the code does what the PR description claims
+
+#### Security
+- **SQL injection**: verify ALL queries use parameterized placeholders (`?`), not string concatenation or template literals to build SQL. Check dynamic table/column names are validated against an allowlist.
+- **Command injection**: any user-controlled input reaching `node-pty` spawn, shell exec, or written to a terminal session is critical severity. Trace the data flow from request → handler → pty.
+- **WebSocket auth**: verify upgrade requests are authenticated and per-message authorization is enforced. Check that messages aren't processed after connection close.
+- **Path traversal**: if file paths or repo paths are derived from user input, verify they're sanitized (no `../` escapes, validated against expected base directories).
+- **Secrets in code**: hardcoded tokens, API keys, credentials, or `.env` values in the diff.
+- **Missing input validation**: user input that reaches the database or shell without Zod validation or equivalent.
+- **Sensitive data in logs/responses**: passwords, tokens, or PII logged or returned to clients.
+
+#### Simplicity
+- Premature abstractions — helpers or wrappers used only once
+- Dead code, unused variables, redundant logic
+- Could a standard library function replace custom code?
+- Is the diff larger than necessary for the stated goal?
+
+### Severity classification
+
+Tag each finding:
+- `critical` — security vulnerability, data loss, command/SQL injection
+- `bug` — incorrect behavior that will manifest at runtime
+- `warning` — code smell, missing edge case, or simplicity issue
+
 ## Step 4: Cross-Reference — Mark Fixed vs. Outstanding
 
 For each issue in the ledger from Step 2:
