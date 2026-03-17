@@ -34,6 +34,7 @@ spawn(options: SpawnOptions) → SessionHandle
 | systemPrompt | string | No | System prompt defining the agent's persona. How this is passed depends on the adapter (e.g., Claude Code uses `--system-prompt` flag). |
 | env | Record<string, string> | No | Additional environment variables to set in the tmux session. |
 | print | boolean | No | When true, runs in `--print` mode: prompt is passed as a positional arg and the process exits after printing structured output. Used by the orchestrator. |
+| claudeSessionId | string | No | Fixed session ID passed to Claude Code via `--session-id`. Controls the JSONL file path so the backend can watch for assistant responses. Used for captain sessions. |
 
 **SessionHandle:**
 
@@ -391,10 +392,13 @@ The captain is a persistent interactive Claude Code session running in tmux. Unl
 
 ```
 claude --dangerously-skip-permissions \
+       --session-id <uuid> \
        --system-prompt "<captain system prompt>"
 ```
 
-The captain is spawned without `--prompt` so it starts in interactive mode, waiting for input. The system prompt defines the captain's persona, available CLI commands, and decision-making guidelines.
+The `--session-id` flag sets a deterministic JSONL file path so the backend can watch the file for assistant text responses and surface them as captain messages in the chat UI.
+
+The captain is spawned without `--print` so it starts in interactive mode, waiting for input. The system prompt defines the captain's persona, available CLI commands, and decision-making guidelines.
 
 ### Captain Requirement
 
@@ -433,7 +437,7 @@ The captain session persists across multiple events and issues. To handle crashe
 
 - **History saved to DB** — the captain's conversation history is periodically saved to the database.
 - **Session restore** — when a captain session is lost (process crash, container restart), the orchestrator detects the missing session via `isAlive()` and respawns it. The saved history is restored into the new session so the captain retains context from prior decisions.
-- **CaptainMessage records** — the backend stores a `CaptainMessage` record for each event relay and captain action. This builds the captain chat timeline visible to the user in the frontend.
+- **CaptainMessage records** — the backend stores a `CaptainMessage` record for each event relay, captain action, and assistant text response surfaced via JSONL. This builds the captain chat timeline visible to the user in the frontend.
 
 ## Future Adapters
 
