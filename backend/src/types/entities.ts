@@ -151,6 +151,28 @@ export interface CreateCaptainMessageInput {
   context?: unknown;
 }
 
+export interface EnvironmentVariable {
+  id: string;
+  project_id: string;
+  key: string;
+  value: string;
+  is_secret: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateEnvironmentVariableInput {
+  key: string;
+  value: string;
+  is_secret?: boolean;
+}
+
+export interface UpdateEnvironmentVariableInput {
+  key?: string;
+  value?: string;
+  is_secret?: boolean;
+}
+
 // Composite types
 export interface ProjectWithStats extends Project {
   repo_count: number;

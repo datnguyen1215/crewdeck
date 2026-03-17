@@ -21,6 +21,7 @@ import {
   updateIssueAgent,
 } from "../db/repositories/issue-agents.js";
 import { createSession, updateSession } from "../db/repositories/sessions.js";
+import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 
 // Execute an assign action triggered by the captain via CLI
 export async function executeAssign(
@@ -146,6 +147,7 @@ export async function executeAssign(
       prompt: promptText,
       systemPrompt: agent.system_prompt,
       env: {
+        ...getEnvironmentVariablesMap(projectId),
         CREWDECK_SESSION_ID: session.id,
         CREWDECK_AGENT_ID: agentId,
         CREWDECK_ISSUE_ID: issueId,

@@ -17,6 +17,7 @@ import {
   updateIssueAgent,
 } from "../db/repositories/issue-agents.js";
 import { createSession, updateSession } from "../db/repositories/sessions.js";
+import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 
 // Execute a route-review action triggered by the captain via CLI
 export async function executeRouteReview(
@@ -116,6 +117,7 @@ export async function executeRouteReview(
       prompt: promptText,
       systemPrompt: reviewer.system_prompt,
       env: {
+        ...getEnvironmentVariablesMap(projectId),
         CREWDECK_SESSION_ID: session.id,
         CREWDECK_AGENT_ID: reviewerAgentId,
         CREWDECK_ISSUE_ID: issueId,
