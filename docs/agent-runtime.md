@@ -410,7 +410,8 @@ The orchestrator is event-driven. When an event fires, the orchestrator formats 
 
 | Event | What gets relayed to the captain |
 |-------|----------------------------------|
-| Issue approved | Issue details, priority, available agents, project state |
+| Issue approved (draft → open) | Issue details, priority, available agents, project state |
+| Issue approved (all reviewers approved) | Instruction to run `crewdeck create-pr <issue_id>` |
 | Agent finished work | Issue status, agent output summary, review routing options |
 | Review completed | Review outcome, reviewer comments, approve/reject decision |
 | Max rounds reached | Escalation context, round history |
@@ -425,6 +426,7 @@ Instead of returning structured JSON, the captain executes CLI commands to take 
 
 - `crewdeck assign --issue <id> --agent <id>` — assign an agent to an issue.
 - `crewdeck route-review --issue <id>` — send an issue to the next reviewer.
+- `crewdeck create-pr <issue_id>` — push the issue branch and create a GitHub PR after all reviewers approve.
 - `crewdeck escalate --issue <id>` — flag an issue for human attention.
 - `crewdeck issues create --title "..." --description "..." [--priority <n>]` — propose a new issue.
 - `crewdeck reorder --issue <id> --priority <n>` — change issue priority.
