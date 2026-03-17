@@ -124,7 +124,7 @@ const AssignSchema = z.object({
 router.post("/assign", validate(AssignSchema), (req, res) => {
   const { project_id, issue_id, agent_id } = req.body;
   eventBus.emit("captain.assign", { project_id, issue_id, agent_id });
-  res.json({ ok: true, message: `Assignment requested: issue ${issue_id} to agent ${agent_id}` });
+  res.json({ ok: true });
 });
 
 // POST /route-review — captain requests review routing
@@ -137,7 +137,7 @@ const RouteReviewSchema = z.object({
 router.post("/route-review", validate(RouteReviewSchema), (req, res) => {
   const { project_id, issue_id, reviewer_agent_id } = req.body;
   eventBus.emit("captain.route_review", { project_id, issue_id, reviewer_agent_id });
-  res.json({ ok: true, message: `Review routing requested: issue ${issue_id} to reviewer ${reviewer_agent_id}` });
+  res.json({ ok: true });
 });
 
 // POST /history — save captain decision history
