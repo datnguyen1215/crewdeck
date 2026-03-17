@@ -43,6 +43,8 @@ An agent is a specialized AI persona defined by a custom system prompt. Agents h
 - A system prompt generated through AI assistance from a short prompt.
 - An optional **captain** designation (`is_captain`). At most one agent per crew can be captain. The captain's system prompt is used by the orchestrator when coordinating the crew. If no captain is designated, orchestration is skipped.
 
+A default captain agent is automatically created when a project is created. Users can customize or replace it via the Crew page.
+
 Agent creation is AI-assisted: the user describes the role they want, and the system uses the CLI tool to generate and refine a detailed system prompt for that agent.
 
 ### Orchestrator
