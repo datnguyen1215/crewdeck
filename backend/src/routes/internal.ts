@@ -7,7 +7,7 @@ import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
 import { getIssue, updateIssue } from "../db/repositories/issues.js";
 import { getAgent } from "../db/repositories/agents.js";
-import { getSession, updateSession } from "../db/repositories/sessions.js";
+import { getSession, listSessions, updateSession } from "../db/repositories/sessions.js";
 import { NotFoundError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
 import { createCaptainHistory, listCaptainHistory } from "../db/repositories/captain-history.js";
@@ -174,8 +174,16 @@ router.post("/issues/close", validate(CloseIssueSchema), (req, res) => {
   if (!issue || issue.project_id !== project_id) throw new NotFoundError("Issue not found");
 
   const from = issue.status;
+  if (from === "done") { res.json(issue); return; }
+
   const updated = updateIssue(issue_id, { status: "done" });
   eventBus.emit("issue.status_changed", { issue_id, project_id, from, to: "done" });
+
+  // Mark any running sessions as completed so downstream handlers ignore them
+  const runningSessions = listSessions(project_id, { issue_id, status: "running" });
+  for (const session of runningSessions) {
+    updateSession(session.id, { status: "completed" });
+  }
 
   res.json(updated);
 });
