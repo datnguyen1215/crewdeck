@@ -28,7 +28,8 @@ function buildLaunchScript(opts: LaunchScriptOptions): string {
 
   const flags: string[] = ["--dangerously-skip-permissions"];
   if (print) flags.push("--print");
-  if (claudeSessionId) flags.push(`--session-id ${shellQuote(claudeSessionId)}`);
+  if (claudeSessionId)
+    flags.push(`--session-id ${shellQuote(claudeSessionId)}`);
 
   // Export env vars directly in the script so claude inherits them.
   // Clear CLAUDECODE to prevent nested-agent detection from forcing the permission prompt.
@@ -48,19 +49,35 @@ function buildLaunchScript(opts: LaunchScriptOptions): string {
 
 export class ClaudeCodeAdapter implements AgentAdapter {
   async spawn(options: SpawnOptions): Promise<SessionHandle> {
-    const { sessionName, workdir, prompt, systemPrompt, env = {}, print, claudeSessionId } = options;
+    const {
+      sessionName,
+      workdir,
+      prompt,
+      systemPrompt,
+      env = {},
+      print,
+      claudeSessionId,
+    } = options;
 
     // Create detached tmux session with the given working directory
-    await execAsync(`tmux new-session -d -s ${shellQuote(sessionName)} -c ${shellQuote(workdir)}`);
+    await execAsync(
+      `tmux new-session -d -s ${shellQuote(sessionName)} -c ${shellQuote(workdir)}`,
+    );
 
     // Write launch script to a temp file — avoids multi-level shell escaping.
     // Env vars are exported directly in the script so claude inherits them.
     const scriptPath = join(tmpdir(), `crewdeck-${crypto.randomUUID()}.sh`);
-    await writeFile(scriptPath, buildLaunchScript({ prompt, env, systemPrompt, print, claudeSessionId }), { mode: 0o700 });
+    await writeFile(
+      scriptPath,
+      buildLaunchScript({ prompt, env, systemPrompt, print, claudeSessionId }),
+      { mode: 0o700 },
+    );
 
     // Execute the script inside the tmux pane; cleanup script after exit
     const runCmd = `bash ${shellQuote(scriptPath)}; rm -f ${shellQuote(scriptPath)}`;
-    await execAsync(`tmux send-keys -t ${shellQuote(sessionName)} ${shellQuote(runCmd)} Enter`);
+    await execAsync(
+      `tmux send-keys -t ${shellQuote(sessionName)} ${shellQuote(runCmd)} Enter`,
+    );
 
     // Auto-accept the dangerous-mode permission prompt.
     // The CLI shows a selection menu with "1. No, exit" selected by default.
@@ -90,7 +107,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   async getOutput(sessionName: string): Promise<string> {
     // Capture current pane content (visible screen buffer)
     const { stdout } = await execAsync(
-      `tmux capture-pane -t ${shellQuote(sessionName)} -p`
+      `tmux capture-pane -t ${shellQuote(sessionName)} -p`,
     );
     return stdout;
   }
@@ -98,8 +115,23 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   async isAlive(sessionName: string): Promise<boolean> {
     try {
       await execAsync(`tmux has-session -t ${shellQuote(sessionName)}`);
-      return true;
     } catch {
+      return false;
+    }
+
+    // The tmux session exists, but the agent process inside it may have exited
+    // (leaving a bare shell). Check if the pane's shell has any child processes.
+    try {
+      const sn = shellQuote(sessionName);
+      const { stdout } = await execAsync(
+        `tmux list-panes -t ${sn} -F '#{pane_pid}'`,
+      );
+      const panePid = stdout.trim().split("\n")[0];
+      if (!panePid) return false;
+      const { stdout: children } = await execAsync(`pgrep -P ${panePid}`);
+      return children.trim().length > 0;
+    } catch {
+      // pgrep exits 1 when no children found
       return false;
     }
   }
@@ -107,7 +139,9 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   async kill(sessionName: string): Promise<void> {
     // "exit" may not be handled by the claude CLI — force-kill below covers the failure case
     try {
-      await execAsync(`tmux send-keys -t ${shellQuote(sessionName)} "exit" Enter`);
+      await execAsync(
+        `tmux send-keys -t ${shellQuote(sessionName)} "exit" Enter`,
+      );
     } catch {
       return; // Already gone
     }
