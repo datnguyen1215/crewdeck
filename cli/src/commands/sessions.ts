@@ -36,8 +36,8 @@ export async function sessionsCommand(argv: string[]): Promise<void> {
         console.error(USAGE);
         process.exit(1);
       }
-      const data = await post("/internal/sessions/stop", { project_id, session_id: sessionId }, api_url);
-      console.log(JSON.stringify(data, null, 2));
+      await post("/internal/sessions/stop", { project_id, session_id: sessionId }, api_url);
+      console.log(`Session ${sessionId} stopped.`);
       break;
     }
     default:
