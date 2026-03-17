@@ -8,6 +8,7 @@ import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { setupTerminalWs, shutdownTerminalWs } from "./terminal-ws.js";
 import { initOrchestrator } from "./orchestrator/index.js";
+import { initActivityLogger } from "./events/activity-logger.js";
 import { createApp } from "./app.js";
 
 const app = createApp({ corsOrigin: config.corsOrigin });
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
   // races between orphan cleanup, process monitoring, and incoming requests.
   await cleanupOrphans();
   processMonitor.start();
+  initActivityLogger();
   const orchestrator = initOrchestrator(claudeCodeAdapter);
   // Start captain sessions for all projects in the background
   orchestrator.startAllCaptains().catch((err) => {
@@ -38,9 +40,13 @@ async function main(): Promise<void> {
   server.on("upgrade", (req, socket, head) => {
     const pathname = new URL(req.url ?? "", "http://localhost").pathname;
     if (pathname === "/ws") {
-      wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+      wss.handleUpgrade(req, socket, head, (ws) =>
+        wss.emit("connection", ws, req),
+      );
     } else if (pathname === "/terminal-ws") {
-      terminalWss.handleUpgrade(req, socket, head, (ws) => terminalWss.emit("connection", ws, req));
+      terminalWss.handleUpgrade(req, socket, head, (ws) =>
+        terminalWss.emit("connection", ws, req),
+      );
     } else {
       socket.destroy();
     }
