@@ -73,6 +73,7 @@ export class OrchestratorManager {
   private readonly captainSessions = new Map<string, string>(); // projectId → sessionId
   private readonly captainSpawning = new Map<string, Promise<string | null>>(); // in-flight spawn guards
   private readonly jsonlWatchers = new Map<string, JsonlWatcher>(); // projectId → watcher
+  private readonly claudeSessionIds = new Map<string, string>(); // projectId → claudeSessionId
 
   constructor(
     private readonly bus: EventBus,
@@ -148,7 +149,7 @@ export class OrchestratorManager {
     } catch { /* already gone */ }
     updateSession(sessionId, { status: "completed" });
 
-    // Clean up captainSessions if the stopped session is a captain session
+    // Clean up captainSessions and watcher if the stopped session is a captain session
     for (const [projId, sessId] of this.captainSessions) {
       if (sessId === sessionId) {
         this.stopWatcher(projId);
@@ -238,15 +239,7 @@ export class OrchestratorManager {
     updateProject(projectId, { orchestrator_session_id: session.id });
 
     // Start watching the JSONL session file for assistant responses
-    const watcher = new JsonlWatcher(claudeSessionId, "/tmp", (text) => {
-      const message = createCaptainMessage(projectId, {
-        author_type: "captain",
-        content: text,
-      });
-      this.bus.emit("captain.message", { message, project_id: projectId });
-    }, () => this.adapter.isAlive(tmuxName));
-    watcher.start();
-    this.jsonlWatchers.set(projectId, watcher);
+    this.startWatcher(projectId, claudeSessionId);
 
     this.bus.emit("session.started", {
       session_id: session.id,
@@ -263,9 +256,13 @@ export class OrchestratorManager {
     const tmuxName = await this.ensureCaptainSession(projectId);
     if (!tmuxName) return;
 
+    // Restart watcher if it auto-stopped while the session is still alive
     const watcher = this.jsonlWatchers.get(projectId);
-    if (!watcher || !watcher.isRunning())
-      logger.warn({ projectId }, "Captain watcher not running when sending message");
+    const claudeSessionId = this.claudeSessionIds.get(projectId);
+    if (claudeSessionId && (!watcher || !watcher.isRunning())) {
+      logger.debug({ projectId }, "Restarting JSONL watcher before sending to captain");
+      this.startWatcher(projectId, claudeSessionId);
+    }
 
     try {
       await this.adapter.send(tmuxName, message);
@@ -303,12 +300,37 @@ export class OrchestratorManager {
     }
   }
 
+  private startWatcher(projectId: string, claudeSessionId: string): void {
+    // Snapshot byte offset from old watcher so the new one resumes where it left off
+    const oldWatcher = this.jsonlWatchers.get(projectId);
+    const resumeOffset = oldWatcher ? oldWatcher.getOffset() : 0;
+    this.stopWatcher(projectId);
+    this.claudeSessionIds.set(projectId, claudeSessionId);
+    const tmuxName = captainSessionName(projectId);
+    const watcher = new JsonlWatcher(
+      claudeSessionId,
+      "/tmp",
+      (text) => {
+        const message = createCaptainMessage(projectId, {
+          author_type: "captain",
+          content: text,
+        });
+        this.bus.emit("captain.message", { message, project_id: projectId });
+      },
+      () => this.adapter.isAlive(tmuxName),
+      resumeOffset,
+    );
+    watcher.start();
+    this.jsonlWatchers.set(projectId, watcher);
+  }
+
   private stopWatcher(projectId: string): void {
     const watcher = this.jsonlWatchers.get(projectId);
     if (watcher) {
       watcher.stop();
       this.jsonlWatchers.delete(projectId);
     }
+    this.claudeSessionIds.delete(projectId);
   }
 }
 

@@ -212,6 +212,82 @@ describe("JsonlWatcher", () => {
     expect(onText.mock.calls[1][0]).toBe("Was partial");
   });
 
+  it("auto-stops after MAX_MISS_COUNT when no isAlive is provided", async () => {
+    vi.mocked(stat).mockResolvedValue({ size: 0 } as never);
+
+    watcher.start();
+    expect(watcher.isRunning()).toBe(true);
+
+    // Advance 60 polls (60 seconds)
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(watcher.isRunning()).toBe(false);
+    expect(onText).not.toHaveBeenCalled();
+  });
+
+  it("resets missCount and stays alive when isAlive returns true", async () => {
+    const isAlive = vi.fn().mockResolvedValue(true);
+    const aliveWatcher = new JsonlWatcher("alive-session", "/tmp", onText, isAlive);
+
+    vi.mocked(stat).mockResolvedValue({ size: 0 } as never);
+
+    aliveWatcher.start();
+    expect(aliveWatcher.isRunning()).toBe(true);
+
+    // Advance 60 polls — isAlive should be called and watcher stays alive
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(isAlive).toHaveBeenCalled();
+    expect(aliveWatcher.isRunning()).toBe(true);
+
+    aliveWatcher.stop();
+  });
+
+  it("auto-stops when isAlive returns false", async () => {
+    const isAlive = vi.fn().mockResolvedValue(false);
+    const deadWatcher = new JsonlWatcher("dead-session", "/tmp", onText, isAlive);
+
+    vi.mocked(stat).mockResolvedValue({ size: 0 } as never);
+
+    deadWatcher.start();
+
+    // Advance 60 polls — isAlive returns false so watcher should stop
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(isAlive).toHaveBeenCalled();
+    expect(deadWatcher.isRunning()).toBe(false);
+
+    deadWatcher.stop();
+  });
+
+  it("resumes from initialOffset without replaying old data", async () => {
+    const oldEntry = jsonlLine(assistantEntry("Old message"));
+    const newEntry = jsonlLine(assistantEntry("New message"));
+    const fullContent = oldEntry + newEntry;
+    const fullBuf = Buffer.from(fullContent, "utf-8");
+    const resumeOffset = Buffer.byteLength(oldEntry, "utf-8");
+
+    vi.mocked(stat).mockResolvedValue({ size: fullBuf.length } as never);
+    vi.mocked(open).mockResolvedValue({
+      read: vi.fn().mockImplementation(async (target: Buffer, _offset: number, length: number, position: number) => {
+        fullBuf.copy(target, 0, position, position + length);
+        return { bytesRead: length };
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    // Create watcher starting at the offset after the old entry
+    const resumedWatcher = new JsonlWatcher("resumed-session", "/tmp", onText, undefined, resumeOffset);
+    resumedWatcher.start();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // Should only emit the new message, not the old one
+    expect(onText).toHaveBeenCalledTimes(1);
+    expect(onText.mock.calls[0][0]).toBe("New message");
+
+    resumedWatcher.stop();
+  });
+
   it("handles missing file gracefully", async () => {
     vi.mocked(stat).mockRejectedValue(new Error("ENOENT"));
 

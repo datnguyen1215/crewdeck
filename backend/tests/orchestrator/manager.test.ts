@@ -166,6 +166,33 @@ describe("OrchestratorManager", () => {
       expect(watchers.has(projectId)).toBe(false);
     });
 
+    it("restarts watcher in sendToCaptain if it auto-stopped", async () => {
+      vi.mocked(adapter.isAlive).mockResolvedValue(true);
+      await manager.ensureCaptainSession(projectId);
+
+      const watchers = (manager as any).jsonlWatchers as Map<string, { isRunning(): boolean; stop(): void }>;
+      const claudeIds = (manager as any).claudeSessionIds as Map<string, string>;
+
+      // claudeSessionId should be stored
+      expect(claudeIds.has(projectId)).toBe(true);
+
+      // Simulate watcher auto-stop
+      const watcher = watchers.get(projectId)!;
+      watcher.stop();
+      expect(watcher.isRunning()).toBe(false);
+
+      // Send a message — should restart the watcher
+      seedIssue();
+      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      bus.emit("issue.created", { issue: issue as never });
+      await flushPromises();
+
+      // Watcher should be running again (a new one was created)
+      const newWatcher = watchers.get(projectId)!;
+      expect(newWatcher).toBeDefined();
+      expect(newWatcher.isRunning()).toBe(true);
+    });
+
     it("respawns captain if session died", async () => {
       // First call: alive=false (not yet spawned), then alive=true after spawn, then alive=false (died)
       let callCount = 0;
