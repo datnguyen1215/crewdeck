@@ -6,7 +6,10 @@ import { spawn } from "node:child_process";
 // --dangerously-skip-permissions is intentional: the orchestrator needs unrestricted tool access
 // (git, crewdeck CLI, etc). The risk is accepted and mitigated by XML-escaping all user-controlled
 // content in prompts so injection cannot redirect Claude's actions.
-export async function callClaude(prompt: string, opts?: { systemPrompt?: string }): Promise<string> {
+export async function callClaude(
+  prompt: string,
+  opts?: { systemPrompt?: string },
+): Promise<string> {
   const args = ["--dangerously-skip-permissions", "--print"];
   if (opts?.systemPrompt) {
     args.push("--system-prompt", opts.systemPrompt);
@@ -14,13 +17,20 @@ export async function callClaude(prompt: string, opts?: { systemPrompt?: string 
   args.push(prompt);
 
   return new Promise((resolve, reject) => {
-    const env = { ...process.env, CLAUDECODE: "" };
-    const child = spawn("claude", args, { stdio: ["pipe", "pipe", "pipe"], env });
+    const env = { ...process.env, CLAUDECODE: "", ANTHROPIC_API_KEY: "" };
+    const child = spawn("claude", args, {
+      stdio: ["pipe", "pipe", "pipe"],
+      env,
+    });
     let stdout = "";
     let stderr = "";
 
-    child.stdout.on("data", (d) => { stdout += d; });
-    child.stderr.on("data", (d) => { stderr += d; });
+    child.stdout.on("data", (d) => {
+      stdout += d;
+    });
+    child.stderr.on("data", (d) => {
+      stderr += d;
+    });
     child.stdin.end();
 
     const timer = setTimeout(() => {
@@ -31,7 +41,9 @@ export async function callClaude(prompt: string, opts?: { systemPrompt?: string 
     child.on("close", (code) => {
       clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(`claude exited with code ${code}: ${stderr}`));
+        reject(
+          new Error(`claude exited with code ${code}: ${stderr || stdout}`),
+        );
       } else {
         resolve(stdout);
       }
