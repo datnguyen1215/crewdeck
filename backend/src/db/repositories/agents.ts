@@ -26,7 +26,12 @@ export function getCaptain(crewId: string): Agent | null {
 
 export function createAgent(crewId: string, input: CreateAgentInput): Agent {
   const id = crypto.randomUUID();
-  const isCaptain = input.is_captain ? 1 : 0;
+  let isCaptain = input.is_captain ? 1 : 0;
+  // Auto-promote to captain if crew has none
+  if (!isCaptain) {
+    const existing = getCaptain(crewId);
+    if (!existing) isCaptain = 1;
+  }
 
   // Enforce one captain per crew
   if (isCaptain) {
