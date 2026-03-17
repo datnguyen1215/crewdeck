@@ -47,20 +47,15 @@ Agent creation is AI-assisted: the user describes the role they want, and the sy
 
 ### Orchestrator
 
-The orchestrator is a persistent AI session scoped to a single project. It is the brain of the system. The orchestrator:
+The orchestrator is a persistent captain tmux session scoped to a single project. It is the brain of the system. The orchestrator:
 
-- **Prioritizes issues** — analyzes all open issues and determines execution order based on content, dependencies, and urgency.
 - **Assigns agents** — matches issues to the best-fit agent based on title, description, and availability.
 - **Manages the review pipeline** — routes completed work to reviewers in the appropriate order, tracks review rounds, and handles feedback loops.
-- **Creates draft issues** — can propose new issues (e.g., breaking a large issue into sub-tasks, identifying related problems). All orchestrator-created issues start in Draft status and require human approval.
-- **Manages dependencies** — understands which issues depend on others and sequences work accordingly, including basing worktrees on previous branches when needed.
-- **Logs decisions to the captain chat** — after each decision, stores a `CaptainMessage` with its reasoning, building a timeline of orchestrator activity visible to the user.
+- **Persists decisions** — after each decision, saves a summary to `CaptainHistory`, building a decision log that survives session restarts.
 
-The orchestrator does not run continuously. It has a persistent session ID stored in the database. The backend resumes the orchestrator's session when events occur (new issue approved, agent finished work, review posted, user captain message). This approach is resource-efficient and maintains full context across invocations.
+The orchestrator runs as a long-lived interactive Claude Code session (a `captain` tmux session). When events occur (new issue approved, agent finished work, review posted), the backend relays them to the captain via `tmux send-keys`. The captain then uses the `crewdeck` CLI to inspect state and act (`crewdeck assign`, `crewdeck route-review`, etc.).
 
-Users can send messages directly to the captain via the captain chat to influence orchestrator behavior (e.g., reprioritize work, provide direction). These messages trigger an immediate orchestrator resumption.
-
-The orchestrator's AI persona is defined by the **captain** agent: the system prompt of whichever crew agent has `is_captain = true` is passed as the system prompt when invoking Claude. If no captain is designated, the orchestrator skips processing until one is set.
+The orchestrator's AI persona is defined by the **captain** agent: the system prompt of whichever crew agent has `is_captain = true` is passed as the system prompt when starting the captain session. If no captain is designated, the orchestrator skips processing until one is set.
 
 ### Issue
 
@@ -145,7 +140,7 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 | **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate |
 | **CSS** | Tailwind CSS | Utility-first, dark theme, no component library |
 | **Configuration** | Environment variables (`.env`) | Simple, standard approach |
-| **Orchestrator responses** | Structured JSON | Reliable parsing, deterministic action extraction |
+| **Orchestrator interface** | CLI commands (`crewdeck assign`, etc.) | Captain issues commands via CLI; no JSON parsing needed |
 
 ## Project Structure
 
@@ -318,9 +313,10 @@ The frontend subscribes to events scoped by project. This ensures the dashboard 
 
 Each active piece of work gets its own tmux session:
 
+- **One persistent captain session per project** — the captain tmux session stays alive across multiple issues, receiving events via `tmux send-keys` and driving all orchestration decisions through the `crewdeck` CLI.
 - **One session per agent per issue** — when an agent is assigned to work on an issue, a new tmux session is created.
 - **Reviewers get separate sessions** — each reviewer examining an issue gets their own tmux session.
-- **Sessions are ephemeral** — created when work starts, cleaned up when work completes.
+- **Worker/reviewer sessions are ephemeral** — created when work starts, cleaned up when work completes.
 - **Session output is captured** — the backend streams tmux output for the xterm.js live view and stores relevant portions in the database.
 
 ### Git Worktree Isolation
