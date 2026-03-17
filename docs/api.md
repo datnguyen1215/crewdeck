@@ -874,6 +874,26 @@ Agent reports which files were modified.
 
 **Response:** `200 OK`
 
+#### Close Issue (Internal)
+
+```
+POST /internal/issues/close
+```
+
+Captain closes/cancels an issue, transitioning it to `done` status. Any running sessions for the issue are also marked completed.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid"
+}
+```
+
+**Response:** `200 OK` — The updated issue object.
+
+**Note:** Idempotent — if the issue is already `done`, returns the issue unchanged.
+
 ---
 
 ## Status Transition Rules
