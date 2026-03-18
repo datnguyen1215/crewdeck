@@ -10,6 +10,7 @@ import { listComments } from "./comments.js";
 import { listIssueAgents } from "./issue-agents.js";
 import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
+import { getAgent } from "./agents.js";
 import { buildAndRunUpdate } from "./utils.js";
 
 export function listIssues(projectId: string, filters: IssueFilters = {}): Issue[] {
@@ -54,12 +55,23 @@ export function getIssue(id: string): Issue | null {
 export function getIssueWithDetails(id: string): IssueWithDetails | null {
   const issue = getIssue(id);
   if (!issue) return null;
+
+  const issueAgents = listIssueAgents(id).map((ia) => {
+    const agent = getAgent(ia.agent_id);
+    return { ...ia, agent: agent ? { id: agent.id, name: agent.name } : null };
+  });
+
+  const assignedAgent = issue.assigned_agent_id
+    ? (() => { const a = getAgent(issue.assigned_agent_id!); return a ? { id: a.id, name: a.name } : null; })()
+    : null;
+
   return {
     ...issue,
+    assigned_agent: assignedAgent,
     comments: listComments(id),
-    agents: listIssueAgents(id),
-    prs: listIssuePRs(id),
-    activity: listActivity(issue.project_id, { issue_id: id }),
+    issue_agents: issueAgents,
+    issue_prs: listIssuePRs(id),
+    activity_log: listActivity(issue.project_id, { issue_id: id }),
   };
 }
 

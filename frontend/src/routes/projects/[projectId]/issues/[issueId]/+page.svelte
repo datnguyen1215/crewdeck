@@ -343,7 +343,7 @@ function esc(s: string) {
 	}
 
 	function commentAuthorLabel(comment: any): string {
-		if (comment.author_type === 'orchestrator') return 'Orchestrator';
+		if (comment.author_type === 'orchestrator') return 'Captain';
 		if (comment.author_type === 'user') return 'User';
 		if (comment.author_type === 'agent' && comment.author_id) {
 			const ia = issue?.issue_agents?.find((ia: any) => ia.agent_id === comment.author_id);

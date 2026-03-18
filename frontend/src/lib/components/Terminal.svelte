@@ -152,7 +152,7 @@
 			class:animate-pulse={isRunning}
 			class:bg-muted={!isRunning}
 		></span>
-		<span class="text-secondary">Agent: <span class="text-cyan">{agentName}</span></span>
+		<span class="text-cyan">{agentName}</span>
 		<span class="ml-auto text-muted capitalize">{isRunning ? 'Running' : status}</span>
 	</div>
 
