@@ -39,7 +39,7 @@ export async function executeRouteReview(
     );
     return;
   }
-  if (!["in_progress", "feedback"].includes(issue.status)) {
+  if (!["in_progress", "feedback", "in_review"].includes(issue.status)) {
     logger.warn(
       { issueId, status: issue.status },
       "route_review: issue is not in a reviewable state",
