@@ -118,6 +118,7 @@ export interface Session {
   issue_id: string | null;
   tmux_session_name: string | null;
   tmux_pane_id: string | null;
+  claude_session_id: string | null;
   status: string;
   context: unknown;
   created_at: string;
@@ -333,6 +334,7 @@ export interface CreateSessionInput {
   issue_id?: string;
   tmux_session_name?: string;
   tmux_pane_id?: string;
+  claude_session_id?: string;
   status?: string;
   context?: unknown;
 }
@@ -343,6 +345,7 @@ export interface UpdateSessionInput {
   issue_id?: string | null;
   tmux_session_name?: string | null;
   tmux_pane_id?: string | null;
+  claude_session_id?: string | null;
   status?: string;
   context?: unknown;
 }

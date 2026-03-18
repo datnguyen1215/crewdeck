@@ -22,6 +22,8 @@ async function main(): Promise<void> {
   processMonitor.start();
   initActivityLogger();
   const orchestrator = initOrchestrator(claudeCodeAdapter);
+  // Synchronous — must populate captainSessions map before startAllCaptains()
+  orchestrator.recoverCaptainSessions();
   // Start captain sessions for all projects in the background.
   // After captains are up, notify them of orphaned issues so they can respawn.
   orchestrator.startAllCaptains().then(() => {

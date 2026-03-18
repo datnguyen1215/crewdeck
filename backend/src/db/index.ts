@@ -112,6 +112,12 @@ export function createDb(path: string): Database.Database {
     );
   }
 
+  // Migration: add claude_session_id column to Session if missing.
+  const sessionCols = db.pragma("table_info(Session)") as { name: string }[];
+  if (!sessionCols.some((c) => c.name === "claude_session_id")) {
+    db.exec("ALTER TABLE Session ADD COLUMN claude_session_id TEXT");
+  }
+
   // Migration: fix broken FK references caused by table renames (Agent_old, Issue_rebuild, etc.).
   // SQLite auto-updates FK refs when a table is renamed, leaving dangling references after
   // the renamed table is dropped. Fix by checking all table DDLs for stale references.

@@ -32,8 +32,8 @@ export function getSession(id: string): Session | null {
 export function createSession(input: CreateSessionInput): Session {
   const id = crypto.randomUUID();
   db.prepare(
-    `INSERT INTO Session (id, project_id, session_type, agent_id, issue_id, tmux_session_name, tmux_pane_id, status, context)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO Session (id, project_id, session_type, agent_id, issue_id, tmux_session_name, tmux_pane_id, claude_session_id, status, context)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     input.project_id,
@@ -42,6 +42,7 @@ export function createSession(input: CreateSessionInput): Session {
     input.issue_id ?? null,
     input.tmux_session_name ?? null,
     input.tmux_pane_id ?? null,
+    input.claude_session_id ?? null,
     input.status ?? "idle",
     input.context !== undefined ? JSON.stringify(input.context) : null
   );

@@ -18,6 +18,7 @@ import {
   createSession,
   getSession,
   updateSession,
+  listRunningSessions,
 } from "../db/repositories/sessions.js";
 import { createCaptainMessage } from "../db/repositories/captain-messages.js";
 import { config } from "../config.js";
@@ -287,6 +288,7 @@ export class OrchestratorManager {
       session_type: "captain",
       agent_id: captain.id,
       tmux_session_name: tmuxName,
+      claude_session_id: claudeSessionId,
       status: "running",
       context: {},
     });
@@ -361,6 +363,24 @@ export class OrchestratorManager {
       this.captainSessions.delete(projectId);
       if (sessionId) updateSession(sessionId, { status: "error" });
     }
+  }
+
+  // Trusts DB status; ensureCaptainSession() handles stale entries via isAlive check
+  recoverCaptainSessions(): void {
+    const sessions = listRunningSessions();
+    let count = 0;
+    let watcherCount = 0;
+    for (const s of sessions) {
+      if (s.session_type === "captain" && s.tmux_session_name) {
+        this.captainSessions.set(s.project_id, s.id);
+        count++;
+        if (s.claude_session_id) {
+          this.startWatcher(s.project_id, s.claude_session_id);
+          watcherCount++;
+        }
+      }
+    }
+    logger.info({ count, watcherCount }, "Recovered captain sessions from DB");
   }
 
   async startAllCaptains(): Promise<void> {
