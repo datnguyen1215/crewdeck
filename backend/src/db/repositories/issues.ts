@@ -66,21 +66,18 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
     };
   });
 
-  // Fetch assigned agent info
+  // Reuse agent from issueAgents if available, otherwise fetch
   const assignedAgent = issue.assigned_agent_id
-    ? (() => {
-        const agent = getAgent(issue.assigned_agent_id);
-        return agent ? { id: agent.id, name: agent.name } : null;
+    ? issueAgents.find((ia) => ia.agent_id === issue.assigned_agent_id)?.agent ??
+      (() => {
+        const a = getAgent(issue.assigned_agent_id);
+        return a ? { id: a.id, name: a.name } : null;
       })()
     : null;
 
   // Fetch repo info
-  const repo = issue.repo_id
-    ? (() => {
-        const r = getRepo(issue.repo_id);
-        return r ? { id: r.id, name: r.name } : null;
-      })()
-    : null;
+  const repoRow = issue.repo_id ? getRepo(issue.repo_id) : null;
+  const repo = repoRow ? { id: repoRow.id, name: repoRow.name } : null;
 
   const issuePRs = listIssuePRs(id);
 
