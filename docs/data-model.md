@@ -216,6 +216,7 @@ Tracks AI CLI session context. Owned by CrewDeck, not the underlying CLI tool.
 | issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue this session is working on. NULL for captain sessions. |
 | tmux_session_name | TEXT | NULLABLE | Name of the tmux session (if active). |
 | tmux_pane_id | TEXT | NULLABLE | The tmux pane ID for capturing output. |
+| claude_session_id | TEXT | NULLABLE | The Claude Code session ID (`--session-id`). Set for captain sessions; used to locate the JSONL output file and restore watchers on restart. |
 | status | TEXT | NOT NULL, DEFAULT 'idle' | Session status. One of: `idle`, `running`, `completed`, `error`. |
 | context | TEXT | | JSON blob storing conversation history and state for session resumption. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
