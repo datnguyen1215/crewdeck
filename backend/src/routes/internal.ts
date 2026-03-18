@@ -10,7 +10,7 @@ import {
   getIssue,
   updateIssue,
 } from "../db/repositories/issues.js";
-import { getAgent } from "../db/repositories/agents.js";
+import { getAgent, updateAgent } from "../db/repositories/agents.js";
 import {
   getSession,
   listSessions,
@@ -53,9 +53,9 @@ const CommentSchema = z.object({
 
 const StatusSchema = z.object({
   agent_id: z.string(),
-  issue_id: z.string(),
+  issue_id: z.string().optional(),
   project_id: z.string(),
-  state: z.enum(["active", "done", "error"]),
+  state: z.enum(["active", "idle", "done", "error"]),
 });
 
 const FilesSchema = z.object({
@@ -128,12 +128,16 @@ router.post("/comment", validate(CommentSchema), (req, res) => {
   res.status(201).json(comment);
 });
 
-// POST /status — agent updates its working status
+// POST /status — agent updates its self-reported status (persisted to Agent.status)
 router.post("/status", validate(StatusSchema), (req, res) => {
   const { agent_id, issue_id, project_id, state } = req.body;
 
   const agent = getAgent(agent_id);
   if (!agent) throw new NotFoundError("Agent not found");
+
+  // Map done/error → idle for the persisted agent status
+  const persistedStatus = state === "done" || state === "error" ? "idle" : state;
+  updateAgent(agent_id, { status: persistedStatus });
 
   eventBus.emit("agent.status_changed", {
     agent_id,

@@ -53,6 +53,7 @@ export interface Agent {
   description: string | null;
   system_prompt: string;
   is_captain: boolean;
+  status: string;
   created_at: string;
   updated_at: string;
 }
@@ -188,7 +189,6 @@ export interface ProjectWithStats extends Project {
 }
 
 export interface AgentWithStatus extends Agent {
-  status: "idle" | "working" | "reviewing";
   current_issue: { id: string; title: string } | null;
 }
 
@@ -256,6 +256,7 @@ export interface UpdateAgentInput {
   description?: string;
   system_prompt?: string;
   is_captain?: boolean;
+  status?: string;
 }
 
 export interface CreateIssueInput {

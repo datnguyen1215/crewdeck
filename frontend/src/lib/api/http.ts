@@ -449,13 +449,13 @@ export interface Agent {
   description: string | null;
   system_prompt: string;
   is_captain: boolean;
+  status: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface CrewWithAgents extends Crew {
   agents: (Agent & {
-    status: "idle" | "working" | "reviewing";
     current_issue: { id: string; title: string } | null;
   })[];
 }

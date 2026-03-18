@@ -4,7 +4,7 @@ import { setupCommandTest } from "./helpers.js";
 describe("statusCommand", () => {
   const mocks = setupCommandTest({ ok: true });
 
-  it.each(["active", "done", "error"] as const)("sends %s state with session context", async (state) => {
+  it.each(["active", "idle", "done", "error"] as const)("sends %s state with session context", async (state) => {
     const { statusCommand } = await import("../src/commands/status.js");
     await statusCommand(["--state", state]);
 

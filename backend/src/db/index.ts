@@ -104,6 +104,14 @@ export function createDb(path: string): Database.Database {
     );
   }
 
+  // Migration: add status column to Agent if missing.
+  const agentCols3 = db.pragma("table_info(Agent)") as { name: string }[];
+  if (!agentCols3.some((c) => c.name === "status")) {
+    db.exec(
+      "ALTER TABLE Agent ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'",
+    );
+  }
+
   // Migration: fix broken FK references caused by table renames (Agent_old, Issue_rebuild, etc.).
   // SQLite auto-updates FK refs when a table is renamed, leaving dangling references after
   // the renamed table is dropped. Fix by checking all table DDLs for stale references.

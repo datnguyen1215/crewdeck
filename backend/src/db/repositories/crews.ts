@@ -27,17 +27,17 @@ const agentStatusStmt = `
 
 function enrichAgentsWithStatus(crewId: string, agents: Agent[]): AgentWithStatus[] {
   const rows = db.prepare(agentStatusStmt).all(crewId) as AgentStatusRow[];
-  const statusMap = new Map<string, AgentStatusRow>();
+  const issueMap = new Map<string, AgentStatusRow>();
   for (const row of rows) {
-    // First active assignment wins — non-reviewer roles come first via ORDER BY
-    if (!statusMap.has(row.agent_id)) statusMap.set(row.agent_id, row);
+    if (!issueMap.has(row.agent_id)) issueMap.set(row.agent_id, row);
   }
 
   return agents.map((agent) => {
-    const active = statusMap.get(agent.id);
-    if (!active) return { ...agent, status: "idle" as const, current_issue: null };
-    const status = active.role === "reviewer" ? "reviewing" as const : "working" as const;
-    return { ...agent, status, current_issue: { id: active.issue_id, title: active.issue_title } };
+    const active = issueMap.get(agent.id);
+    return {
+      ...agent,
+      current_issue: active ? { id: active.issue_id, title: active.issue_title } : null,
+    };
   });
 }
 
