@@ -88,7 +88,7 @@
 	async function addFromPrompt() {
 		if (!agentPrompt.trim()) return;
 		await addAgent(agentPrompt.trim());
-		agentPrompt = '';
+		if (!agentError) agentPrompt = '';
 	}
 
 	// --- Env var helpers ---
