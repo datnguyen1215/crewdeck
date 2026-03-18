@@ -144,7 +144,7 @@ The fundamental unit of work.
 | status | TEXT | NOT NULL, DEFAULT 'open' | Current status. One of: `draft`, `open`, `in_progress`, `in_review`, `feedback`, `ready`, `pr_created`, `done`. |
 | priority | INTEGER | NOT NULL, DEFAULT 0 | Priority score assigned by orchestrator. Higher = more urgent. |
 | assigned_agent_id | TEXT | FOREIGN KEY → Agent.id, NULLABLE | The agent currently assigned to work on this issue. |
-| created_by | TEXT | NOT NULL, DEFAULT 'user' | Who created the issue. One of: `user`, `orchestrator`. |
+| created_by | TEXT | NOT NULL, DEFAULT 'user' | Who created the issue. One of: `user`, `orchestrator`, `captain`. |
 | max_review_rounds | INTEGER | NULLABLE | Override for project-level max_review_rounds. NULL means use project default. |
 | current_review_round | INTEGER | NOT NULL, DEFAULT 0 | Current review iteration count. |
 | branch_name | TEXT | NULLABLE | Git branch where work is being done. |
