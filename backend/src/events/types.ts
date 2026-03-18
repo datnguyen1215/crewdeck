@@ -136,4 +136,5 @@ export interface EventMap {
   };
   "session.stop_requested": { session_id: string; project_id: string };
   "captain.create_pr": { project_id: string; issue_id: string };
+  "agent.created": { agent_id: string; name: string; project_id: string };
 }
