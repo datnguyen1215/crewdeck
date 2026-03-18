@@ -366,6 +366,8 @@ POST /projects/:projectId/crew/agents
 
 **Response:** `201 Created` — The created agent object.
 
+**Side effects:** Emits `agent.created` WebSocket event to connected clients.
+
 #### Generate Agent Prompt
 
 ```
@@ -1144,6 +1146,7 @@ All events follow this structure:
 
 | Event | Description | Data |
 |-------|-------------|------|
+| `agent.created` | New agent added to the crew | `{ agent_id, name }` |
 | `agent.finished` | Agent completed its task | `{ session_id, agent_id, issue_id, role }` |
 | `agent.status_changed` | Agent status updated | `{ agent_id, issue_id, state }` |
 | `agent.error` | Agent encountered an unrecoverable error | `{ session_id, agent_id, issue_id, message? }` |
