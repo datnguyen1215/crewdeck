@@ -177,7 +177,7 @@ Tracks which agents are involved with an issue and their role (worker vs. review
 | issue_id | TEXT | NOT NULL, FOREIGN KEY → Issue.id | The issue. |
 | agent_id | TEXT | NOT NULL, FOREIGN KEY → Agent.id | The agent. |
 | role | TEXT | NOT NULL | Role on this issue. One of: `worker`, `reviewer`. |
-| status | TEXT | NOT NULL, DEFAULT 'pending' | Agent's status on this issue. One of: `pending`, `active`, `approved`, `changes_requested`, `done`. |
+| status | TEXT | NOT NULL, DEFAULT 'pending' | Agent's status on this issue. One of: `pending`, `active`, `approved`, `changes_requested`, `done`, `error`. |
 | review_order | INTEGER | NULLABLE | Order in which this reviewer is invoked (1, 2, 3...). NULL for workers. |
 | review_round | INTEGER | NULLABLE | Review round this record belongs to. 0 for workers; matches `Issue.current_review_round` for reviewers. |
 | session_id | TEXT | FOREIGN KEY → Session.id, NULLABLE | The tmux/CLI session for this agent on this issue. |
