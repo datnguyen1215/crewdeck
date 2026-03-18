@@ -777,7 +777,7 @@ function esc(s: string) {
 					<!-- Created by -->
 					<div class="flex items-center gap-2">
 						<span class="text-muted w-20 shrink-0">By</span>
-						<span class="{issue.created_by === 'orchestrator' || issue.created_by === 'captain' ? 'text-purple' : 'text-secondary'}">{issue.created_by === 'orchestrator' ? 'Captain' : issue.created_by}</span>
+						<span class="{issue.created_by === 'orchestrator' || issue.created_by === 'captain' ? 'text-purple' : 'text-secondary'}">{issue.created_by === 'orchestrator' || issue.created_by === 'captain' ? 'Captain' : issue.created_by}</span>
 					</div>
 				</div>
 

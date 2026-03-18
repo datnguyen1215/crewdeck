@@ -82,15 +82,17 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
       })()
     : null;
 
+  const issuePRs = listIssuePRs(id);
+
+  // TODO: remove legacy agents/prs fields once all consumers use issue_agents/issue_prs
   return {
     ...issue,
     comments: listComments(id),
-    agents: listIssueAgents(id),
-    prs: listIssuePRs(id),
+    agents: issueAgents,
+    prs: issuePRs,
     activity: listActivity(issue.project_id, { issue_id: id }),
-    // Additional fields expected by frontend
     issue_agents: issueAgents,
-    issue_prs: listIssuePRs(id),
+    issue_prs: issuePRs,
     assigned_agent: assignedAgent,
     repo,
   };
