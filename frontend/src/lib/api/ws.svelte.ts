@@ -38,7 +38,8 @@ export type WsEvent =
   | "pr.status_changed"
   | "orchestrator.decision"
   | "orchestrator.draft_issue"
-  | "captain.message";
+  | "captain.message"
+  | "agent.created";
 
 export interface WsMessage {
   event: WsEvent;

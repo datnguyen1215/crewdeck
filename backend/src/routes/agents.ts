@@ -10,8 +10,13 @@ import {
 import { getCrew } from "../db/repositories/crews.js";
 import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
+import { eventBus } from "../events/bus.js";
 import { NotFoundError, ConflictError } from "../middleware/errors.js";
-import { CreateAgentSchema, UpdateAgentSchema, GenerateAgentSchema } from "../schemas/validation.js";
+import {
+  CreateAgentSchema,
+  UpdateAgentSchema,
+  GenerateAgentSchema,
+} from "../schemas/validation.js";
 import { callClaude } from "../utils/claude.js";
 import { escapeXml } from "../utils/xml.js";
 
@@ -25,14 +30,17 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
   res.json(listAgents(crew.id));
 });
 
-router.post("/generate", validate(GenerateAgentSchema), async (req: Request<{ projectId: string }>, res, next) => {
-  try {
-    const { projectId } = req.params;
-    if (!getProject(projectId)) throw new NotFoundError("Project not found");
-    if (!getCrew(projectId)) throw new NotFoundError("Crew not found");
+router.post(
+  "/generate",
+  validate(GenerateAgentSchema),
+  async (req: Request<{ projectId: string }>, res, next) => {
+    try {
+      const { projectId } = req.params;
+      if (!getProject(projectId)) throw new NotFoundError("Project not found");
+      if (!getCrew(projectId)) throw new NotFoundError("Crew not found");
 
-    const { prompt } = req.body as { prompt: string };
-    const systemPrompt = `You are a helper that generates AI agent configurations. Given a short description, generate a JSON object with these four fields:
+      const { prompt } = req.body as { prompt: string };
+      const systemPrompt = `You are a helper that generates AI agent configurations. Given a short description, generate a JSON object with these four fields:
 - "name": a short first name for the agent (e.g. "Alice", "Rex", "Nova")
 - "title": a professional title (e.g. "Senior Frontend Engineer", "DevOps Specialist")
 - "description": a 1-2 sentence summary of what this agent does
@@ -40,36 +48,46 @@ router.post("/generate", validate(GenerateAgentSchema), async (req: Request<{ pr
 
 Respond with ONLY a valid JSON object. No markdown, no explanation.`;
 
-    const fullPrompt = `${systemPrompt}\n\n<user_description>${escapeXml(prompt)}</user_description>`;
-    req.log.info({ prompt }, "generating agent configuration");
-    const output = await callClaude(fullPrompt);
-    req.log.info("agent configuration generated");
+      const fullPrompt = `${systemPrompt}\n\n<user_description>${escapeXml(prompt)}</user_description>`;
+      req.log.info({ prompt }, "generating agent configuration");
+      const output = await callClaude(fullPrompt);
+      req.log.info("agent configuration generated");
 
-    // Extract JSON from possible markdown code blocks
-    const trimmed = output.trim();
-    const codeBlock = trimmed.match(/```(?:json)?\s*([\s\S]+?)```/);
-    const jsonStr = codeBlock ? codeBlock[1].trim() : trimmed;
+      // Extract JSON from possible markdown code blocks
+      const trimmed = output.trim();
+      const codeBlock = trimmed.match(/```(?:json)?\s*([\s\S]+?)```/);
+      const jsonStr = codeBlock ? codeBlock[1].trim() : trimmed;
 
-    const generated = JSON.parse(jsonStr);
-    res.json({
-      name: generated.name ?? "",
-      title: generated.title ?? "",
-      description: generated.description ?? "",
-      system_prompt: generated.system_prompt ?? "",
+      const generated = JSON.parse(jsonStr);
+      res.json({
+        name: generated.name ?? "",
+        title: generated.title ?? "",
+        description: generated.description ?? "",
+        system_prompt: generated.system_prompt ?? "",
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.post(
+  "/",
+  validate(CreateAgentSchema),
+  (req: Request<{ projectId: string }>, res) => {
+    const { projectId } = req.params;
+    if (!getProject(projectId)) throw new NotFoundError("Project not found");
+    const crew = getCrew(projectId);
+    if (!crew) throw new NotFoundError("Crew not found");
+    const agent = createAgent(crew.id, req.body);
+    eventBus.emit("agent.created", {
+      agent_id: agent.id,
+      name: agent.name,
+      project_id: projectId,
     });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/", validate(CreateAgentSchema), (req: Request<{ projectId: string }>, res) => {
-  const { projectId } = req.params;
-  if (!getProject(projectId)) throw new NotFoundError("Project not found");
-  const crew = getCrew(projectId);
-  if (!crew) throw new NotFoundError("Crew not found");
-  const agent = createAgent(crew.id, req.body);
-  res.status(201).json(agent);
-});
+    res.status(201).json(agent);
+  },
+);
 
 router.patch("/:agentId", validate(UpdateAgentSchema), (req, res) => {
   const agent = getAgent(req.params.agentId);

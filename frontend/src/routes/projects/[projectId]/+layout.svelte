@@ -21,6 +21,7 @@
 		'issue.assigned': (d) => ({ msg: `${d.agent_name} assigned to issue`, type: 'info' }),
 		'agent.error': (d) => ({ msg: `Agent error${d.message ? `: ${d.message}` : ''}`, type: 'error' }),
 		'agent.needs_help': (d) => ({ msg: `Agent needs help${d.message ? `: ${d.message}` : ''}`, type: 'warning' }),
+		'agent.created': (d) => ({ msg: `Agent created: ${d.name}`, type: 'success' }),
 		'agent.status_changed': (d) => ({ msg: `Agent status: ${d.state}`, type: 'info' }),
 		'review.completed': (d) => ({ msg: `Review ${d.verdict === 'approved' ? 'approved' : 'changes requested'}`, type: d.verdict === 'approved' ? 'success' : 'warning' }),
 		'pr.created': () => ({ msg: 'Pull request created', type: 'success' }),

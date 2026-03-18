@@ -26,10 +26,18 @@ export function removeSubscriber(projectId: string, ws: WebSocket): void {
   if (clients.size === 0) subscribers.delete(projectId);
 }
 
-export function broadcast(projectId: string, event: string, data: unknown): void {
+export function broadcast(
+  projectId: string,
+  event: string,
+  data: unknown,
+): void {
   const clients = subscribers.get(projectId);
   if (!clients?.size) return;
-  const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
+  const message = JSON.stringify({
+    event,
+    data,
+    timestamp: new Date().toISOString(),
+  });
   for (const ws of [...clients]) {
     if (ws.readyState !== WebSocket.OPEN) continue;
     try {
@@ -43,65 +51,127 @@ export function broadcast(projectId: string, event: string, data: unknown): void
 
 export function subscribeEvents(bus: EventBus): void {
   bus.on("issue.created", ({ issue }) =>
-    broadcast(issue.project_id, "issue.created", issue));
+    broadcast(issue.project_id, "issue.created", issue),
+  );
 
   bus.on("issue.updated", ({ issue_id, project_id, changes }) =>
-    broadcast(project_id, "issue.updated", { issue_id, changes }));
+    broadcast(project_id, "issue.updated", { issue_id, changes }),
+  );
 
   bus.on("issue.approved", ({ issue }) =>
-    broadcast(issue.project_id, "issue.approved", issue));
+    broadcast(issue.project_id, "issue.approved", issue),
+  );
 
   bus.on("issue.status_changed", ({ issue_id, project_id, from, to }) =>
-    broadcast(project_id, "issue.status_changed", { issue_id, from, to }));
+    broadcast(project_id, "issue.status_changed", { issue_id, from, to }),
+  );
 
   bus.on("issue.assigned", ({ issue_id, project_id, agent_id, agent_name }) =>
-    broadcast(project_id, "issue.assigned", { issue_id, agent_id, agent_name }));
+    broadcast(project_id, "issue.assigned", { issue_id, agent_id, agent_name }),
+  );
 
   bus.on("comment.added", ({ comment, project_id }) =>
-    broadcast(project_id, "comment.added", comment));
+    broadcast(project_id, "comment.added", comment),
+  );
 
   bus.on("comment.updated", ({ comment, project_id }) =>
-    broadcast(project_id, "comment.updated", comment));
+    broadcast(project_id, "comment.updated", comment),
+  );
 
   bus.on("comment.deleted", ({ comment_id, issue_id, project_id }) =>
-    broadcast(project_id, "comment.deleted", { comment_id, issue_id }));
+    broadcast(project_id, "comment.deleted", { comment_id, issue_id }),
+  );
 
-  bus.on("session.started", ({ session_id, agent_id, issue_id, project_id, tmux_session_name }) =>
-    broadcast(project_id, "session.started", { session_id, agent_id, issue_id, tmux_session_name }));
+  bus.on(
+    "session.started",
+    ({ session_id, agent_id, issue_id, project_id, tmux_session_name }) =>
+      broadcast(project_id, "session.started", {
+        session_id,
+        agent_id,
+        issue_id,
+        tmux_session_name,
+      }),
+  );
 
   bus.on("session.ended", ({ session_id, project_id, status }) => {
     broadcast(project_id, "session.ended", { session_id, status });
   });
 
-  bus.on("agent.finished", ({ session_id, agent_id, issue_id, project_id, role }) =>
-    broadcast(project_id, "agent.finished", { session_id, agent_id, issue_id, role }));
+  bus.on(
+    "agent.finished",
+    ({ session_id, agent_id, issue_id, project_id, role }) =>
+      broadcast(project_id, "agent.finished", {
+        session_id,
+        agent_id,
+        issue_id,
+        role,
+      }),
+  );
 
   bus.on("agent.status_changed", ({ agent_id, issue_id, project_id, state }) =>
-    broadcast(project_id, "agent.status_changed", { agent_id, issue_id, state }));
+    broadcast(project_id, "agent.status_changed", {
+      agent_id,
+      issue_id,
+      state,
+    }),
+  );
 
-  bus.on("agent.error", ({ session_id, agent_id, issue_id, project_id, message }) =>
-    broadcast(project_id, "agent.error", { session_id, agent_id, issue_id, message }));
+  bus.on(
+    "agent.error",
+    ({ session_id, agent_id, issue_id, project_id, message }) =>
+      broadcast(project_id, "agent.error", {
+        session_id,
+        agent_id,
+        issue_id,
+        message,
+      }),
+  );
 
-  bus.on("agent.needs_help", ({ session_id, agent_id, issue_id, project_id, message }) =>
-    broadcast(project_id, "agent.needs_help", { session_id, agent_id, issue_id, message }));
+  bus.on(
+    "agent.needs_help",
+    ({ session_id, agent_id, issue_id, project_id, message }) =>
+      broadcast(project_id, "agent.needs_help", {
+        session_id,
+        agent_id,
+        issue_id,
+        message,
+      }),
+  );
 
-  bus.on("review.completed", ({ session_id, issue_id, agent_id, project_id, verdict }) =>
-    broadcast(project_id, "review.completed", { session_id, issue_id, agent_id, verdict }));
+  bus.on(
+    "review.completed",
+    ({ session_id, issue_id, agent_id, project_id, verdict }) =>
+      broadcast(project_id, "review.completed", {
+        session_id,
+        issue_id,
+        agent_id,
+        verdict,
+      }),
+  );
 
   bus.on("pr.created", ({ issue_pr, project_id }) =>
-    broadcast(project_id, "pr.created", issue_pr));
+    broadcast(project_id, "pr.created", issue_pr),
+  );
 
   bus.on("pr.status_changed", ({ pr_id, project_id, from, to }) =>
-    broadcast(project_id, "pr.status_changed", { pr_id, from, to }));
+    broadcast(project_id, "pr.status_changed", { pr_id, from, to }),
+  );
 
   bus.on("orchestrator.decision", ({ project_id, action, details }) =>
-    broadcast(project_id, "orchestrator.decision", { action, details }));
+    broadcast(project_id, "orchestrator.decision", { action, details }),
+  );
 
   bus.on("orchestrator.draft_issue", ({ issue, project_id }) =>
-    broadcast(project_id, "orchestrator.draft_issue", issue));
+    broadcast(project_id, "orchestrator.draft_issue", issue),
+  );
 
   bus.on("captain.message", ({ message, project_id }) =>
-    broadcast(project_id, "captain.message", message));
+    broadcast(project_id, "captain.message", message),
+  );
+
+  bus.on("agent.created", ({ agent_id, name, project_id }) =>
+    broadcast(project_id, "agent.created", { agent_id, name }),
+  );
 }
 
 interface ExtendedWebSocket extends WebSocket {
