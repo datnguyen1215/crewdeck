@@ -9,6 +9,25 @@ import { shellQuote } from "../shell.js";
 
 const execAsync = promisify(exec);
 
+// Calculate how many Down arrow presses are needed to reach a target option.
+// The TUI uses ❯ to mark the currently selected option and arrow keys to navigate.
+function getArrowPresses(output: string, label: string): number {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const lines = output.split("\n");
+  let targetIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (new RegExp(`\\d+\\.\\s*${escaped}`).test(lines[i])) { targetIdx = i; break; }
+  }
+  if (targetIdx < 0) return 0;
+  // Find the ❯ marker closest to (and at or before) the target line
+  let selectedIdx = -1;
+  for (let i = targetIdx; i >= 0; i--) {
+    if (lines[i].includes("❯")) { selectedIdx = i; break; }
+  }
+  if (selectedIdx < 0) return 0;
+  return targetIdx - selectedIdx;
+}
+
 // Build a launch script using base64-encoded prompts to avoid shell escaping issues
 // --dangerously-skip-permissions: required for unattended agent execution.
 // TODO: Add auth middleware on agent-spawning routes before production (see index.ts).
@@ -107,16 +126,22 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       try {
         const { stdout } = await execAsync(`tmux capture-pane -t ${sn} -p`);
 
-        // "Yes, I trust this folder" is selected by default — just press Enter
+        // Trust prompt — navigate to "Yes, proceed" and confirm
         if (!handledTrust && stdout.includes("trust this folder")) {
+          const presses = getArrowPresses(stdout, "Yes, proceed");
+          for (let i = 0; i < presses; i++)
+            await execAsync(`tmux send-keys -t ${sn} Down`);
           await execAsync(`tmux send-keys -t ${sn} Enter`);
           handledTrust = true;
           continue;
         }
 
-        // Bypass permissions prompt: select "Yes, I accept" (option 2)
+        // Bypass permissions prompt — navigate to "Yes, I accept" and confirm
         if (!handledBypass && stdout.includes("Yes, I accept")) {
-          await execAsync(`tmux send-keys -t ${sn} 2`);
+          const presses = getArrowPresses(stdout, "Yes, I accept");
+          for (let i = 0; i < presses; i++)
+            await execAsync(`tmux send-keys -t ${sn} Down`);
+          await execAsync(`tmux send-keys -t ${sn} Enter`);
           handledBypass = true;
           continue;
         }
