@@ -11,6 +11,8 @@ import { listIssueAgents } from "./issue-agents.js";
 import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
 import { buildAndRunUpdate } from "./utils.js";
+import { getAgent } from "./agents.js";
+import { getRepo } from "./repos.js";
 
 export function listIssues(projectId: string, filters: IssueFilters = {}): Issue[] {
   const conditions: string[] = ["project_id = ?"];
@@ -54,12 +56,43 @@ export function getIssue(id: string): Issue | null {
 export function getIssueWithDetails(id: string): IssueWithDetails | null {
   const issue = getIssue(id);
   if (!issue) return null;
+
+  // Fetch issue agents with embedded agent info
+  const issueAgents = listIssueAgents(id).map((ia) => {
+    const agent = getAgent(ia.agent_id);
+    return {
+      ...ia,
+      agent: agent ? { id: agent.id, name: agent.name } : null,
+    };
+  });
+
+  // Fetch assigned agent info
+  const assignedAgent = issue.assigned_agent_id
+    ? (() => {
+        const agent = getAgent(issue.assigned_agent_id);
+        return agent ? { id: agent.id, name: agent.name } : null;
+      })()
+    : null;
+
+  // Fetch repo info
+  const repo = issue.repo_id
+    ? (() => {
+        const r = getRepo(issue.repo_id);
+        return r ? { id: r.id, name: r.name } : null;
+      })()
+    : null;
+
   return {
     ...issue,
     comments: listComments(id),
     agents: listIssueAgents(id),
     prs: listIssuePRs(id),
     activity: listActivity(issue.project_id, { issue_id: id }),
+    // Additional fields expected by frontend
+    issue_agents: issueAgents,
+    issue_prs: listIssuePRs(id),
+    assigned_agent: assignedAgent,
+    repo,
   };
 }
 
