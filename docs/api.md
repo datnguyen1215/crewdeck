@@ -990,6 +990,32 @@ Captain creates a new issue. The issue is created with `created_by: "orchestrato
 
 **Side effects:** Emits `issue.created` on the event bus.
 
+#### Start Session (Internal)
+
+```
+POST /internal/sessions/start
+```
+
+Captain spawns an agent's tmux session for a specific issue. Must be called after `crewdeck assign` to begin the agent's work.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "agent_id": "uuid",
+  "issue_id": "uuid"
+}
+```
+
+**Response:** `200 OK`
+```json
+{ "ok": true }
+```
+
+**Side effects:** Emits `captain.session_start` on the event bus. The orchestrator creates the tmux session, builds the agent prompt, and starts the agent process.
+
+---
+
 #### Stop Session (Internal)
 
 ```
