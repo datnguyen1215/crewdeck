@@ -40,7 +40,15 @@ function seedAgents(): void {
   reviewerAgentId = crypto.randomUUID();
   db.prepare(
     "INSERT INTO Agent (id, crew_id, name, title, description, system_prompt, is_captain) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  ).run(captainId, crewId, "Captain", "project coordinator", null, "You are the captain.", 1);
+  ).run(
+    captainId,
+    crewId,
+    "Captain",
+    "project coordinator",
+    null,
+    "You are the captain.",
+    1,
+  );
   db.prepare(
     "INSERT INTO Agent (id, crew_id, name, title, description, system_prompt) VALUES (?, ?, ?, ?, ?, ?)",
   ).run(agentId, crewId, "Alice", "developer", null, "You are Alice");
@@ -58,7 +66,9 @@ function seedIssue(status = "open"): void {
 
 function makeAdapter(): AgentAdapter {
   return {
-    spawn: vi.fn().mockResolvedValue({ sessionName: "test-session" } as SessionHandle),
+    spawn: vi
+      .fn()
+      .mockResolvedValue({ sessionName: "test-session" } as SessionHandle),
     send: vi.fn().mockResolvedValue(undefined),
     getOutput: vi.fn().mockResolvedValue(""),
     isAlive: vi.fn().mockResolvedValue(false),
@@ -108,7 +118,9 @@ describe("OrchestratorManager", () => {
   describe("captain session", () => {
     it("spawns a persistent captain session on first event", async () => {
       seedIssue();
-      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      const issue = db
+        .prepare("SELECT * FROM Issue WHERE id = ?")
+        .get(issueId) as Record<string, unknown>;
       bus.emit("issue.created", { issue: issue as never });
       await flushPromises();
 
@@ -123,7 +135,9 @@ describe("OrchestratorManager", () => {
 
     it("passes a claudeSessionId UUID to the adapter", async () => {
       seedIssue();
-      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      const issue = db
+        .prepare("SELECT * FROM Issue WHERE id = ?")
+        .get(issueId) as Record<string, unknown>;
       bus.emit("issue.created", { issue: issue as never });
       await flushPromises();
 
@@ -140,7 +154,9 @@ describe("OrchestratorManager", () => {
       vi.mocked(adapter.isAlive).mockResolvedValue(true);
 
       seedIssue();
-      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      const issue = db
+        .prepare("SELECT * FROM Issue WHERE id = ?")
+        .get(issueId) as Record<string, unknown>;
 
       // First event spawns captain
       bus.emit("issue.created", { issue: issue as never });
@@ -170,8 +186,14 @@ describe("OrchestratorManager", () => {
       vi.mocked(adapter.isAlive).mockResolvedValue(true);
       await manager.ensureCaptainSession(projectId);
 
-      const watchers = (manager as any).jsonlWatchers as Map<string, { isRunning(): boolean; stop(): void }>;
-      const claudeIds = (manager as any).claudeSessionIds as Map<string, string>;
+      const watchers = (manager as any).jsonlWatchers as Map<
+        string,
+        { isRunning(): boolean; stop(): void }
+      >;
+      const claudeIds = (manager as any).claudeSessionIds as Map<
+        string,
+        string
+      >;
 
       // claudeSessionId should be stored
       expect(claudeIds.has(projectId)).toBe(true);
@@ -183,7 +205,9 @@ describe("OrchestratorManager", () => {
 
       // Send a message — should restart the watcher
       seedIssue();
-      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      const issue = db
+        .prepare("SELECT * FROM Issue WHERE id = ?")
+        .get(issueId) as Record<string, unknown>;
       bus.emit("issue.created", { issue: issue as never });
       await flushPromises();
 
@@ -204,7 +228,9 @@ describe("OrchestratorManager", () => {
       });
 
       seedIssue();
-      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      const issue = db
+        .prepare("SELECT * FROM Issue WHERE id = ?")
+        .get(issueId) as Record<string, unknown>;
 
       bus.emit("issue.created", { issue: issue as never });
       await flushPromises();
@@ -224,7 +250,9 @@ describe("OrchestratorManager", () => {
       vi.mocked(adapter.isAlive).mockResolvedValue(true);
 
       seedIssue();
-      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      const issue = db
+        .prepare("SELECT * FROM Issue WHERE id = ?")
+        .get(issueId) as Record<string, unknown>;
       bus.emit("issue.created", { issue: issue as never });
       await flushPromises();
 
@@ -301,8 +329,12 @@ describe("OrchestratorManager", () => {
 
     it("does not relay orchestrator-created issues", async () => {
       seedIssue();
-      db.prepare("UPDATE Issue SET created_by = 'orchestrator' WHERE id = ?").run(issueId);
-      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
+      db.prepare(
+        "UPDATE Issue SET created_by = 'orchestrator' WHERE id = ?",
+      ).run(issueId);
+      const issue = db
+        .prepare("SELECT * FROM Issue WHERE id = ?")
+        .get(issueId) as Record<string, unknown>;
       bus.emit("issue.created", { issue: issue as never });
       await flushPromises();
       expect(adapter.spawn).not.toHaveBeenCalled();
@@ -329,7 +361,9 @@ describe("OrchestratorManager", () => {
 
       // Should spawn a worker session
       const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
-      const workerSpawn = spawnCalls.find((c) => c[0].sessionName.includes("worker"));
+      const workerSpawn = spawnCalls.find((c) =>
+        c[0].sessionName.includes("worker"),
+      );
       expect(workerSpawn).toBeDefined();
       expect(workerSpawn![0].env?.CREWDECK_AGENT_ID).toBe(agentId);
     });
@@ -344,7 +378,9 @@ describe("OrchestratorManager", () => {
       await flushPromises();
 
       const ia = db
-        .prepare("SELECT * FROM IssueAgent WHERE issue_id = ? AND role = 'worker'")
+        .prepare(
+          "SELECT * FROM IssueAgent WHERE issue_id = ? AND role = 'worker'",
+        )
         .get(issueId) as { status: string } | undefined;
       expect(ia).toBeDefined();
       expect(ia!.status).toBe("active");
@@ -360,7 +396,9 @@ describe("OrchestratorManager", () => {
       await flushPromises();
 
       const comments = db
-        .prepare("SELECT content FROM Comment WHERE issue_id = ? AND author_type = 'orchestrator'")
+        .prepare(
+          "SELECT content FROM Comment WHERE issue_id = ? AND author_type = 'orchestrator'",
+        )
         .all(issueId) as Array<{ content: string }>;
       expect(comments.length).toBeGreaterThan(0);
       expect(comments[0].content).toContain("Alice");
@@ -390,7 +428,9 @@ describe("OrchestratorManager", () => {
       expect(updated.status).toBe("open"); // not assigned
 
       const queued = db
-        .prepare("SELECT content FROM Comment WHERE issue_id = ? AND content LIKE '%queued%'")
+        .prepare(
+          "SELECT content FROM Comment WHERE issue_id = ? AND content LIKE '%queued%'",
+        )
         .get(issueId) as { content: string } | undefined;
       expect(queued).toBeDefined();
 
@@ -398,7 +438,7 @@ describe("OrchestratorManager", () => {
     });
 
     it("skips assign for non-assignable issue status", async () => {
-      seedIssue("in_progress");
+      seedIssue("in_review");
       bus.emit("captain.assign", {
         project_id: projectId,
         issue_id: issueId,
@@ -409,11 +449,174 @@ describe("OrchestratorManager", () => {
       const updated = db
         .prepare("SELECT status FROM Issue WHERE id = ?")
         .get(issueId) as { status: string };
-      expect(updated.status).toBe("in_progress");
+      expect(updated.status).toBe("in_review");
 
       const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
-      const workerSpawn = spawnCalls.find((c) => c[0].sessionName.includes("worker"));
+      const workerSpawn = spawnCalls.find((c) =>
+        c[0].sessionName.includes("worker"),
+      );
       expect(workerSpawn).toBeUndefined();
+    });
+
+    it("skips re-assign when a running session exists for the issue", async () => {
+      seedIssue("in_progress");
+      // Create a running session for this issue
+      db.prepare(
+        "INSERT INTO Session (id, project_id, session_type, agent_id, issue_id, tmux_session_name, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).run(
+        crypto.randomUUID(),
+        projectId,
+        "worker",
+        agentId,
+        issueId,
+        "test-session",
+        "running",
+      );
+
+      bus.emit("captain.assign", {
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: agentId,
+      });
+      await flushPromises();
+
+      const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
+      const workerSpawn = spawnCalls.find((c) =>
+        c[0].sessionName.includes("worker"),
+      );
+      expect(workerSpawn).toBeUndefined();
+    });
+
+    it("re-assigns issue after previous session errored", async () => {
+      seedIssue("in_progress");
+      // Create an errored session and active issue-agent from the previous attempt
+      const oldSessionId = crypto.randomUUID();
+      db.prepare(
+        "INSERT INTO Session (id, project_id, session_type, agent_id, issue_id, tmux_session_name, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).run(
+        oldSessionId,
+        projectId,
+        "worker",
+        agentId,
+        issueId,
+        "old-session",
+        "error",
+      );
+      const oldIaId = crypto.randomUUID();
+      db.prepare(
+        "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_round) VALUES (?, ?, ?, ?, ?, ?)",
+      ).run(oldIaId, issueId, agentId, "worker", "active", 0);
+
+      bus.emit("captain.assign", {
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: agentId,
+      });
+      await flushPromises();
+
+      // Should spawn a new worker session
+      const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
+      const workerSpawn = spawnCalls.find((c) =>
+        c[0].sessionName.includes("worker"),
+      );
+      expect(workerSpawn).toBeDefined();
+
+      // Issue should still be in_progress with agent assigned
+      const updated = db
+        .prepare("SELECT status, assigned_agent_id FROM Issue WHERE id = ?")
+        .get(issueId) as { status: string; assigned_agent_id: string };
+      expect(updated.status).toBe("in_progress");
+      expect(updated.assigned_agent_id).toBe(agentId);
+
+      // Same-agent re-assignment reuses the existing IssueAgent record
+      const reusedIa = db
+        .prepare("SELECT status, session_id FROM IssueAgent WHERE id = ?")
+        .get(oldIaId) as { status: string; session_id: string | null };
+      expect(reusedIa.status).toBe("active");
+      expect(reusedIa.session_id).not.toBeNull(); // linked to new session
+
+      // Only one active worker IssueAgent should exist
+      const activeIas = db
+        .prepare(
+          "SELECT * FROM IssueAgent WHERE issue_id = ? AND status = 'active' AND role = 'worker'",
+        )
+        .all(issueId) as Array<{ id: string }>;
+      expect(activeIas.length).toBe(1);
+    });
+
+    it("re-assigns issue to a different agent after error, marks old as error", async () => {
+      seedIssue("in_progress");
+      db.prepare("UPDATE Issue SET assigned_agent_id = ? WHERE id = ?").run(
+        agentId,
+        issueId,
+      );
+      // Create errored session + active issue-agent for the original agent
+      db.prepare(
+        "INSERT INTO Session (id, project_id, session_type, agent_id, issue_id, tmux_session_name, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).run(
+        crypto.randomUUID(),
+        projectId,
+        "worker",
+        agentId,
+        issueId,
+        "old-session",
+        "error",
+      );
+      const oldIaId = crypto.randomUUID();
+      db.prepare(
+        "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_round) VALUES (?, ?, ?, ?, ?, ?)",
+      ).run(oldIaId, issueId, agentId, "worker", "active", 0);
+
+      // Re-assign to a different agent (reviewerAgentId)
+      bus.emit("captain.assign", {
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: reviewerAgentId,
+      });
+      await flushPromises();
+
+      // Old agent's IssueAgent should be marked as error
+      const oldIa = db
+        .prepare("SELECT status FROM IssueAgent WHERE id = ?")
+        .get(oldIaId) as { status: string };
+      expect(oldIa.status).toBe("error");
+
+      // New IssueAgent should be created for the new agent
+      const newIas = db
+        .prepare(
+          "SELECT * FROM IssueAgent WHERE issue_id = ? AND agent_id = ? AND status = 'active'",
+        )
+        .all(issueId, reviewerAgentId) as Array<{ id: string }>;
+      expect(newIas.length).toBe(1);
+    });
+
+    it("re-assigns issue after previous session completed without cleanup", async () => {
+      seedIssue("in_progress");
+      // Create a completed session (e.g. process monitor marked it done but issue wasn't cleaned up)
+      db.prepare(
+        "INSERT INTO Session (id, project_id, session_type, agent_id, issue_id, tmux_session_name, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).run(
+        crypto.randomUUID(),
+        projectId,
+        "worker",
+        agentId,
+        issueId,
+        "old-session",
+        "completed",
+      );
+
+      bus.emit("captain.assign", {
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: agentId,
+      });
+      await flushPromises();
+
+      const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
+      const workerSpawn = spawnCalls.find((c) =>
+        c[0].sessionName.includes("worker"),
+      );
+      expect(workerSpawn).toBeDefined();
     });
   });
 
@@ -436,7 +639,9 @@ describe("OrchestratorManager", () => {
       expect(updated.current_review_round).toBe(1);
 
       const ia = db
-        .prepare("SELECT * FROM IssueAgent WHERE issue_id = ? AND role = 'reviewer'")
+        .prepare(
+          "SELECT * FROM IssueAgent WHERE issue_id = ? AND role = 'reviewer'",
+        )
         .get(issueId) as { status: string; review_order: number } | undefined;
       expect(ia).toBeDefined();
       expect(ia!.review_order).toBe(1);
@@ -448,7 +653,9 @@ describe("OrchestratorManager", () => {
   describe("review pipeline", () => {
     it("marks IssueAgent approved and issue ready when all reviewers approve", async () => {
       seedIssue("in_review");
-      db.prepare("UPDATE Issue SET current_review_round = 1 WHERE id = ?").run(issueId);
+      db.prepare("UPDATE Issue SET current_review_round = 1 WHERE id = ?").run(
+        issueId,
+      );
       const iaId = crypto.randomUUID();
       db.prepare(
         "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, review_round, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -463,16 +670,22 @@ describe("OrchestratorManager", () => {
       });
       await flushPromises();
 
-      const ia = db.prepare("SELECT status FROM IssueAgent WHERE id = ?").get(iaId) as { status: string };
+      const ia = db
+        .prepare("SELECT status FROM IssueAgent WHERE id = ?")
+        .get(iaId) as { status: string };
       expect(ia.status).toBe("approved");
 
-      const issue = db.prepare("SELECT status FROM Issue WHERE id = ?").get(issueId) as { status: string };
+      const issue = db
+        .prepare("SELECT status FROM Issue WHERE id = ?")
+        .get(issueId) as { status: string };
       expect(issue.status).toBe("ready");
     });
 
     it("marks IssueAgent changes_requested and issue feedback on changes_requested verdict", async () => {
       seedIssue("in_review");
-      db.prepare("UPDATE Issue SET current_review_round = 1 WHERE id = ?").run(issueId);
+      db.prepare("UPDATE Issue SET current_review_round = 1 WHERE id = ?").run(
+        issueId,
+      );
       const iaId = crypto.randomUUID();
       db.prepare(
         "INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, review_round, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -487,10 +700,14 @@ describe("OrchestratorManager", () => {
       });
       await flushPromises();
 
-      const ia = db.prepare("SELECT status FROM IssueAgent WHERE id = ?").get(iaId) as { status: string };
+      const ia = db
+        .prepare("SELECT status FROM IssueAgent WHERE id = ?")
+        .get(iaId) as { status: string };
       expect(ia.status).toBe("changes_requested");
 
-      const issue = db.prepare("SELECT status FROM Issue WHERE id = ?").get(issueId) as { status: string };
+      const issue = db
+        .prepare("SELECT status FROM Issue WHERE id = ?")
+        .get(issueId) as { status: string };
       expect(issue.status).toBe("feedback");
     });
   });
@@ -502,8 +719,12 @@ describe("OrchestratorManager", () => {
       vi.mocked(adapter.spawn).mockRejectedValue(new Error("tmux failed"));
 
       seedIssue();
-      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
-      expect(() => bus.emit("issue.created", { issue: issue as never })).not.toThrow();
+      const issue = db
+        .prepare("SELECT * FROM Issue WHERE id = ?")
+        .get(issueId) as Record<string, unknown>;
+      expect(() =>
+        bus.emit("issue.created", { issue: issue as never }),
+      ).not.toThrow();
       await flushPromises();
     });
 
@@ -513,8 +734,12 @@ describe("OrchestratorManager", () => {
       vi.mocked(adapter.send).mockRejectedValue(new Error("tmux send failed"));
 
       seedIssue();
-      const issue = db.prepare("SELECT * FROM Issue WHERE id = ?").get(issueId) as Record<string, unknown>;
-      expect(() => bus.emit("issue.created", { issue: issue as never })).not.toThrow();
+      const issue = db
+        .prepare("SELECT * FROM Issue WHERE id = ?")
+        .get(issueId) as Record<string, unknown>;
+      expect(() =>
+        bus.emit("issue.created", { issue: issue as never }),
+      ).not.toThrow();
       await flushPromises();
     });
   });
