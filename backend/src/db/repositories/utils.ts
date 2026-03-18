@@ -8,7 +8,7 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
   IssuePR: new Set(["status", "pr_url"]),
   Issue: new Set(["title", "description", "status", "priority", "assigned_agent_id", "max_review_rounds", "current_review_round", "branch_name", "worktree_path", "base_branch", "repo_id"]),
   Project: new Set(["name", "description", "max_concurrency", "max_review_rounds", "orchestrator_session_id", "github_account_id"]),
-  Session: new Set(["session_type", "agent_id", "issue_id", "tmux_session_name", "tmux_pane_id", "status", "context"]),
+  Session: new Set(["session_type", "agent_id", "issue_id", "tmux_session_name", "tmux_pane_id", "claude_session_id", "status", "context"]),
 };
 
 /**

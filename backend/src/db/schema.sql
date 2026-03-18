@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS Session (
   issue_id TEXT REFERENCES Issue(id),
   tmux_session_name TEXT,
   tmux_pane_id TEXT,
+  claude_session_id TEXT,
   status TEXT NOT NULL DEFAULT 'idle',
   context TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
