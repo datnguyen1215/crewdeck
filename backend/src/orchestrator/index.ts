@@ -21,7 +21,7 @@ import {
 } from "../db/repositories/sessions.js";
 import { createCaptainMessage } from "../db/repositories/captain-messages.js";
 import { config } from "../config.js";
-import { executeAssign } from "./assignment-service.js";
+import { executeAssign, executeSpawnSession } from "./assignment-service.js";
 import { executeRouteReview, handleReviewVerdict } from "./review-service.js";
 import { executeCreatePR } from "./pr-service.js";
 
@@ -48,6 +48,7 @@ crewdeck activity <issue_id>      — fetch comments and activity for an issue
 crewdeck history save --summary "..."  — save a decision summary
 crewdeck history list             — list your decision history
 crewdeck sessions list            — list project sessions
+crewdeck sessions start <agent_id> --issue <issue_id>  — spawn an agent session
 crewdeck sessions stop <session_id>  — stop a running session
 crewdeck create-pr <issue_id>     — push branch and create a GitHub PR
 \`\`\`
@@ -59,13 +60,23 @@ crewdeck create-pr <issue_id>     — push branch and create a GitHub PR
 3. After each decision, save a summary with \`crewdeck history save --summary "..."\`
 4. You stay alive across multiple issues — no need to rush.
 
+## Session Lifecycle
+
+You control the full agent session lifecycle:
+1. **Assign** the agent to an issue with \`crewdeck assign\`
+2. **Spawn** the agent's session with \`crewdeck sessions start <agent_id> --issue <issue_id>\`
+3. **Monitor** — the agent works and signals when done
+4. **Kill** the session with \`crewdeck sessions stop <session_id>\` when the issue is resolved
+
 ## Rules
 
 - Max ${maxConcurrency} issue${maxConcurrency === 1 ? "" : "s"} in progress at a time.
 - Only assign idle agents to open/draft issues.
+- After assigning, spawn the agent session.
 - After an agent finishes, route to a reviewer.
 - After review approval, create a PR with \`crewdeck create-pr <issue_id>\`.
-- If a review requests changes, re-assign the original worker.
+- If a review requests changes, re-assign the original worker and spawn a new session.
+- Kill agent sessions when issues are marked done.
 
 Start by listing issues and agents to understand the current state.`;
 
@@ -118,6 +129,16 @@ export class OrchestratorManager {
 
     this.bus.on("captain.create_pr", ({ project_id, issue_id }) => {
       void executeCreatePR(project_id, issue_id, this.bus);
+    });
+
+    this.bus.on("captain.session_start", ({ project_id, agent_id, issue_id }) => {
+      void executeSpawnSession(
+        project_id,
+        issue_id,
+        agent_id,
+        this.bus,
+        this.adapter,
+      );
     });
 
     this.bus.on("session.stop_requested", ({ session_id, project_id }) => {
@@ -355,6 +376,17 @@ export class OrchestratorManager {
         }),
       ),
     );
+  }
+
+  notifyOrphanedIssues(issueIds: string[]): void {
+    for (const issueId of issueIds) {
+      const issue = getIssue(issueId);
+      if (!issue || issue.status === "done") continue;
+      void this.sendToCaptain(
+        issue.project_id,
+        `Issue "${escapeXml(issue.title)}" (ID: ${issueId}) was in progress but its agent session died during a backend restart. Use \`crewdeck sessions start <agent_id> --issue ${issueId}\` to respawn the session, or reassign with \`crewdeck assign ${issueId} <agent_id>\`.`,
+      );
+    }
   }
 
   async killCaptainSession(projectId: string): Promise<void> {

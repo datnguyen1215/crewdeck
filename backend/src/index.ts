@@ -18,12 +18,17 @@ const processMonitor = new ProcessMonitor(claudeCodeAdapter);
 async function main(): Promise<void> {
   // Run cleanup and start monitor before accepting connections to avoid
   // races between orphan cleanup, process monitoring, and incoming requests.
-  await cleanupOrphans();
+  const orphanedIssueIds = await cleanupOrphans();
   processMonitor.start();
   initActivityLogger();
   const orchestrator = initOrchestrator(claudeCodeAdapter);
-  // Start captain sessions for all projects in the background
-  orchestrator.startAllCaptains().catch((err) => {
+  // Start captain sessions for all projects in the background.
+  // After captains are up, notify them of orphaned issues so they can respawn.
+  orchestrator.startAllCaptains().then(() => {
+    if (orphanedIssueIds.length > 0) {
+      orchestrator.notifyOrphanedIssues(orphanedIssueIds);
+    }
+  }).catch((err) => {
     logger.error({ err }, "Failed to auto-start captain sessions");
   });
 

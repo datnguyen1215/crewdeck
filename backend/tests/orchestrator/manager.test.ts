@@ -359,13 +359,8 @@ describe("OrchestratorManager", () => {
       expect(updated.status).toBe("in_progress");
       expect(updated.assigned_agent_id).toBe(agentId);
 
-      // Should spawn a worker session
-      const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
-      const workerSpawn = spawnCalls.find((c) =>
-        c[0].sessionName.includes("worker"),
-      );
-      expect(workerSpawn).toBeDefined();
-      expect(workerSpawn![0].env?.CREWDECK_AGENT_ID).toBe(agentId);
+      // Assign no longer spawns sessions — captain calls sessions start separately
+      expect(adapter.spawn).not.toHaveBeenCalled();
     });
 
     it("creates IssueAgent record", async () => {
@@ -514,12 +509,8 @@ describe("OrchestratorManager", () => {
       });
       await flushPromises();
 
-      // Should spawn a new worker session
-      const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
-      const workerSpawn = spawnCalls.find((c) =>
-        c[0].sessionName.includes("worker"),
-      );
-      expect(workerSpawn).toBeDefined();
+      // Assign no longer spawns — captain calls sessions start separately
+      expect(adapter.spawn).not.toHaveBeenCalled();
 
       // Issue should still be in_progress with agent assigned
       const updated = db
@@ -530,10 +521,9 @@ describe("OrchestratorManager", () => {
 
       // Same-agent re-assignment reuses the existing IssueAgent record
       const reusedIa = db
-        .prepare("SELECT status, session_id FROM IssueAgent WHERE id = ?")
-        .get(oldIaId) as { status: string; session_id: string | null };
+        .prepare("SELECT status FROM IssueAgent WHERE id = ?")
+        .get(oldIaId) as { status: string };
       expect(reusedIa.status).toBe("active");
-      expect(reusedIa.session_id).not.toBeNull(); // linked to new session
 
       // Only one active worker IssueAgent should exist
       const activeIas = db
@@ -612,11 +602,15 @@ describe("OrchestratorManager", () => {
       });
       await flushPromises();
 
-      const spawnCalls = vi.mocked(adapter.spawn).mock.calls;
-      const workerSpawn = spawnCalls.find((c) =>
-        c[0].sessionName.includes("worker"),
-      );
-      expect(workerSpawn).toBeDefined();
+      // Assign no longer spawns — captain calls sessions start separately
+      expect(adapter.spawn).not.toHaveBeenCalled();
+
+      // Issue should be re-assigned
+      const updated = db
+        .prepare("SELECT status, assigned_agent_id FROM Issue WHERE id = ?")
+        .get(issueId) as { status: string; assigned_agent_id: string };
+      expect(updated.status).toBe("in_progress");
+      expect(updated.assigned_agent_id).toBe(agentId);
     });
   });
 

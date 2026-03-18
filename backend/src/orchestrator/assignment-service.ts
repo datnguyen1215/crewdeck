@@ -28,13 +28,15 @@ import {
 } from "../db/repositories/sessions.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 
-// Execute an assign action triggered by the captain via CLI
+// Execute an assign action triggered by the captain via CLI.
+// This only links the agent to the issue and prepares the worktree.
+// The captain must separately call `sessions start` to spawn the tmux session.
 export async function executeAssign(
   projectId: string,
   issueId: string,
   agentId: string,
   bus: EventBus,
-  adapter: AgentAdapter,
+  _adapter: AgentAdapter,
 ): Promise<void> {
   const issue = getIssue(issueId);
   if (!issue) {
@@ -48,10 +50,6 @@ export async function executeAssign(
     );
     return;
   }
-  // Allow re-assignment for in_progress/feedback issues when no session is
-  // actively running (e.g. previous session errored or completed without
-  // proper cleanup). For truly active sessions we still reject to avoid
-  // double-spawning.
   const reassignable = ["in_progress", "feedback"];
   let isReassignment = false;
   if (!["open", "draft"].includes(issue.status)) {
@@ -75,7 +73,6 @@ export async function executeAssign(
       return;
     }
 
-    // Clean up stale issue-agent records from the previous attempt
     const staleAgents = listIssueAgents(issueId).filter(
       (ia) => ia.status === "active",
     );
@@ -109,8 +106,6 @@ export async function executeAssign(
   const project = getProject(projectId);
   if (!project) return;
 
-  // Concurrency check — exclude the current issue on re-assignment since
-  // it already occupies a slot.
   const all = listIssues(projectId);
   const activeCount = all.filter(
     (i) =>
@@ -129,20 +124,18 @@ export async function executeAssign(
     return;
   }
 
-  const updatedIssue = updateIssue(issueId, {
+  updateIssue(issueId, {
     assigned_agent_id: agentId,
     status: "in_progress",
   });
 
-  // Reuse an existing stale IssueAgent record if one exists (same agent+role+round),
-  // otherwise create a new one. This avoids hitting the UNIQUE constraint on re-assignment.
   const existingIa = listIssueAgents(issueId).find(
     (ia) =>
       ia.agent_id === agentId &&
       ia.role === "worker" &&
       (ia.review_round ?? 0) === 0,
   );
-  const issueAgent = existingIa
+  existingIa
     ? updateIssueAgent(existingIa.id, { status: "active", session_id: null })
     : createIssueAgent({
         issue_id: issueId,
@@ -152,26 +145,83 @@ export async function executeAssign(
         review_round: 0,
       });
 
-  // Create worktree if repo is configured
+  bus.emit("issue.status_changed", {
+    issue_id: issueId,
+    project_id: projectId,
+    from: issue.status,
+    to: "in_progress",
+  });
+  bus.emit("issue.assigned", {
+    issue_id: issueId,
+    project_id: projectId,
+    agent_id: agentId,
+    agent_name: agent.name,
+  });
+
+  const comment = createComment(issueId, {
+    content: `Assigned to ${agent.name} (${agent.title}).`,
+    author_type: "orchestrator",
+  });
+  bus.emit("comment.added", { comment, project_id: projectId });
+}
+
+// Spawn an agent's tmux session for a specific issue.
+// Called by the captain via `crewdeck sessions start <agent_id> --issue <issue_id>`.
+export async function executeSpawnSession(
+  projectId: string,
+  issueId: string,
+  agentId: string,
+  bus: EventBus,
+  adapter: AgentAdapter,
+): Promise<void> {
+  const issue = getIssue(issueId);
+  if (!issue) {
+    logger.warn({ issueId }, "spawn: issue not found");
+    return;
+  }
+
+  const agent = getAgent(agentId);
+  if (!agent) {
+    logger.warn({ agentId }, "spawn: agent not found");
+    return;
+  }
+
+  // Don't double-spawn
+  const runningSessions = listSessions(projectId, {
+    issue_id: issueId,
+    status: "running",
+  });
+  if (runningSessions.some((s) => s.agent_id === agentId)) {
+    logger.warn(
+      { issueId, agentId },
+      "spawn: agent already has a running session for this issue",
+    );
+    return;
+  }
+
+  const project = getProject(projectId);
+  if (!project) return;
+
+  // Create worktree if repo is configured and issue doesn't already have one
   const repos = listRepos(projectId);
   let repo = repos.length > 0 ? repos[0] : null;
-  let worktreePath = "/tmp";
+  let worktreePath = issue.worktree_path ?? "/tmp";
   let createdBranchName: string | null = null;
-  if (repo) {
+  if (repo && !issue.worktree_path) {
     try {
-      const wt = await createWorktree(repo, updatedIssue, repo.default_branch);
+      const wt = await createWorktree(repo, issue, repo.default_branch);
       worktreePath = wt.path;
       createdBranchName = wt.branchName;
     } catch (err) {
       logger.error(
         { err, issueId },
-        "assign: failed to create worktree, using /tmp",
+        "spawn: failed to create worktree, using /tmp",
       );
       repo = null;
     }
   }
 
-  const promptText = buildAgentPrompt(updatedIssue, agent, repo, {
+  const promptText = buildAgentPrompt(issue, agent, repo, {
     worktreePath,
     previousComments: repo ? listComments(issueId) : undefined,
   });
@@ -187,7 +237,11 @@ export async function executeAssign(
     context: {},
   });
 
-  updateIssueAgent(issueAgent.id, { session_id: session.id });
+  // Link session to IssueAgent if one exists
+  const ia = listIssueAgents(issueId).find(
+    (ia) => ia.agent_id === agentId && ia.status === "active",
+  );
+  if (ia) updateIssueAgent(ia.id, { session_id: session.id });
 
   const ghAccount = project.github_account_id
     ? getGitHubAccount(project.github_account_id)
@@ -210,22 +264,15 @@ export async function executeAssign(
       },
     });
   } catch (err) {
-    logger.error({ err, sessionName }, "assign: failed to spawn agent session");
+    logger.error({ err, sessionName }, "spawn: failed to spawn agent session");
     updateSession(session.id, { status: "error" });
-    updateIssueAgent(issueAgent.id, { status: "error" });
-    updateIssue(issueId, {
-      status: issue.status,
-      assigned_agent_id: issue.assigned_agent_id,
-      worktree_path: issue.worktree_path ?? null,
-      branch_name: issue.branch_name ?? null,
-      base_branch: issue.base_branch ?? null,
-    });
+    if (ia) updateIssueAgent(ia.id, { status: "error" });
     if (repo && createdBranchName) {
       cleanupWorktree(repo, worktreePath, createdBranchName).catch(
         (cleanErr) => {
           logger.warn(
             { cleanErr, worktreePath },
-            "assign: failed to clean up orphaned worktree",
+            "spawn: failed to clean up orphaned worktree",
           );
         },
       );
@@ -233,18 +280,6 @@ export async function executeAssign(
     return;
   }
 
-  bus.emit("issue.status_changed", {
-    issue_id: issueId,
-    project_id: projectId,
-    from: issue.status,
-    to: "in_progress",
-  });
-  bus.emit("issue.assigned", {
-    issue_id: issueId,
-    project_id: projectId,
-    agent_id: agentId,
-    agent_name: agent.name,
-  });
   bus.emit("session.started", {
     session_id: session.id,
     agent_id: agentId,
@@ -254,7 +289,7 @@ export async function executeAssign(
   });
 
   const comment = createComment(issueId, {
-    content: `Assigned to ${agent.name} (${agent.title}). Session started.`,
+    content: `Session started for ${agent.name}.`,
     author_type: "orchestrator",
   });
   bus.emit("comment.added", { comment, project_id: projectId });

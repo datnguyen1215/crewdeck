@@ -240,6 +240,19 @@ router.post("/issues/create", validate(CreateIssueSchema), (req, res) => {
   res.status(201).json(issue);
 });
 
+// POST /sessions/start — captain spawns an agent session for a specific issue
+const SessionStartSchema = z.object({
+  project_id: z.string(),
+  agent_id: z.string(),
+  issue_id: z.string(),
+});
+
+router.post("/sessions/start", validate(SessionStartSchema), (req, res) => {
+  const { project_id, agent_id, issue_id } = req.body;
+  eventBus.emit("captain.session_start", { project_id, agent_id, issue_id });
+  res.json({ ok: true });
+});
+
 // POST /sessions/stop — captain stops a stuck agent session
 const SessionStopSchema = z.object({
   project_id: z.string(),
