@@ -18,6 +18,7 @@ import {
   createSession,
   getSession,
   updateSession,
+  listRunningSessions,
 } from "../db/repositories/sessions.js";
 import { createCaptainMessage } from "../db/repositories/captain-messages.js";
 import { config } from "../config.js";
@@ -361,6 +362,18 @@ export class OrchestratorManager {
       this.captainSessions.delete(projectId);
       if (sessionId) updateSession(sessionId, { status: "error" });
     }
+  }
+
+  recoverCaptainSessions(): void {
+    const sessions = listRunningSessions();
+    let count = 0;
+    for (const s of sessions) {
+      if (s.session_type === "captain" && s.tmux_session_name) {
+        this.captainSessions.set(s.project_id, s.id);
+        count++;
+      }
+    }
+    logger.info({ count }, "Recovered captain sessions from DB");
   }
 
   async startAllCaptains(): Promise<void> {
