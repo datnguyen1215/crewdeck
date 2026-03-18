@@ -61,9 +61,8 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
     return { ...ia, agent: agent ? { id: agent.id, name: agent.name } : null };
   });
 
-  const assignedAgent = issue.assigned_agent_id
-    ? (() => { const a = getAgent(issue.assigned_agent_id!); return a ? { id: a.id, name: a.name } : null; })()
-    : null;
+  const assignedAgentRow = issue.assigned_agent_id ? getAgent(issue.assigned_agent_id) : null;
+  const assignedAgent = assignedAgentRow ? { id: assignedAgentRow.id, name: assignedAgentRow.name } : null;
 
   return {
     ...issue,

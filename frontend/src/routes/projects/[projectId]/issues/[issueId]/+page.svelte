@@ -342,6 +342,7 @@ function esc(s: string) {
 		return { border: 'var(--color-edge-hi)', textColor: 'text-secondary' };
 	}
 
+	// Comment type doesn't discriminate author_type, so we use any here
 	function commentAuthorLabel(comment: any): string {
 		if (comment.author_type === 'orchestrator') return 'Captain';
 		if (comment.author_type === 'user') return 'User';

@@ -200,6 +200,7 @@ export interface IssueAgentWithName extends IssueAgent {
   agent: { id: string; name: string } | null;
 }
 
+// Only the frontend consumes this API response shape.
 export interface IssueWithDetails extends Issue {
   assigned_agent: { id: string; name: string } | null;
   comments: Comment[];
