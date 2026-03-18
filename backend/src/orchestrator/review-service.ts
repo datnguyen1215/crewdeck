@@ -199,28 +199,8 @@ export function handleReviewVerdict(
 
   if (verdict === "approved") {
     updateIssueAgent(reviewerRecord.id, { status: "approved" });
-
-    const freshIssue = getIssue(issue_id);
-    const currentRound = freshIssue?.current_review_round ?? null;
-    const freshAgents = listIssueAgents(issue_id);
-    const allForRound = freshAgents.filter(
-      (ia) => ia.role === "reviewer" && ia.review_round === currentRound,
-    );
-    const allApproved = allForRound.every((ia) => ia.status === "approved");
-    if (
-      allApproved &&
-      allForRound.length > 0 &&
-      freshIssue?.status === "in_review"
-    ) {
-      const issue = updateIssue(issue_id, { status: "ready" });
-      bus.emit("issue.status_changed", {
-        issue_id,
-        project_id,
-        from: "in_review",
-        to: "ready",
-      });
-      bus.emit("issue.approved", { issue });
-    }
+    // Captain controls when to transition to "ready" after all desired reviews complete.
+    // No auto-transition here - captain must explicitly set status or create PR.
   } else if (verdict === "changes_requested") {
     updateIssueAgent(reviewerRecord.id, { status: "changes_requested" });
     const prevIssue = getIssue(issue_id);
