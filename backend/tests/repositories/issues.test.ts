@@ -152,14 +152,16 @@ describe("getIssueWithDetails", () => {
     const details = getIssueWithDetails(issue.id);
     expect(details).not.toBeNull();
     expect(details!.comments.length).toBe(1);
+    // Legacy fields
     expect(details!.agents.length).toBe(1);
     expect(details!.prs.length).toBe(1);
     expect(details!.activity.length).toBe(1);
 
-    // New fields expected by frontend
+    // Renamed fields
     expect(details!.issue_agents.length).toBe(1);
     expect(details!.issue_agents[0].agent).toEqual({ id: agent.id, name: "A" });
     expect(details!.issue_prs.length).toBe(1);
+    expect(details!.activity_log.length).toBe(1);
     expect(details!.assigned_agent).toEqual({ id: agent.id, name: "A" });
     expect(details!.repo).toEqual({ id: repo.id, name: "x" });
   });

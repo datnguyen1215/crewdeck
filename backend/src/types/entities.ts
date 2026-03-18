@@ -196,19 +196,20 @@ export interface CrewWithAgents extends Crew {
   agents: AgentWithStatus[];
 }
 
-export interface IssueAgentWithAgent extends IssueAgent {
+export interface IssueAgentWithName extends IssueAgent {
   agent: { id: string; name: string } | null;
 }
 
+// TODO: remove legacy agents/prs/activity fields once all consumers use issue_agents/issue_prs/activity_log
 export interface IssueWithDetails extends Issue {
+  assigned_agent: { id: string; name: string } | null;
   comments: Comment[];
-  agents: IssueAgent[];
+  agents: IssueAgentWithName[];
   prs: IssuePR[];
   activity: ActivityLog[];
-  // Additional fields for frontend compatibility
-  issue_agents: IssueAgentWithAgent[];
+  issue_agents: IssueAgentWithName[];
   issue_prs: IssuePR[];
-  assigned_agent: { id: string; name: string } | null;
+  activity_log: ActivityLog[];
   repo: { id: string; name: string } | null;
 }
 

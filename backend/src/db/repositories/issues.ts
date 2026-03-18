@@ -10,9 +10,9 @@ import { listComments } from "./comments.js";
 import { listIssueAgents } from "./issue-agents.js";
 import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
-import { buildAndRunUpdate } from "./utils.js";
 import { getAgent } from "./agents.js";
 import { getRepo } from "./repos.js";
+import { buildAndRunUpdate } from "./utils.js";
 
 export function listIssues(projectId: string, filters: IssueFilters = {}): Issue[] {
   const conditions: string[] = ["project_id = ?"];
@@ -57,13 +57,9 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
   const issue = getIssue(id);
   if (!issue) return null;
 
-  // Fetch issue agents with embedded agent info
   const issueAgents = listIssueAgents(id).map((ia) => {
     const agent = getAgent(ia.agent_id);
-    return {
-      ...ia,
-      agent: agent ? { id: agent.id, name: agent.name } : null,
-    };
+    return { ...ia, agent: agent ? { id: agent.id, name: agent.name } : null };
   });
 
   // Reuse agent from issueAgents if available, otherwise fetch
@@ -75,22 +71,23 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
       })()
     : null;
 
-  // Fetch repo info
   const repoRow = issue.repo_id ? getRepo(issue.repo_id) : null;
   const repo = repoRow ? { id: repoRow.id, name: repoRow.name } : null;
 
   const issuePRs = listIssuePRs(id);
+  const activityLog = listActivity(issue.project_id, { issue_id: id });
 
-  // TODO: remove legacy agents/prs fields once all consumers use issue_agents/issue_prs
+  // TODO: remove legacy agents/prs/activity fields once all consumers use issue_agents/issue_prs/activity_log
   return {
     ...issue,
+    assigned_agent: assignedAgent,
     comments: listComments(id),
     agents: issueAgents,
     prs: issuePRs,
-    activity: listActivity(issue.project_id, { issue_id: id }),
+    activity: activityLog,
     issue_agents: issueAgents,
     issue_prs: issuePRs,
-    assigned_agent: assignedAgent,
+    activity_log: activityLog,
     repo,
   };
 }
