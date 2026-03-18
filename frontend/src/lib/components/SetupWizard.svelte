@@ -126,23 +126,28 @@
 		}
 		envSaving = true;
 		envError = '';
-		try {
-			await Promise.all(
-				valid.map((v) =>
-					createEnvironmentVariable(createdProject!.id, {
-						key: v.key.trim(),
-						value: v.value.trim(),
-						is_secret: v.is_secret
-					})
-				)
-			);
-			savedEnvCount = valid.length;
+		const results = await Promise.allSettled(
+			valid.map((v) =>
+				createEnvironmentVariable(createdProject!.id, {
+					key: v.key.trim(),
+					value: v.value.trim(),
+					is_secret: v.is_secret
+				})
+			)
+		);
+		const succeededIds = new Set(
+			valid.filter((_, i) => results[i].status === 'fulfilled').map((v) => v.id)
+		);
+		savedEnvCount += succeededIds.size;
+		envVars = envVars.filter((v) => !succeededIds.has(v.id));
+		const failed = results.filter((r) => r.status === 'rejected');
+		if (failed.length > 0) {
+			const reason = (failed[0] as PromiseRejectedResult).reason;
+			envError = reason instanceof Error ? reason.message : 'Failed to save some environment variables';
+		} else {
 			step = 5;
-		} catch (err) {
-			envError = err instanceof Error ? err.message : 'Failed to save environment variables';
-		} finally {
-			envSaving = false;
 		}
+		envSaving = false;
 	}
 
 	// --- Review & Launch ---
