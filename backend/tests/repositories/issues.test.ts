@@ -142,6 +142,7 @@ describe("getIssueWithDetails", () => {
     const crew = getCrew(p.id)!;
     const agent = createAgent(crew.id, { name: "A", title: "dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
+    updateIssue(issue.id, { assigned_agent_id: agent.id, repo_id: repo.id });
 
     createComment(issue.id, { content: "A comment" });
     createIssueAgent({ issue_id: issue.id, agent_id: agent.id, role: "developer" });
@@ -154,5 +155,12 @@ describe("getIssueWithDetails", () => {
     expect(details!.agents.length).toBe(1);
     expect(details!.prs.length).toBe(1);
     expect(details!.activity.length).toBe(1);
+
+    // New fields expected by frontend
+    expect(details!.issue_agents.length).toBe(1);
+    expect(details!.issue_agents[0].agent).toEqual({ id: agent.id, name: "A" });
+    expect(details!.issue_prs.length).toBe(1);
+    expect(details!.assigned_agent).toEqual({ id: agent.id, name: "A" });
+    expect(details!.repo).toEqual({ id: repo.id, name: "x" });
   });
 });

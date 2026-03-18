@@ -196,11 +196,20 @@ export interface CrewWithAgents extends Crew {
   agents: AgentWithStatus[];
 }
 
+export interface IssueAgentWithAgent extends IssueAgent {
+  agent: { id: string; name: string } | null;
+}
+
 export interface IssueWithDetails extends Issue {
   comments: Comment[];
   agents: IssueAgent[];
   prs: IssuePR[];
   activity: ActivityLog[];
+  // Additional fields for frontend compatibility
+  issue_agents: IssueAgentWithAgent[];
+  issue_prs: IssuePR[];
+  assigned_agent: { id: string; name: string } | null;
+  repo: { id: string; name: string } | null;
 }
 
 // Input types

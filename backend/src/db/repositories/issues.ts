@@ -11,6 +11,8 @@ import { listIssueAgents } from "./issue-agents.js";
 import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
 import { buildAndRunUpdate } from "./utils.js";
+import { getAgent } from "./agents.js";
+import { getRepo } from "./repos.js";
 
 export function listIssues(projectId: string, filters: IssueFilters = {}): Issue[] {
   const conditions: string[] = ["project_id = ?"];
@@ -54,12 +56,42 @@ export function getIssue(id: string): Issue | null {
 export function getIssueWithDetails(id: string): IssueWithDetails | null {
   const issue = getIssue(id);
   if (!issue) return null;
+
+  // Fetch issue agents with embedded agent info
+  const issueAgents = listIssueAgents(id).map((ia) => {
+    const agent = getAgent(ia.agent_id);
+    return {
+      ...ia,
+      agent: agent ? { id: agent.id, name: agent.name } : null,
+    };
+  });
+
+  // Reuse agent from issueAgents if available, otherwise fetch
+  const assignedAgent = issue.assigned_agent_id
+    ? issueAgents.find((ia) => ia.agent_id === issue.assigned_agent_id)?.agent ??
+      (() => {
+        const a = getAgent(issue.assigned_agent_id);
+        return a ? { id: a.id, name: a.name } : null;
+      })()
+    : null;
+
+  // Fetch repo info
+  const repoRow = issue.repo_id ? getRepo(issue.repo_id) : null;
+  const repo = repoRow ? { id: repoRow.id, name: repoRow.name } : null;
+
+  const issuePRs = listIssuePRs(id);
+
+  // TODO: remove legacy agents/prs fields once all consumers use issue_agents/issue_prs
   return {
     ...issue,
     comments: listComments(id),
-    agents: listIssueAgents(id),
-    prs: listIssuePRs(id),
+    agents: issueAgents,
+    prs: issuePRs,
     activity: listActivity(issue.project_id, { issue_id: id }),
+    issue_agents: issueAgents,
+    issue_prs: issuePRs,
+    assigned_agent: assignedAgent,
+    repo,
   };
 }
 
