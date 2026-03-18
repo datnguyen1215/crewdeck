@@ -16,6 +16,15 @@ import { toContainerPath } from "../utils/paths.js";
 
 const execAsync = promisify(exec);
 
+/** Extract PR number from a GitHub PR URL (e.g. https://github.com/owner/repo/pull/123 → 123). */
+function parsePrNumber(url: string): number {
+  const match = url.match(/\/pull\/(\d+)$/);
+  if (!match) {
+    throw new Error(`Could not parse PR number from URL: ${url}`);
+  }
+  return parseInt(match[1], 10);
+}
+
 /** Configure git credentials for a worktree so `git push` and `gh` work with the project's OAuth token. */
 function writeAskpassScript(token: string): string {
   const askpass = path.join(
@@ -121,6 +130,7 @@ export async function executeCreatePR(
   }
 
   // Create the PR via gh CLI
+  // gh pr create does not support --json; it outputs the PR URL to stdout on success
   let prUrl: string;
   let prNumber: number;
   try {
@@ -131,13 +141,15 @@ export async function executeCreatePR(
 
     const repoPath = toContainerPath(repo.local_path);
     const { stdout } = await execAsync(
-      `gh pr create --repo ${shellQuote(`${repo.owner}/${repo.name}`)} --head ${shellQuote(branchName)} --base ${shellQuote(baseBranch)} --title ${shellQuote(issue.title)} --body ${shellQuote(`Resolves crewdeck issue ${issue.id}.\n\n${issue.description}`)} --json url,number`,
+      `gh pr create --repo ${shellQuote(`${repo.owner}/${repo.name}`)} --head ${shellQuote(branchName)} --base ${shellQuote(baseBranch)} --title ${shellQuote(issue.title)} --body ${shellQuote(`Resolves crewdeck issue ${issue.id}.\n\n${issue.description}`)}`,
       { env: ghEnv, cwd: repoPath },
     );
 
-    const parsed = JSON.parse(stdout.trim());
-    prUrl = parsed.url;
-    prNumber = parsed.number;
+    prUrl = stdout.trim();
+    if (!prUrl.startsWith("https://")) {
+      throw new Error(`Unexpected gh pr create output: ${stdout}`);
+    }
+    prNumber = parsePrNumber(prUrl);
     logger.info({ prUrl, prNumber }, "create_pr: PR created");
   } catch (err) {
     const stderr =
