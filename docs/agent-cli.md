@@ -268,7 +268,7 @@ crewdeck agents create --name "Bob" --title "Backend Engineer" --system-prompt "
 
 ### assign
 
-Captain assigns an agent to work on an issue. The backend spawns an agent tmux session for the assignment.
+Captain assigns an agent to work on an issue. This links the agent to the issue and prepares the worktree, but does **not** spawn the agent's tmux session. After assigning, call `crewdeck sessions start` to spawn the session.
 
 ```
 crewdeck assign <issue_id> <agent_id>
@@ -286,9 +286,11 @@ crewdeck assign <issue_id> <agent_id>
 ```bash
 # Assign an agent to work on an issue
 crewdeck assign issue_abc123 agent_xyz789
+# Then spawn the session:
+crewdeck sessions start agent_xyz789 --issue issue_abc123
 ```
 
-**Backend behavior:** Creates an IssueAgent assignment and spawns a new tmux session for the agent to begin work on the issue.
+**Backend behavior:** Creates an IssueAgent record, sets the issue status to `in_progress`, and emits `issue.assigned`. Does not spawn a tmux session.
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
 
@@ -368,25 +370,30 @@ crewdeck activity issue_abc123
 
 ### sessions
 
-List project sessions or stop a running session. Used by the captain to manage stuck or runaway agent sessions.
+List, start, or stop agent sessions. Used by the captain to manage the full session lifecycle.
 
 ```
 crewdeck sessions list
+crewdeck sessions start <agent_id> --issue <issue_id>
 crewdeck sessions stop <session_id>
 ```
 
 **Subcommands:**
 
-| Subcommand          | Description                      |
-| ------------------- | -------------------------------- |
-| `list`              | List all sessions in the project |
-| `stop <session_id>` | Stop a running session by ID     |
+| Subcommand                              | Description                           |
+| --------------------------------------- | ------------------------------------- |
+| `list`                                  | List all sessions in the project      |
+| `start <agent_id> --issue <issue_id>`   | Spawn an agent session for an issue   |
+| `stop <session_id>`                     | Stop a running session by ID          |
 
 **Examples:**
 
 ```bash
 # List all project sessions
 crewdeck sessions list
+
+# Spawn an agent session (after crewdeck assign)
+crewdeck sessions start agent-abc --issue issue-xyz
 
 # Stop a stuck session
 crewdeck sessions stop session-abc
@@ -445,6 +452,7 @@ POST /api/v1/internal/issues/close
 POST /api/v1/internal/history
 GET  /api/v1/internal/history
 POST /api/v1/internal/issues/create
+POST /api/v1/internal/sessions/start
 POST /api/v1/internal/sessions/stop
 ```
 
