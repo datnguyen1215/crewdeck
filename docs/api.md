@@ -435,7 +435,7 @@ GET /projects/:projectId/issues
 |-----------|------|-------------|
 | status | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
 | assigned_agent_id | TEXT | Filter by assigned agent. |
-| created_by | TEXT | Filter by creator (`user` or `orchestrator`). |
+| created_by | TEXT | Filter by creator (`user`, `orchestrator`, or `captain`). |
 | sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `priority`. |
 | order | TEXT | Sort order. `asc` or `desc`. Default: `desc`. |
 
@@ -458,7 +458,7 @@ GET /projects/:projectId/issues/:issueId
   "status": "in_review",
   "priority": 8,
   "assigned_agent_id": "uuid",
-  "assigned_agent": { "id": "uuid", "name": "Alice", "title": "..." },
+  "assigned_agent": { "id": "uuid", "name": "Alice" },
   "created_by": "user",
   "max_review_rounds": null,
   "current_review_round": 1,
@@ -466,11 +466,13 @@ GET /projects/:projectId/issues/:issueId
   "worktree_path": "/path/to/worktree",
   "base_branch": "main",
   "repo_id": "uuid",
-  "repo": { "id": "uuid", "name": "repo", "owner": "org" },
+  "repo": { "id": "uuid", "name": "repo" },
   "comments": [...],
   "agents": [...],
-  "pull_requests": [...],
-  "activity_log": [...],
+  "issue_agents": [{ "id": "uuid", "issue_id": "uuid", "agent_id": "uuid", "role": "worker", "agent": { "id": "uuid", "name": "Alice" } }],
+  "prs": [...],
+  "issue_prs": [...],
+  "activity": [...],
   "created_at": "ISO 8601",
   "updated_at": "ISO 8601"
 }
