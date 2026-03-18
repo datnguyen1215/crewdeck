@@ -87,9 +87,8 @@
 
 	async function addFromPrompt() {
 		if (!agentPrompt.trim()) return;
-		const prompt = agentPrompt.trim();
+		await addAgent(agentPrompt.trim());
 		agentPrompt = '';
-		await addAgent(prompt);
 	}
 
 	// --- Env var helpers ---
@@ -416,7 +415,7 @@
 					</div>
 					<div class="flex justify-between text-sm">
 						<span class="text-muted">Agents</span>
-						<span class="text-primary">{agents.length} ({nonCaptainAgents.length} crew + 1 captain)</span>
+						<span class="text-primary">{agents.length} ({nonCaptainAgents.length} crew + {agents.length - nonCaptainAgents.length} captain)</span>
 					</div>
 					<div class="flex justify-between text-sm">
 						<span class="text-muted">Env Variables</span>

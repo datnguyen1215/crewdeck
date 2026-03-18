@@ -373,12 +373,6 @@ export function createEnvironmentVariable(
   );
 }
 
-export function deleteEnvironmentVariable(projectId: string, envVarId: string) {
-  return request<void>(
-    "DELETE",
-    `/projects/${e(projectId)}/environment/${e(envVarId)}`,
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Captain Messages
