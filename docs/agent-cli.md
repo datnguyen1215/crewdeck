@@ -478,6 +478,7 @@ Available commands:
 - `crewdeck files --modified <files...>` — report which files you modified
 - `crewdeck issues get <issue_id>` — re-read issue details
 - `crewdeck activity <issue_id>` — see comments and activity on an issue
+- `crewdeck status --state <active|done|error>` — update your status on the current issue
 
 IMPORTANT: Always call `crewdeck signal --event work-complete` when you are done with your task.
 ```
