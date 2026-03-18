@@ -414,7 +414,7 @@ The orchestrator is event-driven. When an event fires, the orchestrator formats 
 | Event                                   | What gets relayed to the captain                           |
 | --------------------------------------- | ---------------------------------------------------------- |
 | Issue approved (draft → open)           | Issue details, priority, available agents, project state   |
-| Issue approved (all reviewers approved) | Instruction to run `crewdeck create-pr <issue_id>`         |
+| Reviewer approved                       | Review outcome, reviewer comments; issue stays `in_review` until captain acts |
 | Agent finished work                     | Issue status, agent output summary, review routing options |
 | Review completed                        | Review outcome, reviewer comments, approve/reject decision |
 | Max rounds reached                      | Escalation context, round history                          |
