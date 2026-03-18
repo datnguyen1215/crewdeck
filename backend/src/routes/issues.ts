@@ -1,4 +1,4 @@
-import { Router, type Request } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import {
   listIssues,
   getIssue,
@@ -8,10 +8,14 @@ import {
   deleteIssue,
 } from "../db/repositories/issues.js";
 import { getProject } from "../db/repositories/projects.js";
+import { getRepo } from "../db/repositories/repos.js";
+import { getGitHubAccount } from "../db/repositories/github-accounts.js";
+import { createIssuePR } from "../db/repositories/issue-prs.js";
 import { validate } from "../middleware/validate.js";
 import { NotFoundError, InvalidTransitionError, ValidationError } from "../middleware/errors.js";
 import { CreateIssueSchema, UpdateIssueSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
+import { createPR } from "../orchestrator/pr-service.js";
 import type { IssueFilters } from "../types/entities.js";
 
 // Valid status transitions
@@ -128,23 +132,60 @@ router.post("/:issueId/discard", (req: Request<{ projectId: string; issueId: str
   res.status(204).send();
 });
 
-// POST /create-pr — ready → pr_created, emit event
-router.post("/:issueId/create-pr", (req: Request<{ projectId: string; issueId: string }>, res) => {
-  const issue = getIssue(req.params.issueId);
-  if (!issue || issue.project_id !== req.params.projectId) {
-    throw new NotFoundError("Issue not found");
+// POST /create-pr — ready → pr_created, create GitHub PR
+router.post(
+  "/:issueId/create-pr",
+  (req: Request<{ projectId: string; issueId: string }>, res: Response, next: NextFunction) => {
+    const issue = getIssue(req.params.issueId);
+    if (!issue || issue.project_id !== req.params.projectId) {
+      throw new NotFoundError("Issue not found");
+    }
+    if (issue.status !== "ready") {
+      throw new InvalidTransitionError(issue.status, "pr_created");
+    }
+    if (!issue.repo_id) {
+      throw new ValidationError("Issue has no associated repository");
+    }
+    if (!issue.branch_name) {
+      throw new ValidationError("Issue has no branch_name set");
+    }
+
+    const repo = getRepo(issue.repo_id);
+    if (!repo) {
+      throw new NotFoundError("Repository not found");
+    }
+
+    const project = getProject(req.params.projectId);
+    const ghAccount = project?.github_account_id
+      ? getGitHubAccount(project.github_account_id)
+      : null;
+
+    createPR(issue, repo, { token: ghAccount?.oauth_token })
+      .then((pr) => {
+        // Record the PR in the database
+        createIssuePR({
+          issue_id: issue.id,
+          repo_id: repo.id,
+          pr_number: pr.number,
+          pr_url: pr.url,
+        });
+
+        // Update issue status
+        const updated = updateIssue(req.params.issueId, { status: "pr_created" });
+        eventBus.emit("issue.status_changed", {
+          issue_id: updated.id,
+          project_id: updated.project_id,
+          from: issue.status,
+          to: updated.status,
+        });
+
+        res.json({ ...updated, pr_url: pr.url, pr_number: pr.number });
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : "Failed to create PR";
+        next(new ValidationError(`Branch pushed but failed to create PR: ${message}`));
+      });
   }
-  if (issue.status !== "ready") {
-    throw new InvalidTransitionError(issue.status, "pr_created");
-  }
-  const updated = updateIssue(req.params.issueId, { status: "pr_created" });
-  eventBus.emit("issue.status_changed", {
-    issue_id: updated.id,
-    project_id: updated.project_id,
-    from: issue.status,
-    to: updated.status,
-  });
-  res.json(updated);
-});
+);
 
 export default router;
