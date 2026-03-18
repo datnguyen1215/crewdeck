@@ -26,20 +26,20 @@ spawn(options: SpawnOptions) → SessionHandle
 
 **SpawnOptions:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| sessionName | string | Yes | Unique tmux session name (e.g., `crewdeck-<issueId>-<agentId>`). |
-| workdir | string | Yes | Absolute path to the working directory (git worktree). |
-| prompt | string | Yes | The initial prompt/instruction to send to the agent. |
-| systemPrompt | string | No | System prompt defining the agent's persona. How this is passed depends on the adapter (e.g., Claude Code uses `--system-prompt` flag). |
-| env | Record<string, string> | No | Additional environment variables to set in the tmux session. |
-| print | boolean | No | When true, runs in `--print` mode: prompt is passed as a positional arg and the process exits after printing structured output. Used by the orchestrator. |
-| claudeSessionId | string | No | Fixed session ID passed to Claude Code via `--session-id`. Controls the JSONL file path so the backend can watch for assistant responses. Used for captain sessions. |
+| Field           | Type                   | Required | Description                                                                                                                                                          |
+| --------------- | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sessionName     | string                 | Yes      | Unique tmux session name (e.g., `crewdeck-<issueId>-<agentId>`).                                                                                                     |
+| workdir         | string                 | Yes      | Absolute path to the working directory (git worktree).                                                                                                               |
+| prompt          | string                 | Yes      | The initial prompt/instruction to send to the agent.                                                                                                                 |
+| systemPrompt    | string                 | No       | System prompt defining the agent's persona. How this is passed depends on the adapter (e.g., Claude Code uses `--system-prompt` flag).                               |
+| env             | Record<string, string> | No       | Additional environment variables to set in the tmux session.                                                                                                         |
+| print           | boolean                | No       | When true, runs in `--print` mode: prompt is passed as a positional arg and the process exits after printing structured output. Used by the orchestrator.            |
+| claudeSessionId | string                 | No       | Fixed session ID passed to Claude Code via `--session-id`. Controls the JSONL file path so the backend can watch for assistant responses. Used for captain sessions. |
 
 **SessionHandle:**
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field       | Type   | Description            |
+| ----------- | ------ | ---------------------- |
 | sessionName | string | The tmux session name. |
 
 **Pseudocode:**
@@ -151,6 +151,7 @@ claude --dangerously-skip-permissions \
 In print mode `--print` is a standalone flag (it does not take the prompt as its value). The prompt is passed as a positional argument. Claude exits immediately after writing its response to stdout, which the adapter captures and parses as structured JSON.
 
 **Notes:**
+
 - `--dangerously-skip-permissions` is used because agents need to operate autonomously without approval prompts. The human oversight comes from CrewDeck's review pipeline instead.
 - The system prompt is passed via `--system-prompt` flag to define the agent's persona.
 - The initial prompt contains the task instructions, issue context, and any relevant state from the database.
@@ -184,6 +185,7 @@ crewdeck-captain-<projectId-8chars>
 ```
 
 Examples (8-char hex prefixes):
+
 - `crewdeck-a1b2c3d4-e5f6g7h8-worker` — worker agent session
 - `crewdeck-a1b2c3d4-i9j0k1l2-reviewer` — reviewer agent session
 - `crewdeck-captain-a1b2c3d4` — persistent captain session for a project
@@ -214,6 +216,7 @@ Agent (in tmux)                    CrewDeck CLI              Backend Event Bus
 ```
 
 When completion is detected (via either mechanism), the backend:
+
 - Captures the final output.
 - Stores relevant context in the Session table.
 - Emits events on the event bus (`agent.finished`).
@@ -275,12 +278,14 @@ The `ProcessMonitor` still captures a final output snapshot via `adapter.getOutp
 ### Cleanup
 
 Sessions are cleaned up when:
+
 - The agent completes its work.
 - The user manually stops a session via the API.
 - The project is deleted.
 - An error occurs and the session cannot recover.
 
 Cleanup involves:
+
 1. Killing the CLI process.
 2. Destroying the tmux session.
 3. Updating the Session record status to `completed` or `error`.
@@ -348,13 +353,8 @@ The Session.context field (JSON) stores:
     "Chose to refactor auth middleware instead of patching",
     "Split the migration into two steps"
   ],
-  "files_modified": [
-    "src/auth/middleware.ts",
-    "src/db/migrations/003.sql"
-  ],
-  "pending_questions": [
-    "Should the old endpoint be deprecated or removed?"
-  ],
+  "files_modified": ["src/auth/middleware.ts", "src/db/migrations/003.sql"],
+  "pending_questions": ["Should the old endpoint be deprecated or removed?"],
   "last_output_snapshot": "Last N lines of terminal output"
 }
 ```
@@ -411,15 +411,15 @@ The orchestrator requires a designated **captain** agent. A default captain agen
 
 The orchestrator is event-driven. When an event fires, the orchestrator formats it as text and sends it to the captain session via `tmux send-keys`.
 
-| Event | What gets relayed to the captain |
-|-------|----------------------------------|
-| Issue approved (draft → open) | Issue details, priority, available agents, project state |
-| Issue approved (all reviewers approved) | Instruction to run `crewdeck create-pr <issue_id>` |
-| Agent finished work | Issue status, agent output summary, review routing options |
-| Review completed | Review outcome, reviewer comments, approve/reject decision |
-| Max rounds reached | Escalation context, round history |
-| New comment from user | Comment content, issue context |
-| User captain message | User's direct message to the captain |
+| Event                                   | What gets relayed to the captain                           |
+| --------------------------------------- | ---------------------------------------------------------- |
+| Issue approved (draft → open)           | Issue details, priority, available agents, project state   |
+| Issue approved (all reviewers approved) | Instruction to run `crewdeck create-pr <issue_id>`         |
+| Agent finished work                     | Issue status, agent output summary, review routing options |
+| Review completed                        | Review outcome, reviewer comments, approve/reject decision |
+| Max rounds reached                      | Escalation context, round history                          |
+| New comment from user                   | Comment content, issue context                             |
+| User captain message                    | User's direct message to the captain                       |
 
 The orchestrator does not interpret the captain's response. The captain acts by calling CrewDeck CLI commands directly from within its tmux session.
 
@@ -432,7 +432,7 @@ Instead of returning structured JSON, the captain executes CLI commands to take 
 - `crewdeck create-pr <issue_id>` — push the issue branch and create a GitHub PR after all reviewers approve.
 - `crewdeck escalate --issue <id>` — flag an issue for human attention.
 - `crewdeck issues create --title "..." --description "..." [--priority <n>]` — propose a new issue.
-- `crewdeck reorder --issue <id> --priority <n>` — change issue priority.
+- `crewdeck issues update <issue_id> --priority <n>` — change issue priority.
 
 Each CLI command makes an HTTP call to the backend's internal API, which updates the database and emits events on the event bus. The captain can run multiple commands in sequence when handling a single event.
 

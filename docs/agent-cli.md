@@ -29,14 +29,14 @@ The CLI is available in every agent's tmux session. The backend sets environment
 
 ### Worker/Reviewer Sessions
 
-| Variable | Description |
-|----------|-------------|
-| `CREWDECK_API_URL` | Backend API base URL (e.g., `http://localhost:3000/api/v1`) |
-| `CREWDECK_SESSION_ID` | The agent's session ID in the CrewDeck database |
-| `CREWDECK_ISSUE_ID` | The issue ID the agent is working on |
-| `CREWDECK_AGENT_ID` | The agent's ID |
-| `CREWDECK_PROJECT_ID` | The project ID |
-| `GH_TOKEN` | GitHub OAuth token for the project's linked GitHub account. Set only when a GitHub account is connected to the project. Used for git operations (clone, push, PR creation). |
+| Variable              | Description                                                                                                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CREWDECK_API_URL`    | Backend API base URL (e.g., `http://localhost:3000/api/v1`)                                                                                                                 |
+| `CREWDECK_SESSION_ID` | The agent's session ID in the CrewDeck database                                                                                                                             |
+| `CREWDECK_ISSUE_ID`   | The issue ID the agent is working on                                                                                                                                        |
+| `CREWDECK_AGENT_ID`   | The agent's ID                                                                                                                                                              |
+| `CREWDECK_PROJECT_ID` | The project ID                                                                                                                                                              |
+| `GH_TOKEN`            | GitHub OAuth token for the project's linked GitHub account. Set only when a GitHub account is connected to the project. Used for git operations (clone, push, PR creation). |
 
 In addition to the variables above, any project-level environment variables configured via the [Environment Variables API](api.md#environment-variables) are also injected into worker and reviewer sessions. These are merged before the `CREWDECK_*` variables, so `CREWDECK_*` names always take precedence.
 
@@ -44,11 +44,11 @@ In addition to the variables above, any project-level environment variables conf
 
 Captain sessions orchestrate work across agents and do not operate on a single issue or session. They receive a smaller set of environment variables:
 
-| Variable | Description |
-|----------|-------------|
-| `CREWDECK_API_URL` | Backend API base URL (e.g., `http://localhost:3000/api/v1`) |
-| `CREWDECK_AGENT_ID` | The captain agent's ID |
-| `CREWDECK_PROJECT_ID` | The project ID |
+| Variable              | Description                                                 |
+| --------------------- | ----------------------------------------------------------- |
+| `CREWDECK_API_URL`    | Backend API base URL (e.g., `http://localhost:3000/api/v1`) |
+| `CREWDECK_AGENT_ID`   | The captain agent's ID                                      |
+| `CREWDECK_PROJECT_ID` | The project ID                                              |
 
 Captain sessions do **not** have `CREWDECK_SESSION_ID` or `CREWDECK_ISSUE_ID` because the captain operates across multiple issues and agents.
 
@@ -66,10 +66,10 @@ crewdeck signal --event <event-name> [--data <json>]
 
 **Arguments:**
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--event` | Yes | Event name. One of: `work-complete`, `review-complete`, `error`, `needs-help` |
-| `--data` | No | JSON string with additional event data |
+| Flag      | Required | Description                                                                   |
+| --------- | -------- | ----------------------------------------------------------------------------- |
+| `--event` | Yes      | Event name. One of: `work-complete`, `review-complete`, `error`, `needs-help` |
+| `--data`  | No       | JSON string with additional event data                                        |
 
 **Examples:**
 
@@ -100,9 +100,9 @@ crewdeck comment --message <text>
 
 **Arguments:**
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--message` | Yes | Comment content (Markdown supported) |
+| Flag        | Required | Description                          |
+| ----------- | -------- | ------------------------------------ |
+| `--message` | Yes      | Comment content (Markdown supported) |
 
 **Examples:**
 
@@ -129,9 +129,9 @@ crewdeck status --state <state>
 
 **Arguments:**
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--state` | Yes | The agent's state. One of: `active`, `done`, `error` |
+| Flag      | Required | Description                                          |
+| --------- | -------- | ---------------------------------------------------- |
+| `--state` | Yes      | The agent's state. One of: `active`, `done`, `error` |
 
 **Examples:**
 
@@ -172,25 +172,33 @@ List, get, create, update, or close project issues. Used by the captain to inspe
 crewdeck issues list
 crewdeck issues get <issue_id>
 crewdeck issues create --title "..." --description "..." [--priority <n>]
+crewdeck issues update <issue_id> --priority <n>
 crewdeck issues close <issue_id>
 ```
 
 **Subcommands:**
 
-| Subcommand | Description |
-|------------|-------------|
-| `list` | List all issues in the project |
-| `get <issue_id>` | Get details for a specific issue |
-| `create` | Create a new issue |
-| `close <issue_id>` | Close/cancel an issue (transitions to `done`) |
+| Subcommand          | Description                                   |
+| ------------------- | --------------------------------------------- |
+| `list`              | List all issues in the project                |
+| `get <issue_id>`    | Get details for a specific issue              |
+| `create`            | Create a new issue                            |
+| `update <issue_id>` | Update an issue (e.g. priority)               |
+| `close <issue_id>`  | Close/cancel an issue (transitions to `done`) |
 
 **Options for `create`:**
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--title` | Yes | Issue title |
-| `--description` | Yes | Issue description |
-| `--priority` | No | Priority level (integer) |
+| Flag            | Required | Description              |
+| --------------- | -------- | ------------------------ |
+| `--title`       | Yes      | Issue title              |
+| `--description` | Yes      | Issue description        |
+| `--priority`    | No       | Priority level (integer) |
+
+**Options for `update`:**
+
+| Flag         | Required | Description                  |
+| ------------ | -------- | ---------------------------- |
+| `--priority` | Yes      | New priority level (integer) |
 
 **Examples:**
 
@@ -205,11 +213,14 @@ crewdeck issues get issue_abc123
 crewdeck issues create --title "Fix login bug" --description "The login endpoint returns 500 when..."
 crewdeck issues create --title "Add caching" --description "Cache the results of..." --priority 2
 
+# Update issue priority
+crewdeck issues update issue_abc123 --priority 2
+
 # Close/cancel an issue
 crewdeck issues close issue_abc123
 ```
 
-**Backend behavior:** `create` posts to `/internal/issues/create` with `created_by: "orchestrator"` and emits `issue.created` on the event bus.
+**Backend behavior:** `create` posts to `/internal/issues/create` with `created_by: "orchestrator"` and emits `issue.created` on the event bus. `update` posts to `/internal/issues/update` to modify issue fields.
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
 
@@ -224,19 +235,19 @@ crewdeck agents create --name <name> --title <title> --system-prompt <prompt> [-
 
 **Subcommands:**
 
-| Subcommand | Description |
-|------------|-------------|
-| `list` | List all agents and their status |
-| `create` | Create a new worker agent |
+| Subcommand | Description                      |
+| ---------- | -------------------------------- |
+| `list`     | List all agents and their status |
+| `create`   | Create a new worker agent        |
 
 **Options for `create`:**
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--name` | Yes | Agent name |
-| `--title` | Yes | Agent title |
-| `--system-prompt` | Yes | System prompt for the agent |
-| `--description` | No | Agent description |
+| Flag              | Required | Description                 |
+| ----------------- | -------- | --------------------------- |
+| `--name`          | Yes      | Agent name                  |
+| `--title`         | Yes      | Agent title                 |
+| `--system-prompt` | Yes      | System prompt for the agent |
+| `--description`   | No       | Agent description           |
 
 **Examples:**
 
@@ -263,10 +274,10 @@ crewdeck assign <issue_id> <agent_id>
 
 **Arguments:**
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `issue_id` | Yes | The issue to assign |
-| `agent_id` | Yes | The agent to assign to the issue |
+| Argument   | Required | Description                      |
+| ---------- | -------- | -------------------------------- |
+| `issue_id` | Yes      | The issue to assign              |
+| `agent_id` | Yes      | The agent to assign to the issue |
 
 **Examples:**
 
@@ -289,10 +300,10 @@ crewdeck route-review <issue_id> <agent_id>
 
 **Arguments:**
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `issue_id` | Yes | The issue to review |
-| `agent_id` | Yes | The agent to act as reviewer |
+| Argument   | Required | Description                  |
+| ---------- | -------- | ---------------------------- |
+| `issue_id` | Yes      | The issue to review          |
+| `agent_id` | Yes      | The agent to act as reviewer |
 
 **Examples:**
 
@@ -315,9 +326,9 @@ crewdeck create-pr <issue_id>
 
 **Arguments:**
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `issue_id` | Yes | The issue to create a PR for |
+| Argument   | Required | Description                  |
+| ---------- | -------- | ---------------------------- |
+| `issue_id` | Yes      | The issue to create a PR for |
 
 **Examples:**
 
@@ -330,30 +341,6 @@ crewdeck create-pr issue_abc123
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
 
-### reorder
-
-Change the priority of an issue. Captain-only command.
-
-```
-crewdeck reorder --issue <id> --priority <n>
-```
-
-**Options:**
-
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--issue` | Yes | The issue ID to reorder |
-| `--priority` | Yes | New priority level (integer) |
-
-**Examples:**
-
-```bash
-# Change issue priority
-crewdeck reorder --issue issue_abc123 --priority 2
-```
-
-**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
-
 ### activity
 
 Fetch comments and activity log for an issue. Used by the captain to review progress before making decisions, and by workers/reviewers to check issue activity.
@@ -364,9 +351,9 @@ crewdeck activity <issue_id>
 
 **Arguments:**
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `issue_id` | Yes | The issue to fetch activity for |
+| Argument   | Required | Description                     |
+| ---------- | -------- | ------------------------------- |
+| `issue_id` | Yes      | The issue to fetch activity for |
 
 **Examples:**
 
@@ -388,10 +375,10 @@ crewdeck sessions stop <session_id>
 
 **Subcommands:**
 
-| Subcommand | Description |
-|------------|-------------|
-| `list` | List all sessions in the project |
-| `stop <session_id>` | Stop a running session by ID |
+| Subcommand          | Description                      |
+| ------------------- | -------------------------------- |
+| `list`              | List all sessions in the project |
+| `stop <session_id>` | Stop a running session by ID     |
 
 **Examples:**
 
@@ -420,10 +407,10 @@ crewdeck history list
 
 **Subcommands:**
 
-| Subcommand | Description |
-|------------|-------------|
+| Subcommand             | Description                                      |
+| ---------------------- | ------------------------------------------------ |
 | `save --summary "..."` | Save a decision summary to the captain's history |
-| `list` | List previous decision history entries |
+| `list`                 | List previous decision history entries           |
 
 **Examples:**
 
