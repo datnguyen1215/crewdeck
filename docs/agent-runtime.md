@@ -296,7 +296,7 @@ When an agent starts work on an issue, the backend creates a git worktree:
 function createWorktree(repo, issue, baseBranch):
     branchName = "crewdeck/" + issue.id-short + "-" + slugify(issue.title)
     repoPath = toContainerPath(repo.local_path)
-    worktreePath = repoPath + "/.worktrees/" + branchName
+    worktreePath = tmpdir() + "/crewdeck-worktrees/" + branchName
 
     run: git -C <repoPath> worktree add -b <branchName> <worktreePath> <baseBranch>
 
