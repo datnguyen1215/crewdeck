@@ -187,7 +187,7 @@ On success (`201 Created`): GitHubAccount object (without `oauth_token`):
   "id": "uuid",
   "account_name": "octocat",
   "github_username": "octocat",
-  "scopes": "repo,read:org",
+  "scopes": "repo,workflow",
   "created_at": "ISO 8601"
 }
 ```
