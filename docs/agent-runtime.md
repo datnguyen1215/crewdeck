@@ -427,7 +427,8 @@ The orchestrator does not interpret the captain's response. The captain acts by 
 
 Instead of returning structured JSON, the captain executes CLI commands to take action:
 
-- `crewdeck assign --issue <id> --agent <id>` — assign an agent to an issue.
+- `crewdeck assign --issue <id> --agent <id>` — link an agent to an issue (does not spawn a session).
+- `crewdeck sessions start <agent_id> --issue <issue_id>` — spawn the agent's tmux session after assigning.
 - `crewdeck route-review --issue <id>` — send an issue to the next reviewer.
 - `crewdeck create-pr <issue_id>` — push the issue branch and create a GitHub PR after all reviewers approve.
 - `crewdeck escalate --issue <id>` — flag an issue for human attention.
