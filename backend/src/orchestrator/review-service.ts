@@ -75,14 +75,24 @@ export async function executeRouteReview(
     current_review_round: newRound,
   });
 
-  const issueAgent = createIssueAgent({
-    issue_id: issueId,
-    agent_id: reviewerAgentId,
-    role: "reviewer",
-    status: "active",
-    review_order: 1,
-    review_round: newRound,
-  });
+  // Check if this reviewer is already assigned for this round (avoid unique constraint violation)
+  const existingAgents = listIssueAgents(issueId);
+  const existing = existingAgents.find(
+    (ia) =>
+      ia.agent_id === reviewerAgentId &&
+      ia.role === "reviewer" &&
+      ia.review_round === newRound,
+  );
+  const issueAgent = existing
+    ? updateIssueAgent(existing.id, { status: "active" })
+    : createIssueAgent({
+        issue_id: issueId,
+        agent_id: reviewerAgentId,
+        role: "reviewer",
+        status: "active",
+        review_order: 1,
+        review_round: newRound,
+      });
 
   const repos = listRepos(projectId);
   const repo = repos.length > 0 ? repos[0] : null;
