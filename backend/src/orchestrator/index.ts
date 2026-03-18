@@ -381,6 +381,14 @@ export class OrchestratorManager {
       }
     }
     logger.info({ count, watcherCount }, "Recovered captain sessions from DB");
+
+    // Send wake-up message to recovered captains so they resume work
+    for (const [projectId] of this.captainSessions) {
+      void this.sendToCaptain(
+        projectId,
+        "Backend restarted. Use `crewdeck issues list` to check current state and resume work.",
+      );
+    }
   }
 
   async startAllCaptains(): Promise<void> {
