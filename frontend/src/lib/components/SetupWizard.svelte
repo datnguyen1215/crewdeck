@@ -18,7 +18,7 @@
 	let loading = $state(true);
 	let createdProject = $state<Project | null>(null);
 
-	const totalSteps = 6;
+	const totalSteps = 5;
 
 	// --- Agent Setup (step 3) ---
 	let agents = $state<Agent[]>([]);
@@ -33,13 +33,13 @@
 	];
 
 	// --- Environment Variables (step 4) ---
-	let envVars = $state<{ key: string; value: string; is_secret: boolean }[]>([]);
+	let envVars = $state<{ id: number; key: string; value: string; is_secret: boolean }[]>([]);
+	let envIdCounter = $state(0);
+	let savedEnvCount = $state(0);
 	let envSaving = $state(false);
 	let envError = $state('');
 
-	// --- Review & Launch (step 5) ---
-	let launching = $state(false);
-
+	// Runs once on mount — no reactive deps
 	$effect(() => {
 		listGitHubAccounts()
 			.then((data) => {
@@ -110,11 +110,11 @@
 	// --- Env var helpers ---
 
 	function addEnvRow() {
-		envVars = [...envVars, { key: '', value: '', is_secret: false }];
+		envVars = [...envVars, { id: ++envIdCounter, key: '', value: '', is_secret: false }];
 	}
 
-	function removeEnvRow(index: number) {
-		envVars = envVars.filter((_, i) => i !== index);
+	function removeEnvRow(id: number) {
+		envVars = envVars.filter((v) => v.id !== id);
 	}
 
 	async function saveEnvVars() {
@@ -127,13 +127,16 @@
 		envSaving = true;
 		envError = '';
 		try {
-			for (const v of valid) {
-				await createEnvironmentVariable(createdProject.id, {
-					key: v.key.trim(),
-					value: v.value.trim(),
-					is_secret: v.is_secret
-				});
-			}
+			await Promise.all(
+				valid.map((v) =>
+					createEnvironmentVariable(createdProject!.id, {
+						key: v.key.trim(),
+						value: v.value.trim(),
+						is_secret: v.is_secret
+					})
+				)
+			);
+			savedEnvCount = valid.length;
 			step = 5;
 		} catch (err) {
 			envError = err instanceof Error ? err.message : 'Failed to save environment variables';
@@ -151,7 +154,7 @@
 	}
 
 	function launchOrchestrator() {
-		// Navigate to the captain page which auto-starts the orchestrator
+		// Forward-only wizard — revisiting steps is done from the project dashboard
 		if (createdProject) goto(`/projects/${createdProject.id}/captain`);
 	}
 </script>
@@ -338,7 +341,7 @@
 
 				{#if envVars.length > 0}
 					<div class="space-y-2 mb-4">
-						{#each envVars as envVar, i (i)}
+						{#each envVars as envVar (envVar.id)}
 							<div class="flex gap-2 items-start">
 								<input
 									type="text"
@@ -362,7 +365,7 @@
 									&#128274;
 								</label>
 								<button
-									onclick={() => removeEnvRow(i)}
+									onclick={() => removeEnvRow(envVar.id)}
 									class="text-muted hover:text-red text-xs pt-1.5 transition-colors"
 									aria-label="Remove"
 								>
@@ -424,7 +427,7 @@
 					</div>
 					<div class="flex justify-between text-sm">
 						<span class="text-muted">Env Variables</span>
-						<span class="text-primary">{envVars.filter((v) => v.key.trim()).length}</span>
+						<span class="text-primary">{savedEnvCount}</span>
 					</div>
 				</div>
 
@@ -432,11 +435,10 @@
 				<div class="space-y-3">
 					<button
 						onclick={launchOrchestrator}
-						disabled={launching}
-						class="w-full px-4 py-2.5 bg-cyan/10 border border-cyan text-cyan rounded text-sm hover:bg-cyan/20 transition-colors uppercase tracking-wide disabled:opacity-50"
+						class="w-full px-4 py-2.5 bg-cyan/10 border border-cyan text-cyan rounded text-sm hover:bg-cyan/20 transition-colors uppercase tracking-wide"
 						style="box-shadow: var(--glow-cyan)"
 					>
-						{launching ? 'Starting...' : 'Start Orchestrator'}
+						Start Orchestrator
 					</button>
 
 					<button
@@ -446,25 +448,6 @@
 						Go to Project Dashboard
 					</button>
 				</div>
-			</div>
-		{:else if step === 6}
-			<!-- Step 6: Done (fallback if navigated back) -->
-			<div class="text-center py-4" style="animation: fade-up 0.25s ease both">
-				<div class="text-3xl mb-4">&#10003;</div>
-				<h2 class="text-primary font-bold tracking-wide uppercase text-sm mb-2">
-					You're all set
-				</h2>
-				<p class="text-muted text-xs mb-6">
-					Your project <span class="text-cyan">{createdProject?.name}</span> is ready.
-				</p>
-
-				<button
-					onclick={goToProject}
-					class="w-full px-4 py-2.5 bg-cyan/10 border border-cyan text-cyan rounded text-sm hover:bg-cyan/20 transition-colors uppercase tracking-wide"
-					style="box-shadow: var(--glow-cyan)"
-				>
-					Go to Project
-				</button>
 			</div>
 		{/if}
 	</div>
