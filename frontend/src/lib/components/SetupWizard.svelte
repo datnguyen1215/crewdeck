@@ -268,7 +268,7 @@
 							disabled={!agentPrompt.trim() || agentLoading}
 							class="px-3 py-2 bg-cyan/10 border border-cyan text-cyan text-xs rounded hover:bg-cyan/20 transition-colors disabled:opacity-50"
 						>
-							agentLoading ? '...' : 'Add'}
+							{agentLoading ? '...' : 'Add'}
 						</button>
 					</div>
 				</div>
