@@ -20,7 +20,11 @@ import {
   createIssueAgent,
   updateIssueAgent,
 } from "../db/repositories/issue-agents.js";
-import { createSession, updateSession } from "../db/repositories/sessions.js";
+import {
+  createSession,
+  listSessions,
+  updateSession,
+} from "../db/repositories/sessions.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 
 // Execute an assign action triggered by the captain via CLI
@@ -44,11 +48,33 @@ export async function executeAssign(
     return;
   }
   if (!["open", "draft"].includes(issue.status)) {
-    logger.warn(
-      { issueId, status: issue.status },
-      "assign: issue is not in assignable state",
-    );
-    return;
+    // Allow re-assignment when the issue is in_progress but has no running session
+    // (e.g. previous session errored out)
+    if (issue.status === "in_progress") {
+      const sessions = listSessions(projectId, {
+        issue_id: issueId,
+        status: "running",
+      });
+      if (sessions.length > 0) {
+        logger.warn(
+          { issueId, status: issue.status },
+          "assign: issue already has a running session",
+        );
+        return;
+      }
+      // Stale in_progress state — reset issue so re-assignment can proceed
+      logger.info(
+        { issueId, status: issue.status },
+        "assign: resetting stale in_progress issue for re-assignment",
+      );
+      updateIssue(issueId, { status: "open", assigned_agent_id: null });
+    } else {
+      logger.warn(
+        { issueId, status: issue.status },
+        "assign: issue is not in assignable state",
+      );
+      return;
+    }
   }
 
   const agent = getAgent(agentId);
