@@ -129,8 +129,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         // Trust prompt — navigate to "Yes, proceed" and confirm
         if (!handledTrust && stdout.includes("trust this folder")) {
           const presses = getArrowPresses(stdout, "Yes, proceed");
-          for (let i = 0; i < presses; i++)
+          for (let i = 0; i < presses; i++) {
             await execAsync(`tmux send-keys -t ${sn} Down`);
+            await new Promise<void>((r) => setTimeout(r, 150));
+          }
           await execAsync(`tmux send-keys -t ${sn} Enter`);
           handledTrust = true;
           continue;
@@ -139,8 +141,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         // Bypass permissions prompt — navigate to "Yes, I accept" and confirm
         if (!handledBypass && stdout.includes("Yes, I accept")) {
           const presses = getArrowPresses(stdout, "Yes, I accept");
-          for (let i = 0; i < presses; i++)
+          for (let i = 0; i < presses; i++) {
             await execAsync(`tmux send-keys -t ${sn} Down`);
+            await new Promise<void>((r) => setTimeout(r, 150));
+          }
           await execAsync(`tmux send-keys -t ${sn} Enter`);
           handledBypass = true;
           continue;
