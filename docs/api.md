@@ -293,7 +293,7 @@ GET /projects/:projectId/crew
       "title": "Senior Software Engineer",
       "description": "Focuses on backend services and API design.",
       "is_captain": false,
-      "status": "idle | working | reviewing",
+      "status": "idle | active",
       "current_issue": { "id": "uuid", "title": "Fix login bug" } | null
     }
   ],
@@ -928,16 +928,16 @@ Agent posts a comment on its current issue.
 POST /internal/status
 ```
 
-Agent updates its status on the current issue.
+Agent updates its self-reported status. Persisted to `Agent.status`; `done`/`error` map to `idle`.
 
 **Request Body:**
 ```json
 {
   "session_id": "uuid",
   "agent_id": "uuid",
-  "issue_id": "uuid",
+  "issue_id": "uuid (optional)",
   "project_id": "uuid",
-  "state": "active"
+  "state": "active | idle | done | error"
 }
 ```
 
