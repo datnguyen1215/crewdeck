@@ -479,7 +479,10 @@ Available commands:
 - `crewdeck issues get <issue_id>` — re-read issue details
 - `crewdeck activity <issue_id>` — see comments and activity on an issue
 
-IMPORTANT: Always call `crewdeck signal --event work-complete` when you are done with your task.
+IMPORTANT:
+- Before doing anything else, post a comment acknowledging the issue and briefly describing your intended approach: `crewdeck comment --message '...'`
+- Before signaling completion, post a summary comment describing what you did: `crewdeck comment --message '...'`
+- Always call `crewdeck signal --event work-complete` when you are done with your task.
 ```
 
 Additionally, a reference to the full CLI documentation should be placed in the project's CLAUDE.md so that Claude Code can access it:
