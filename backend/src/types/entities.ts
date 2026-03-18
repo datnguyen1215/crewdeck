@@ -200,13 +200,17 @@ export interface IssueAgentWithName extends IssueAgent {
   agent: { id: string; name: string } | null;
 }
 
-// Only the frontend consumes this API response shape.
+// TODO: remove legacy agents/prs/activity fields once all consumers use issue_agents/issue_prs/activity_log
 export interface IssueWithDetails extends Issue {
   assigned_agent: { id: string; name: string } | null;
   comments: Comment[];
+  agents: IssueAgentWithName[];
+  prs: IssuePR[];
+  activity: ActivityLog[];
   issue_agents: IssueAgentWithName[];
   issue_prs: IssuePR[];
   activity_log: ActivityLog[];
+  repo: { id: string; name: string } | null;
 }
 
 // Input types
