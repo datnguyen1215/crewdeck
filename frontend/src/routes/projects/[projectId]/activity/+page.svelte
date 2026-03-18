@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listActivity, listIssues, type ActivityLog, type Issue } from '$lib/api/http.js';
+	import { listActivity, listIssues, getCrew, type ActivityLog, type Issue, type Agent } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { relTime } from '$lib/utils/time.js';
@@ -17,6 +17,7 @@
 	let projectId = $derived($page.params.projectId!);
 	let allEntries = $state<ActivityEntry[]>([]);
 	let issues = $state<Issue[]>([]);
+	let agents = $state<Agent[]>([]);
 	let loading = $state(true);
 	let visibleCount = $state(PAGE_SIZE);
 
@@ -49,6 +50,14 @@
 	});
 
 	$effect(() => {
+		let cancelled = false;
+		getCrew(projectId)
+			.then((crew) => { if (!cancelled) agents = crew.agents; })
+			.catch(() => {});
+		return () => { cancelled = true; };
+	});
+
+	$effect(() => {
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
@@ -76,6 +85,7 @@
 	// Unique action types present in this project's data, for the filter dropdown.
 	let actionTypes = $derived([...new Set(allEntries.map((e) => e.action))].sort());
 	let issueMap = $derived(Object.fromEntries(issues.map((i) => [i.id, i.title])));
+	let captainName = $derived(agents.find((a) => a.is_captain)?.name ?? 'Captain');
 
 
 	function toggleActor(actor: string) {
@@ -102,6 +112,19 @@
 	// Entries within the last 2 hours get a subtle glow treatment.
 	function isRecent(dateStr: string): boolean {
 		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
+	}
+
+	// Get display name for an actor, using captain name for orchestrator/captain entries
+	function getActorDisplayName(entry: ActivityEntry): string {
+		if (entry.actor_type === 'orchestrator' || entry.actor_type === 'captain') {
+			return captainName;
+		}
+		return actorName(entry);
+	}
+
+	// Format issue ID as short form (first 8 chars)
+	function shortIssueId(id: string): string {
+		return id.slice(0, 8);
 	}
 
 </script>
@@ -239,7 +262,7 @@
 							<div class="flex-1 min-w-0 pt-0.5">
 								<!-- Actor name + timestamp -->
 								<div class="flex items-center gap-2 mb-0.5 flex-wrap">
-									<span class="text-xs font-semibold {cfg.color}">{actorName(entry)}</span>
+									<span class="text-xs font-semibold {cfg.color}">{getActorDisplayName(entry)}</span>
 									<span
 										class="text-muted text-xs font-mono"
 										title={new Date(entry.created_at).toLocaleString()}
@@ -255,11 +278,10 @@
 								{#if entry.issue_id}
 									<a
 										href="/projects/{projectId}/issues/{entry.issue_id}"
-										class="text-xs text-muted hover:text-cyan transition-colors mt-0.5 inline-block font-mono"
+										class="text-xs text-muted hover:text-cyan transition-colors mt-0.5 inline-block"
+										title="#{shortIssueId(entry.issue_id)}"
 									>
-										#{entry.issue_id}{issueMap[entry.issue_id]
-											? ` — ${issueMap[entry.issue_id]}`
-											: ''}
+										{issueMap[entry.issue_id] ?? `#${shortIssueId(entry.issue_id)}`}
 									</a>
 								{/if}
 
