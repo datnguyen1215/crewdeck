@@ -36,7 +36,6 @@ export async function executeAssign(
   issueId: string,
   agentId: string,
   bus: EventBus,
-  _adapter: AgentAdapter,
 ): Promise<void> {
   const issue = getIssue(issueId);
   if (!issue) {
@@ -219,6 +218,14 @@ export async function executeSpawnSession(
       );
       repo = null;
     }
+  }
+
+  if (createdBranchName) {
+    updateIssue(issueId, {
+      worktree_path: worktreePath,
+      branch_name: createdBranchName,
+      base_branch: repo!.default_branch,
+    });
   }
 
   const promptText = buildAgentPrompt(issue, agent, repo, {

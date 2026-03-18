@@ -110,7 +110,6 @@ export class OrchestratorManager {
         issue_id,
         agent_id,
         this.bus,
-        this.adapter,
       );
     });
 
