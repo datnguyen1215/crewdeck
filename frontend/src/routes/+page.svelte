@@ -65,6 +65,19 @@
 	function totalIssues(issues: ProjectWithStats['issues']) {
 		return Object.values(issues).reduce((a, b) => a + b, 0);
 	}
+
+	/** Setup completeness: count how many key milestones are done. */
+	function setupProgress(project: ProjectWithStats): { done: number; total: number; label: string } {
+		const checks = [
+			project.repo_count > 0,       // has a repo
+			project.agent_count > 1,       // has agents beyond captain
+			project.orchestrator_status === 'active' || project.orchestrator_status === 'idle',
+		];
+		const done = checks.filter(Boolean).length;
+		const total = checks.length;
+		if (done === total) return { done, total, label: 'Ready' };
+		return { done, total, label: `${done}/${total} setup` };
+	}
 </script>
 
 <svelte:window onkeydown={handleModalKeydown} />
@@ -129,6 +142,7 @@
 		<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 			{#each projects as project, i (project.id)}
 				{@const total = totalIssues(project.issues)}
+				{@const setup = setupProgress(project)}
 				<div
 					class="project-card group relative bg-surface border border-edge rounded-lg p-5 flex flex-col gap-4
 						hover:border-edge-hi hover:-translate-y-0.5 transition-all duration-200"
@@ -156,6 +170,11 @@
 							<span class="text-muted">agents</span>
 							<span class="text-primary ml-1">{project.agent_count}</span>
 						</span>
+						{#if setup.done < setup.total}
+							<span class="ml-auto">
+								<span class="text-amber text-xs">{setup.label}</span>
+							</span>
+						{/if}
 					</div>
 
 					<!-- Issue breakdown -->
