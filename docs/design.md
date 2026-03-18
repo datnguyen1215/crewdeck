@@ -315,7 +315,7 @@ The frontend subscribes to events scoped by project. This ensures the dashboard 
 Each active piece of work gets its own tmux session:
 
 - **One persistent captain session per project** — the captain tmux session stays alive across multiple issues, receiving events via `tmux send-keys` and driving all orchestration decisions through the `crewdeck` CLI.
-- **One session per agent per issue** — when an agent is assigned to work on an issue, a new tmux session is created.
+- **One session per agent per issue** — after an agent is assigned to an issue via `crewdeck assign`, the captain calls `crewdeck sessions start` to spawn the tmux session. Assignment and session spawning are separate steps.
 - **Reviewers get separate sessions** — each reviewer examining an issue gets their own tmux session.
 - **Worker/reviewer sessions are ephemeral** — created when work starts, cleaned up when work completes.
 - **Session output is captured** — the backend streams tmux output for the xterm.js live view and stores relevant portions in the database.
