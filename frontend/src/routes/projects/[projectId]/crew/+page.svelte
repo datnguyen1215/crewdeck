@@ -10,7 +10,7 @@
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
-	const STATUS_CFG = {
+	const STATUS_CFG: Record<string, { dot: string; text: string; label: string; cardBorder: string; cardGlow: string; pulse: boolean }> = {
 		idle: {
 			dot: '◎',
 			text: 'text-muted',
@@ -19,23 +19,15 @@
 			cardGlow: '',
 			pulse: false
 		},
-		working: {
+		active: {
 			dot: '◉',
 			text: 'text-green',
-			label: 'Working',
+			label: 'Active',
 			cardBorder: 'border-green',
 			cardGlow: 'var(--glow-green)',
 			pulse: true
-		},
-		reviewing: {
-			dot: '◉',
-			text: 'text-cyan',
-			label: 'Reviewing',
-			cardBorder: 'border-cyan',
-			cardGlow: 'var(--glow-cyan)',
-			pulse: true
 		}
-	} as const;
+	};
 
 	let crew = $state<CrewData | null>(null);
 	let loading = $state(true);
@@ -336,7 +328,7 @@
 		{:else}
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
 				{#each crew.agents as agent, i (agent.id)}
-					{@const cfg = STATUS_CFG[agent.status]}
+					{@const cfg = STATUS_CFG[agent.status] ?? STATUS_CFG.idle}
 					<div
 						class="agent-card flex flex-col p-4 bg-surface border rounded hover:-translate-y-0.5 transition-all duration-200 fade-up {cfg.cardBorder}"
 						style="{cfg.cardGlow ? `box-shadow: ${cfg.cardGlow};` : ''}animation-delay: {i * 50}ms"

@@ -3,7 +3,7 @@ import { db } from "../index.js";
 type Table = "Agent" | "IssueAgent" | "IssuePR" | "Issue" | "Project" | "Session";
 
 const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
-  Agent: new Set(["name", "title", "description", "system_prompt", "is_captain"]),
+  Agent: new Set(["name", "title", "description", "system_prompt", "is_captain", "status"]),
   IssueAgent: new Set(["status", "review_order", "review_round", "session_id"]),
   IssuePR: new Set(["status", "pr_url"]),
   Issue: new Set(["title", "description", "status", "priority", "assigned_agent_id", "max_review_rounds", "current_review_round", "branch_name", "worktree_path", "base_branch", "repo_id"]),
