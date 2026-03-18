@@ -128,6 +128,7 @@ A specialized AI persona within a crew.
 | description | TEXT | | Optional 1-2 sentence summary of what this agent does. |
 | system_prompt | TEXT | NOT NULL | Full system prompt defining this agent's persona and behavior. |
 | is_captain | INTEGER | NOT NULL, DEFAULT 0 | Whether this agent is the crew's captain. Stored as 0/1; exposed as boolean. At most one captain per crew. |
+| status | TEXT | NOT NULL, DEFAULT 'idle' | Agent's self-reported status. One of: `idle`, `active`. Persisted from `crewdeck status` calls; `done`/`error` states map to `idle`. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 

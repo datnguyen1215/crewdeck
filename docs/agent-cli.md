@@ -131,15 +131,18 @@ crewdeck status --state <state>
 
 **Arguments:**
 
-| Flag      | Required | Description                                          |
-| --------- | -------- | ---------------------------------------------------- |
-| `--state` | Yes      | The agent's state. One of: `active`, `done`, `error` |
+| Flag      | Required | Description                                                    |
+| --------- | -------- | -------------------------------------------------------------- |
+| `--state` | Yes      | The agent's state. One of: `active`, `idle`, `done`, `error` |
 
 **Examples:**
 
 ```bash
 # Indicate the agent is actively working
 crewdeck status --state active
+
+# Indicate the agent is idle (not working on anything)
+crewdeck status --state idle
 
 # Indicate the agent is done with its current task
 crewdeck status --state done
@@ -148,7 +151,7 @@ crewdeck status --state done
 crewdeck status --state error
 ```
 
-**Backend behavior:** Updates the IssueAgent record's status field. Emits `agent.status_changed` on the event bus.
+**Backend behavior:** Persists the status to `Agent.status`. `done` and `error` map to `idle` for the persisted value. Emits `agent.status_changed` on the event bus.
 
 ### files
 
@@ -478,7 +481,7 @@ Available commands:
 - `crewdeck files --modified <files...>` — report which files you modified
 - `crewdeck issues get <issue_id>` — re-read issue details
 - `crewdeck activity <issue_id>` — see comments and activity on an issue
-- `crewdeck status --state <active|done|error>` — update your status on the current issue
+- `crewdeck status --state <active|idle|done|error>` — update your status on the current issue
 
 IMPORTANT:
 - Before doing anything else, post a comment acknowledging the issue and briefly describing your intended approach: `crewdeck comment --message '...'`
