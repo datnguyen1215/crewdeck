@@ -85,28 +85,40 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       `tmux send-keys -t ${shellQuote(sessionName)} ${shellQuote(runCmd)} Enter`,
     );
 
-    // Auto-accept the workspace trust prompt by polling capture-pane until the
-    // prompt text appears, then sending Enter. "Yes, I trust this folder" is
-    // selected by default so no arrow keys are needed.
+    // Auto-accept interactive prompts (trust folder, bypass permissions) by
+    // polling capture-pane and sending the appropriate key when detected.
     if (!print) {
-      this.waitForTrustPrompt(sessionName).catch(() => {});
+      this.waitForStartupPrompts(sessionName).catch(() => {});
     }
 
     return { sessionName };
   }
 
-  private async waitForTrustPrompt(sessionName: string): Promise<void> {
+  private async waitForStartupPrompts(sessionName: string): Promise<void> {
     const sn = shellQuote(sessionName);
-    const deadline = Date.now() + 15_000;
+    const deadline = Date.now() + 30_000;
     const interval = 500;
+    let handledTrust = false;
+    let handledBypass = false;
 
     while (Date.now() < deadline) {
+      if (handledTrust && handledBypass) return;
       await new Promise<void>((r) => setTimeout(r, interval));
       try {
         const { stdout } = await execAsync(`tmux capture-pane -t ${sn} -p`);
-        if (stdout.includes("trust this folder")) {
+
+        // "Yes, I trust this folder" is selected by default — just press Enter
+        if (!handledTrust && stdout.includes("trust this folder")) {
           await execAsync(`tmux send-keys -t ${sn} Enter`);
-          return;
+          handledTrust = true;
+          continue;
+        }
+
+        // Bypass permissions prompt: select "Yes, I accept" (option 2)
+        if (!handledBypass && stdout.includes("Yes, I accept")) {
+          await execAsync(`tmux send-keys -t ${sn} 2`);
+          handledBypass = true;
+          continue;
         }
       } catch {
         return; // Session gone
