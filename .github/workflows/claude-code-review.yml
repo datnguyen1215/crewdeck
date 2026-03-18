@@ -1,7 +1,0 @@
-# Disabled — review checklists moved to workflows/pr-review.md
-# To re-enable, uncomment the triggers below.
-name: Claude Code Review
-
-# on:
-#   pull_request:
-#     types: [opened, ready_for_review, synchronize]
