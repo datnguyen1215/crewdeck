@@ -44,13 +44,17 @@
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load activity', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
-
-		getCrew(projectId)
-			.then((crew) => { if (!cancelled) agents = crew.agents; })
-			.catch(() => {});
 		return () => {
 			cancelled = true;
 		};
+	});
+
+	$effect(() => {
+		let cancelled = false;
+		getCrew(projectId)
+			.then((crew) => { if (!cancelled) agents = crew.agents; })
+			.catch(() => {});
+		return () => { cancelled = true; };
 	});
 
 	$effect(() => {
