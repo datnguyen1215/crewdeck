@@ -9,6 +9,25 @@ import { shellQuote } from "../shell.js";
 
 const execAsync = promisify(exec);
 
+// Calculate how many Down arrow presses are needed to reach a target option.
+// The TUI uses ❯ to mark the currently selected option and arrow keys to navigate.
+function getArrowPresses(output: string, label: string): number {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const lines = output.split("\n");
+  let targetIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (new RegExp(`\\d+\\.\\s*${escaped}`).test(lines[i])) { targetIdx = i; break; }
+  }
+  if (targetIdx < 0) return 0;
+  // Find the ❯ marker closest to (and at or before) the target line
+  let selectedIdx = -1;
+  for (let i = targetIdx; i >= 0; i--) {
+    if (lines[i].includes("❯")) { selectedIdx = i; break; }
+  }
+  if (selectedIdx < 0) return 0;
+  return targetIdx - selectedIdx;
+}
+
 // Build a launch script using base64-encoded prompts to avoid shell escaping issues
 // --dangerously-skip-permissions: required for unattended agent execution.
 // TODO: Add auth middleware on agent-spawning routes before production (see index.ts).
@@ -85,28 +104,50 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       `tmux send-keys -t ${shellQuote(sessionName)} ${shellQuote(runCmd)} Enter`,
     );
 
-    // Auto-accept the workspace trust prompt by polling capture-pane until the
-    // prompt text appears, then sending Enter. "Yes, I trust this folder" is
-    // selected by default so no arrow keys are needed.
+    // Auto-accept interactive prompts (trust folder, bypass permissions) by
+    // polling capture-pane and sending the appropriate key when detected.
     if (!print) {
-      this.waitForTrustPrompt(sessionName).catch(() => {});
+      this.waitForStartupPrompts(sessionName).catch(() => {});
     }
 
     return { sessionName };
   }
 
-  private async waitForTrustPrompt(sessionName: string): Promise<void> {
+  private async waitForStartupPrompts(sessionName: string): Promise<void> {
     const sn = shellQuote(sessionName);
-    const deadline = Date.now() + 15_000;
+    const deadline = Date.now() + 30_000;
     const interval = 500;
+    let handledTrust = false;
+    let handledBypass = false;
 
     while (Date.now() < deadline) {
+      if (handledTrust && handledBypass) return;
       await new Promise<void>((r) => setTimeout(r, interval));
       try {
         const { stdout } = await execAsync(`tmux capture-pane -t ${sn} -p`);
-        if (stdout.includes("trust this folder")) {
+
+        // Trust prompt — navigate to "Yes, proceed" and confirm
+        if (!handledTrust && stdout.includes("trust this folder")) {
+          const presses = getArrowPresses(stdout, "Yes, proceed");
+          for (let i = 0; i < presses; i++) {
+            await execAsync(`tmux send-keys -t ${sn} Down`);
+            await new Promise<void>((r) => setTimeout(r, 150));
+          }
           await execAsync(`tmux send-keys -t ${sn} Enter`);
-          return;
+          handledTrust = true;
+          continue;
+        }
+
+        // Bypass permissions prompt — navigate to "Yes, I accept" and confirm
+        if (!handledBypass && stdout.includes("Yes, I accept")) {
+          const presses = getArrowPresses(stdout, "Yes, I accept");
+          for (let i = 0; i < presses; i++) {
+            await execAsync(`tmux send-keys -t ${sn} Down`);
+            await new Promise<void>((r) => setTimeout(r, 150));
+          }
+          await execAsync(`tmux send-keys -t ${sn} Enter`);
+          handledBypass = true;
+          continue;
         }
       } catch {
         return; // Session gone
