@@ -137,15 +137,13 @@ export function createAgent(
   return request<Agent>("POST", `/projects/${e(projectId)}/crew/agents`, data);
 }
 
-export function generateAgent(
-  projectId: string,
-  data: { prompt: string },
-) {
-  return request<{ name: string; title: string; description: string; system_prompt: string }>(
-    "POST",
-    `/projects/${e(projectId)}/crew/agents/generate`,
-    data,
-  );
+export function generateAgent(projectId: string, data: { prompt: string }) {
+  return request<{
+    name: string;
+    title: string;
+    description: string;
+    system_prompt: string;
+  }>("POST", `/projects/${e(projectId)}/crew/agents/generate`, data);
 }
 
 export function updateAgent(
@@ -317,14 +315,22 @@ export function listGitHubAccounts() {
 }
 
 export function startDeviceFlow(clientId?: string) {
-  return request<DeviceCodeResponse>("POST", "/github-accounts/device-code", clientId ? { client_id: clientId } : {});
+  return request<DeviceCodeResponse>(
+    "POST",
+    "/github-accounts/device-code",
+    clientId ? { client_id: clientId } : {},
+  );
 }
 
 export function pollDeviceFlow(deviceCode: string, clientId?: string) {
-  return request<DeviceCodePollResponse>("POST", "/github-accounts/device-code/poll", {
-    device_code: deviceCode,
-    ...(clientId ? { client_id: clientId } : {}),
-  });
+  return request<DeviceCodePollResponse>(
+    "POST",
+    "/github-accounts/device-code/poll",
+    {
+      device_code: deviceCode,
+      ...(clientId ? { client_id: clientId } : {}),
+    },
+  );
 }
 
 export function deleteGitHubAccount(id: string) {
@@ -349,6 +355,21 @@ export function listActivity(
   return request<ActivityLog[]>(
     "GET",
     `/projects/${e(projectId)}/activity${qs(filters)}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Environment Variables
+// ---------------------------------------------------------------------------
+
+export function createEnvironmentVariable(
+  projectId: string,
+  data: { key: string; value: string; is_secret?: boolean },
+) {
+  return request<EnvironmentVariable>(
+    "POST",
+    `/projects/${e(projectId)}/environment`,
+    data,
   );
 }
 
@@ -544,6 +565,16 @@ export interface DeviceCodePollResponse {
   status?: string;
   error?: string;
   error_description?: string;
+}
+
+export interface EnvironmentVariable {
+  id: string;
+  project_id: string;
+  key: string;
+  value: string;
+  is_secret: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CaptainMessage {
