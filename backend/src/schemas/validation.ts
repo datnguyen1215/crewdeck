@@ -22,10 +22,19 @@ import { z } from "zod";
 //   are not used in any fs/shell operation yet. Validate against an allowed base
 //   directory when git/fs operations are introduced.
 
-const githubUrl = z.string().url().refine(
-  (url) => { try { return new URL(url).hostname === "github.com"; } catch { return false; } },
-  { message: "Must be a GitHub URL" }
-);
+const githubUrl = z
+  .string()
+  .url()
+  .refine(
+    (url) => {
+      try {
+        return new URL(url).hostname === "github.com";
+      } catch {
+        return false;
+      }
+    },
+    { message: "Must be a GitHub URL" },
+  );
 
 const CreateProjectBase = z.object({
   name: z.string().min(1).optional(),
@@ -42,9 +51,11 @@ export const CreateProjectSchema = CreateProjectBase;
 export const UpdateProjectSchema = CreateProjectBase.omit({
   github_url: true,
   default_branch: true,
-}).partial().extend({
-  orchestrator_session_id: z.string().nullable().optional(),
-});
+})
+  .partial()
+  .extend({
+    orchestrator_session_id: z.string().nullable().optional(),
+  });
 
 export const CreateRepoSchema = z.object({
   github_url: githubUrl,
@@ -157,6 +168,31 @@ export const CreateActivitySchema = z.object({
   actor_id: z.string().optional(),
   action: z.string().min(1),
   details: z.unknown().optional(),
+});
+
+export const CreateEnvironmentVariableSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .regex(
+      /^[A-Za-z_][A-Za-z0-9_]*$/,
+      "Must be a valid environment variable name",
+    ),
+  value: z.string(),
+  is_secret: z.boolean().optional(),
+});
+
+export const UpdateEnvironmentVariableSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .regex(
+      /^[A-Za-z_][A-Za-z0-9_]*$/,
+      "Must be a valid environment variable name",
+    )
+    .optional(),
+  value: z.string().optional(),
+  is_secret: z.boolean().optional(),
 });
 
 export const InitDeviceFlowSchema = z.object({

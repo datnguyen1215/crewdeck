@@ -1,7 +1,7 @@
 import { getEnv } from "../env.js";
 import { post } from "../http.js";
 
-const VALID_STATES = ["active", "done", "error"] as const;
+const VALID_STATES = ["active", "idle", "done", "error"] as const;
 type StatusState = (typeof VALID_STATES)[number];
 
 const USAGE = `Usage: crewdeck status --state <state>

@@ -15,6 +15,17 @@ async function startServer(bus: EventBus): Promise<{
   const app = express();
   const server = http.createServer(app);
   const wss = setupWebSocket(server, bus);
+
+  // setupWebSocket uses noServer mode — wire up upgrade handling like index.ts does
+  server.on("upgrade", (req, socket, head) => {
+    const pathname = new URL(req.url ?? "", "http://localhost").pathname;
+    if (pathname === "/ws") {
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+    } else {
+      socket.destroy();
+    }
+  });
+
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as { port: number };
   return { server, wss, port };

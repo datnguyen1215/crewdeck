@@ -53,6 +53,7 @@ export interface Agent {
   description: string | null;
   system_prompt: string;
   is_captain: boolean;
+  status: string;
   created_at: string;
   updated_at: string;
 }
@@ -117,6 +118,7 @@ export interface Session {
   issue_id: string | null;
   tmux_session_name: string | null;
   tmux_pane_id: string | null;
+  claude_session_id: string | null;
   status: string;
   context: unknown;
   created_at: string;
@@ -151,6 +153,28 @@ export interface CreateCaptainMessageInput {
   context?: unknown;
 }
 
+export interface EnvironmentVariable {
+  id: string;
+  project_id: string;
+  key: string;
+  value: string;
+  is_secret: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateEnvironmentVariableInput {
+  key: string;
+  value: string;
+  is_secret?: boolean;
+}
+
+export interface UpdateEnvironmentVariableInput {
+  key?: string;
+  value?: string;
+  is_secret?: boolean;
+}
+
 // Composite types
 export interface ProjectWithStats extends Project {
   repo_count: number;
@@ -166,7 +190,6 @@ export interface ProjectWithStats extends Project {
 }
 
 export interface AgentWithStatus extends Agent {
-  status: "idle" | "working" | "reviewing";
   current_issue: { id: string; title: string } | null;
 }
 
@@ -174,11 +197,21 @@ export interface CrewWithAgents extends Crew {
   agents: AgentWithStatus[];
 }
 
+export interface IssueAgentWithName extends IssueAgent {
+  agent: { id: string; name: string } | null;
+}
+
+// TODO: remove legacy agents/prs/activity fields once all consumers use issue_agents/issue_prs/activity_log
 export interface IssueWithDetails extends Issue {
+  assigned_agent: { id: string; name: string } | null;
   comments: Comment[];
-  agents: IssueAgent[];
+  agents: IssueAgentWithName[];
   prs: IssuePR[];
   activity: ActivityLog[];
+  issue_agents: IssueAgentWithName[];
+  issue_prs: IssuePR[];
+  activity_log: ActivityLog[];
+  repo: { id: string; name: string } | null;
 }
 
 // Input types
@@ -224,6 +257,7 @@ export interface UpdateAgentInput {
   description?: string;
   system_prompt?: string;
   is_captain?: boolean;
+  status?: string;
 }
 
 export interface CreateIssueInput {
@@ -300,6 +334,7 @@ export interface CreateSessionInput {
   issue_id?: string;
   tmux_session_name?: string;
   tmux_pane_id?: string;
+  claude_session_id?: string;
   status?: string;
   context?: unknown;
 }
@@ -310,6 +345,7 @@ export interface UpdateSessionInput {
   issue_id?: string | null;
   tmux_session_name?: string | null;
   tmux_pane_id?: string | null;
+  claude_session_id?: string | null;
   status?: string;
   context?: unknown;
 }

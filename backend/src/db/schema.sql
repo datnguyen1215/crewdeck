@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS Agent (
   description TEXT,
   system_prompt TEXT NOT NULL,
   is_captain INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'idle',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -81,6 +82,7 @@ CREATE TABLE IF NOT EXISTS Session (
   issue_id TEXT REFERENCES Issue(id),
   tmux_session_name TEXT,
   tmux_pane_id TEXT,
+  claude_session_id TEXT,
   status TEXT NOT NULL DEFAULT 'idle',
   context TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -151,6 +153,17 @@ CREATE TABLE IF NOT EXISTS CaptainHistory (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS EnvironmentVariable (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES Project(id),
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  is_secret INTEGER NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(project_id, key)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_repo_project ON Repo(project_id);
 CREATE INDEX IF NOT EXISTS idx_agent_crew ON Agent(crew_id);
@@ -170,3 +183,4 @@ CREATE INDEX IF NOT EXISTS idx_activity_created ON ActivityLog(project_id, creat
 CREATE INDEX IF NOT EXISTS idx_captain_message_project ON CaptainMessage(project_id);
 CREATE INDEX IF NOT EXISTS idx_captain_message_created ON CaptainMessage(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_captain_history_created ON CaptainHistory(project_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_env_var_project ON EnvironmentVariable(project_id);

@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
 	import { listActivity, listIssues, type ActivityLog, type Issue } from '$lib/api/http.js';
-	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { ACTOR_CFG, ACTION_DISPLAY, HANDOFF_ACTIONS, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';

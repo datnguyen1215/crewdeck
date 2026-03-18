@@ -5,7 +5,7 @@
 	import { getIssue, addComment, editComment, deleteComment, approveIssue, discardIssue, updateIssue, listSessions, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
-	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
 
@@ -342,8 +342,9 @@ function esc(s: string) {
 		return { border: 'var(--color-edge-hi)', textColor: 'text-secondary' };
 	}
 
+	// Comment type doesn't discriminate author_type, so we use any here
 	function commentAuthorLabel(comment: any): string {
-		if (comment.author_type === 'orchestrator') return 'Orchestrator';
+		if (comment.author_type === 'orchestrator') return 'Captain';
 		if (comment.author_type === 'user') return 'User';
 		if (comment.author_type === 'agent' && comment.author_id) {
 			const ia = issue?.issue_agents?.find((ia: any) => ia.agent_id === comment.author_id);
@@ -777,7 +778,7 @@ function esc(s: string) {
 					<!-- Created by -->
 					<div class="flex items-center gap-2">
 						<span class="text-muted w-20 shrink-0">By</span>
-						<span class="{issue.created_by === 'orchestrator' ? 'text-purple' : 'text-secondary'}">{issue.created_by}</span>
+						<span class="{issue.created_by === 'orchestrator' || issue.created_by === 'captain' ? 'text-purple' : 'text-secondary'}">{issue.created_by === 'orchestrator' || issue.created_by === 'captain' ? 'Captain' : issue.created_by}</span>
 					</div>
 				</div>
 

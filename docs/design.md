@@ -43,6 +43,8 @@ An agent is a specialized AI persona defined by a custom system prompt. Agents h
 - A system prompt generated through AI assistance from a short prompt.
 - An optional **captain** designation (`is_captain`). At most one agent per crew can be captain. The captain's system prompt is used by the orchestrator when coordinating the crew. If no captain is designated, orchestration is skipped.
 
+A default captain agent is automatically created when a project is created. Users can customize or replace it via the Crew page.
+
 Agent creation is AI-assisted: the user describes the role they want, and the system uses the CLI tool to generate and refine a detailed system prompt for that agent.
 
 ### Orchestrator
@@ -66,7 +68,7 @@ An issue is the fundamental unit of work. Issues have:
 - An assigned agent (set by the orchestrator).
 - A comment thread where agents and humans post updates, findings, and review feedback.
 - Linked branch/worktree information (recorded when an agent begins work).
-- Linked pull requests (created manually via the frontend when ready).
+- Linked pull requests (created automatically by the captain after all reviewers approve).
 - An activity log recording every state change and action.
 - A configurable max review rounds (overrides project default if set).
 
@@ -83,13 +85,12 @@ Humans can also post comments to provide direction or additional context.
 
 ### Pull Request
 
-A pull request is created manually by the user via a button in the frontend. Before PR creation, the system tracks:
+A pull request is created automatically by the captain after all reviewers approve an issue. The captain runs `crewdeck create-pr <issue_id>`, which:
 
-- The branch name and worktree path where work was done.
-- The target repository.
-- The linked issue.
-
-After the user clicks the create button, the system uses `gh` CLI to create the PR on GitHub and records the PR URL and status back on the issue.
+- Pushes the issue's worktree branch using the project's OAuth token.
+- Runs `gh pr create` to open the PR on GitHub.
+- Records the PR URL and status in the `IssuePR` table.
+- Transitions the issue to `pr_created` and emits `pr.created` on the event bus.
 
 ## Issue Lifecycle
 
@@ -112,7 +113,7 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 | **In Progress** | An agent is actively working on the issue in a tmux session. |
 | **In Review** | Work is complete. Reviewers are examining the code. |
 | **Feedback** | Reviewers have posted feedback. Original agent needs to address it. |
-| **Ready** | All reviewers have approved. Waiting for human to create PR. |
+| **Ready** | All reviewers have approved. Captain will automatically create the PR. |
 | **PR Created** | Pull request has been created on GitHub. |
 | **Done** | PR merged or issue otherwise resolved. |
 
@@ -209,7 +210,7 @@ The frontend and backend are separate directories (not a monorepo with workspace
 - Renders project dashboard, issue board, crew management, activity log.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
 - Embeds xterm.js for live terminal views of agent tmux sessions.
-- Provides approval buttons for draft issues and PR creation.
+- Provides approval buttons for draft issues.
 
 **Backend (Node.js + TypeScript)**
 - Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, crews, agents, issues, comments.
@@ -314,7 +315,7 @@ The frontend subscribes to events scoped by project. This ensures the dashboard 
 Each active piece of work gets its own tmux session:
 
 - **One persistent captain session per project** — the captain tmux session stays alive across multiple issues, receiving events via `tmux send-keys` and driving all orchestration decisions through the `crewdeck` CLI.
-- **One session per agent per issue** — when an agent is assigned to work on an issue, a new tmux session is created.
+- **One session per agent per issue** — after an agent is assigned to an issue via `crewdeck assign`, the captain calls `crewdeck sessions start` to spawn the tmux session. Assignment and session spawning are separate steps.
 - **Reviewers get separate sessions** — each reviewer examining an issue gets their own tmux session.
 - **Worker/reviewer sessions are ephemeral** — created when work starts, cleaned up when work completes.
 - **Session output is captured** — the backend streams tmux output for the xterm.js live view and stores relevant portions in the database.
@@ -345,9 +346,10 @@ On startup, the backend:
 2. Initializes SQLite database (runs `schema.sql` if tables don't exist).
 3. Scans for orphaned tmux sessions from previous crashes (sessions prefixed with `crewdeck-`).
 4. Cleans up orphaned sessions: kills tmux sessions, updates Session records to `error` status.
-5. Starts the Express HTTP server.
-6. Starts the WebSocket server.
-7. Logs startup complete via pino.
+5. Initializes the activity logger (registers event listeners that persist activity entries to the ActivityLog table).
+6. Starts the Express HTTP server.
+7. Starts the WebSocket server.
+8. Logs startup complete via pino.
 
 ### Graceful Shutdown
 

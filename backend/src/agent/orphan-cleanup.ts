@@ -21,42 +21,64 @@ async function listCrewdeckTmuxSessions(): Promise<string[]> {
   }
 }
 
-// On startup: kill all lingering crewdeck tmux sessions and mark their DB records as error.
-// Also mark any DB sessions still in "running" whose tmux session no longer exists.
-// These are orphans from a previous backend process that didn't shut down cleanly.
-export async function cleanupOrphans(): Promise<void> {
+// On startup: check liveness of running sessions. Sessions with live tmux
+// processes are left alone. DB sessions whose tmux has died are marked as error.
+// Orphaned tmux sessions (no matching DB record) are killed.
+// Returns issue IDs that were in_progress but lost their session, so the
+// captain can be notified to respawn them.
+export async function cleanupOrphans(): Promise<string[]> {
   const tmuxSessions = await listCrewdeckTmuxSessions();
   const liveTmuxNames = new Set(tmuxSessions);
 
-  // Kill all lingering crewdeck tmux sessions
+  const runningSessions = listRunningSessions();
+  const dbTmuxNames = new Set(
+    runningSessions.map((s) => s.tmux_session_name).filter(Boolean),
+  );
+
+  // Kill tmux sessions that have no matching DB record (truly orphaned)
+  let tmuxKilled = 0;
   for (const tmuxName of tmuxSessions) {
-    try {
-      await execAsync(`tmux kill-session -t ${shellQuote(tmuxName)}`);
-      logger.info({ tmux_session: tmuxName }, "Killed orphaned tmux session");
-    } catch {
-      // Already gone
+    if (!dbTmuxNames.has(tmuxName)) {
+      try {
+        await execAsync(`tmux kill-session -t ${shellQuote(tmuxName)}`);
+        logger.info({ tmux_session: tmuxName }, "Killed orphaned tmux session (no DB record)");
+        tmuxKilled++;
+      } catch {
+        // Already gone
+      }
     }
   }
 
-  // Mark all DB sessions in "running" state as error — whether or not their
-  // tmux session was still alive. If the previous backend crashed, some DB
-  // sessions may have no tmux counterpart at all.
-  const runningSessions = listRunningSessions();
+  // Check each DB session: if its tmux is still alive, leave it alone.
+  // If the tmux is gone, mark the DB session as error.
+  const orphanedIssueIds: string[] = [];
+  let dbCleaned = 0;
   for (const session of runningSessions) {
+    const isAlive = session.tmux_session_name && liveTmuxNames.has(session.tmux_session_name);
+    if (isAlive) {
+      logger.info(
+        { session_id: session.id, tmux: session.tmux_session_name },
+        "Session still alive, keeping"
+      );
+      continue;
+    }
     updateSession(session.id, { status: "error" });
-    const hadTmux = session.tmux_session_name && liveTmuxNames.has(session.tmux_session_name);
+    if (session.issue_id) orphanedIssueIds.push(session.issue_id);
+    dbCleaned++;
     logger.info(
-      { session_id: session.id, had_tmux: !!hadTmux },
-      "Marked orphaned session as error"
+      { session_id: session.id },
+      "Marked dead session as error"
     );
   }
 
-  if (tmuxSessions.length || runningSessions.length) {
+  if (tmuxKilled || dbCleaned) {
     logger.info(
-      { tmux_killed: tmuxSessions.length, db_cleaned: runningSessions.length },
+      { tmux_killed: tmuxKilled, db_cleaned: dbCleaned, orphaned_issues: orphanedIssueIds.length },
       "Orphan cleanup complete"
     );
   }
+
+  return orphanedIssueIds;
 }
 
 // On SIGTERM/SIGINT: capture output, gracefully exit each running session, update DB.

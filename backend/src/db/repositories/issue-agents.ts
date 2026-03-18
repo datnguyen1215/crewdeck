@@ -1,5 +1,6 @@
 import { db } from "../index.js";
 import type { IssueAgent, CreateIssueAgentInput, UpdateIssueAgentInput } from "../../types/entities.js";
+import { buildAndRunUpdate } from "./utils.js";
 
 export function listIssueAgents(issueId: string): IssueAgent[] {
   return db
@@ -43,18 +44,6 @@ export function createIssueAgent(input: CreateIssueAgentInput): IssueAgent {
 }
 
 export function updateIssueAgent(id: string, input: UpdateIssueAgentInput): IssueAgent {
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (input.status !== undefined) { fields.push("status = ?"); values.push(input.status); }
-  if (input.review_order !== undefined) { fields.push("review_order = ?"); values.push(input.review_order); }
-  if (input.review_round !== undefined) { fields.push("review_round = ?"); values.push(input.review_round); }
-  if (input.session_id !== undefined) { fields.push("session_id = ?"); values.push(input.session_id); }
-
-  if (fields.length > 0) {
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    db.prepare(`UPDATE IssueAgent SET ${fields.join(", ")} WHERE id = ?`).run(...values, id);
-  }
-
+  buildAndRunUpdate("IssueAgent", id, input);
   return getIssueAgent(id)!;
 }

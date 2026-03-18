@@ -25,8 +25,9 @@
 	function connectTerminalWs() {
 		if (destroyed || !term) return;
 
-		const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-		const url = `${protocol}//${location.host}/terminal-ws?sessionId=${encodeURIComponent(sessionId)}`;
+		const backendUrl = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:9381' : '');
+		const base = backendUrl ? backendUrl.replace(/^http/, 'ws') : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+		const url = `${base}/terminal-ws?sessionId=${encodeURIComponent(sessionId)}`;
 		const ws = new WebSocket(url);
 
 		ws.onopen = () => {
@@ -151,7 +152,7 @@
 			class:animate-pulse={isRunning}
 			class:bg-muted={!isRunning}
 		></span>
-		<span class="text-secondary">Agent: <span class="text-cyan">{agentName}</span></span>
+		<span class="text-cyan">{agentName}</span>
 		<span class="ml-auto text-muted capitalize">{isRunning ? 'Running' : status}</span>
 	</div>
 
