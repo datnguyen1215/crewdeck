@@ -362,13 +362,6 @@ export function listActivity(
 // Environment Variables
 // ---------------------------------------------------------------------------
 
-export function listEnvironmentVariables(projectId: string) {
-  return request<EnvironmentVariable[]>(
-    "GET",
-    `/projects/${e(projectId)}/environment`,
-  );
-}
-
 export function createEnvironmentVariable(
   projectId: string,
   data: { key: string; value: string; is_secret?: boolean },

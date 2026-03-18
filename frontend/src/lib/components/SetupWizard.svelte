@@ -22,8 +22,7 @@
 
 	// --- Agent Setup (step 3) ---
 	let agents = $state<Agent[]>([]);
-	let agentGenerating = $state(false);
-	let agentSubmitting = $state(false);
+	let agentLoading = $state(false);
 	let agentPrompt = $state('');
 	let agentError = $state('');
 
@@ -57,7 +56,7 @@
 
 	function handleProjectCreated(project: Project) {
 		createdProject = project;
-		// Load existing agents (captain is auto-created)
+		// Non-critical — agents are still accessible from the project dashboard if this fails
 		listAgents(project.id)
 			.then((a) => { agents = a; })
 			.catch(() => {});
@@ -66,12 +65,12 @@
 
 	// --- Agent helpers ---
 
-	async function addFromTemplate(template: { label: string; prompt: string }) {
-		if (!createdProject || agentGenerating) return;
+	async function addAgent(prompt: string) {
+		if (!createdProject || agentLoading) return;
 		agentError = '';
-		agentGenerating = true;
+		agentLoading = true;
 		try {
-			const generated = await generateAgent(createdProject.id, { prompt: template.prompt });
+			const generated = await generateAgent(createdProject.id, { prompt });
 			const agent = await createAgent(createdProject.id, {
 				name: generated.name,
 				title: generated.title,
@@ -82,29 +81,15 @@
 		} catch (err) {
 			agentError = err instanceof Error ? err.message : 'Failed to add agent';
 		} finally {
-			agentGenerating = false;
+			agentLoading = false;
 		}
 	}
 
 	async function addFromPrompt() {
-		if (!createdProject || !agentPrompt.trim() || agentSubmitting) return;
-		agentError = '';
-		agentSubmitting = true;
-		try {
-			const generated = await generateAgent(createdProject.id, { prompt: agentPrompt.trim() });
-			const agent = await createAgent(createdProject.id, {
-				name: generated.name,
-				title: generated.title,
-				description: generated.description,
-				system_prompt: generated.system_prompt
-			});
-			agents = [...agents, agent];
-			agentPrompt = '';
-		} catch (err) {
-			agentError = err instanceof Error ? err.message : 'Failed to generate agent';
-		} finally {
-			agentSubmitting = false;
-		}
+		if (!agentPrompt.trim()) return;
+		const prompt = agentPrompt.trim();
+		agentPrompt = '';
+		await addAgent(prompt);
 	}
 
 	// --- Env var helpers ---
@@ -126,28 +111,31 @@
 		}
 		envSaving = true;
 		envError = '';
-		const results = await Promise.allSettled(
-			valid.map((v) =>
-				createEnvironmentVariable(createdProject!.id, {
-					key: v.key.trim(),
-					value: v.value.trim(),
-					is_secret: v.is_secret
-				})
-			)
-		);
-		const succeededIds = new Set(
-			valid.filter((_, i) => results[i].status === 'fulfilled').map((v) => v.id)
-		);
-		savedEnvCount += succeededIds.size;
-		envVars = envVars.filter((v) => !succeededIds.has(v.id));
-		const failed = results.filter((r) => r.status === 'rejected');
-		if (failed.length > 0) {
-			const reason = (failed[0] as PromiseRejectedResult).reason;
-			envError = reason instanceof Error ? reason.message : 'Failed to save some environment variables';
-		} else {
-			step = 5;
+		try {
+			const results = await Promise.allSettled(
+				valid.map((v) =>
+					createEnvironmentVariable(createdProject!.id, {
+						key: v.key.trim(),
+						value: v.value.trim(),
+						is_secret: v.is_secret
+					})
+				)
+			);
+			const succeededIds = new Set(
+				valid.filter((_, i) => results[i].status === 'fulfilled').map((v) => v.id)
+			);
+			savedEnvCount += succeededIds.size;
+			envVars = envVars.filter((v) => !succeededIds.has(v.id));
+			const failed = results.filter((r) => r.status === 'rejected');
+			if (failed.length > 0) {
+				const reason = (failed[0] as PromiseRejectedResult).reason;
+				envError = reason instanceof Error ? reason.message : 'Failed to save some environment variables';
+			} else {
+				step = 5;
+			}
+		} finally {
+			envSaving = false;
 		}
-		envSaving = false;
 	}
 
 	// --- Review & Launch ---
@@ -253,8 +241,8 @@
 					<div class="flex gap-2">
 						{#each TEMPLATES as template (template.label)}
 							<button
-								onclick={() => addFromTemplate(template)}
-								disabled={agentGenerating || agentSubmitting}
+								onclick={() => addAgent(template.prompt)}
+								disabled={agentLoading}
 								class="flex-1 px-3 py-2 bg-base border border-edge rounded text-xs text-secondary hover:text-cyan hover:border-cyan transition-colors disabled:opacity-50"
 							>
 								+ {template.label}
@@ -271,21 +259,21 @@
 							type="text"
 							bind:value={agentPrompt}
 							placeholder="e.g. DevOps specialist for CI/CD"
-							disabled={agentGenerating || agentSubmitting}
+							disabled={agentLoading}
 							class="flex-1 bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
 							onkeydown={(e) => { if (e.key === 'Enter') addFromPrompt(); }}
 						/>
 						<button
 							onclick={addFromPrompt}
-							disabled={!agentPrompt.trim() || agentGenerating || agentSubmitting}
+							disabled={!agentPrompt.trim() || agentLoading}
 							class="px-3 py-2 bg-cyan/10 border border-cyan text-cyan text-xs rounded hover:bg-cyan/20 transition-colors disabled:opacity-50"
 						>
-							{agentSubmitting ? '...' : 'Add'}
+							agentLoading ? '...' : 'Add'}
 						</button>
 					</div>
 				</div>
 
-				{#if agentGenerating}
+				{#if agentLoading}
 					<div class="flex items-center gap-2 text-muted text-xs mb-3">
 						<span class="inline-block w-3 h-3 border-2 border-cyan border-t-transparent rounded-full animate-spin"></span>
 						Generating agent...
@@ -318,7 +306,7 @@
 					</div>
 				{/if}
 
-				<!-- Navigation -->
+				<!-- Both advance to step 4 — agents are already saved server-side as they're added -->
 				<div class="flex gap-3 mt-4 pt-4 border-t border-edge">
 					<button
 						onclick={() => { step = 4; }}
