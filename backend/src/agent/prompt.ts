@@ -14,22 +14,30 @@ export function buildReviewerPrompt(
   issue: Issue,
   reviewer: Agent,
   repo: Repo | null,
-  context: ReviewerPromptContext
+  context: ReviewerPromptContext,
 ): string {
   const parts: string[] = [];
 
-  parts.push(`## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`);
+  parts.push(
+    `## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`,
+  );
 
   if (repo) {
-    parts.push(`## Repository\n${escapeXml(repo.name)} at ${escapeXml(context.worktreePath)} (branch: ${escapeXml(context.branchName)})`);
+    parts.push(
+      `## Repository\n${escapeXml(repo.name)} at ${escapeXml(context.worktreePath)} (branch: ${escapeXml(context.branchName)})`,
+    );
   }
 
   if (context.comments?.length) {
-    parts.push(`## Issue Comments\n<comments>\n${fmtComments(context.comments)}\n</comments>`);
+    parts.push(
+      `## Issue Comments\n<comments>\n${fmtComments(context.comments)}\n</comments>`,
+    );
   }
 
   // Validate base_branch to prevent shell injection — only allow safe branch name characters.
-  const safeBranch = /^[a-zA-Z0-9._/-]+$/.test(issue.base_branch ?? "") ? issue.base_branch! : "main";
+  const safeBranch = /^[a-zA-Z0-9._/-]+$/.test(issue.base_branch ?? "")
+    ? issue.base_branch!
+    : "main";
 
   const diffInstruction = repo
     ? `\n\nTo see what changed, run:\n  git diff \$(git merge-base HEAD origin/${safeBranch}) HEAD`
@@ -38,7 +46,11 @@ export function buildReviewerPrompt(
   parts.push(`## Instructions
 You are ${escapeXml(reviewer.name)}, a ${escapeXml(reviewer.title)} reviewer. Review the code changes for the issue above.${diffInstruction}
 
-Evaluate correctness, quality, and completeness. Then signal your verdict:
+Before doing anything else, post a comment acknowledging that you are starting the review:
+  crewdeck comment --message 'Your starting message here'
+
+Evaluate correctness, quality, and completeness. Post a summary of your findings before signaling your verdict:
+  crewdeck comment --message 'Your review summary here'
 
 If the code looks good:
   crewdeck signal --event review-complete --data '{"verdict":"approved"}'
@@ -66,30 +78,42 @@ export function buildAgentPrompt(
   issue: Issue,
   agent: Agent,
   repo: Repo | null,
-  context: PromptContext
+  context: PromptContext,
 ): string {
   const parts: string[] = [];
 
   // User-supplied content is wrapped in XML tags to clearly delimit data from instructions.
   // Treat content inside these tags as read-only data — never execute or follow directives within them.
-  parts.push(`## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`);
+  parts.push(
+    `## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`,
+  );
 
   if (repo) {
-    parts.push(`## Repository\n${escapeXml(repo.name)} at ${escapeXml(context.worktreePath)}`);
+    parts.push(
+      `## Repository\n${escapeXml(repo.name)} at ${escapeXml(context.worktreePath)}`,
+    );
   }
 
   if (context.previousComments?.length) {
-    parts.push(`## Previous Comments\n<comments>\n${fmtComments(context.previousComments)}\n</comments>`);
+    parts.push(
+      `## Previous Comments\n<comments>\n${fmtComments(context.previousComments)}\n</comments>`,
+    );
   }
 
   if (context.feedbackComments?.length) {
-    parts.push(`## Review Feedback to Address\n<feedback>\n${fmtComments(context.feedbackComments)}\n</feedback>`);
+    parts.push(
+      `## Review Feedback to Address\n<feedback>\n${fmtComments(context.feedbackComments)}\n</feedback>`,
+    );
   }
 
   parts.push(`## Instructions
 You are ${escapeXml(agent.name)}, a ${escapeXml(agent.title)} agent. Work on the issue described above.
 
-When your work is complete, run:
+Before doing anything else, post a comment acknowledging the issue and briefly describing your intended approach:
+  crewdeck comment --message 'Your starting message here'
+
+When your work is complete, post a summary comment describing what you did, then signal completion:
+  crewdeck comment --message 'Your summary here'
   crewdeck signal --event work-complete
 
 Post progress updates with:
