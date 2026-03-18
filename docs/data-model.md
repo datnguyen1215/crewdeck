@@ -128,6 +128,7 @@ A specialized AI persona within a crew.
 | description | TEXT | | Optional 1-2 sentence summary of what this agent does. |
 | system_prompt | TEXT | NOT NULL | Full system prompt defining this agent's persona and behavior. |
 | is_captain | INTEGER | NOT NULL, DEFAULT 0 | Whether this agent is the crew's captain. Stored as 0/1; exposed as boolean. At most one captain per crew. |
+| status | TEXT | NOT NULL, DEFAULT 'idle' | Agent's self-reported status. One of: `idle`, `active`. Persisted from `crewdeck status` calls; `done`/`error` states map to `idle`. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
@@ -144,7 +145,7 @@ The fundamental unit of work.
 | status | TEXT | NOT NULL, DEFAULT 'open' | Current status. One of: `draft`, `open`, `in_progress`, `in_review`, `feedback`, `ready`, `pr_created`, `done`. |
 | priority | INTEGER | NOT NULL, DEFAULT 0 | Priority score assigned by orchestrator. Higher = more urgent. |
 | assigned_agent_id | TEXT | FOREIGN KEY → Agent.id, NULLABLE | The agent currently assigned to work on this issue. |
-| created_by | TEXT | NOT NULL, DEFAULT 'user' | Who created the issue. One of: `user`, `orchestrator`. |
+| created_by | TEXT | NOT NULL, DEFAULT 'user' | Who created the issue. One of: `user`, `orchestrator`, `captain`. |
 | max_review_rounds | INTEGER | NULLABLE | Override for project-level max_review_rounds. NULL means use project default. |
 | current_review_round | INTEGER | NOT NULL, DEFAULT 0 | Current review iteration count. |
 | branch_name | TEXT | NULLABLE | Git branch where work is being done. |
@@ -177,7 +178,7 @@ Tracks which agents are involved with an issue and their role (worker vs. review
 | issue_id | TEXT | NOT NULL, FOREIGN KEY → Issue.id | The issue. |
 | agent_id | TEXT | NOT NULL, FOREIGN KEY → Agent.id | The agent. |
 | role | TEXT | NOT NULL | Role on this issue. One of: `worker`, `reviewer`. |
-| status | TEXT | NOT NULL, DEFAULT 'pending' | Agent's status on this issue. One of: `pending`, `active`, `approved`, `changes_requested`, `done`. |
+| status | TEXT | NOT NULL, DEFAULT 'pending' | Agent's status on this issue. One of: `pending`, `active`, `approved`, `changes_requested`, `done`, `error`. |
 | review_order | INTEGER | NULLABLE | Order in which this reviewer is invoked (1, 2, 3...). NULL for workers. |
 | review_round | INTEGER | NULLABLE | Review round this record belongs to. 0 for workers; matches `Issue.current_review_round` for reviewers. |
 | session_id | TEXT | FOREIGN KEY → Session.id, NULLABLE | The tmux/CLI session for this agent on this issue. |
@@ -248,6 +249,25 @@ A message in the project-level captain chat. Created by the captain session or b
 | context | TEXT | NULLABLE | JSON blob with structured decision metadata (e.g., action taken, affected issue/agent IDs). Set by the orchestrator; NULL for user messages. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
+### EnvironmentVariable
+
+A per-project environment variable injected into agent sessions at spawn time.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
+| key | TEXT | NOT NULL | Variable name. Must match `[A-Za-z_][A-Za-z0-9_]*`. |
+| value | TEXT | NOT NULL | Variable value. Stored in plaintext; masked in API responses when `is_secret` is true. |
+| is_secret | INTEGER | NOT NULL, DEFAULT 0 | Whether to mask the value in API responses. Stored as 0/1; exposed as boolean. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+
+**Constraints:**
+- UNIQUE(project_id, key) — a key can only appear once per project.
+
+---
+
 ### ActivityLog
 
 Immutable audit trail of every action in the system.
@@ -259,7 +279,7 @@ Immutable audit trail of every action in the system.
 | issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | Related issue, if applicable. |
 | actor_type | TEXT | NOT NULL | Who performed the action. One of: `user`, `agent`, `orchestrator`, `system`, `captain`. |
 | actor_id | TEXT | NULLABLE | Agent.id if actor_type is `agent`. |
-| action | TEXT | NOT NULL | Action identifier (e.g., `issue.created`, `issue.status_changed`, `comment.added`, `agent.assigned`, `session.started`, `pr.created`, `captain.decision`, `review.completed`, `agent.finished`, `agent.error`, `agent.needs_help`). |
+| action | TEXT | NOT NULL | Action identifier (e.g., `issue.created`, `issue.status_changed`, `comment.added`, `agent.assigned`, `session.started`, `session.stop_requested`, `pr.created`, `captain.decision`, `review.completed`, `agent.finished`, `agent.error`, `agent.needs_help`). |
 | details | TEXT | | JSON blob with action-specific data (e.g., `{"from": "open", "to": "in_progress"}`). |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
@@ -277,6 +297,7 @@ Immutable audit trail of every action in the system.
 | Project → ActivityLog | One-to-Many | A project has many activity log entries. |
 | Project → CaptainMessage | One-to-Many | A project has many captain chat messages. |
 | Project → CaptainHistory | One-to-Many | A project has many captain decision history entries. |
+| Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent sessions. |
 | Crew → Agent | One-to-Many | A crew has multiple agents. |
 | Issue → Comment | One-to-Many | An issue has many comments. |
 | Issue → IssueAgent | One-to-Many | An issue has many agent assignments. |
@@ -308,3 +329,4 @@ The following indexes should be created for query performance:
 - `idx_captain_message_project` on CaptainMessage(project_id)
 - `idx_captain_message_created` on CaptainMessage(project_id, created_at)
 - `idx_captain_history_created` on CaptainHistory(project_id, created_at)
+- `idx_env_var_project` on EnvironmentVariable(project_id)

@@ -25,28 +25,32 @@ Without the CLI, the backend would have to rely solely on polling tmux output or
 
 ## Installation and Environment
 
-The CLI is available in every agent's tmux session. The backend sets environment variables when spawning a session. The variables differ depending on session type.
+The CLI is available in every agent's tmux session. When spawning a session, the backend prepends the CLI's `dist/` directory to `PATH` so agents can run `crewdeck` without any global install. The path is derived from the `CREWDECK_CLI_DIR` config option (defaults to `../cli` relative to the backend). For Docker deployments, set `CREWDECK_CLI_DIR` to the absolute path where the CLI is installed inside the container.
+
+The backend also sets environment variables when spawning a session. The variables differ depending on session type.
 
 ### Worker/Reviewer Sessions
 
-| Variable | Description |
-|----------|-------------|
-| `CREWDECK_API_URL` | Backend API base URL (e.g., `http://localhost:3000/api/v1`) |
-| `CREWDECK_SESSION_ID` | The agent's session ID in the CrewDeck database |
-| `CREWDECK_ISSUE_ID` | The issue ID the agent is working on |
-| `CREWDECK_AGENT_ID` | The agent's ID |
-| `CREWDECK_PROJECT_ID` | The project ID |
-| `GH_TOKEN` | GitHub OAuth token for the project's linked GitHub account. Set only when a GitHub account is connected to the project. Used for git operations (clone, push, PR creation). |
+| Variable              | Description                                                                                                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CREWDECK_API_URL`    | Backend API base URL (e.g., `http://localhost:3000/api/v1`)                                                                                                                 |
+| `CREWDECK_SESSION_ID` | The agent's session ID in the CrewDeck database                                                                                                                             |
+| `CREWDECK_ISSUE_ID`   | The issue ID the agent is working on                                                                                                                                        |
+| `CREWDECK_AGENT_ID`   | The agent's ID                                                                                                                                                              |
+| `CREWDECK_PROJECT_ID` | The project ID                                                                                                                                                              |
+| `GH_TOKEN`            | GitHub OAuth token for the project's linked GitHub account. Set only when a GitHub account is connected to the project. Used for git operations (clone, push, PR creation). |
+
+In addition to the variables above, any project-level environment variables configured via the [Environment Variables API](api.md#environment-variables) are also injected into worker and reviewer sessions. These are merged before the `CREWDECK_*` variables, so `CREWDECK_*` names always take precedence.
 
 ### Captain Sessions
 
 Captain sessions orchestrate work across agents and do not operate on a single issue or session. They receive a smaller set of environment variables:
 
-| Variable | Description |
-|----------|-------------|
-| `CREWDECK_API_URL` | Backend API base URL (e.g., `http://localhost:3000/api/v1`) |
-| `CREWDECK_AGENT_ID` | The captain agent's ID |
-| `CREWDECK_PROJECT_ID` | The project ID |
+| Variable              | Description                                                 |
+| --------------------- | ----------------------------------------------------------- |
+| `CREWDECK_API_URL`    | Backend API base URL (e.g., `http://localhost:3000/api/v1`) |
+| `CREWDECK_AGENT_ID`   | The captain agent's ID                                      |
+| `CREWDECK_PROJECT_ID` | The project ID                                              |
 
 Captain sessions do **not** have `CREWDECK_SESSION_ID` or `CREWDECK_ISSUE_ID` because the captain operates across multiple issues and agents.
 
@@ -64,10 +68,10 @@ crewdeck signal --event <event-name> [--data <json>]
 
 **Arguments:**
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--event` | Yes | Event name. One of: `work-complete`, `review-complete`, `error`, `needs-help` |
-| `--data` | No | JSON string with additional event data |
+| Flag      | Required | Description                                                                   |
+| --------- | -------- | ----------------------------------------------------------------------------- |
+| `--event` | Yes      | Event name. One of: `work-complete`, `review-complete`, `error`, `needs-help` |
+| `--data`  | No       | JSON string with additional event data                                        |
 
 **Examples:**
 
@@ -98,9 +102,9 @@ crewdeck comment --message <text>
 
 **Arguments:**
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--message` | Yes | Comment content (Markdown supported) |
+| Flag        | Required | Description                          |
+| ----------- | -------- | ------------------------------------ |
+| `--message` | Yes      | Comment content (Markdown supported) |
 
 **Examples:**
 
@@ -127,15 +131,18 @@ crewdeck status --state <state>
 
 **Arguments:**
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--state` | Yes | The agent's state. One of: `active`, `done`, `error` |
+| Flag      | Required | Description                                                    |
+| --------- | -------- | -------------------------------------------------------------- |
+| `--state` | Yes      | The agent's state. One of: `active`, `idle`, `done`, `error` |
 
 **Examples:**
 
 ```bash
 # Indicate the agent is actively working
 crewdeck status --state active
+
+# Indicate the agent is idle (not working on anything)
+crewdeck status --state idle
 
 # Indicate the agent is done with its current task
 crewdeck status --state done
@@ -144,7 +151,7 @@ crewdeck status --state done
 crewdeck status --state error
 ```
 
-**Backend behavior:** Updates the IssueAgent record's status field. Emits `agent.status_changed` on the event bus.
+**Backend behavior:** Persists the status to `Agent.status`. `done` and `error` map to `idle` for the persisted value. Emits `agent.status_changed` on the event bus.
 
 ### files
 
@@ -164,19 +171,39 @@ crewdeck files --modified src/auth/middleware.ts src/auth/session.ts tests/auth.
 
 ### issues
 
-List or get project issues. Used by the captain to inspect issue state.
+List, get, create, update, or close project issues. Used by the captain to inspect and manage issue state.
 
 ```
 crewdeck issues list
 crewdeck issues get <issue_id>
+crewdeck issues create --title "..." --description "..." [--priority <n>]
+crewdeck issues update <issue_id> --priority <n>
+crewdeck issues close <issue_id>
 ```
 
 **Subcommands:**
 
-| Subcommand | Description |
-|------------|-------------|
-| `list` | List all issues in the project |
-| `get <issue_id>` | Get details for a specific issue |
+| Subcommand          | Description                                   |
+| ------------------- | --------------------------------------------- |
+| `list`              | List all issues in the project                |
+| `get <issue_id>`    | Get details for a specific issue              |
+| `create`            | Create a new issue                            |
+| `update <issue_id>` | Update an issue (e.g. priority)               |
+| `close <issue_id>`  | Close/cancel an issue (transitions to `done`) |
+
+**Options for `create`:**
+
+| Flag            | Required | Description              |
+| --------------- | -------- | ------------------------ |
+| `--title`       | Yes      | Issue title              |
+| `--description` | Yes      | Issue description        |
+| `--priority`    | No       | Priority level (integer) |
+
+**Options for `update`:**
+
+| Flag         | Required | Description                  |
+| ------------ | -------- | ---------------------------- |
+| `--priority` | Yes      | New priority level (integer) |
 
 **Examples:**
 
@@ -186,30 +213,65 @@ crewdeck issues list
 
 # Get details for a specific issue
 crewdeck issues get issue_abc123
+
+# Create a new issue
+crewdeck issues create --title "Fix login bug" --description "The login endpoint returns 500 when..."
+crewdeck issues create --title "Add caching" --description "Cache the results of..." --priority 2
+
+# Update issue priority
+crewdeck issues update issue_abc123 --priority 2
+
+# Close/cancel an issue
+crewdeck issues close issue_abc123
 ```
+
+**Backend behavior:** `create` posts to `/internal/issues/create` with `created_by: "orchestrator"` and emits `issue.created` on the event bus. `update` posts to `/internal/issues/update` to modify issue fields.
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
 
 ### agents
 
-List project agents with their current status. Used by the captain.
+List or create project agents. Used by the captain.
 
 ```
 crewdeck agents list
+crewdeck agents create --name <name> --title <title> --system-prompt <prompt> [--description <desc>]
 ```
+
+**Subcommands:**
+
+| Subcommand | Description                      |
+| ---------- | -------------------------------- |
+| `list`     | List all agents and their status |
+| `create`   | Create a new worker agent        |
+
+**Options for `create`:**
+
+| Flag              | Required | Description                 |
+| ----------------- | -------- | --------------------------- |
+| `--name`          | Yes      | Agent name                  |
+| `--title`         | Yes      | Agent title                 |
+| `--system-prompt` | Yes      | System prompt for the agent |
+| `--description`   | No       | Agent description           |
 
 **Examples:**
 
 ```bash
 # List all agents and their status
 crewdeck agents list
+
+# Create a new worker agent
+crewdeck agents create --name "Alice" --title "Frontend Engineer" --system-prompt "You are a frontend specialist..."
+crewdeck agents create --name "Bob" --title "Backend Engineer" --system-prompt "You are a backend specialist..." --description "Handles API work"
 ```
+
+**Backend behavior:** `create` POSTs to `POST /projects/:projectId/crew/agents` and prints the created agent JSON to stdout.
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
 
 ### assign
 
-Captain assigns an agent to work on an issue. The backend spawns an agent tmux session for the assignment.
+Captain assigns an agent to work on an issue. This links the agent to the issue and prepares the worktree, but does **not** spawn the agent's tmux session. After assigning, call `crewdeck sessions start` to spawn the session.
 
 ```
 crewdeck assign <issue_id> <agent_id>
@@ -217,19 +279,21 @@ crewdeck assign <issue_id> <agent_id>
 
 **Arguments:**
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `issue_id` | Yes | The issue to assign |
-| `agent_id` | Yes | The agent to assign to the issue |
+| Argument   | Required | Description                      |
+| ---------- | -------- | -------------------------------- |
+| `issue_id` | Yes      | The issue to assign              |
+| `agent_id` | Yes      | The agent to assign to the issue |
 
 **Examples:**
 
 ```bash
 # Assign an agent to work on an issue
 crewdeck assign issue_abc123 agent_xyz789
+# Then spawn the session:
+crewdeck sessions start agent_xyz789 --issue issue_abc123
 ```
 
-**Backend behavior:** Creates an IssueAgent assignment and spawns a new tmux session for the agent to begin work on the issue.
+**Backend behavior:** Creates an IssueAgent record, sets the issue status to `in_progress`, and emits `issue.assigned`. Does not spawn a tmux session.
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
 
@@ -243,10 +307,10 @@ crewdeck route-review <issue_id> <agent_id>
 
 **Arguments:**
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `issue_id` | Yes | The issue to review |
-| `agent_id` | Yes | The agent to act as reviewer |
+| Argument   | Required | Description                  |
+| ---------- | -------- | ---------------------------- |
+| `issue_id` | Yes      | The issue to review          |
+| `agent_id` | Yes      | The agent to act as reviewer |
 
 **Examples:**
 
@@ -259,9 +323,34 @@ crewdeck route-review issue_abc123 agent_reviewer01
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
 
+### create-pr
+
+Push the issue branch and create a GitHub pull request. Captain-only command, called after all reviewers approve an issue.
+
+```
+crewdeck create-pr <issue_id>
+```
+
+**Arguments:**
+
+| Argument   | Required | Description                  |
+| ---------- | -------- | ---------------------------- |
+| `issue_id` | Yes      | The issue to create a PR for |
+
+**Examples:**
+
+```bash
+# Create a PR for an approved issue
+crewdeck create-pr issue_abc123
+```
+
+**Backend behavior:** Pushes the issue's worktree branch using the project's OAuth token (via `GIT_ASKPASS`), then runs `gh pr create` to open a GitHub PR. Records the PR in the `IssuePR` table, transitions the issue to `pr_created`, and emits `pr.created` on the event bus.
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
+
 ### activity
 
-Fetch comments and activity log for an issue. Used by the captain to review progress before making decisions.
+Fetch comments and activity log for an issue. Used by the captain to review progress before making decisions, and by workers/reviewers to check issue activity.
 
 ```
 crewdeck activity <issue_id>
@@ -269,9 +358,9 @@ crewdeck activity <issue_id>
 
 **Arguments:**
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `issue_id` | Yes | The issue to fetch activity for |
+| Argument   | Required | Description                     |
+| ---------- | -------- | ------------------------------- |
+| `issue_id` | Yes      | The issue to fetch activity for |
 
 **Examples:**
 
@@ -281,6 +370,43 @@ crewdeck activity issue_abc123
 ```
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
+
+### sessions
+
+List, start, or stop agent sessions. Used by the captain to manage the full session lifecycle.
+
+```
+crewdeck sessions list
+crewdeck sessions start <agent_id> --issue <issue_id>
+crewdeck sessions stop <session_id>
+```
+
+**Subcommands:**
+
+| Subcommand                              | Description                           |
+| --------------------------------------- | ------------------------------------- |
+| `list`                                  | List all sessions in the project      |
+| `start <agent_id> --issue <issue_id>`   | Spawn an agent session for an issue   |
+| `stop <session_id>`                     | Stop a running session by ID          |
+
+**Examples:**
+
+```bash
+# List all project sessions
+crewdeck sessions list
+
+# Spawn an agent session (after crewdeck assign)
+crewdeck sessions start agent-abc --issue issue-xyz
+
+# Stop a stuck session
+crewdeck sessions stop session-abc
+```
+
+**Backend behavior:** `stop` emits `session.stop_requested`, which kills the tmux session and marks it as `completed` in the database. If the stopped session is the captain's own session, it is removed from the active captain session map.
+
+**Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID` (captain env).
+
+---
 
 ### history
 
@@ -293,10 +419,10 @@ crewdeck history list
 
 **Subcommands:**
 
-| Subcommand | Description |
-|------------|-------------|
+| Subcommand             | Description                                      |
+| ---------------------- | ------------------------------------------------ |
 | `save --summary "..."` | Save a decision summary to the captain's history |
-| `list` | List previous decision history entries |
+| `list`                 | List previous decision history entries           |
 
 **Examples:**
 
@@ -323,8 +449,14 @@ POST /api/v1/internal/status
 POST /api/v1/internal/files
 POST /api/v1/internal/assign
 POST /api/v1/internal/route-review
+POST /api/v1/internal/create-pr
+POST /api/v1/internal/issues/update
+POST /api/v1/internal/issues/close
 POST /api/v1/internal/history
 GET  /api/v1/internal/history
+POST /api/v1/internal/issues/create
+POST /api/v1/internal/sessions/start
+POST /api/v1/internal/sessions/stop
 ```
 
 All requests include the session context from environment variables:
@@ -355,8 +487,14 @@ Available commands:
 - `crewdeck signal --event needs-help --data '{"message": "..."}'` — call this if you need human assistance
 - `crewdeck comment --message "..."` — post a comment on the issue to report progress or findings
 - `crewdeck files --modified <files...>` — report which files you modified
+- `crewdeck issues get <issue_id>` — re-read issue details
+- `crewdeck activity <issue_id>` — see comments and activity on an issue
+- `crewdeck status --state <active|idle|done|error>` — update your status on the current issue
 
-IMPORTANT: Always call `crewdeck signal --event work-complete` when you are done with your task.
+IMPORTANT:
+- Before doing anything else, post a comment acknowledging the issue and briefly describing your intended approach: `crewdeck comment --message '...'`
+- Before signaling completion, post a summary comment describing what you did: `crewdeck comment --message '...'`
+- Always call `crewdeck signal --event work-complete` when you are done with your task.
 ```
 
 Additionally, a reference to the full CLI documentation should be placed in the project's CLAUDE.md so that Claude Code can access it:

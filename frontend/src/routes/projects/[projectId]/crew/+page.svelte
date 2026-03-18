@@ -1,16 +1,17 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent, generateAgent, type CrewWithAgents } from '$lib/api/http.js';
-	import type { ProjectWebSocket } from '$lib/api/ws.js';
+	import { getCrew, updateCrew, createAgent, updateAgent, deleteAgent, generateAgent, listSessions, type CrewWithAgents, type Session } from '$lib/api/http.js';
+	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import Terminal from '$lib/components/Terminal.svelte';
 
 	type CrewData = CrewWithAgents;
 	type AgentData = CrewData['agents'][number];
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
-	const STATUS_CFG = {
+	const STATUS_CFG: Record<string, { dot: string; text: string; label: string; cardBorder: string; cardGlow: string; pulse: boolean }> = {
 		idle: {
 			dot: '◎',
 			text: 'text-muted',
@@ -19,23 +20,15 @@
 			cardGlow: '',
 			pulse: false
 		},
-		working: {
+		active: {
 			dot: '◉',
 			text: 'text-green',
-			label: 'Working',
+			label: 'Active',
 			cardBorder: 'border-green',
 			cardGlow: 'var(--glow-green)',
 			pulse: true
-		},
-		reviewing: {
-			dot: '◉',
-			text: 'text-cyan',
-			label: 'Reviewing',
-			cardBorder: 'border-cyan',
-			cardGlow: 'var(--glow-cyan)',
-			pulse: true
 		}
-	} as const;
+	};
 
 	let crew = $state<CrewData | null>(null);
 	let loading = $state(true);
@@ -68,6 +61,14 @@
 	let deleteTarget = $state<AgentData | null>(null);
 	let deleting = $state(false);
 
+	// Terminal state
+	let sessions = $state<Session[]>([]);
+	let terminalAgentId = $state<string | null>(null);
+
+	const sessionByAgent = $derived(
+		new Map(sessions.filter(s => s.agent_id).map(s => [s.agent_id!, s]))
+	);
+
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
@@ -78,17 +79,33 @@
 		return () => { cancelled = true; };
 	});
 
+	// Fetch running sessions
+	$effect(() => {
+		let cancelled = false;
+		listSessions(projectId, { status: 'running' })
+			.then((data) => { if (!cancelled) sessions = data; })
+			.catch(() => {});
+		return () => { cancelled = true; };
+	});
+
 	$effect(() => {
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
 			getCrew(projectId).then((data) => { crew = data; }).catch(() => {});
 		};
+		const reloadSessions = () => {
+			listSessions(projectId, { status: 'running' })
+				.then((data) => { sessions = data; })
+				.catch(() => {});
+		};
 		const unsubs = [
 			ws.on('agent.status_changed', reload),
 			ws.on('agent.finished', reload),
 			ws.on('agent.error', reload),
 			ws.on('issue.assigned', reload),
+			ws.on('session.started', reloadSessions),
+			ws.on('session.ended', reloadSessions),
 		];
 		return () => unsubs.forEach(fn => fn());
 	});
@@ -250,7 +267,8 @@
 
 	function onKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
-			if (deleteTarget) deleteTarget = null;
+			if (terminalAgentId) terminalAgentId = null;
+			else if (deleteTarget) deleteTarget = null;
 			else closeModal();
 		}
 	}
@@ -336,7 +354,7 @@
 		{:else}
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
 				{#each crew.agents as agent, i (agent.id)}
-					{@const cfg = STATUS_CFG[agent.status]}
+					{@const cfg = STATUS_CFG[agent.status] ?? STATUS_CFG.idle}
 					<div
 						class="agent-card flex flex-col p-4 bg-surface border rounded hover:-translate-y-0.5 transition-all duration-200 fade-up {cfg.cardBorder}"
 						style="{cfg.cardGlow ? `box-shadow: ${cfg.cardGlow};` : ''}animation-delay: {i * 50}ms"
@@ -380,6 +398,15 @@
 
 						<!-- Actions -->
 						<div class="flex gap-2 mt-3 pt-3 border-t border-edge">
+							{#if sessionByAgent.has(agent.id)}
+								<button
+									onclick={() => terminalAgentId = terminalAgentId === agent.id ? null : agent.id}
+									class="flex-1 py-1 text-xs border rounded transition-colors flex items-center justify-center gap-1.5 {terminalAgentId === agent.id ? 'border-cyan text-cyan bg-cyan/10' : 'border-edge text-secondary hover:border-edge-hi hover:text-primary'}"
+								>
+									<span class="inline-block w-1.5 h-1.5 rounded-full bg-green animate-pulse"></span>
+									Terminal
+								</button>
+							{/if}
 							<button
 								onclick={() => openEdit(agent)}
 								class="flex-1 py-1 text-xs text-secondary border border-edge rounded hover:border-edge-hi hover:text-primary transition-colors"
@@ -395,6 +422,24 @@
 						</div>
 					</div>
 				{/each}
+			</div>
+		{/if}
+
+		<!-- Terminal panel -->
+		{#if terminalAgentId && sessionByAgent.has(terminalAgentId)}
+			{@const session = sessionByAgent.get(terminalAgentId)!}
+			{@const agent = crew?.agents.find(a => a.id === terminalAgentId)}
+			<div class="mt-6 max-w-5xl fade-up">
+				<div class="flex items-center justify-between mb-2">
+					<span class="text-xs text-muted uppercase tracking-widest">
+						Terminal — <span class="text-cyan normal-case tracking-normal">{agent?.name ?? 'Agent'}</span>
+					</span>
+					<button
+						onclick={() => terminalAgentId = null}
+						class="text-xs text-muted hover:text-secondary transition-colors"
+					>Close</button>
+				</div>
+				<Terminal sessionId={session.id} agentName={agent?.name ?? 'Agent'} status="running" />
 			</div>
 		{/if}
 	{/if}

@@ -26,19 +26,20 @@ spawn(options: SpawnOptions) → SessionHandle
 
 **SpawnOptions:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| sessionName | string | Yes | Unique tmux session name (e.g., `crewdeck-<issueId>-<agentId>`). |
-| workdir | string | Yes | Absolute path to the working directory (git worktree). |
-| prompt | string | Yes | The initial prompt/instruction to send to the agent. |
-| systemPrompt | string | No | System prompt defining the agent's persona. How this is passed depends on the adapter (e.g., Claude Code uses `--system-prompt` flag). |
-| env | Record<string, string> | No | Additional environment variables to set in the tmux session. |
-| print | boolean | No | When true, runs in `--print` mode: prompt is passed as a positional arg and the process exits after printing structured output. Used by the orchestrator. |
+| Field           | Type                   | Required | Description                                                                                                                                                          |
+| --------------- | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sessionName     | string                 | Yes      | Unique tmux session name (e.g., `crewdeck-<issueId>-<agentId>`).                                                                                                     |
+| workdir         | string                 | Yes      | Absolute path to the working directory (git worktree).                                                                                                               |
+| prompt          | string                 | Yes      | The initial prompt/instruction to send to the agent.                                                                                                                 |
+| systemPrompt    | string                 | No       | System prompt defining the agent's persona. How this is passed depends on the adapter (e.g., Claude Code uses `--system-prompt` flag).                               |
+| env             | Record<string, string> | No       | Additional environment variables to set in the tmux session.                                                                                                         |
+| print           | boolean                | No       | When true, runs in `--print` mode: prompt is passed as a positional arg and the process exits after printing structured output. Used by the orchestrator.            |
+| claudeSessionId | string                 | No       | Fixed session ID passed to Claude Code via `--session-id`. Controls the JSONL file path so the backend can watch for assistant responses. Used for captain sessions. |
 
 **SessionHandle:**
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field       | Type   | Description            |
+| ----------- | ------ | ---------------------- |
 | sessionName | string | The tmux session name. |
 
 **Pseudocode:**
@@ -99,7 +100,10 @@ isAlive(sessionName: string) → boolean
 ```
 function isAlive(sessionName):
     check if tmux session exists (tmux has-session)
-    return true if session exists, false otherwise
+    if session does not exist, return false
+    get pane PID via tmux list-panes
+    check for child processes of pane PID via pgrep -P
+    return true if child processes exist, false otherwise
 ```
 
 #### kill
@@ -147,6 +151,7 @@ claude --dangerously-skip-permissions \
 In print mode `--print` is a standalone flag (it does not take the prompt as its value). The prompt is passed as a positional argument. Claude exits immediately after writing its response to stdout, which the adapter captures and parses as structured JSON.
 
 **Notes:**
+
 - `--dangerously-skip-permissions` is used because agents need to operate autonomously without approval prompts. The human oversight comes from CrewDeck's review pipeline instead.
 - The system prompt is passed via `--system-prompt` flag to define the agent's persona.
 - The initial prompt contains the task instructions, issue context, and any relevant state from the database.
@@ -180,6 +185,7 @@ crewdeck-captain-<projectId-8chars>
 ```
 
 Examples (8-char hex prefixes):
+
 - `crewdeck-a1b2c3d4-e5f6g7h8-worker` — worker agent session
 - `crewdeck-a1b2c3d4-i9j0k1l2-reviewer` — reviewer agent session
 - `crewdeck-captain-a1b2c3d4` — persistent captain session for a project
@@ -210,6 +216,7 @@ Agent (in tmux)                    CrewDeck CLI              Backend Event Bus
 ```
 
 When completion is detected (via either mechanism), the backend:
+
 - Captures the final output.
 - Stores relevant context in the Session table.
 - Emits events on the event bus (`agent.finished`).
@@ -271,12 +278,14 @@ The `ProcessMonitor` still captures a final output snapshot via `adapter.getOutp
 ### Cleanup
 
 Sessions are cleaned up when:
+
 - The agent completes its work.
 - The user manually stops a session via the API.
 - The project is deleted.
 - An error occurs and the session cannot recover.
 
 Cleanup involves:
+
 1. Killing the CLI process.
 2. Destroying the tmux session.
 3. Updating the Session record status to `completed` or `error`.
@@ -292,7 +301,7 @@ When an agent starts work on an issue, the backend creates a git worktree:
 function createWorktree(repo, issue, baseBranch):
     branchName = "crewdeck/" + issue.id-short + "-" + slugify(issue.title)
     repoPath = toContainerPath(repo.local_path)
-    worktreePath = repoPath + "/.worktrees/" + branchName
+    worktreePath = tmpdir() + "/crewdeck-worktrees/" + branchName
 
     run: git -C <repoPath> worktree add -b <branchName> <worktreePath> <baseBranch>
 
@@ -344,13 +353,8 @@ The Session.context field (JSON) stores:
     "Chose to refactor auth middleware instead of patching",
     "Split the migration into two steps"
   ],
-  "files_modified": [
-    "src/auth/middleware.ts",
-    "src/db/migrations/003.sql"
-  ],
-  "pending_questions": [
-    "Should the old endpoint be deprecated or removed?"
-  ],
+  "files_modified": ["src/auth/middleware.ts", "src/db/migrations/003.sql"],
+  "pending_questions": ["Should the old endpoint be deprecated or removed?"],
   "last_output_snapshot": "Last N lines of terminal output"
 }
 ```
@@ -391,27 +395,31 @@ The captain is a persistent interactive Claude Code session running in tmux. Unl
 
 ```
 claude --dangerously-skip-permissions \
+       --session-id <uuid> \
        --system-prompt "<captain system prompt>"
 ```
 
-The captain is spawned without `--prompt` so it starts in interactive mode, waiting for input. The system prompt defines the captain's persona, available CLI commands, and decision-making guidelines.
+The `--session-id` flag sets a deterministic JSONL file path so the backend can watch the file for assistant text responses and surface them as captain messages in the chat UI.
+
+The captain is spawned without `--print` so it starts in interactive mode, waiting for input. The system prompt defines the captain's persona, available CLI commands, and decision-making guidelines.
 
 ### Captain Requirement
 
-The orchestrator requires a designated **captain** agent. If no agent in the crew has `is_captain = true`, the orchestrator skips processing entirely until one is set. The captain's system prompt is passed via the `--system-prompt` flag when spawning the session.
+The orchestrator requires a designated **captain** agent. A default captain agent is automatically created when a project is created, so orchestration works out of the box. If the captain agent is removed and no agent in the crew has `is_captain = true`, the orchestrator skips processing entirely until one is set. The captain's system prompt is passed via the `--system-prompt` flag when spawning the session.
 
 ### Event Relay
 
 The orchestrator is event-driven. When an event fires, the orchestrator formats it as text and sends it to the captain session via `tmux send-keys`.
 
-| Event | What gets relayed to the captain |
-|-------|----------------------------------|
-| Issue approved | Issue details, priority, available agents, project state |
-| Agent finished work | Issue status, agent output summary, review routing options |
-| Review completed | Review outcome, reviewer comments, approve/reject decision |
-| Max rounds reached | Escalation context, round history |
-| New comment from user | Comment content, issue context |
-| User captain message | User's direct message to the captain |
+| Event                                   | What gets relayed to the captain                           |
+| --------------------------------------- | ---------------------------------------------------------- |
+| Issue approved (draft → open)           | Issue details, priority, available agents, project state   |
+| Issue approved (all reviewers approved) | Instruction to run `crewdeck create-pr <issue_id>`         |
+| Agent finished work                     | Issue status, agent output summary, review routing options |
+| Review completed                        | Review outcome, reviewer comments, approve/reject decision |
+| Max rounds reached                      | Escalation context, round history                          |
+| New comment from user                   | Comment content, issue context                             |
+| User captain message                    | User's direct message to the captain                       |
 
 The orchestrator does not interpret the captain's response. The captain acts by calling CrewDeck CLI commands directly from within its tmux session.
 
@@ -419,11 +427,13 @@ The orchestrator does not interpret the captain's response. The captain acts by 
 
 Instead of returning structured JSON, the captain executes CLI commands to take action:
 
-- `crewdeck assign --issue <id> --agent <id>` — assign an agent to an issue.
+- `crewdeck assign --issue <id> --agent <id>` — link an agent to an issue (does not spawn a session).
+- `crewdeck sessions start <agent_id> --issue <issue_id>` — spawn the agent's tmux session after assigning.
 - `crewdeck route-review --issue <id>` — send an issue to the next reviewer.
+- `crewdeck create-pr <issue_id>` — push the issue branch and create a GitHub PR after all reviewers approve.
 - `crewdeck escalate --issue <id>` — flag an issue for human attention.
-- `crewdeck create-issue --title "..." --description "..."` — propose a new issue.
-- `crewdeck reorder --issue <id> --priority <n>` — change issue priority.
+- `crewdeck issues create --title "..." --description "..." [--priority <n>]` — propose a new issue.
+- `crewdeck issues update <issue_id> --priority <n>` — change issue priority.
 
 Each CLI command makes an HTTP call to the backend's internal API, which updates the database and emits events on the event bus. The captain can run multiple commands in sequence when handling a single event.
 
@@ -433,7 +443,8 @@ The captain session persists across multiple events and issues. To handle crashe
 
 - **History saved to DB** — the captain's conversation history is periodically saved to the database.
 - **Session restore** — when a captain session is lost (process crash, container restart), the orchestrator detects the missing session via `isAlive()` and respawns it. The saved history is restored into the new session so the captain retains context from prior decisions.
-- **CaptainMessage records** — the backend stores a `CaptainMessage` record for each event relay and captain action. This builds the captain chat timeline visible to the user in the frontend.
+- **JSONL watcher resilience** — the JSONL watcher polls the session file for assistant responses and auto-stops after ~60s of no new data. When the captain session is still alive (checked via `isAlive()`), the watcher resets its idle counter instead of stopping, keeping response capture active during long idle periods. If the watcher does stop, it is automatically restarted the next time a message is sent to the captain, resuming from the last-read byte offset so no responses are lost.
+- **CaptainMessage records** — the backend stores a `CaptainMessage` record for each event relay, captain action, and assistant text response surfaced via JSONL. This builds the captain chat timeline visible to the user in the frontend.
 
 ## Future Adapters
 

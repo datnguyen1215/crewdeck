@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { listActivity } from "../db/repositories/activity-log.js";
 import { getProject } from "../db/repositories/projects.js";
-import { NotFoundError } from "../middleware/errors.js";
+import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import type { ActivityFilters } from "../types/entities.js";
 
 const router = Router({ mergeParams: true });
@@ -18,24 +18,21 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
   if (since) {
     const d = new Date(since);
     if (isNaN(d.getTime())) {
-      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "since must be a valid date" } });
-      return;
+      throw new ValidationError("since must be a valid date");
     }
     filters.since = d.toISOString().slice(0, 19).replace("T", " ");
   }
   if (limit) {
     const parsed = parseInt(limit, 10);
     if (!Number.isFinite(parsed) || parsed < 0) {
-      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "limit must be a non-negative integer" } });
-      return;
+      throw new ValidationError("limit must be a non-negative integer");
     }
     filters.limit = Math.min(parsed, 500);
   }
   if (offset) {
     const parsed = parseInt(offset, 10);
     if (!Number.isFinite(parsed) || parsed < 0) {
-      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "offset must be a non-negative integer" } });
-      return;
+      throw new ValidationError("offset must be a non-negative integer");
     }
     filters.offset = parsed;
   }

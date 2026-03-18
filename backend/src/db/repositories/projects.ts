@@ -8,6 +8,11 @@ import type {
 import { ensureCloned, insertRepo } from "./repos.js";
 import { getGitHubAccount } from "./github-accounts.js";
 import { getSession } from "./sessions.js";
+import { buildAndRunUpdate } from "./utils.js";
+
+const DEFAULT_CAPTAIN_PROMPT = `You are the captain of this project. Your role is to coordinate agents, assign issues based on priority and agent availability, route code reviews, and maintain project momentum.
+
+Be proactive — check for idle agents and unassigned issues regularly. Make data-driven assignment decisions based on agent workload and issue priority. Document key decisions using the history command.`;
 
 export function listProjects(): Project[] {
   return db
@@ -120,48 +125,26 @@ export function createProject(input: CreateProjectInput): Project {
         default_branch: input.default_branch,
       });
     }
+
+    // Auto-create a captain agent so the user doesn't have to configure one manually.
+    db.prepare(
+      `INSERT INTO Agent (id, crew_id, name, title, description, system_prompt, is_captain)
+       VALUES (?, ?, ?, ?, ?, ?, 1)`,
+    ).run(
+      crypto.randomUUID(),
+      crewId,
+      "Captain",
+      "Project Captain",
+      null,
+      DEFAULT_CAPTAIN_PROMPT,
+    );
   })();
 
   return getProject(id)!;
 }
 
 export function updateProject(id: string, input: UpdateProjectInput): Project {
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (input.name !== undefined) {
-    fields.push("name = ?");
-    values.push(input.name);
-  }
-  if (input.description !== undefined) {
-    fields.push("description = ?");
-    values.push(input.description);
-  }
-  if (input.max_concurrency !== undefined) {
-    fields.push("max_concurrency = ?");
-    values.push(input.max_concurrency);
-  }
-  if (input.max_review_rounds !== undefined) {
-    fields.push("max_review_rounds = ?");
-    values.push(input.max_review_rounds);
-  }
-  if (input.orchestrator_session_id !== undefined) {
-    fields.push("orchestrator_session_id = ?");
-    values.push(input.orchestrator_session_id);
-  }
-  if (input.github_account_id !== undefined) {
-    fields.push("github_account_id = ?");
-    values.push(input.github_account_id);
-  }
-
-  if (fields.length > 0) {
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    db.prepare(`UPDATE Project SET ${fields.join(", ")} WHERE id = ?`).run(
-      ...values,
-      id,
-    );
-  }
-
+  buildAndRunUpdate("Project", id, input);
   return getProject(id)!;
 }
 
@@ -173,6 +156,7 @@ export function deleteProject(id: string): void {
   // by the current data model — IssuePRs are expected to reference repos in the same
   // project as the issue. Not fixing now; enforce at the route layer when repos are created.
   db.transaction(() => {
+    db.prepare("DELETE FROM EnvironmentVariable WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM ActivityLog WHERE project_id = ?").run(id);
     db.prepare(
       "DELETE FROM IssueAgent WHERE issue_id IN (SELECT id FROM Issue WHERE project_id = ?)",

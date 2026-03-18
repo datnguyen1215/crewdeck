@@ -70,10 +70,10 @@ describe("createWorktree", () => {
     expect(cmd).toContain("fix-the-login-bug");
   });
 
-  it("places worktree inside .worktrees directory", async () => {
+  it("places worktree inside crewdeck-worktrees directory under tmpdir", async () => {
     const { path } = await createWorktree(repo, issue, "main");
 
-    expect(path).toContain("/repos/myrepo/.worktrees/");
+    expect(path).toContain("crewdeck-worktrees");
     expect(path).toContain("crewdeck/abc12345");
   });
 
@@ -86,7 +86,7 @@ describe("createWorktree", () => {
         branch_name: expect.stringContaining("crewdeck/abc12345"),
         worktree_path: path,
         base_branch: "main",
-      })
+      }),
     );
   });
 
@@ -105,7 +105,11 @@ describe("cleanupWorktree", () => {
   });
 
   it("runs git worktree remove", async () => {
-    await cleanupWorktree(repo, "/repos/myrepo/.worktrees/branch", "crewdeck/branch");
+    await cleanupWorktree(
+      repo,
+      "/repos/myrepo/.worktrees/branch",
+      "crewdeck/branch",
+    );
 
     const cmd = vi.mocked(exec).mock.calls[0][0] as string;
     expect(cmd).toContain("worktree remove");
@@ -133,18 +137,22 @@ describe("cleanupWorktree", () => {
       callCount++;
       // First call (worktree remove) succeeds; second call (branch -d) fails
       if (callCount === 2) {
-        (callback as (err: Error) => void)(new Error("branch has unmerged commits"));
-      } else {
-        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
-          null,
-          { stdout: "", stderr: "" }
+        (callback as (err: Error) => void)(
+          new Error("branch has unmerged commits"),
         );
+      } else {
+        (
+          callback as (
+            err: null,
+            result: { stdout: string; stderr: string },
+          ) => void
+        )(null, { stdout: "", stderr: "" });
       }
       return {} as ReturnType<typeof exec>;
     });
 
     await expect(
-      cleanupWorktree(repo, "/tmp/wt", "crewdeck/feat", true)
+      cleanupWorktree(repo, "/tmp/wt", "crewdeck/feat", true),
     ).resolves.toBeUndefined();
   });
 });

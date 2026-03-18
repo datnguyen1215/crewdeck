@@ -10,19 +10,22 @@ let projectId: string;
 
 beforeAll(async () => {
   app = await getApp();
-  const res = await request(app)
-    .post("/api/v1/projects")
-    .send({ name: "crew-agents-test-project", github_url: "https://github.com/test/repo" });
+  const res = await request(app).post("/api/v1/projects").send({
+    name: "crew-agents-test-project",
+    github_url: "https://github.com/test/repo",
+  });
   expect(res.status).toBe(201);
   projectId = res.body.id;
 });
 
 describe("GET /api/v1/projects/:projectId/crew", () => {
-  it("returns crew with empty agents array for new project", async () => {
+  it("returns crew with auto-created captain for new project", async () => {
     const res = await request(app).get(`/api/v1/projects/${projectId}/crew`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("id");
-    expect(res.body.agents).toEqual([]);
+    expect(res.body.agents).toHaveLength(1);
+    expect(res.body.agents[0].name).toBe("Captain");
+    expect(res.body.agents[0].is_captain).toBe(true);
   });
 
   it("returns 404 for non-existent project", async () => {
@@ -49,12 +52,14 @@ describe("PATCH /api/v1/projects/:projectId/crew", () => {
 });
 
 describe("GET /api/v1/projects/:projectId/crew/agents", () => {
-  it("returns empty array when no agents", async () => {
+  it("returns auto-created captain for new project", async () => {
     const res = await request(app).get(
       `/api/v1/projects/${projectId}/crew/agents`,
     );
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].name).toBe("Captain");
+    expect(res.body[0].is_captain).toBe(true);
   });
 });
 
@@ -181,9 +186,10 @@ describe("Captain designation", () => {
   let captainProjectId: string;
 
   beforeAll(async () => {
-    const res = await request(app)
-      .post("/api/v1/projects")
-      .send({ name: "captain-test-project", github_url: "https://github.com/test/captain" });
+    const res = await request(app).post("/api/v1/projects").send({
+      name: "captain-test-project",
+      github_url: "https://github.com/test/captain",
+    });
     expect(res.status).toBe(201);
     captainProjectId = res.body.id;
   });
@@ -226,9 +232,13 @@ describe("Captain designation", () => {
     expect(res.body.is_captain).toBe(true);
 
     // Verify only one captain exists
-    const crew = await request(app).get(`/api/v1/projects/${captainProjectId}/crew`);
+    const crew = await request(app).get(
+      `/api/v1/projects/${captainProjectId}/crew`,
+    );
     expect(crew.status).toBe(200);
-    const captains = crew.body.agents.filter((a: { is_captain: boolean }) => a.is_captain);
+    const captains = crew.body.agents.filter(
+      (a: { is_captain: boolean }) => a.is_captain,
+    );
     expect(captains).toHaveLength(1);
     expect(captains[0].name).toBe("New Captain");
   });
@@ -247,21 +257,31 @@ describe("Captain designation", () => {
 
     // Promote to captain
     const patchRes = await request(app)
-      .patch(`/api/v1/projects/${captainProjectId}/crew/agents/${createRes.body.id}`)
+      .patch(
+        `/api/v1/projects/${captainProjectId}/crew/agents/${createRes.body.id}`,
+      )
       .send({ is_captain: true });
     expect(patchRes.status).toBe(200);
     expect(patchRes.body.is_captain).toBe(true);
 
     // Verify previous captain was demoted
-    const crew = await request(app).get(`/api/v1/projects/${captainProjectId}/crew`);
-    const captains = crew.body.agents.filter((a: { is_captain: boolean }) => a.is_captain);
+    const crew = await request(app).get(
+      `/api/v1/projects/${captainProjectId}/crew`,
+    );
+    const captains = crew.body.agents.filter(
+      (a: { is_captain: boolean }) => a.is_captain,
+    );
     expect(captains).toHaveLength(1);
     expect(captains[0].name).toBe("Promoted Agent");
   });
 
   it("removes captain designation via PATCH", async () => {
-    const crew = await request(app).get(`/api/v1/projects/${captainProjectId}/crew`);
-    const captain = crew.body.agents.find((a: { is_captain: boolean }) => a.is_captain);
+    const crew = await request(app).get(
+      `/api/v1/projects/${captainProjectId}/crew`,
+    );
+    const captain = crew.body.agents.find(
+      (a: { is_captain: boolean }) => a.is_captain,
+    );
     expect(captain).toBeDefined();
 
     const patchRes = await request(app)
@@ -271,8 +291,12 @@ describe("Captain designation", () => {
     expect(patchRes.body.is_captain).toBe(false);
 
     // No captains remain
-    const updatedCrew = await request(app).get(`/api/v1/projects/${captainProjectId}/crew`);
-    const captains = updatedCrew.body.agents.filter((a: { is_captain: boolean }) => a.is_captain);
+    const updatedCrew = await request(app).get(
+      `/api/v1/projects/${captainProjectId}/crew`,
+    );
+    const captains = updatedCrew.body.agents.filter(
+      (a: { is_captain: boolean }) => a.is_captain,
+    );
     expect(captains).toHaveLength(0);
   });
 });

@@ -44,13 +44,31 @@ export interface IssuePR {
 
 export interface EventMap {
   "issue.created": { issue: Issue };
-  "issue.updated": { issue_id: string; project_id: string; changes: Partial<Issue> };
+  "issue.updated": {
+    issue_id: string;
+    project_id: string;
+    changes: Partial<Issue>;
+  };
   "issue.approved": { issue: Issue };
-  "issue.status_changed": { issue_id: string; project_id: string; from: string; to: string };
-  "issue.assigned": { issue_id: string; project_id: string; agent_id: string; agent_name: string };
+  "issue.status_changed": {
+    issue_id: string;
+    project_id: string;
+    from: string;
+    to: string;
+  };
+  "issue.assigned": {
+    issue_id: string;
+    project_id: string;
+    agent_id: string;
+    agent_name: string;
+  };
   "comment.added": { comment: Comment; project_id: string };
   "comment.updated": { comment: Comment; project_id: string };
-  "comment.deleted": { comment_id: string; issue_id: string; project_id: string };
+  "comment.deleted": {
+    comment_id: string;
+    issue_id: string;
+    project_id: string;
+  };
   "session.started": {
     session_id: string;
     agent_id?: string;
@@ -66,15 +84,58 @@ export interface EventMap {
     project_id: string;
     role: string;
   };
-  "agent.error": { session_id: string; agent_id: string; issue_id: string; project_id: string; message?: string };
-  "agent.needs_help": { session_id: string; agent_id: string; issue_id: string; project_id: string; message?: string };
-  "agent.status_changed": { agent_id: string; issue_id: string; project_id: string; state: string };
+  "agent.error": {
+    session_id: string;
+    agent_id: string;
+    issue_id: string;
+    project_id: string;
+    message?: string;
+  };
+  "agent.needs_help": {
+    session_id: string;
+    agent_id: string;
+    issue_id: string;
+    project_id: string;
+    message?: string;
+  };
+  "agent.status_changed": {
+    agent_id: string;
+    issue_id: string;
+    project_id: string;
+    state: string;
+  };
   "pr.created": { issue_pr: IssuePR; project_id: string };
-  "pr.status_changed": { pr_id: string; project_id: string; from: string; to: string };
-  "orchestrator.decision": { project_id: string; action: string; details: unknown; reasoning?: string; issue_id?: string; agent_id?: string };
+  "pr.status_changed": {
+    pr_id: string;
+    project_id: string;
+    from: string;
+    to: string;
+  };
+  "orchestrator.decision": {
+    project_id: string;
+    action: string;
+    details: unknown;
+    reasoning?: string;
+    issue_id?: string;
+    agent_id?: string;
+  };
   "orchestrator.draft_issue": { issue: Issue; project_id: string };
-  "review.completed": { session_id: string; issue_id: string; agent_id: string; project_id: string; verdict: string };
+  "review.completed": {
+    session_id: string;
+    issue_id: string;
+    agent_id: string;
+    project_id: string;
+    verdict: string;
+  };
   "captain.message": { message: CaptainMessage; project_id: string };
   "captain.assign": { project_id: string; issue_id: string; agent_id: string };
-  "captain.route_review": { project_id: string; issue_id: string; reviewer_agent_id: string };
+  "captain.route_review": {
+    project_id: string;
+    issue_id: string;
+    reviewer_agent_id: string;
+  };
+  "session.stop_requested": { session_id: string; project_id: string };
+  "captain.create_pr": { project_id: string; issue_id: string };
+  "captain.session_start": { project_id: string; agent_id: string; issue_id: string };
+  "agent.created": { agent_id: string; name: string; project_id: string };
 }

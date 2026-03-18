@@ -1,12 +1,13 @@
 import { db } from "../index.js";
 import type { Session, CreateSessionInput, UpdateSessionInput, SessionFilters } from "../../types/entities.js";
+import { buildAndRunUpdate, deserializeJson } from "./utils.js";
 
 type SessionRow = Omit<Session, "context"> & { context: string | null };
 
 function fromRow(row: SessionRow): Session {
   return {
     ...row,
-    context: row.context ? (JSON.parse(row.context) as unknown) : null,
+    context: deserializeJson(row.context),
   };
 }
 
@@ -31,8 +32,8 @@ export function getSession(id: string): Session | null {
 export function createSession(input: CreateSessionInput): Session {
   const id = crypto.randomUUID();
   db.prepare(
-    `INSERT INTO Session (id, project_id, session_type, agent_id, issue_id, tmux_session_name, tmux_pane_id, status, context)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO Session (id, project_id, session_type, agent_id, issue_id, tmux_session_name, tmux_pane_id, claude_session_id, status, context)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     input.project_id,
@@ -41,6 +42,7 @@ export function createSession(input: CreateSessionInput): Session {
     input.issue_id ?? null,
     input.tmux_session_name ?? null,
     input.tmux_pane_id ?? null,
+    input.claude_session_id ?? null,
     input.status ?? "idle",
     input.context !== undefined ? JSON.stringify(input.context) : null
   );
@@ -53,21 +55,11 @@ export function listRunningSessions(): Session[] {
 }
 
 export function updateSession(id: string, input: UpdateSessionInput): Session {
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (input.session_type !== undefined) { fields.push("session_type = ?"); values.push(input.session_type); }
-  if (input.agent_id !== undefined) { fields.push("agent_id = ?"); values.push(input.agent_id); }
-  if (input.issue_id !== undefined) { fields.push("issue_id = ?"); values.push(input.issue_id); }
-  if (input.tmux_session_name !== undefined) { fields.push("tmux_session_name = ?"); values.push(input.tmux_session_name); }
-  if (input.tmux_pane_id !== undefined) { fields.push("tmux_pane_id = ?"); values.push(input.tmux_pane_id); }
-  if (input.status !== undefined) { fields.push("status = ?"); values.push(input.status); }
-  if (input.context !== undefined) { fields.push("context = ?"); values.push(JSON.stringify(input.context)); }
-
-  if (fields.length > 0) {
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    db.prepare(`UPDATE Session SET ${fields.join(", ")} WHERE id = ?`).run(...values, id);
+  const overrides: Record<string, unknown> = {};
+  if (input.context !== undefined) {
+    overrides.context = JSON.stringify(input.context);
   }
 
+  buildAndRunUpdate("Session", id, input, overrides);
   return getSession(id)!;
 }

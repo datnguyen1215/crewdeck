@@ -187,7 +187,7 @@ On success (`201 Created`): GitHubAccount object (without `oauth_token`):
   "id": "uuid",
   "account_name": "octocat",
   "github_username": "octocat",
-  "scopes": "repo,read:org",
+  "scopes": "repo,workflow",
   "created_at": "ISO 8601"
 }
 ```
@@ -293,7 +293,7 @@ GET /projects/:projectId/crew
       "title": "Senior Software Engineer",
       "description": "Focuses on backend services and API design.",
       "is_captain": false,
-      "status": "idle | working | reviewing",
+      "status": "idle | active",
       "current_issue": { "id": "uuid", "title": "Fix login bug" } | null
     }
   ],
@@ -366,6 +366,8 @@ POST /projects/:projectId/crew/agents
 
 **Response:** `201 Created` — The created agent object.
 
+**Side effects:** Emits `agent.created` WebSocket event to connected clients.
+
 #### Generate Agent Prompt
 
 ```
@@ -433,7 +435,7 @@ GET /projects/:projectId/issues
 |-----------|------|-------------|
 | status | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
 | assigned_agent_id | TEXT | Filter by assigned agent. |
-| created_by | TEXT | Filter by creator (`user` or `orchestrator`). |
+| created_by | TEXT | Filter by creator (`user`, `orchestrator`, or `captain`). |
 | sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `priority`. |
 | order | TEXT | Sort order. `asc` or `desc`. Default: `desc`. |
 
@@ -456,7 +458,7 @@ GET /projects/:projectId/issues/:issueId
   "status": "in_review",
   "priority": 8,
   "assigned_agent_id": "uuid",
-  "assigned_agent": { "id": "uuid", "name": "Alice", "title": "..." },
+  "assigned_agent": { "id": "uuid", "name": "Alice" },
   "created_by": "user",
   "max_review_rounds": null,
   "current_review_round": 1,
@@ -464,11 +466,13 @@ GET /projects/:projectId/issues/:issueId
   "worktree_path": "/path/to/worktree",
   "base_branch": "main",
   "repo_id": "uuid",
-  "repo": { "id": "uuid", "name": "repo", "owner": "org" },
+  "repo": { "id": "uuid", "name": "repo" },
   "comments": [...],
   "agents": [...],
-  "pull_requests": [...],
-  "activity_log": [...],
+  "issue_agents": [{ "id": "uuid", "issue_id": "uuid", "agent_id": "uuid", "role": "worker", "agent": { "id": "uuid", "name": "Alice" } }],
+  "prs": [...],
+  "issue_prs": [...],
+  "activity": [...],
   "created_at": "ISO 8601",
   "updated_at": "ISO 8601"
 }
@@ -786,6 +790,89 @@ Send a user message to influence captain behavior. The orchestrator is resumed a
 
 ---
 
+### Environment Variables
+
+Per-project environment variables that are automatically injected into agent sessions when work or review is assigned.
+
+**Note:** Secret values (`is_secret: true`) are masked as `••••••••` in all API responses. They are stored in plaintext server-side for agent injection only.
+
+#### List Environment Variables
+
+```
+GET /projects/:projectId/environment
+```
+
+**Response:** `200 OK` — Array of environment variable objects, ordered by key ascending.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "key": "API_KEY",
+    "value": "abc123",
+    "is_secret": false,
+    "created_at": "ISO 8601",
+    "updated_at": "ISO 8601"
+  }
+]
+```
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Create Environment Variable
+
+```
+POST /projects/:projectId/environment
+```
+
+**Request Body:**
+```json
+{
+  "key": "API_KEY",
+  "value": "abc123",
+  "is_secret": false
+}
+```
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| key | Yes | — | Environment variable name. Must match `[A-Za-z_][A-Za-z0-9_]*`. |
+| value | Yes | — | Value string. |
+| is_secret | No | false | If true, the value is masked in all API responses. |
+
+**Response:** `201 Created` — The created environment variable object (value masked if secret).
+
+**Error:** `400 VALIDATION_ERROR` — Key fails name format validation.
+
+**Error:** `409 CONFLICT` — A variable with this key already exists in the project.
+
+#### Update Environment Variable
+
+```
+PATCH /projects/:projectId/environment/:envVarId
+```
+
+**Request Body:** Any subset of fields (key, value, is_secret).
+
+**Response:** `200 OK` — The updated environment variable object.
+
+**Error:** `404 Not Found` — Environment variable does not exist or belongs to a different project.
+
+**Error:** `409 CONFLICT` — Updating key conflicts with an existing variable.
+
+#### Delete Environment Variable
+
+```
+DELETE /projects/:projectId/environment/:envVarId
+```
+
+**Response:** `204 No Content`
+
+**Error:** `404 Not Found` — Environment variable does not exist or belongs to a different project.
+
+---
+
 ### Internal API (Agent CLI)
 
 These endpoints are used exclusively by the CrewDeck CLI running inside agent tmux sessions. They are not intended for frontend or external use. See [Agent CLI](agent-cli.md) for the full CLI specification.
@@ -841,16 +928,16 @@ Agent posts a comment on its current issue.
 POST /internal/status
 ```
 
-Agent updates its status on the current issue.
+Agent updates its self-reported status. Persisted to `Agent.status`; `done`/`error` map to `idle`.
 
 **Request Body:**
 ```json
 {
   "session_id": "uuid",
   "agent_id": "uuid",
-  "issue_id": "uuid",
+  "issue_id": "uuid (optional)",
   "project_id": "uuid",
-  "state": "active"
+  "state": "active | idle | done | error"
 }
 ```
 
@@ -873,6 +960,130 @@ Agent reports which files were modified.
 ```
 
 **Response:** `200 OK`
+
+#### Create Issue (Internal)
+
+```
+POST /internal/issues/create
+```
+
+Captain creates a new issue. The issue is created with `created_by: "orchestrator"`.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "title": "Fix authentication bug",
+  "description": "The login endpoint returns 500 when...",
+  "priority": 5
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| project_id | Yes | The project to create the issue in. |
+| title | Yes | Issue title (non-empty). |
+| description | Yes | Issue description (non-empty). |
+| priority | No | Priority level (integer). |
+
+**Response:** `201 Created` — The created issue object.
+
+**Side effects:** Emits `issue.created` on the event bus.
+
+#### Start Session (Internal)
+
+```
+POST /internal/sessions/start
+```
+
+Captain spawns an agent's tmux session for a specific issue. Must be called after `crewdeck assign` to begin the agent's work.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "agent_id": "uuid",
+  "issue_id": "uuid"
+}
+```
+
+**Response:** `200 OK`
+```json
+{ "ok": true }
+```
+
+**Side effects:** Emits `captain.session_start` on the event bus. The orchestrator creates the tmux session, builds the agent prompt, and starts the agent process.
+
+---
+
+#### Stop Session (Internal)
+
+```
+POST /internal/sessions/stop
+```
+
+Captain stops a stuck or runaway agent session. Kills the tmux session and marks it as `completed`.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "session_id": "uuid"
+}
+```
+
+**Response:** `200 OK`
+```json
+{ "ok": true }
+```
+
+**Error:** `404 Not Found` — Session does not exist or belongs to a different project.
+
+**Side effects:** Emits `session.stop_requested` on the event bus. The orchestrator kills the tmux session and updates session status to `completed`.
+
+#### Update Issue (Internal)
+
+```
+POST /internal/issues/update
+```
+
+Captain updates an issue's fields (e.g. priority).
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid",
+  "priority": 2
+}
+```
+
+**Response:** `200 OK` — The updated issue object.
+
+**Side effects:** Emits `issue.updated` on the event bus.
+
+
+#### Close Issue (Internal)
+
+```
+POST /internal/issues/close
+```
+
+Captain closes/cancels an issue, transitioning it to `done` status. Any running sessions for the issue are also marked completed.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid"
+}
+```
+
+**Response:** `200 OK` — The updated issue object.
+
+**Side effects:** Emits `issue.status_changed` on the event bus. Marks any running sessions for the issue as completed.
+
+**Note:** Idempotent — if the issue is already `done`, returns the issue unchanged.
 
 ---
 
@@ -963,6 +1174,7 @@ All events follow this structure:
 
 | Event | Description | Data |
 |-------|-------------|------|
+| `agent.created` | New agent added to the crew | `{ agent_id, name }` |
 | `agent.finished` | Agent completed its task | `{ session_id, agent_id, issue_id, role }` |
 | `agent.status_changed` | Agent status updated | `{ agent_id, issue_id, state }` |
 | `agent.error` | Agent encountered an unrecoverable error | `{ session_id, agent_id, issue_id, message? }` |

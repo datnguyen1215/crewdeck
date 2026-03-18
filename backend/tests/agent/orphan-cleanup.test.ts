@@ -86,7 +86,7 @@ describe("cleanupOrphans", () => {
     expect(killCalls[0]).not.toContain("other-session");
   });
 
-  it("updates DB session status to error for matching running sessions", async () => {
+  it("keeps DB session alive when its tmux is still running", async () => {
     vi.mocked(exec).mockImplementation((cmd: unknown, callback: unknown) => {
       const stdout =
         (cmd as string).includes("list-sessions")
@@ -104,13 +104,15 @@ describe("cleanupOrphans", () => {
 
     await cleanupOrphans();
 
-    expect(updateSession).toHaveBeenCalledWith(session.id, { status: "error" });
+    // Session's tmux is alive, so it should NOT be marked as error
+    expect(updateSession).not.toHaveBeenCalled();
   });
 
   it("handles tmux not being available gracefully", async () => {
     mockExecFail(new Error("tmux: command not found"));
     vi.mocked(listRunningSessions).mockReturnValue([]);
-    await expect(cleanupOrphans()).resolves.toBeUndefined();
+    const orphans = await cleanupOrphans();
+    expect(orphans).toEqual([]);
     expect(updateSession).not.toHaveBeenCalled();
   });
 });

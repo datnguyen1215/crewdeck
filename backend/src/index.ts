@@ -8,6 +8,7 @@ import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { setupTerminalWs, shutdownTerminalWs } from "./terminal-ws.js";
 import { initOrchestrator } from "./orchestrator/index.js";
+import { initActivityLogger } from "./events/activity-logger.js";
 import { createApp } from "./app.js";
 
 const app = createApp({ corsOrigin: config.corsOrigin });
@@ -17,11 +18,19 @@ const processMonitor = new ProcessMonitor(claudeCodeAdapter);
 async function main(): Promise<void> {
   // Run cleanup and start monitor before accepting connections to avoid
   // races between orphan cleanup, process monitoring, and incoming requests.
-  await cleanupOrphans();
+  const orphanedIssueIds = await cleanupOrphans();
   processMonitor.start();
+  initActivityLogger();
   const orchestrator = initOrchestrator(claudeCodeAdapter);
-  // Start captain sessions for all projects in the background
-  orchestrator.startAllCaptains().catch((err) => {
+  // Synchronous — must populate captainSessions map before startAllCaptains()
+  orchestrator.recoverCaptainSessions();
+  // Start captain sessions for all projects in the background.
+  // After captains are up, notify them of orphaned issues so they can respawn.
+  orchestrator.startAllCaptains().then(() => {
+    if (orphanedIssueIds.length > 0) {
+      orchestrator.notifyOrphanedIssues(orphanedIssueIds);
+    }
+  }).catch((err) => {
     logger.error({ err }, "Failed to auto-start captain sessions");
   });
 
@@ -33,7 +42,22 @@ async function main(): Promise<void> {
   });
 
   const wss = setupWebSocket(server, eventBus);
-  setupTerminalWs(server);
+  const terminalWss = setupTerminalWs(server);
+
+  server.on("upgrade", (req, socket, head) => {
+    const pathname = new URL(req.url ?? "", "http://localhost").pathname;
+    if (pathname === "/ws") {
+      wss.handleUpgrade(req, socket, head, (ws) =>
+        wss.emit("connection", ws, req),
+      );
+    } else if (pathname === "/terminal-ws") {
+      terminalWss.handleUpgrade(req, socket, head, (ws) =>
+        terminalWss.emit("connection", ws, req),
+      );
+    } else {
+      socket.destroy();
+    }
+  });
 
   async function shutdown() {
     shutdownTerminalWs();

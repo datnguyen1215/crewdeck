@@ -4,6 +4,20 @@
  * Push-only — the server ignores client messages.
  */
 
+/** Returns the WebSocket base URL pointing at the backend.
+ *  In dev, connects directly to the backend to avoid Vite proxy issues.
+ *  In production, uses the same origin (backend serves both HTTP and WS). */
+function wsBase(): string {
+  const backendUrl: string =
+    import.meta.env.VITE_BACKEND_URL ||
+    (import.meta.env.DEV ? "http://localhost:9381" : "");
+  if (backendUrl) {
+    return backendUrl.replace(/^http/, "ws");
+  }
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${location.host}`;
+}
+
 export type WsEvent =
   | "issue.created"
   | "issue.updated"
@@ -24,7 +38,8 @@ export type WsEvent =
   | "pr.status_changed"
   | "orchestrator.decision"
   | "orchestrator.draft_issue"
-  | "captain.message";
+  | "captain.message"
+  | "agent.created";
 
 export interface WsMessage {
   event: WsEvent;
@@ -89,8 +104,7 @@ export class ProjectWebSocket {
     this.state =
       this.#reconnectDelay > INITIAL_DELAY ? "reconnecting" : "connecting";
 
-    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${location.host}/ws?projectId=${encodeURIComponent(this.#projectId)}`;
+    const url = `${wsBase()}/ws?projectId=${encodeURIComponent(this.#projectId)}`;
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
