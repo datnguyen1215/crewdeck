@@ -21,7 +21,7 @@ jobs:
         working-directory: cli
 
       - name: Backend unit tests
-        run: npm run test:run
+        run: npm test
         working-directory: backend
 
       - name: Backend integration tests
@@ -34,7 +34,7 @@ jobs:
           npm run build --prefix cli
 
       - name: CLI unit tests
-        run: npm run test:run
+        run: npm test
         working-directory: cli
 
       - name: CLI integration tests

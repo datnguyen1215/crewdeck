@@ -8,8 +8,8 @@
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "vitest",
-    "test:run": "vitest run",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.config.integration.ts"
   },
   "devDependencies": {

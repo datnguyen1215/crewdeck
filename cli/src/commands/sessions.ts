@@ -6,11 +6,13 @@ import { get, post } from "../http.js";
 const USAGE = `Usage: crewdeck sessions <subcommand>
 
 Subcommands:
-  list                  List project sessions
-  stop <session_id>     Stop a running session
+  list                              List project sessions
+  start <agent_id> --issue <id>     Start an agent session for an issue
+  stop <session_id>                 Stop a running session
 
 Examples:
   crewdeck sessions list
+  crewdeck sessions start agent-abc --issue issue-xyz
   crewdeck sessions stop session-abc`;
 
 export async function sessionsCommand(argv: string[]): Promise<void> {
@@ -27,6 +29,24 @@ export async function sessionsCommand(argv: string[]): Promise<void> {
     case "list": {
       const data = await get(`/projects/${project_id}/sessions`, {}, api_url);
       console.log(JSON.stringify(data, null, 2));
+      break;
+    }
+    case "start": {
+      const agentId = rest[0];
+      if (!agentId) {
+        console.error("Error: <agent_id> is required\n");
+        console.error(USAGE);
+        process.exit(1);
+      }
+      const issueIdx = rest.indexOf("--issue");
+      const issueId = issueIdx !== -1 ? rest[issueIdx + 1] : undefined;
+      if (!issueId) {
+        console.error("Error: --issue <issue_id> is required\n");
+        console.error(USAGE);
+        process.exit(1);
+      }
+      await post("/internal/sessions/start", { project_id, agent_id: agentId, issue_id: issueId }, api_url);
+      console.log(`Session started for agent ${agentId} on issue ${issueId}.`);
       break;
     }
     case "stop": {
