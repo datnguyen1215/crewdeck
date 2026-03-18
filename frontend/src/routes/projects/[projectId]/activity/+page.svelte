@@ -36,15 +36,18 @@
 		if (filterActors.length > 0) actParams.actor_type = filterActors[0];
 		if (filterAction) actParams.action = filterAction;
 		if (filterIssue) actParams.issue_id = filterIssue;
-		Promise.all([listActivity(projectId, actParams), listIssues(projectId), getCrew(projectId)])
-			.then(([acts, iss, crew]) => {
+		Promise.all([listActivity(projectId, actParams), listIssues(projectId)])
+			.then(([acts, iss]) => {
 				if (cancelled) return;
 				allEntries = acts;
 				issues = iss;
-				agents = crew.agents;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load activity', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
+
+		getCrew(projectId)
+			.then((crew) => { if (!cancelled) agents = crew.agents; })
+			.catch(() => {});
 		return () => {
 			cancelled = true;
 		};
@@ -58,11 +61,10 @@
 			if (filterActors.length > 0) actParams.actor_type = filterActors[0];
 			if (filterAction) actParams.action = filterAction;
 			if (filterIssue) actParams.issue_id = filterIssue;
-			Promise.all([listActivity(projectId, actParams), listIssues(projectId), getCrew(projectId)]).then(
-				([acts, iss, crew]) => {
+			Promise.all([listActivity(projectId, actParams), listIssues(projectId)]).then(
+				([acts, iss]) => {
 					allEntries = acts;
 					issues = iss;
-					agents = crew.agents;
 				}
 			).catch(() => {});
 		};
@@ -79,7 +81,6 @@
 	// Unique action types present in this project's data, for the filter dropdown.
 	let actionTypes = $derived([...new Set(allEntries.map((e) => e.action))].sort());
 	let issueMap = $derived(Object.fromEntries(issues.map((i) => [i.id, i.title])));
-	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
 	let captainName = $derived(agents.find((a) => a.is_captain)?.name ?? 'Captain');
 
 
