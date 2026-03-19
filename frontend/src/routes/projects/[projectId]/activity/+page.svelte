@@ -4,8 +4,8 @@
 	import { listActivity, listIssues, getCrew, type ActivityLog, type Issue, type Agent } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
-	import { relTime } from '$lib/utils/time.js';
-	import { ACTOR_CFG, ACTION_DISPLAY, HANDOFF_ACTIONS, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
+	import { ACTOR_CFG, ACTION_DISPLAY } from '$lib/activity.js';
+	import ActivityTimeline from '$lib/components/ActivityTimeline.svelte';
 
 	type ActivityEntry = ActivityLog;
 
@@ -109,23 +109,6 @@
 		visibleCount = PAGE_SIZE;
 	}
 
-	// Entries within the last 2 hours get a subtle glow treatment.
-	function isRecent(dateStr: string): boolean {
-		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
-	}
-
-	// Get display name for an actor, using captain name for orchestrator/captain entries
-	function getActorDisplayName(entry: ActivityEntry): string {
-		if (entry.actor_type === 'orchestrator' || entry.actor_type === 'captain') {
-			return captainName;
-		}
-		return actorName(entry);
-	}
-
-	// Format issue ID as short form (first 8 chars)
-	function shortIssueId(id: string): string {
-		return id.slice(0, 8);
-	}
 
 </script>
 
@@ -235,101 +218,19 @@
 	{:else if filtered.length === 0}
 		<p class="text-muted text-sm py-16 text-center">No activity matches the current filters.</p>
 	{:else}
-			<div class="max-w-2xl relative">
-				<!-- Vertical line down the left -->
-				<div class="absolute left-[19px] top-2 bottom-0 w-px bg-edge pointer-events-none"></div>
-
-				<div class="flex flex-col">
-					{#each visible as entry, i (entry.id)}
-						{@const cfg = ACTOR_CFG[entry.actor_type] ?? ACTOR_CFG.system}
-						{@const recent = isRecent(entry.created_at)}
-						{@const expandable = hasExpandableDetails(entry)}
-						{@const isExpanded = expanded.has(entry.id)}
-						{@const details = (entry.details as Record<string, unknown>) ?? {}}
-						{@const handoff = filterIssue && HANDOFF_ACTIONS.has(entry.action)}
-						<div class="flex gap-4 pb-5 relative {handoff ? 'ml-1 border-l-2 border-purple/30 pl-2' : ''}" style="animation: fade-up 0.25s ease both; animation-delay: {Math.min(i * 30, 300)}ms">
-							<!-- Actor dot on the timeline -->
-							<div class="flex-shrink-0 w-10 flex justify-center pt-0.5 relative z-10">
-								<div
-									class="w-6 h-6 rounded-full bg-base border flex items-center justify-center {cfg.border}"
-									style={recent && cfg.glow ? `box-shadow: ${cfg.glow}` : ''}
-								>
-									<span class="text-[10px] leading-none {cfg.color}">{cfg.icon}</span>
-								</div>
-							</div>
-
-							<!-- Event content -->
-							<div class="flex-1 min-w-0 pt-0.5">
-								<!-- Actor name + timestamp -->
-								<div class="flex items-center gap-2 mb-0.5 flex-wrap">
-									<span class="text-xs font-semibold {cfg.color}">{getActorDisplayName(entry)}</span>
-									<span
-										class="text-muted text-xs font-mono"
-										title={new Date(entry.created_at).toLocaleString()}
-									>
-										{relTime(entry.created_at)}
-									</span>
-								</div>
-
-								<!-- Action description -->
-								<p class="text-secondary text-sm">{actionLabel(entry)}</p>
-
-								<!-- Related issue link -->
-								{#if entry.issue_id}
-									<a
-										href="/projects/{projectId}/issues/{entry.issue_id}"
-										class="text-xs text-muted hover:text-cyan transition-colors mt-0.5 inline-block"
-										title="#{shortIssueId(entry.issue_id)}"
-									>
-										{issueMap[entry.issue_id] ?? `#${shortIssueId(entry.issue_id)}`}
-									</a>
-								{/if}
-
-								<!-- Expandable details toggle -->
-								{#if expandable}
-									<button
-										onclick={() => toggleExpand(entry.id)}
-										class="mt-1.5 text-xs text-muted hover:text-secondary transition-colors flex items-center gap-1"
-									>
-										<span class="font-mono text-[10px]">{isExpanded ? '▾' : '▸'}</span>
-										<span>{isExpanded ? 'Hide details' : 'Show details'}</span>
-									</button>
-
-									{#if isExpanded}
-										<div
-											class="mt-2 p-2.5 bg-base-hi border border-edge rounded text-xs text-secondary font-mono leading-relaxed"
-										>
-											{#if details.text}
-												<p class="text-primary">"{details.text}"</p>
-											{/if}
-											{#if details.content_preview}
-												<p class="text-primary">"{details.content_preview}"</p>
-											{/if}
-											{#if details.reasoning}
-												<p class="text-secondary whitespace-pre-wrap">{details.reasoning}</p>
-											{/if}
-											{#if details.verdict}
-												<p class="mt-1 {details.verdict === 'approved' ? 'text-green' : 'text-amber'}">Verdict: {details.verdict}</p>
-											{/if}
-											{#if details.message}
-												<p class="text-secondary mt-1">{details.message}</p>
-											{/if}
-											{#if details.reason}
-												<p class="text-muted mt-1">Reason: {details.reason}</p>
-											{/if}
-											{#if details.branch}
-												<p class="text-muted mt-1">Branch: {details.branch}</p>
-											{/if}
-											{#if details.note}
-												<p class="text-muted mt-1">{details.note}</p>
-											{/if}
-										</div>
-									{/if}
-								{/if}
-							</div>
-						</div>
-					{/each}
-				</div>
+			<div class="max-w-2xl">
+				<ActivityTimeline
+					entries={visible}
+					{expanded}
+					onToggleExpand={toggleExpand}
+					{projectId}
+					{issueMap}
+					showRecentGlow={true}
+					compact={false}
+					{captainName}
+					highlightHandoffs={true}
+					{filterIssue}
+				/>
 
 				<!-- Load more -->
 				{#if hasMore}
