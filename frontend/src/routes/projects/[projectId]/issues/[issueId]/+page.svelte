@@ -4,10 +4,10 @@
 	import { getIssue, updateIssue, listSessions, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
-	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
+	import ActivityTimeline from '$lib/components/ActivityTimeline.svelte';
 	import IssueComments from '$lib/components/IssueComments.svelte';
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
 
@@ -321,70 +321,12 @@
 						{:else if activityEntries.length === 0}
 							<p class="text-muted text-sm py-8 text-center">No activity yet.</p>
 						{:else}
-							<div class="relative">
-								<div class="absolute left-[9px] top-2 bottom-0 w-px bg-edge pointer-events-none"></div>
-								<div class="flex flex-col">
-									{#each activityEntries as entry, i (entry.id)}
-										{@const acfg = ACTOR_CFG[entry.actor_type] ?? ACTOR_CFG.system}
-										{@const details = (entry.details as Record<string, unknown>) ?? {}}
-										{@const expandable = hasExpandableDetails(entry)}
-										{@const isExp = activityExpanded.has(entry.id)}
-										<div class="flex gap-3 pb-4 relative" style="animation: fade-up 0.2s ease both; animation-delay: {Math.min(i * 25, 200)}ms">
-											<div class="flex-shrink-0 w-5 flex justify-center pt-0.5 relative z-10">
-												<div class="w-5 h-5 rounded-full bg-base border border-edge flex items-center justify-center">
-													<span class="text-[9px] leading-none {acfg.color}">{acfg.icon}</span>
-												</div>
-											</div>
-											<div class="flex-1 min-w-0 pt-0.5">
-												<div class="flex items-center gap-2 mb-0.5 flex-wrap">
-													<span class="text-xs font-semibold {acfg.color}">{actorName(entry)}</span>
-													<span class="text-muted text-xs font-mono" title={new Date(entry.created_at).toLocaleString()}>
-														{relTime(entry.created_at)}
-													</span>
-												</div>
-												<p class="text-secondary text-sm">{actionLabel(entry)}</p>
-												{#if expandable}
-													<button
-														onclick={() => toggleActivityExpand(entry.id)}
-														class="mt-1 text-xs text-muted hover:text-secondary transition-colors flex items-center gap-1"
-													>
-														<span class="font-mono text-[10px]">{isExp ? '\u25BE' : '\u25B8'}</span>
-														<span>{isExp ? 'Hide' : 'Details'}</span>
-													</button>
-													{#if isExp}
-														<div class="mt-1.5 p-2 bg-base-hi border border-edge rounded text-xs text-secondary font-mono leading-relaxed">
-															{#if details.text}
-																<p class="text-primary">"{details.text}"</p>
-															{/if}
-															{#if details.content_preview}
-																<p class="text-primary">"{details.content_preview}"</p>
-															{/if}
-															{#if details.reasoning}
-																<p class="whitespace-pre-wrap">{details.reasoning}</p>
-															{/if}
-															{#if details.verdict}
-																<p class="mt-1 {details.verdict === 'approved' ? 'text-green' : 'text-amber'}">Verdict: {details.verdict}</p>
-															{/if}
-															{#if details.message}
-																<p class="mt-1">{details.message}</p>
-															{/if}
-															{#if details.reason}
-																<p class="text-muted mt-1">Reason: {details.reason}</p>
-															{/if}
-															{#if details.branch}
-																<p class="text-muted mt-1">Branch: {details.branch}</p>
-															{/if}
-															{#if details.note}
-																<p class="text-muted mt-1">{details.note}</p>
-															{/if}
-														</div>
-													{/if}
-												{/if}
-											</div>
-										</div>
-									{/each}
-								</div>
-							</div>
+							<ActivityTimeline
+								entries={activityEntries}
+								expanded={activityExpanded}
+								onToggleExpand={toggleActivityExpand}
+								compact={true}
+							/>
 						{/if}
 
 					{:else if activeTab === 'terminal'}
