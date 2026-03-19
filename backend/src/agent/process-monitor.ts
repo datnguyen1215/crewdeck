@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { getSession, listRunningSessions, updateSession } from "../db/repositories/sessions.js";
+import { updateAgent } from "../db/repositories/agents.js";
 import { eventBus } from "../events/bus.js";
 import { mergeContext, type AgentAdapter } from "./types.js";
 
@@ -83,6 +84,10 @@ export class ProcessMonitor {
             project_id: session.project_id,
             status: "completed",
           });
+
+          if (session.agent_id) {
+            updateAgent(session.agent_id, { status: "idle" });
+          }
 
           if (session.agent_id && session.issue_id) {
             eventBus.emit("agent.finished", {

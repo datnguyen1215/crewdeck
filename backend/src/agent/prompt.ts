@@ -63,10 +63,7 @@ To re-read issue details:
   crewdeck issues get <issue_id>
 
 To see comments and activity on an issue:
-  crewdeck activity <issue_id>
-
-Update your status on the current issue:
-  crewdeck status --state <active|done|error>`);
+  crewdeck activity <issue_id>`);
 
   return parts.join("\n\n");
 }
@@ -129,10 +126,7 @@ To re-read issue details or check related issues:
   crewdeck issues get <issue_id>
 
 To see comments and activity on an issue:
-  crewdeck activity <issue_id>
-
-Update your status on the current issue:
-  crewdeck status --state <active|done|error>`);
+  crewdeck activity <issue_id>`);
 
   return parts.join("\n\n");
 }

@@ -6,8 +6,9 @@ import { get, post } from "../http.js";
 const USAGE = `Usage: crewdeck agents <subcommand>
 
 Subcommands:
-  list    List all agents for the project crew
-  create  Create a new worker agent
+  list                          List all agents for the project crew
+  create                        Create a new worker agent
+  set-status <agent_id> <state> Manually set an agent's status (active|idle)
 
 Options for create:
   --name <name>                 Agent name (required)
@@ -17,7 +18,8 @@ Options for create:
 
 Examples:
   crewdeck agents list
-  crewdeck agents create --name "Alice" --title "Frontend Engineer" --system-prompt "You are a frontend specialist..."`;
+  crewdeck agents create --name "Alice" --title "Frontend Engineer" --system-prompt "You are a frontend specialist..."
+  crewdeck agents set-status <agent_id> idle`;
 
 const parseFlag = (args: string[], flag: string): string | undefined => {
   const idx = args.indexOf(flag);
@@ -57,6 +59,21 @@ export async function agentsCommand(argv: string[]): Promise<void> {
 
       const data = await post(`/projects/${project_id}/crew/agents`, body, api_url);
       console.log(JSON.stringify(data, null, 2));
+      break;
+    }
+    case "set-status": {
+      const [agent_id, state] = rest;
+      if (!agent_id || !state) {
+        console.error("Error: agent_id and state are required\n");
+        console.error(USAGE);
+        process.exit(1);
+      }
+      if (state !== "active" && state !== "idle") {
+        console.error(`Error: state must be "active" or "idle", got "${state}"\n`);
+        process.exit(1);
+      }
+      await post("/internal/agents/set-status", { project_id, agent_id, state }, api_url);
+      console.log(`Agent ${agent_id} status set to "${state}".`);
       break;
     }
     default:

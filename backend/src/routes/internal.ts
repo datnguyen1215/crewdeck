@@ -338,6 +338,31 @@ router.post("/issues/close", validate(CloseIssueSchema), (req, res) => {
   res.json(updated);
 });
 
+// POST /agents/set-status — captain manually overrides an agent's status
+const AgentSetStatusSchema = z.object({
+  project_id: z.string(),
+  agent_id: z.string(),
+  state: z.enum(["active", "idle"]),
+});
+
+router.post("/agents/set-status", validate(AgentSetStatusSchema), (req, res) => {
+  const { project_id, agent_id, state } = req.body;
+
+  const agent = getAgent(agent_id);
+  if (!agent) throw new NotFoundError("Agent not found");
+
+  updateAgent(agent_id, { status: state });
+
+  eventBus.emit("agent.status_changed", {
+    agent_id,
+    issue_id: "",
+    project_id,
+    state,
+  });
+
+  res.json({ ok: true });
+});
+
 // POST /create-pr — captain requests PR creation for an approved issue
 // Fire-and-forget: PR creation runs async; success/failure posted as issue comments
 const CreatePRSchema = z.object({

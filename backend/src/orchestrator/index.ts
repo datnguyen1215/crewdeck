@@ -11,7 +11,7 @@ import {
   listProjects,
 } from "../db/repositories/projects.js";
 import { getIssue } from "../db/repositories/issues.js";
-import { getAgent, getCaptain } from "../db/repositories/agents.js";
+import { getAgent, getCaptain, updateAgent } from "../db/repositories/agents.js";
 import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listCaptainHistory } from "../db/repositories/captain-history.js";
 import {
@@ -39,7 +39,8 @@ function buildCaptainInitialPrompt(
 \`\`\`
 crewdeck issues list              — list all project issues
 crewdeck issues get <issue_id>    — get issue details
-crewdeck agents list              — list project agents (with idle/busy status)
+crewdeck agents list              — list project agents (with idle/active status)
+crewdeck agents set-status <agent_id> <active|idle>  — manually override agent status
 crewdeck assign <issue_id> <agent_id>          — assign an agent to work on an issue
 crewdeck route-review <issue_id> <agent_id>    — route an issue to a reviewer
 crewdeck issues create --title "..." --description "..."  — create a new issue
@@ -60,6 +61,7 @@ crewdeck create-pr <issue_id>     — push branch and create a GitHub PR
 2. Use the CLI commands above to inspect state, assign work, and route reviews.
 3. After each decision, save a summary with \`crewdeck history save --summary "..."\`
 4. You stay alive across multiple issues — no need to rush.
+5. Agent status (active/idle) is managed automatically by the backend. Use \`crewdeck agents set-status\` only to fix stuck agents (e.g., session died without signaling).
 
 ## Session Lifecycle
 
@@ -157,6 +159,7 @@ export class OrchestratorManager {
     this.bus.on(
       "agent.finished",
       ({ issue_id, project_id, agent_id, role }) => {
+        updateAgent(agent_id, { status: "idle" });
         const issue = getIssue(issue_id);
         const agent = getAgent(agent_id);
         void this.sendToCaptain(
@@ -166,9 +169,20 @@ export class OrchestratorManager {
       },
     );
 
+    this.bus.on("agent.error", ({ agent_id, issue_id, project_id, message }) => {
+      updateAgent(agent_id, { status: "idle" });
+      const issue = getIssue(issue_id);
+      const agent = getAgent(agent_id);
+      void this.sendToCaptain(
+        project_id,
+        `Agent ${agent?.name ?? agent_id} encountered an error on issue "${escapeXml(issue?.title ?? issue_id)}" (issue_id: ${issue_id})${message ? `: ${escapeXml(message)}` : ""}. Use \`crewdeck activity ${issue_id}\` to review and decide next steps.`,
+      );
+    });
+
     this.bus.on(
       "review.completed",
       ({ issue_id, project_id, agent_id, verdict }) => {
+        updateAgent(agent_id, { status: "idle" });
         handleReviewVerdict(issue_id, project_id, agent_id, verdict, this.bus);
 
         const safeVerdict = ["approved", "changes_requested"].includes(verdict)

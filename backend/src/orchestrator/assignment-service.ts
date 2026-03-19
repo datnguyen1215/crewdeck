@@ -10,7 +10,7 @@ import {
   getIssue,
   updateIssue,
 } from "../db/repositories/issues.js";
-import { getAgent } from "../db/repositories/agents.js";
+import { getAgent, updateAgent } from "../db/repositories/agents.js";
 import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listRepos } from "../db/repositories/repos.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
@@ -127,6 +127,8 @@ export async function executeAssign(
     assigned_agent_id: agentId,
     status: "in_progress",
   });
+
+  updateAgent(agentId, { status: "active" });
 
   const existingIa = listIssueAgents(issueId).find(
     (ia) =>

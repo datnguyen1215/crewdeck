@@ -5,7 +5,7 @@ import { agentSessionName } from "../agent/types.js";
 import { buildReviewerPrompt } from "../agent/prompt.js";
 import { getProject } from "../db/repositories/projects.js";
 import { getIssue, updateIssue } from "../db/repositories/issues.js";
-import { getAgent } from "../db/repositories/agents.js";
+import { getAgent, updateAgent } from "../db/repositories/agents.js";
 import { getCrewWithAgents } from "../db/repositories/crews.js";
 import { listRepos } from "../db/repositories/repos.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
@@ -149,6 +149,8 @@ export async function executeRouteReview(
     });
     return;
   }
+
+  updateAgent(reviewerAgentId, { status: "active" });
 
   bus.emit("issue.status_changed", {
     issue_id: issueId,
