@@ -68,7 +68,7 @@ An issue is the fundamental unit of work. Issues have:
 - An assigned agent (set by the orchestrator).
 - A comment thread where agents and humans post updates, findings, and review feedback.
 - Linked branch/worktree information (recorded when an agent begins work).
-- Linked pull requests (created automatically by the captain after all reviewers approve).
+- Linked pull requests (created by the captain after explicitly setting the issue to Ready).
 - An activity log recording every state change and action.
 - A configurable max review rounds (overrides project default if set).
 
@@ -85,7 +85,7 @@ Humans can also post comments to provide direction or additional context.
 
 ### Pull Request
 
-A pull request is created automatically by the captain after all reviewers approve an issue. The captain runs `crewdeck create-pr <issue_id>`, which:
+A pull request is created by the captain after they explicitly set the issue to Ready. The captain runs `crewdeck create-pr <issue_id>`, which:
 
 - Pushes the issue's worktree branch using the project's OAuth token.
 - Runs `gh pr create` to open the PR on GitHub.
@@ -113,7 +113,7 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 | **In Progress** | An agent is actively working on the issue in a tmux session. |
 | **In Review** | Work is complete. Reviewers are examining the code. |
 | **Feedback** | Reviewers have posted feedback. Original agent needs to address it. |
-| **Ready** | All reviewers have approved. Captain will automatically create the PR. |
+| **Ready** | Captain has decided reviews are complete and explicitly set this status. Captain calls `crewdeck create-pr` to create the PR. |
 | **PR Created** | Pull request has been created on GitHub. |
 | **Done** | PR merged or issue otherwise resolved. |
 
@@ -125,7 +125,8 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 4. If changes are requested, the issue moves to Feedback, and the original agent addresses the feedback.
 5. Steps 2-4 repeat for each reviewer (e.g., code quality reviewer, then security reviewer).
 6. This loop continues until all reviewers approve or the configurable max rounds are reached.
-7. If max rounds are reached, the issue escalates to the human for a decision.
+7. When all reviewers approve, the issue remains in `in_review`. The captain decides when to transition it to `ready` and create the PR.
+8. If max rounds are reached, the issue escalates to the human for a decision.
 
 ## Technology Decisions
 
@@ -347,9 +348,10 @@ On startup, the backend:
 3. Scans for orphaned tmux sessions from previous crashes (sessions prefixed with `crewdeck-`).
 4. Cleans up orphaned sessions: kills tmux sessions, updates Session records to `error` status.
 5. Initializes the activity logger (registers event listeners that persist activity entries to the ActivityLog table).
-6. Starts the Express HTTP server.
-7. Starts the WebSocket server.
-8. Logs startup complete via pino.
+6. Recovers captain sessions from the database (`recoverCaptainSessions()`): repopulates the in-memory session map, restarts JSONL watchers, and sends a wake-up message to each recovered session so it checks current state and resumes work.
+7. Starts the Express HTTP server.
+8. Starts the WebSocket server.
+9. Logs startup complete via pino.
 
 ### Graceful Shutdown
 

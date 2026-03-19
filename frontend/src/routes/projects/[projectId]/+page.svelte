@@ -3,54 +3,9 @@
 	import { getContext } from 'svelte';
 	import { listIssues, listAgents, listRepos, createIssue, type Issue, type Agent, type Repo } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import { STATUS_CFG } from '$lib/config/status.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
-
-	// Visual config per status — dot glyph, text/border color classes, optional glow + pulse
-	const STATUS_CFG: Record<
-		string,
-		{ label: string; dot: string; text: string; border: string; glow?: string; pulse?: boolean; dashed?: boolean }
-	> = {
-		draft: { label: 'Draft', dot: '◌', text: 'text-muted', border: 'border-muted', dashed: true },
-		open: { label: 'Open', dot: '○', text: 'text-blue', border: 'border-blue', glow: 'var(--glow-blue)' },
-		in_progress: {
-			label: 'In Progress',
-			dot: '◉',
-			text: 'text-green',
-			border: 'border-green',
-			glow: 'var(--glow-green)',
-			pulse: true
-		},
-		in_review: {
-			label: 'In Review',
-			dot: '◉',
-			text: 'text-amber',
-			border: 'border-amber',
-			glow: 'var(--glow-amber)'
-		},
-		feedback: {
-			label: 'Feedback',
-			dot: '◉',
-			text: 'text-red',
-			border: 'border-red',
-			glow: 'var(--glow-red)'
-		},
-		ready: {
-			label: 'Ready',
-			dot: '●',
-			text: 'text-green',
-			border: 'border-green',
-			glow: 'var(--glow-green)'
-		},
-		pr_created: {
-			label: 'PR Created',
-			dot: '◉',
-			text: 'text-purple',
-			border: 'border-purple',
-			glow: 'var(--glow-purple)'
-		},
-		done: { label: 'Done', dot: '✓', text: 'text-secondary', border: 'border-secondary' }
-	};
 
 	let issues = $state<Issue[]>([]);
 	let agents = $state<Agent[]>([]);

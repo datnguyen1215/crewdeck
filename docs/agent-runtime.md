@@ -414,7 +414,7 @@ The orchestrator is event-driven. When an event fires, the orchestrator formats 
 | Event                                   | What gets relayed to the captain                           |
 | --------------------------------------- | ---------------------------------------------------------- |
 | Issue approved (draft → open)           | Issue details, priority, available agents, project state   |
-| Issue approved (all reviewers approved) | Instruction to run `crewdeck create-pr <issue_id>`         |
+| Reviewer approved                       | Review outcome, reviewer comments; issue stays `in_review` until captain acts |
 | Agent finished work                     | Issue status, agent output summary, review routing options |
 | Review completed                        | Review outcome, reviewer comments, approve/reject decision |
 | Max rounds reached                      | Escalation context, round history                          |
@@ -430,7 +430,7 @@ Instead of returning structured JSON, the captain executes CLI commands to take 
 - `crewdeck assign --issue <id> --agent <id>` — link an agent to an issue (does not spawn a session).
 - `crewdeck sessions start <agent_id> --issue <issue_id>` — spawn the agent's tmux session after assigning.
 - `crewdeck route-review --issue <id>` — send an issue to the next reviewer.
-- `crewdeck create-pr <issue_id>` — push the issue branch and create a GitHub PR after all reviewers approve.
+- `crewdeck create-pr <issue_id>` — push the issue branch and create a GitHub PR when the captain decides reviews are complete.
 - `crewdeck escalate --issue <id>` — flag an issue for human attention.
 - `crewdeck issues create --title "..." --description "..." [--priority <n>]` — propose a new issue.
 - `crewdeck issues update <issue_id> --priority <n>` — change issue priority.
@@ -442,7 +442,9 @@ Each CLI command makes an HTTP call to the backend's internal API, which updates
 The captain session persists across multiple events and issues. To handle crashes or restarts:
 
 - **History saved to DB** — the captain's conversation history is periodically saved to the database.
+- **In-memory map rehydration** — on server startup, the orchestrator calls `recoverCaptainSessions()` before starting any new sessions. This scans the DB for running captain sessions and repopulates the in-memory `captainSessions` map (and restarts JSONL watchers for sessions that have a `claude_session_id`). Without this step, the backend would lose track of already-running tmux sessions and attempt to create duplicates.
 - **Session restore** — when a captain session is lost (process crash, container restart), the orchestrator detects the missing session via `isAlive()` and respawns it. The saved history is restored into the new session so the captain retains context from prior decisions.
+- **Backend restart wake-up** — when the backend restarts, existing captain sessions are recovered from the database and sent a wake-up message prompting them to check current state and resume work.
 - **JSONL watcher resilience** — the JSONL watcher polls the session file for assistant responses and auto-stops after ~60s of no new data. When the captain session is still alive (checked via `isAlive()`), the watcher resets its idle counter instead of stopping, keeping response capture active during long idle periods. If the watcher does stop, it is automatically restarted the next time a message is sent to the captain, resuming from the last-read byte offset so no responses are lost.
 - **CaptainMessage records** — the backend stores a `CaptainMessage` record for each event relay, captain action, and assistant text response surfaced via JSONL. This builds the captain chat timeline visible to the user in the frontend.
 
