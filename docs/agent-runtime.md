@@ -430,7 +430,7 @@ Instead of returning structured JSON, the captain executes CLI commands to take 
 - `crewdeck assign --issue <id> --agent <id>` — link an agent to an issue (does not spawn a session).
 - `crewdeck sessions start <agent_id> --issue <issue_id>` — spawn the agent's tmux session after assigning.
 - `crewdeck route-review --issue <id>` — send an issue to the next reviewer.
-- `crewdeck create-pr <issue_id>` — push the issue branch and create a GitHub PR after all reviewers approve.
+- `crewdeck create-pr <issue_id>` — push the issue branch and create a GitHub PR when the captain decides reviews are complete.
 - `crewdeck escalate --issue <id>` — flag an issue for human attention.
 - `crewdeck issues create --title "..." --description "..." [--priority <n>]` — propose a new issue.
 - `crewdeck issues update <issue_id> --priority <n>` — change issue priority.
