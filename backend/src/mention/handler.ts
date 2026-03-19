@@ -125,7 +125,13 @@ const spawnAgent = async (
   const project = projectRepo.getProject(projectId);
   if (!project) return;
 
-  if (issue.chain_depth >= MAX_CHAIN_DEPTH) {
+  // Atomic check-and-increment to prevent concurrent mentions from exceeding the limit.
+  // If chain_depth is already at MAX, the UPDATE matches zero rows and we reject.
+  const incResult = database.db
+    .prepare("UPDATE Issue SET chain_depth = chain_depth + 1 WHERE id = ? AND chain_depth < ?")
+    .run(issueId, MAX_CHAIN_DEPTH);
+
+  if (incResult.changes === 0) {
     postSystemComment(
       issueId,
       projectId,
@@ -147,9 +153,6 @@ const spawnAgent = async (
     );
     return;
   }
-
-  // Atomic increment to avoid race conditions when multiple mentions fire concurrently
-  database.db.prepare("UPDATE Issue SET chain_depth = chain_depth + 1 WHERE id = ?").run(issueId);
 
   // Regress status to in_progress when work restarts
   if (

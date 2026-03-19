@@ -218,7 +218,7 @@
 					Create Project
 				</h2>
 				<p class="text-muted text-xs mb-6">
-					Point to a GitHub repository to create your first project. A captain agent will be auto-assigned.
+					Point to a GitHub repository to create your first project.
 				</p>
 
 				<ProjectForm {githubAccounts} onCreated={handleProjectCreated} />

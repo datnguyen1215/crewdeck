@@ -85,7 +85,6 @@
 	// Unique action types present in this project's data, for the filter dropdown.
 	let actionTypes = $derived([...new Set(allEntries.map((e) => e.action))].sort());
 	let issueMap = $derived(Object.fromEntries(issues.map((i) => [i.id, i.title])));
-	let captainName = $derived('Captain');
 
 
 	function toggleActor(actor: string) {
@@ -227,7 +226,6 @@
 					{issueMap}
 					showRecentGlow={true}
 					compact={false}
-					{captainName}
 					highlightHandoffs={true}
 					{filterIssue}
 				/>

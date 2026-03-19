@@ -316,8 +316,8 @@
 								<p class="text-primary text-sm truncate group-hover:text-cyan transition-colors">
 									{issue.title}
 								</p>
-								{#if issue.created_by === 'orchestrator'}
-									<p class="text-muted text-xs mt-0.5">proposed by orchestrator</p>
+								{#if issue.created_by === 'agent'}
+									<p class="text-muted text-xs mt-0.5">proposed by agent</p>
 								{/if}
 							</div>
 
