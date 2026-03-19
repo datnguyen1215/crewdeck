@@ -113,7 +113,7 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 | **In Progress** | An agent is actively working on the issue in a tmux session. |
 | **In Review** | Work is complete. Reviewers are examining the code. |
 | **Feedback** | Reviewers have posted feedback. Original agent needs to address it. |
-| **Ready** | Captain has decided the issue is ready for a PR. Captain calls `crewdeck create-pr` to create it. |
+| **Ready** | Captain has decided reviews are complete and explicitly set this status. Captain calls `crewdeck create-pr` to create the PR. |
 | **PR Created** | Pull request has been created on GitHub. |
 | **Done** | PR merged or issue otherwise resolved. |
 
@@ -348,9 +348,10 @@ On startup, the backend:
 3. Scans for orphaned tmux sessions from previous crashes (sessions prefixed with `crewdeck-`).
 4. Cleans up orphaned sessions: kills tmux sessions, updates Session records to `error` status.
 5. Initializes the activity logger (registers event listeners that persist activity entries to the ActivityLog table).
-6. Starts the Express HTTP server.
-7. Starts the WebSocket server.
-8. Logs startup complete via pino.
+6. Recovers captain sessions from the database (`recoverCaptainSessions()`): repopulates the in-memory session map, restarts JSONL watchers, and sends a wake-up message to each recovered session so it checks current state and resumes work.
+7. Starts the Express HTTP server.
+8. Starts the WebSocket server.
+9. Logs startup complete via pino.
 
 ### Graceful Shutdown
 
