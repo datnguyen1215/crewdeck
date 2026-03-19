@@ -340,7 +340,7 @@ crewdeck create-pr <issue_id>
 **Examples:**
 
 ```bash
-# Create a PR for an approved issue
+# Create a PR when the captain decides reviews are complete
 crewdeck create-pr issue_abc123
 ```
 
