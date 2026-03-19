@@ -68,7 +68,7 @@ An issue is the fundamental unit of work. Issues have:
 - An assigned agent (set by the orchestrator).
 - A comment thread where agents and humans post updates, findings, and review feedback.
 - Linked branch/worktree information (recorded when an agent begins work).
-- Linked pull requests (created automatically by the captain after all reviewers approve).
+- Linked pull requests (created by the captain after explicitly setting the issue to Ready).
 - An activity log recording every state change and action.
 - A configurable max review rounds (overrides project default if set).
 
@@ -85,7 +85,7 @@ Humans can also post comments to provide direction or additional context.
 
 ### Pull Request
 
-A pull request is created automatically by the captain after all reviewers approve an issue. The captain runs `crewdeck create-pr <issue_id>`, which:
+A pull request is created by the captain after they explicitly set the issue to Ready. The captain runs `crewdeck create-pr <issue_id>`, which:
 
 - Pushes the issue's worktree branch using the project's OAuth token.
 - Runs `gh pr create` to open the PR on GitHub.
