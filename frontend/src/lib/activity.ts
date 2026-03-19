@@ -57,9 +57,9 @@ export const ACTION_DISPLAY: Record<string, string> = {
 };
 
 export function actorName(entry: ActivityLog): string {
-	if (entry.actor_type === 'agent' && entry.actor_id) {
-		const n = String(entry.actor_id).replace('agent-', '');
-		return n.charAt(0).toUpperCase() + n.slice(1);
+	if (entry.actor_type === 'agent') {
+		if (entry.actor_name) return entry.actor_name;
+		return 'Agent';
 	}
 	if (entry.actor_type === 'captain') return 'Captain';
 	if (entry.actor_type === 'orchestrator') return 'Orchestrator';

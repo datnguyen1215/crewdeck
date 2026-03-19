@@ -134,6 +134,7 @@ export interface ActivityLog {
   issue_id: string | null;
   actor_type: string;
   actor_id: string | null;
+  actor_name?: string;
   action: string;
   details: Record<string, unknown>;
   created_at: string;
