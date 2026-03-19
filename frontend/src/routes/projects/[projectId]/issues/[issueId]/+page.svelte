@@ -8,6 +8,7 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
+	import { STATUS_CFG, PR_STATUS } from '$lib/config/status.js';
 
 	type Issue = IssueWithDetails;
 
@@ -321,20 +322,6 @@ function esc(s: string) {
 		activityExpanded = next;
 	}
 
-	const STATUS_CFG: Record<
-		string,
-		{ label: string; dot: string; text: string; border: string; glow?: string; pulse?: boolean; dashed?: boolean }
-	> = {
-		draft: { label: 'Draft', dot: '◌', text: 'text-muted', border: 'border-muted', dashed: true },
-		open: { label: 'Open', dot: '○', text: 'text-blue', border: 'border-blue', glow: 'var(--glow-blue)' },
-		in_progress: { label: 'In Progress', dot: '◉', text: 'text-green', border: 'border-green', glow: 'var(--glow-green)', pulse: true },
-		in_review: { label: 'In Review', dot: '◉', text: 'text-amber', border: 'border-amber', glow: 'var(--glow-amber)' },
-		feedback: { label: 'Feedback', dot: '◉', text: 'text-red', border: 'border-red', glow: 'var(--glow-red)' },
-		ready: { label: 'Ready', dot: '●', text: 'text-green', border: 'border-green', glow: 'var(--glow-green)' },
-		pr_created: { label: 'PR Created', dot: '◉', text: 'text-purple', border: 'border-purple', glow: 'var(--glow-purple)' },
-		done: { label: 'Done', dot: '✓', text: 'text-secondary', border: 'border-secondary' }
-	};
-
 	function commentStyle(authorType: string, content: string): { border: string; textColor: string } {
 		if (/requesting changes|changes requested/i.test(content)) return { border: 'var(--color-amber)', textColor: 'text-amber' };
 		if (authorType === 'orchestrator') return { border: 'var(--color-purple)', textColor: 'text-purple' };
@@ -362,11 +349,6 @@ function esc(s: string) {
 		return { icon: '◌', cls: 'text-muted', pulse: false };
 	}
 
-	const PR_STATUS: Record<string, string> = {
-		open: 'text-green border-green',
-		merged: 'text-purple border-purple',
-		closed: 'text-red border-red'
-	};
 
 </script>
 
