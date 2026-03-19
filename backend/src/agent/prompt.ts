@@ -43,20 +43,21 @@ The following environment variables are available:
 - CREWDECK_API_URL — base URL of the backend API
 - CREWDECK_PROJECT_ID — current project ID
 - CREWDECK_AGENT_ID — your agent ID
+- CREWDECK_ISSUE_ID — current issue ID
 
-API endpoints (use curl):
+Read-only API endpoints (via curl):
 - GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues — list issues
-- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/{id} — get issue details
-- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/{id}/comments — list comments
+- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID — get this issue
+- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID/comments — list comments
 - GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/crew/agents — list available agents`);
 
   parts.push(`## Instructions
-Work on the issue described above. Your output will be posted as a comment on the issue.${diffInstruction}
+Work on the issue described above. Your entire stdout will be captured and posted as a comment on the issue.${diffInstruction}
 
 To trigger another agent after you're done, include @agent-name in your output.
 For example: "@captain I've completed the work, please review."
 
-Do your best work. Your entire stdout will be captured and posted as a comment.`);
+Do your best work.`);
 
   return parts.join("\n\n");
 }

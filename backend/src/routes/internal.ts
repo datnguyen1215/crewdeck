@@ -6,6 +6,7 @@ import { createIssue, getIssue, updateIssue } from "../db/repositories/issues.js
 import { NotFoundError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
 
+// Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
 
 const CommentSchema = z.object({

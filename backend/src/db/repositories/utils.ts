@@ -1,14 +1,12 @@
 import { db } from "../index.js";
 
-type Table = "Agent" | "IssueAgent" | "IssuePR" | "Issue" | "Project" | "Session";
+type Table = "Agent" | "IssuePR" | "Issue" | "Project";
 
 const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
-  Agent: new Set(["name", "title", "description", "system_prompt", "is_captain", "status"]),
-  IssueAgent: new Set(["status", "review_order", "review_round", "session_id"]),
+  Agent: new Set(["name", "title", "description", "system_prompt"]),
   IssuePR: new Set(["status", "pr_url"]),
-  Issue: new Set(["title", "description", "status", "priority", "assigned_agent_id", "max_review_rounds", "current_review_round", "branch_name", "worktree_path", "base_branch", "repo_id"]),
-  Project: new Set(["name", "description", "max_concurrency", "max_review_rounds", "orchestrator_session_id", "github_account_id"]),
-  Session: new Set(["session_type", "agent_id", "issue_id", "tmux_session_name", "tmux_pane_id", "claude_session_id", "status", "context"]),
+  Issue: new Set(["title", "description", "status", "priority", "chain_depth", "branch_name", "worktree_path", "base_branch", "repo_id"]),
+  Project: new Set(["name", "description", "max_concurrency", "github_account_id"]),
 };
 
 /**

@@ -21,6 +21,7 @@ export interface EventMap {
     project_id: string;
   };
   "pr.created": { issue_pr: IssuePR; project_id: string };
+  // pr.status_changed: reserved for future PR webhook integration — not currently emitted
   "pr.status_changed": {
     pr_id: string;
     project_id: string;

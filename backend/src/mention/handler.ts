@@ -70,6 +70,7 @@ const postSystemComment = (issueId: string, projectId: string, content: string):
 
 /**
  * Get the first repo for a project.
+ * Direct query to avoid circular dependency with repos repository.
  * @param {string} projectId - Project to look up
  * @returns {object|undefined} Repo row or undefined
  */
@@ -130,7 +131,7 @@ const spawnAgent = async (
       projectId,
       `Chain depth limit reached (${MAX_CHAIN_DEPTH}). No more agents can be spawned on this issue. Use the "Reset chain depth" button to continue.`,
     );
-    events.eventBus.emit("mention.chain_depth_reached" as any, {
+    events.eventBus.emit("mention.chain_depth_reached", {
       issue_id: issueId,
       project_id: projectId,
     });
@@ -147,7 +148,8 @@ const spawnAgent = async (
     return;
   }
 
-  issueRepo.updateIssue(issueId, { chain_depth: issue.chain_depth + 1 });
+  // Atomic increment to avoid race conditions when multiple mentions fire concurrently
+  database.db.prepare("UPDATE Issue SET chain_depth = chain_depth + 1 WHERE id = ?").run(issueId);
 
   // Regress status to in_progress when work restarts
   if (
@@ -192,6 +194,7 @@ const spawnAgent = async (
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: agent.id,
+    CREWDECK_ISSUE_ID: issueId,
   };
 
   const result = await agentProcess.spawnClaude({
@@ -222,7 +225,7 @@ const spawnAgent = async (
   };
   activeProcesses.set(result.pid, entry);
 
-  events.eventBus.emit("mention.spawned" as any, {
+  events.eventBus.emit("mention.spawned", {
     project_id: projectId,
     issue_id: issueId,
     agent_id: agent.id,
@@ -281,7 +284,7 @@ const spawnAgent = async (
       );
     }
 
-    events.eventBus.emit("mention.completed" as any, {
+    events.eventBus.emit("mention.completed", {
       project_id: projectId,
       issue_id: issueId,
       agent_id: agent.id,
@@ -315,6 +318,12 @@ export const initMentionHandler = (): void => {
             { err, agent: agent.name, issueId: comment.issue_id },
             "Failed to spawn agent",
           );
+          events.eventBus.emit("mention.error", {
+            project_id,
+            issue_id: comment.issue_id,
+            agent_id: agent.id,
+            message: err instanceof Error ? err.message : "unknown error",
+          });
           postSystemComment(
             comment.issue_id,
             project_id,
