@@ -139,15 +139,14 @@
 
 	// --- Review & Launch ---
 
-	let nonCaptainAgents = $derived(agents.filter((a) => !a.is_captain));
+	let nonCaptainAgents = $derived(agents);
 
 	function goToProject() {
 		if (createdProject) goto(`/projects/${createdProject.id}`);
 	}
 
-	function launchOrchestrator() {
-		// Forward-only wizard — revisiting steps is done from the project dashboard
-		if (createdProject) goto(`/projects/${createdProject.id}/captain`);
+	function goToProjectDashboard() {
+		if (createdProject) goto(`/projects/${createdProject.id}`);
 	}
 </script>
 
@@ -292,11 +291,7 @@
 						<div class="space-y-1.5">
 							{#each agents as agent (agent.id)}
 								<div class="flex items-center gap-2 text-xs">
-									{#if agent.is_captain}
-										<span class="text-amber font-bold">C</span>
-									{:else}
-										<span class="text-cyan">&#10003;</span>
-									{/if}
+									<span class="text-cyan">&#10003;</span>
 									<span class="text-primary">{agent.name}</span>
 									<span class="text-muted">- {agent.title}</span>
 								</div>
@@ -415,7 +410,7 @@
 					</div>
 					<div class="flex justify-between text-sm">
 						<span class="text-muted">Agents</span>
-						<span class="text-primary">{agents.length} ({nonCaptainAgents.length} crew + {agents.length - nonCaptainAgents.length} captain)</span>
+						<span class="text-primary">{agents.length}</span>
 					</div>
 					<div class="flex justify-between text-sm">
 						<span class="text-muted">Env Variables</span>
@@ -426,11 +421,11 @@
 				<!-- Actions -->
 				<div class="space-y-3">
 					<button
-						onclick={launchOrchestrator}
+						onclick={goToProjectDashboard}
 						class="w-full px-4 py-2.5 bg-cyan/10 border border-cyan text-cyan rounded text-sm hover:bg-cyan/20 transition-colors uppercase tracking-wide"
 						style="box-shadow: var(--glow-cyan)"
 					>
-						Start Orchestrator
+						Go to Dashboard
 					</button>
 
 					<button

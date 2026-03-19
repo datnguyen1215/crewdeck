@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listActivity, listIssues, getCrew, type ActivityLog, type Issue, type Agent } from '$lib/api/http.js';
+	import { listActivity, listIssues, listAgents, type ActivityLog, type Issue, type Agent } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { ACTOR_CFG, ACTION_DISPLAY } from '$lib/activity.js';
@@ -51,8 +51,8 @@
 
 	$effect(() => {
 		let cancelled = false;
-		getCrew(projectId)
-			.then((crew) => { if (!cancelled) agents = crew.agents; })
+		listAgents(projectId)
+			.then((a) => { if (!cancelled) agents = a; })
 			.catch(() => {});
 		return () => { cancelled = true; };
 	});
@@ -85,7 +85,7 @@
 	// Unique action types present in this project's data, for the filter dropdown.
 	let actionTypes = $derived([...new Set(allEntries.map((e) => e.action))].sort());
 	let issueMap = $derived(Object.fromEntries(issues.map((i) => [i.id, i.title])));
-	let captainName = $derived(agents.find((a) => a.is_captain)?.name ?? 'Captain');
+	let captainName = $derived('Captain');
 
 
 	function toggleActor(actor: string) {

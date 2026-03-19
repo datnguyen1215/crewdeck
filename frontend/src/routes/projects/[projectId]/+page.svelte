@@ -27,7 +27,6 @@
 	let showModal = $state(false);
 	let newTitle = $state('');
 	let newDescription = $state('');
-	let newMaxRounds = $state('');
 	let submitting = $state(false);
 
 	$effect(() => {
@@ -61,10 +60,7 @@
 			ws.on('issue.created', reload),
 			ws.on('issue.updated', reload),
 			ws.on('issue.status_changed', reload),
-			ws.on('issue.approved', reload),
-			ws.on('issue.assigned', reload),
-			ws.on('agent.status_changed', reload),
-			ws.on('agent.finished', reload),
+			ws.on('mention.completed', reload),
 		];
 		return () => unsubs.forEach(fn => fn());
 	});
@@ -76,11 +72,6 @@
 		let result = [...issues];
 		if (filterStatuses.length > 0) {
 			result = result.filter((i) => filterStatuses.includes(i.status));
-		}
-		if (filterAgent === '__unassigned__') {
-			result = result.filter((i) => !i.assigned_agent_id);
-		} else if (filterAgent) {
-			result = result.filter((i) => i.assigned_agent_id === filterAgent);
 		}
 		result.sort((a, b) => {
 			const av = sortField === 'priority' ? (a.priority ?? -1) : a[sortField];
@@ -121,7 +112,6 @@
 	function resetForm() {
 		newTitle = '';
 		newDescription = '';
-		newMaxRounds = '';
 	}
 
 	function closeModal() {
@@ -142,8 +132,7 @@
 		try {
 			const issue = await createIssue(projectId, {
 				title: newTitle.trim(),
-				description: newDescription.trim(),
-				max_review_rounds: newMaxRounds ? parseInt(newMaxRounds) : undefined
+				description: newDescription.trim()
 			});
 			issues = [...issues, issue];
 			showModal = false;
@@ -319,7 +308,7 @@
 							<div
 								class="px-3 py-3 text-center self-center text-sm font-mono {priorityColor(issue.priority)}"
 							>
-								{!issue.priority || issue.status === 'draft' ? '—' : issue.priority}
+								{issue.priority || '—'}
 							</div>
 
 							<!-- Title -->
@@ -335,7 +324,7 @@
 							<!-- Status badge -->
 							<div class="px-3 py-3 self-center">
 								<span
-									class="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded border {cfg.text} {cfg.border} {cfg.dashed ? 'border-dashed' : ''} {cfg.pulse ? 'badge-pulse' : ''}"
+									class="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded border {cfg.text} {cfg.border} {cfg.pulse ? 'badge-pulse' : ''}"
 									style={cfg.glow ? `box-shadow: ${cfg.glow}` : ''}
 								>
 									<span class="leading-none">{cfg.dot}</span>
@@ -345,11 +334,7 @@
 
 							<!-- Agent -->
 							<div class="px-3 py-3 self-center">
-								<span
-									class="text-sm {issue.assigned_agent_id ? 'text-secondary' : 'text-muted'} truncate block"
-								>
-									{agentMap[issue.assigned_agent_id ?? ''] ?? '—'}
-								</span>
+								<span class="text-sm text-muted truncate block">—</span>
 							</div>
 
 							<!-- Repo -->
@@ -419,20 +404,9 @@
 			></textarea>
 		</div>
 
-		<div>
-			<label for="issue-rounds" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-				Max Review Rounds
-			</label>
-			<input
-				id="issue-rounds"
-				bind:value={newMaxRounds}
-				type="number"
-				min="1"
-				max="10"
-				placeholder="Uses project default: 3"
-				class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors"
-			/>
-		</div>
+		{#if formError}
+			<p class="text-red text-xs">{formError}</p>
+		{/if}
 
 		<div class="flex gap-3 pt-1">
 			<button

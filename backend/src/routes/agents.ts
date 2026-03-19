@@ -5,13 +5,11 @@ import {
   createAgent,
   updateAgent,
   deleteAgent,
-  hasActiveIssues,
 } from "../db/repositories/agents.js";
-import { getCrew } from "../db/repositories/crews.js";
 import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
 import { eventBus } from "../events/bus.js";
-import { NotFoundError, ConflictError } from "../middleware/errors.js";
+import { NotFoundError } from "../middleware/errors.js";
 import {
   CreateAgentSchema,
   UpdateAgentSchema,
@@ -25,9 +23,7 @@ const router = Router({ mergeParams: true });
 router.get("/", (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
-  const crew = getCrew(projectId);
-  if (!crew) throw new NotFoundError("Crew not found");
-  res.json(listAgents(crew.id));
+  res.json(listAgents(projectId));
 });
 
 router.post(
@@ -37,7 +33,6 @@ router.post(
     try {
       const { projectId } = req.params;
       if (!getProject(projectId)) throw new NotFoundError("Project not found");
-      if (!getCrew(projectId)) throw new NotFoundError("Crew not found");
 
       const { prompt } = req.body as { prompt: string };
       const systemPrompt = `You are a helper that generates AI agent configurations. Given a short description, generate a JSON object with these four fields:
@@ -53,7 +48,6 @@ Respond with ONLY a valid JSON object. No markdown, no explanation.`;
       const output = await callClaude(fullPrompt);
       req.log.info("agent configuration generated");
 
-      // Extract JSON from possible markdown code blocks
       const trimmed = output.trim();
       const codeBlock = trimmed.match(/```(?:json)?\s*([\s\S]+?)```/);
       const jsonStr = codeBlock ? codeBlock[1].trim() : trimmed;
@@ -77,9 +71,7 @@ router.post(
   (req: Request<{ projectId: string }>, res) => {
     const { projectId } = req.params;
     if (!getProject(projectId)) throw new NotFoundError("Project not found");
-    const crew = getCrew(projectId);
-    if (!crew) throw new NotFoundError("Crew not found");
-    const agent = createAgent(crew.id, req.body);
+    const agent = createAgent(projectId, req.body);
     eventBus.emit("agent.created", {
       agent_id: agent.id,
       name: agent.name,
@@ -98,9 +90,6 @@ router.patch("/:agentId", validate(UpdateAgentSchema), (req, res) => {
 router.delete("/:agentId", (req, res) => {
   const agent = getAgent(req.params.agentId);
   if (!agent) throw new NotFoundError("Agent not found");
-  if (hasActiveIssues(req.params.agentId)) {
-    throw new ConflictError("Agent has active issues and cannot be deleted");
-  }
   deleteAgent(req.params.agentId);
   res.status(204).send();
 });

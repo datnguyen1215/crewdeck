@@ -1,115 +1,18 @@
-// These routes are intentionally unauthenticated. The server only runs on the
-// local machine, so there is no untrusted network traffic. Add auth (shared
-// secret or network isolation) if the deployment model ever changes.
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
-import {
-  createIssue,
-  getIssue,
-  updateIssue,
-} from "../db/repositories/issues.js";
-import { getAgent, updateAgent } from "../db/repositories/agents.js";
-import { getCrewWithAgents } from "../db/repositories/crews.js";
-import { getProject } from "../db/repositories/projects.js";
-import {
-  getSession,
-  listSessions,
-  updateSession,
-} from "../db/repositories/sessions.js";
+import { createIssue, getIssue, updateIssue } from "../db/repositories/issues.js";
 import { NotFoundError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
-import {
-  createCaptainHistory,
-  listCaptainHistory,
-} from "../db/repositories/captain-history.js";
 
 const router = Router();
-
-const SignalSchema = z
-  .object({
-    session_id: z.string(),
-    agent_id: z.string(),
-    issue_id: z.string(),
-    project_id: z.string(),
-    event: z.enum(["work-complete", "review-complete", "error", "needs-help"]),
-    data: z
-      .object({
-        verdict: z.string().optional(),
-        message: z.string().optional(),
-      })
-      .optional(),
-  })
-  .refine((d) => d.event !== "review-complete" || !!d.data?.verdict, {
-    message: "verdict is required for review-complete signals",
-    path: ["data", "verdict"],
-  });
 
 const CommentSchema = z.object({
   issue_id: z.string(),
   project_id: z.string(),
   agent_id: z.string().optional(),
   content: z.string().min(1),
-});
-
-const StatusSchema = z.object({
-  agent_id: z.string(),
-  issue_id: z.string().optional(),
-  project_id: z.string(),
-  state: z.enum(["active", "idle", "done", "error"]),
-});
-
-const FilesSchema = z.object({
-  session_id: z.string(),
-  modified: z.array(z.string().max(500)).min(1).max(500),
-});
-
-// POST /signal — receive agent completion signals
-router.post("/signal", validate(SignalSchema), (req, res) => {
-  const { session_id, agent_id, issue_id, project_id, event, data } = req.body;
-
-  if (!getAgent(agent_id)) throw new NotFoundError("Agent not found");
-
-  const session = getSession(session_id);
-  if (session?.status !== "running") return res.json({ ok: true });
-
-  if (event === "work-complete") {
-    eventBus.emit("agent.finished", {
-      session_id,
-      agent_id,
-      issue_id,
-      project_id,
-      role: "worker",
-    });
-  } else if (event === "review-complete") {
-    // verdict is guaranteed present by SignalSchema .refine()
-    eventBus.emit("review.completed", {
-      session_id,
-      issue_id,
-      agent_id,
-      project_id,
-      verdict: data!.verdict!,
-    });
-  } else if (event === "error") {
-    eventBus.emit("agent.error", {
-      session_id,
-      agent_id,
-      issue_id,
-      project_id,
-      message: data?.message,
-    });
-  } else if (event === "needs-help") {
-    eventBus.emit("agent.needs_help", {
-      session_id,
-      agent_id,
-      issue_id,
-      project_id,
-      message: data?.message,
-    });
-  }
-
-  res.json({ ok: true });
 });
 
 // POST /comment — agent posts a comment on an issue
@@ -130,137 +33,7 @@ router.post("/comment", validate(CommentSchema), (req, res) => {
   res.status(201).json(comment);
 });
 
-// POST /status — agent updates its self-reported status (persisted to Agent.status)
-router.post("/status", validate(StatusSchema), (req, res) => {
-  const { agent_id, issue_id, project_id, state } = req.body;
-
-  const agent = getAgent(agent_id);
-  if (!agent) throw new NotFoundError("Agent not found");
-
-  // Map done/error → idle for the persisted agent status
-  const persistedStatus = state === "done" || state === "error" ? "idle" : state;
-  updateAgent(agent_id, { status: persistedStatus });
-
-  eventBus.emit("agent.status_changed", {
-    agent_id,
-    issue_id,
-    project_id,
-    state,
-  });
-
-  res.json({ ok: true });
-});
-
-// POST /files — agent reports which files were modified during the session
-// File paths are stored as metadata only — never used for filesystem access
-router.post("/files", validate(FilesSchema), (req, res) => {
-  const { session_id, modified } = req.body;
-
-  const session = getSession(session_id);
-  if (!session) throw new NotFoundError("Session not found");
-
-  const ctx = session.context;
-  // Guard needed because session.context is typed as unknown in the DB layer
-  const existing =
-    typeof ctx === "object" && ctx !== null && !Array.isArray(ctx)
-      ? (ctx as Record<string, unknown>)
-      : {};
-  updateSession(session_id, {
-    context: { ...existing, modified_files: modified },
-  });
-
-  res.json({ ok: true });
-});
-
-// POST /assign — captain requests agent assignment
-const AssignSchema = z.object({
-  project_id: z.string(),
-  issue_id: z.string(),
-  agent_id: z.string(),
-});
-
-router.post("/assign", validate(AssignSchema), (req, res) => {
-  const { project_id, issue_id, agent_id } = req.body;
-  eventBus.emit("captain.assign", { project_id, issue_id, agent_id });
-  res.json({ ok: true });
-});
-
-// POST /route-review — captain requests review routing
-const RouteReviewSchema = z.object({
-  project_id: z.string(),
-  issue_id: z.string(),
-  reviewer_agent_id: z.string(),
-});
-
-router.post("/route-review", validate(RouteReviewSchema), (req, res) => {
-  const { project_id, issue_id, reviewer_agent_id } = req.body;
-
-  // Validate upfront so we can return proper errors to CLI
-  const issue = getIssue(issue_id);
-  if (!issue) {
-    res.status(404).json({ ok: false, error: "Issue not found" });
-    return;
-  }
-  if (issue.project_id !== project_id) {
-    res.status(400).json({ ok: false, error: "Issue does not belong to project" });
-    return;
-  }
-  if (!["in_progress", "feedback", "in_review"].includes(issue.status)) {
-    res.status(400).json({ ok: false, error: `Issue is not in a reviewable state (current: ${issue.status})` });
-    return;
-  }
-
-  const reviewer = getAgent(reviewer_agent_id);
-  if (!reviewer) {
-    res.status(404).json({ ok: false, error: "Reviewer agent not found" });
-    return;
-  }
-
-  const project = getProject(project_id);
-  if (!project) {
-    res.status(404).json({ ok: false, error: "Project not found" });
-    return;
-  }
-
-  const crew = getCrewWithAgents(project_id);
-  if (!crew) {
-    res.status(404).json({ ok: false, error: "Crew not found for project" });
-    return;
-  }
-  if (reviewer.crew_id !== crew.id) {
-    res.status(400).json({ ok: false, error: "Reviewer does not belong to project crew" });
-    return;
-  }
-
-  eventBus.emit("captain.route_review", { project_id, issue_id, reviewer_agent_id });
-  res.json({ ok: true });
-});
-
-// POST /history — save captain decision history
-const HistorySaveSchema = z.object({
-  project_id: z.string(),
-  agent_id: z.string().optional(),
-  summary: z.string().min(1),
-});
-
-router.post("/history", validate(HistorySaveSchema), (req, res) => {
-  const { project_id, agent_id, summary } = req.body;
-  const entry = createCaptainHistory(project_id, { agent_id, summary });
-  res.status(201).json(entry);
-});
-
-// GET /history — list captain decision history
-router.get("/history", (req, res) => {
-  const project_id = req.query.project_id as string;
-  if (!project_id) {
-    res.status(400).json({ message: "project_id query param required" });
-    return;
-  }
-  const entries = listCaptainHistory(project_id);
-  res.json(entries);
-});
-
-// POST /issues/create — captain creates a new issue
+// POST /issues/create — agent creates a new issue
 const CreateIssueSchema = z.object({
   project_id: z.string(),
   title: z.string().min(1),
@@ -274,45 +47,13 @@ router.post("/issues/create", validate(CreateIssueSchema), (req, res) => {
     title,
     description,
     priority,
-    created_by: "orchestrator",
+    created_by: "agent",
   });
   eventBus.emit("issue.created", { issue });
   res.status(201).json(issue);
 });
 
-// POST /sessions/start — captain spawns an agent session for a specific issue
-const SessionStartSchema = z.object({
-  project_id: z.string(),
-  agent_id: z.string(),
-  issue_id: z.string(),
-});
-
-router.post("/sessions/start", validate(SessionStartSchema), (req, res) => {
-  const { project_id, agent_id, issue_id } = req.body;
-  eventBus.emit("captain.session_start", { project_id, agent_id, issue_id });
-  res.json({ ok: true });
-});
-
-// POST /sessions/stop — captain stops a stuck agent session
-const SessionStopSchema = z.object({
-  project_id: z.string(),
-  session_id: z.string(),
-});
-
-router.post("/sessions/stop", validate(SessionStopSchema), (req, res) => {
-  const { project_id, session_id } = req.body;
-
-  const session = getSession(session_id);
-  if (!session) throw new NotFoundError("Session not found");
-  if (session.project_id !== project_id)
-    throw new NotFoundError("Session not found");
-
-  eventBus.emit("session.stop_requested", { session_id, project_id });
-
-  res.json({ ok: true });
-});
-
-// POST /issues/update — captain updates issue fields (e.g. priority)
+// POST /issues/update — update issue fields
 const IssueUpdateSchema = z.object({
   project_id: z.string(),
   issue_id: z.string(),
@@ -333,58 +74,6 @@ router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
     changes: { priority },
   });
   res.json(updated);
-});
-
-// POST /issues/close — captain closes/cancels an issue
-const CloseIssueSchema = z.object({
-  project_id: z.string(),
-  issue_id: z.string(),
-});
-
-router.post("/issues/close", validate(CloseIssueSchema), (req, res) => {
-  const { project_id, issue_id } = req.body;
-
-  const issue = getIssue(issue_id);
-  if (!issue || issue.project_id !== project_id)
-    throw new NotFoundError("Issue not found");
-
-  const from = issue.status;
-  if (from === "done") {
-    res.json(issue);
-    return;
-  }
-
-  const updated = updateIssue(issue_id, { status: "done" });
-  eventBus.emit("issue.status_changed", {
-    issue_id,
-    project_id,
-    from,
-    to: "done",
-  });
-
-  // Mark any running sessions as completed so downstream handlers ignore them
-  const runningSessions = listSessions(project_id, {
-    issue_id,
-    status: "running",
-  });
-  for (const session of runningSessions) {
-    updateSession(session.id, { status: "completed" });
-  }
-
-  res.json(updated);
-});
-
-// POST /create-pr — captain requests PR creation for an approved issue
-// Fire-and-forget: PR creation runs async; success/failure posted as issue comments
-const CreatePRSchema = z.object({
-  project_id: z.string(),
-  issue_id: z.string(),
-});
-
-router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
-  const { project_id, issue_id } = req.body;
-  eventBus.emit("captain.create_pr", { project_id, issue_id });
-  res.json({ ok: true });
 });
 
 export default router;
