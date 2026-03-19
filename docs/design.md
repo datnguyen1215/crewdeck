@@ -113,7 +113,7 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 | **In Progress** | An agent is actively working on the issue in a tmux session. |
 | **In Review** | Work is complete. Reviewers are examining the code. |
 | **Feedback** | Reviewers have posted feedback. Original agent needs to address it. |
-| **Ready** | All reviewers have approved. Captain will automatically create the PR. |
+| **Ready** | Captain has decided the issue is ready for a PR. Captain calls `crewdeck create-pr` to create it. |
 | **PR Created** | Pull request has been created on GitHub. |
 | **Done** | PR merged or issue otherwise resolved. |
 
@@ -125,7 +125,8 @@ Draft → Open → In Progress → In Review ⟲ → Ready → PR Created → Do
 4. If changes are requested, the issue moves to Feedback, and the original agent addresses the feedback.
 5. Steps 2-4 repeat for each reviewer (e.g., code quality reviewer, then security reviewer).
 6. This loop continues until all reviewers approve or the configurable max rounds are reached.
-7. If max rounds are reached, the issue escalates to the human for a decision.
+7. When all reviewers approve, the issue remains in `in_review`. The captain decides when to transition it to `ready` and create the PR.
+8. If max rounds are reached, the issue escalates to the human for a decision.
 
 ## Technology Decisions
 
