@@ -59,7 +59,6 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 | `CORS_ORIGIN`          | `http://localhost:9380` | Allowed CORS origin (frontend)              |
 | `DB_PATH`              | `/app/data/crewdeck.db` | SQLite database location                    |
 | `CREWDECK_REPOS_DIR`   | `/app/data/repos`       | Where repos are cloned                      |
-| `CREWDECK_CLI_DIR`     | `../cli`                | Path to the CLI package (used to put `crewdeck` on agents' PATH) |
 | `GITHUB_CLIENT_ID`     | *(your OAuth App)*      | GitHub OAuth App client ID (Device Flow)    |
 | `GITHUB_CLIENT_SECRET` | *(your OAuth App)*      | GitHub OAuth App client secret (token revocation) |
 
