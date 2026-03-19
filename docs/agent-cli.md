@@ -319,13 +319,13 @@ crewdeck route-review <issue_id> <agent_id>
 crewdeck route-review issue_abc123 agent_reviewer01
 ```
 
-**Backend behavior:** Spawns a new tmux session for the reviewer agent, providing the issue context and any previous work output.
+**Backend behavior:** Validates the request upfront — the issue must exist and be in `in_progress`, `feedback`, or `in_review` status, and the reviewer agent must belong to the project crew. Returns an error and exits with code 1 if validation fails. On success, spawns a new tmux session for the reviewer agent, providing the issue context and any previous work output.
 
 **Environment:** Requires `CREWDECK_API_URL` and `CREWDECK_PROJECT_ID`.
 
 ### create-pr
 
-Push the issue branch and create a GitHub pull request. Captain-only command, called after all reviewers approve an issue.
+Push the issue branch and create a GitHub pull request. Captain-only command, called when the captain decides reviews are complete and sets the issue to Ready.
 
 ```
 crewdeck create-pr <issue_id>
