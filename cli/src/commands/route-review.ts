@@ -23,6 +23,12 @@ export async function routeReviewCommand(argv: string[]): Promise<void> {
   }
 
   const { api_url, project_id } = getCaptainEnv();
-  await post("/internal/route-review", { project_id, issue_id: issueId, reviewer_agent_id: agentId }, api_url);
-  console.log(`Routed review for issue ${issueId} to agent ${agentId}.`);
+  try {
+    await post("/internal/route-review", { project_id, issue_id: issueId, reviewer_agent_id: agentId }, api_url);
+    console.log(`Routed review for issue ${issueId} to agent ${agentId}.`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`Error: Failed to route review - ${msg}`);
+    process.exit(1);
+  }
 }

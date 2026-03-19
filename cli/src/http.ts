@@ -50,9 +50,11 @@ export async function post(path: string, body: Record<string, unknown>, apiUrl: 
     });
 
     if (!res.ok) {
-      const message = (data != null && typeof data === "object" && "message" in data && typeof data.message === "string")
-        ? data.message
-        : `HTTP ${res.status}`;
+      let message = `HTTP ${res.status}`;
+      if (data != null && typeof data === "object") {
+        if ("error" in data && typeof data.error === "string") message = data.error;
+        else if ("message" in data && typeof data.message === "string") message = data.message;
+      }
       throw new Error(message);
     }
 
