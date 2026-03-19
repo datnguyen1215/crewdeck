@@ -267,7 +267,11 @@
 	// --- Global keyboard ---
 
 	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && terminalAgentId) terminalAgentId = null;
+		if (e.key === 'Escape') {
+			if (terminalAgentId) terminalAgentId = null;
+			else if (deleteTarget) deleteTarget = null;
+			else closeModal();
+		}
 	}
 </script>
 
@@ -443,8 +447,8 @@
 </div>
 
 <!-- Create / Edit Modal -->
-<Modal open={showModal} onClose={closeModal} label={editTarget ? 'Edit Agent' : 'Add Agent'}>
-	<div class="max-h-[90vh] overflow-y-auto">
+<Modal open={showModal} onClose={closeModal} label={editTarget ? 'Edit Agent' : 'Add Agent'} escapeClose={false} cardClass="max-h-[90vh] overflow-y-auto">
+	<div>
 		<div class="flex items-center justify-between mb-5">
 			<h2 class="text-primary font-bold uppercase tracking-wide text-sm">
 				{editTarget ? 'Edit Agent' : 'Add Agent'}
@@ -610,7 +614,7 @@
 </Modal>
 
 <!-- Delete Confirmation Dialog -->
-<Modal open={!!deleteTarget} onClose={() => deleteTarget = null} label="Delete Agent" maxWidth="max-w-sm">
+<Modal open={!!deleteTarget} onClose={() => deleteTarget = null} label="Delete Agent" maxWidth="max-w-sm" escapeClose={false}>
 	{#if deleteTarget}
 		<h2 class="text-primary font-bold uppercase tracking-wide text-sm mb-4">Delete Agent</h2>
 
