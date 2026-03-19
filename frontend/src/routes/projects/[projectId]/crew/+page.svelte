@@ -5,6 +5,7 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Terminal from '$lib/components/Terminal.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 
 	type CrewData = CrewWithAgents;
 	type AgentData = CrewData['agents'][number];
@@ -446,235 +447,217 @@
 </div>
 
 <!-- Create / Edit Modal -->
-{#if showModal}
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-		onclick={(e) => e.target === e.currentTarget && closeModal()}
-		role="dialog"
-		aria-modal="true"
-		aria-label={editTarget ? 'Edit Agent' : 'Add Agent'}
-	>
-		<div class="bg-surface border border-edge rounded w-full max-w-lg mx-4 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-			<div class="flex items-center justify-between mb-5">
-				<h2 class="text-primary font-bold uppercase tracking-wide text-sm">
-					{editTarget ? 'Edit Agent' : 'Add Agent'}
-				</h2>
-				<button
-					onclick={closeModal}
-					class="text-muted hover:text-primary transition-colors text-xl leading-none"
-					aria-label="Close"
-				>
-					×
-				</button>
-			</div>
-
-			<!-- Generate step (only for create, before fields are generated) -->
-			{#if !editTarget && !generated}
-				<div class="space-y-4">
-					<div>
-						<label for="agent-generate" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-							Describe your agent
-						</label>
-						<textarea
-							id="agent-generate"
-							bind:value={generateInput}
-							rows="3"
-							placeholder="e.g. frontend dev who's good at React and accessibility"
-							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors focus:border-cyan resize-y"
-							onkeydown={(e) => {
-								if (e.key === 'Enter' && !e.shiftKey) {
-									e.preventDefault();
-									handleGenerate();
-								}
-							}}
-						></textarea>
-						<p class="text-muted text-xs mt-1">Claude will generate the agent's name, title, description, and system prompt</p>
-					</div>
-
-					<div class="flex gap-3">
-						<button
-							onclick={handleGenerate}
-							disabled={generating || !generateInput.trim()}
-							class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
-						>
-							{generating ? 'Generating…' : 'Generate'}
-						</button>
-						<button
-							type="button"
-							onclick={() => { generated = true; }}
-							class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors"
-						>
-							Skip
-						</button>
-					</div>
-				</div>
-			{:else}
-				<!-- Editable fields -->
-				<form onsubmit={handleSubmit} class="space-y-4">
-					{#if !editTarget}
-						<button
-							type="button"
-							onclick={() => { generated = false; }}
-							class="text-xs text-muted hover:text-cyan transition-colors mb-2"
-						>
-							← Back to generate
-						</button>
-					{/if}
-
-					<!-- Name -->
-					<div>
-						<label for="agent-name" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-							Name <span class="text-red">*</span>
-						</label>
-						<input
-							id="agent-name"
-							bind:value={fname}
-							placeholder="e.g. Alice"
-							class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors {formErrors.name ? 'border-red' : 'border-edge focus:border-cyan'}"
-						/>
-						{#if formErrors.name}
-							<p class="text-red text-xs mt-1">{formErrors.name}</p>
-						{/if}
-					</div>
-
-					<!-- Title -->
-					<div>
-						<label for="agent-title" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-							Title <span class="text-red">*</span>
-						</label>
-						<input
-							id="agent-title"
-							bind:value={ftitle}
-							placeholder="e.g. Senior Frontend Engineer"
-							class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors {formErrors.title ? 'border-red' : 'border-edge focus:border-cyan'}"
-						/>
-						{#if formErrors.title}
-							<p class="text-red text-xs mt-1">{formErrors.title}</p>
-						{/if}
-					</div>
-
-					<!-- Description -->
-					<div>
-						<label for="agent-description" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-							Description
-						</label>
-						<input
-							id="agent-description"
-							bind:value={fdescription}
-							placeholder="A brief summary of the agent's purpose"
-							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors focus:border-cyan"
-						/>
-					</div>
-
-					<!-- System Prompt -->
-					<div>
-						<label for="agent-prompt" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-							System Prompt <span class="text-red">*</span>
-						</label>
-						<textarea
-							id="agent-prompt"
-							bind:value={fprompt}
-							rows="6"
-							placeholder="You are {fname || 'an AI agent'}…"
-							class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors resize-y {formErrors.prompt ? 'border-red' : 'border-edge focus:border-cyan'}"
-						></textarea>
-						{#if formErrors.prompt}
-							<p class="text-red text-xs mt-1">{formErrors.prompt}</p>
-						{/if}
-					</div>
-
-					<!-- Captain toggle -->
-					<label class="flex items-center gap-3 cursor-pointer group">
-						<input
-							type="checkbox"
-							bind:checked={fisCaptain}
-							class="w-4 h-4 rounded border border-edge bg-base accent-amber cursor-pointer"
-						/>
-						<div>
-							<span class="text-sm text-primary group-hover:text-amber transition-colors">Designate as Captain</span>
-							<p class="text-muted text-xs mt-0.5">The captain coordinates the crew — routes issues, assigns reviewers, and makes decisions</p>
-						</div>
-					</label>
-
-					<!-- Submit -->
-					<div class="flex gap-3 pt-1">
-						<button
-							type="submit"
-							disabled={submitting}
-							class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
-						>
-							{submitting ? (editTarget ? 'Saving…' : 'Adding…') : (editTarget ? 'Save Changes' : 'Add Agent')}
-						</button>
-						<button
-							type="button"
-							onclick={closeModal}
-							disabled={submitting}
-							class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors disabled:opacity-50"
-						>
-							Cancel
-						</button>
-					</div>
-				</form>
-			{/if}
+<Modal open={showModal} onClose={closeModal} label={editTarget ? 'Edit Agent' : 'Add Agent'} escapeClose={false} cardClass="max-h-[90vh] overflow-y-auto">
+	<div>
+		<div class="flex items-center justify-between mb-5">
+			<h2 class="text-primary font-bold uppercase tracking-wide text-sm">
+				{editTarget ? 'Edit Agent' : 'Add Agent'}
+			</h2>
+			<button
+				onclick={closeModal}
+				class="text-muted hover:text-primary transition-colors text-xl leading-none"
+				aria-label="Close"
+			>
+				×
+			</button>
 		</div>
-	</div>
-{/if}
 
-<!-- Delete Confirmation Dialog -->
-{#if deleteTarget}
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-		onclick={(e) => e.target === e.currentTarget && (deleteTarget = null)}
-		role="dialog"
-		aria-modal="true"
-		aria-label="Delete Agent"
-	>
-		<div class="bg-surface border border-edge rounded w-full max-w-sm mx-4 p-6 shadow-2xl">
-			<h2 class="text-primary font-bold uppercase tracking-wide text-sm mb-4">Delete Agent</h2>
-
-			{#if deleteTarget.current_issue}
-				<!-- Blocked: agent is active -->
-				<div class="mb-5">
-					<p class="text-amber text-sm mb-2">
-						Cannot delete <span class="text-primary font-semibold">{deleteTarget.name}</span> while they're assigned to an active issue.
-					</p>
-					<p class="text-muted text-xs">
-						Currently {deleteTarget.status} on: <span class="text-secondary">"{deleteTarget.current_issue.title}"</span>
-					</p>
+		<!-- Generate step (only for create, before fields are generated) -->
+		{#if !editTarget && !generated}
+			<div class="space-y-4">
+				<div>
+					<label for="agent-generate" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+						Describe your agent
+					</label>
+					<textarea
+						id="agent-generate"
+						bind:value={generateInput}
+						rows="3"
+						placeholder="e.g. frontend dev who's good at React and accessibility"
+						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors focus:border-cyan resize-y"
+						onkeydown={(e) => {
+							if (e.key === 'Enter' && !e.shiftKey) {
+								e.preventDefault();
+								handleGenerate();
+							}
+						}}
+					></textarea>
+					<p class="text-muted text-xs mt-1">Claude will generate the agent's name, title, description, and system prompt</p>
 				</div>
-				<button
-					onclick={() => (deleteTarget = null)}
-					class="w-full py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors"
-				>
-					Close
-				</button>
-			{:else}
-				<!-- Confirmation -->
-				<p class="text-secondary text-sm mb-5">
-					Delete agent <span class="text-primary font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
-				</p>
+
 				<div class="flex gap-3">
 					<button
-						onclick={handleDelete}
-						disabled={deleting}
-						class="flex-1 py-2 bg-red/10 border border-red/50 text-red text-sm font-medium rounded hover:bg-red/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
+						onclick={handleGenerate}
+						disabled={generating || !generateInput.trim()}
+						class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
 					>
-						{deleting ? 'Deleting…' : 'Delete'}
+						{generating ? 'Generating…' : 'Generate'}
 					</button>
 					<button
-						onclick={() => (deleteTarget = null)}
-						disabled={deleting}
+						type="button"
+						onclick={() => { generated = true; }}
+						class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors"
+					>
+						Skip
+					</button>
+				</div>
+			</div>
+		{:else}
+			<!-- Editable fields -->
+			<form onsubmit={handleSubmit} class="space-y-4">
+				{#if !editTarget}
+					<button
+						type="button"
+						onclick={() => { generated = false; }}
+						class="text-xs text-muted hover:text-cyan transition-colors mb-2"
+					>
+						← Back to generate
+					</button>
+				{/if}
+
+				<!-- Name -->
+				<div>
+					<label for="agent-name" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+						Name <span class="text-red">*</span>
+					</label>
+					<input
+						id="agent-name"
+						bind:value={fname}
+						placeholder="e.g. Alice"
+						class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors {formErrors.name ? 'border-red' : 'border-edge focus:border-cyan'}"
+					/>
+					{#if formErrors.name}
+						<p class="text-red text-xs mt-1">{formErrors.name}</p>
+					{/if}
+				</div>
+
+				<!-- Title -->
+				<div>
+					<label for="agent-title" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+						Title <span class="text-red">*</span>
+					</label>
+					<input
+						id="agent-title"
+						bind:value={ftitle}
+						placeholder="e.g. Senior Frontend Engineer"
+						class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors {formErrors.title ? 'border-red' : 'border-edge focus:border-cyan'}"
+					/>
+					{#if formErrors.title}
+						<p class="text-red text-xs mt-1">{formErrors.title}</p>
+					{/if}
+				</div>
+
+				<!-- Description -->
+				<div>
+					<label for="agent-description" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+						Description
+					</label>
+					<input
+						id="agent-description"
+						bind:value={fdescription}
+						placeholder="A brief summary of the agent's purpose"
+						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors focus:border-cyan"
+					/>
+				</div>
+
+				<!-- System Prompt -->
+				<div>
+					<label for="agent-prompt" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+						System Prompt <span class="text-red">*</span>
+					</label>
+					<textarea
+						id="agent-prompt"
+						bind:value={fprompt}
+						rows="6"
+						placeholder="You are {fname || 'an AI agent'}…"
+						class="w-full bg-base border rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors resize-y {formErrors.prompt ? 'border-red' : 'border-edge focus:border-cyan'}"
+					></textarea>
+					{#if formErrors.prompt}
+						<p class="text-red text-xs mt-1">{formErrors.prompt}</p>
+					{/if}
+				</div>
+
+				<!-- Captain toggle -->
+				<label class="flex items-center gap-3 cursor-pointer group">
+					<input
+						type="checkbox"
+						bind:checked={fisCaptain}
+						class="w-4 h-4 rounded border border-edge bg-base accent-amber cursor-pointer"
+					/>
+					<div>
+						<span class="text-sm text-primary group-hover:text-amber transition-colors">Designate as Captain</span>
+						<p class="text-muted text-xs mt-0.5">The captain coordinates the crew — routes issues, assigns reviewers, and makes decisions</p>
+					</div>
+				</label>
+
+				<!-- Submit -->
+				<div class="flex gap-3 pt-1">
+					<button
+						type="submit"
+						disabled={submitting}
+						class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
+					>
+						{submitting ? (editTarget ? 'Saving…' : 'Adding…') : (editTarget ? 'Save Changes' : 'Add Agent')}
+					</button>
+					<button
+						type="button"
+						onclick={closeModal}
+						disabled={submitting}
 						class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors disabled:opacity-50"
 					>
 						Cancel
 					</button>
 				</div>
-			{/if}
-		</div>
+			</form>
+		{/if}
 	</div>
-{/if}
+</Modal>
+
+<!-- Delete Confirmation Dialog -->
+<Modal open={!!deleteTarget} onClose={() => deleteTarget = null} label="Delete Agent" maxWidth="max-w-sm" escapeClose={false}>
+	{#if deleteTarget}
+		<h2 class="text-primary font-bold uppercase tracking-wide text-sm mb-4">Delete Agent</h2>
+
+		{#if deleteTarget.current_issue}
+			<!-- Blocked: agent is active -->
+			<div class="mb-5">
+				<p class="text-amber text-sm mb-2">
+					Cannot delete <span class="text-primary font-semibold">{deleteTarget.name}</span> while they're assigned to an active issue.
+				</p>
+				<p class="text-muted text-xs">
+					Currently {deleteTarget.status} on: <span class="text-secondary">"{deleteTarget.current_issue.title}"</span>
+				</p>
+			</div>
+			<button
+				onclick={() => (deleteTarget = null)}
+				class="w-full py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors"
+			>
+				Close
+			</button>
+		{:else}
+			<!-- Confirmation -->
+			<p class="text-secondary text-sm mb-5">
+				Delete agent <span class="text-primary font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
+			</p>
+			<div class="flex gap-3">
+				<button
+					onclick={handleDelete}
+					disabled={deleting}
+					class="flex-1 py-2 bg-red/10 border border-red/50 text-red text-sm font-medium rounded hover:bg-red/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
+				>
+					{deleting ? 'Deleting…' : 'Delete'}
+				</button>
+				<button
+					onclick={() => (deleteTarget = null)}
+					disabled={deleting}
+					class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors disabled:opacity-50"
+				>
+					Cancel
+				</button>
+			</div>
+		{/if}
+	{/if}
+</Modal>
 
 <style>
 	.status-dot.pulse {
