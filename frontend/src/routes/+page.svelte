@@ -3,6 +3,7 @@
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import SetupWizard from '$lib/components/SetupWizard.svelte';
 	import ProjectForm from '$lib/components/ProjectForm.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 
 	let projects = $state<ProjectWithStats[]>([]);
 	let loading = $state(true);
@@ -46,10 +47,6 @@
 		showModal = false;
 	}
 
-	function handleModalKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') closeModal();
-	}
-
 	const ISSUE_STATUSES = [
 		{ key: 'open', label: 'Op', color: 'bg-blue' },
 		{ key: 'in_progress', label: 'IP', color: 'bg-amber' },
@@ -79,8 +76,6 @@
 		return { done, total, label: `${done}/${total} setup` };
 	}
 </script>
-
-<svelte:window onkeydown={handleModalKeydown} />
 
 <div class="p-8 h-full overflow-auto">
 	<!-- Header -->
@@ -253,42 +248,20 @@
 </div>
 
 <!-- New Project Modal -->
-{#if showModal}
-	<!-- Backdrop -->
-	<!-- Decision: clicking backdrop closes modal for standard UX -->
-	<!-- eslint-disable-next-line svelte/valid-compile -->
-	<div
-		class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center p-4"
-		role="dialog"
-		aria-modal="true"
-		aria-label="Create new project"
-	>
-		<!-- Click outside to close -->
+<Modal open={showModal} onClose={closeModal} label="Create new project" maxWidth="max-w-md">
+	<div class="flex items-center justify-between mb-6">
+		<h2 class="text-primary font-bold tracking-wide uppercase text-sm">New Project</h2>
 		<button
-			class="absolute inset-0 w-full h-full cursor-default"
-			aria-label="Close modal"
 			onclick={closeModal}
-		></button>
-
-		<div
-			class="relative z-50 w-full max-w-md bg-surface border border-edge rounded-lg p-6"
-			style="animation: fade-up 0.2s ease both; box-shadow: 0 0 40px rgba(0,0,0,0.6)"
+			class="text-muted hover:text-primary transition-colors text-lg leading-none"
+			aria-label="Close"
 		>
-			<div class="flex items-center justify-between mb-6">
-				<h2 class="text-primary font-bold tracking-wide uppercase text-sm">New Project</h2>
-				<button
-					onclick={closeModal}
-					class="text-muted hover:text-primary transition-colors text-lg leading-none"
-					aria-label="Close"
-				>
-					✕
-				</button>
-			</div>
-
-			<ProjectForm {githubAccounts} onCreated={handleProjectCreated} onCancel={closeModal} />
-		</div>
+			✕
+		</button>
 	</div>
-{/if}
+
+	<ProjectForm {githubAccounts} onCreated={handleProjectCreated} onCancel={closeModal} />
+</Modal>
 
 <style>
 	.project-card {

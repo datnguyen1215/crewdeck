@@ -3,6 +3,7 @@
 	import { getContext } from 'svelte';
 	import { listIssues, listAgents, listRepos, createIssue, type Issue, type Agent, type Repo } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import Modal from '$lib/components/Modal.svelte';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -199,12 +200,7 @@
 		}
 	}
 
-	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') closeModal();
-	}
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 <div class="p-6 h-full overflow-auto">
 	<!-- Header -->
@@ -425,95 +421,83 @@
 </div>
 
 <!-- New Issue Modal -->
-{#if showModal}
-	<!-- Backdrop — click outside to close -->
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-		onclick={(e) => e.target === e.currentTarget && closeModal()}
-		role="dialog"
-		aria-modal="true"
-		aria-label="New Issue"
-	>
-		<div class="bg-surface border border-edge rounded w-full max-w-lg mx-4 p-6 shadow-2xl">
-			<div class="flex items-center justify-between mb-5">
-				<h2 class="text-primary font-bold uppercase tracking-wide text-sm">New Issue</h2>
-				<button
-					onclick={closeModal}
-					class="text-muted hover:text-primary transition-colors text-xl leading-none"
-					aria-label="Close modal"
-				>
-					×
-				</button>
-			</div>
-
-			<form onsubmit={handleCreate} class="space-y-4">
-				<div>
-					<label for="issue-title" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						Title <span class="text-red">*</span>
-					</label>
-					<input
-						id="issue-title"
-						bind:value={newTitle}
-						required
-						placeholder="e.g. Fix authentication bug"
-						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors"
-					/>
-				</div>
-
-				<div>
-					<label
-						for="issue-description"
-						class="block text-xs text-muted uppercase tracking-widest mb-1.5"
-					>
-						Description <span class="text-red">*</span>
-					</label>
-					<textarea
-						id="issue-description"
-						bind:value={newDescription}
-						required
-						rows="4"
-						placeholder="Describe the issue… (Markdown supported)"
-						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors resize-y"
-					></textarea>
-				</div>
-
-				<div>
-					<label for="issue-rounds" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						Max Review Rounds
-					</label>
-					<input
-						id="issue-rounds"
-						bind:value={newMaxRounds}
-						type="number"
-						min="1"
-						max="10"
-						placeholder="Uses project default: 3"
-						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors"
-					/>
-				</div>
-
-				<div class="flex gap-3 pt-1">
-					<button
-						type="submit"
-						disabled={submitting}
-						class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
-					>
-						{submitting ? 'Creating…' : 'Create Issue'}
-					</button>
-					<button
-						type="button"
-						onclick={closeModal}
-						disabled={submitting}
-						class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors disabled:opacity-50"
-					>
-						Cancel
-					</button>
-				</div>
-			</form>
-		</div>
+<Modal open={showModal} onClose={closeModal} label="New Issue">
+	<div class="flex items-center justify-between mb-5">
+		<h2 class="text-primary font-bold uppercase tracking-wide text-sm">New Issue</h2>
+		<button
+			onclick={closeModal}
+			class="text-muted hover:text-primary transition-colors text-xl leading-none"
+			aria-label="Close modal"
+		>
+			×
+		</button>
 	</div>
-{/if}
+
+	<form onsubmit={handleCreate} class="space-y-4">
+		<div>
+			<label for="issue-title" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+				Title <span class="text-red">*</span>
+			</label>
+			<input
+				id="issue-title"
+				bind:value={newTitle}
+				required
+				placeholder="e.g. Fix authentication bug"
+				class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors"
+			/>
+		</div>
+
+		<div>
+			<label
+				for="issue-description"
+				class="block text-xs text-muted uppercase tracking-widest mb-1.5"
+			>
+				Description <span class="text-red">*</span>
+			</label>
+			<textarea
+				id="issue-description"
+				bind:value={newDescription}
+				required
+				rows="4"
+				placeholder="Describe the issue… (Markdown supported)"
+				class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors resize-y"
+			></textarea>
+		</div>
+
+		<div>
+			<label for="issue-rounds" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+				Max Review Rounds
+			</label>
+			<input
+				id="issue-rounds"
+				bind:value={newMaxRounds}
+				type="number"
+				min="1"
+				max="10"
+				placeholder="Uses project default: 3"
+				class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors"
+			/>
+		</div>
+
+		<div class="flex gap-3 pt-1">
+			<button
+				type="submit"
+				disabled={submitting}
+				class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
+			>
+				{submitting ? 'Creating…' : 'Create Issue'}
+			</button>
+			<button
+				type="button"
+				onclick={closeModal}
+				disabled={submitting}
+				class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors disabled:opacity-50"
+			>
+				Cancel
+			</button>
+		</div>
+	</form>
+</Modal>
 
 <style>
 	/* Pulsing glow for in-progress badges */
