@@ -1,12 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { getIssue, updateIssue, listSessions, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
+	import { getIssue, updateIssue, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
-	import Terminal from '$lib/components/Terminal.svelte';
 	import ActivityTimeline from '$lib/components/ActivityTimeline.svelte';
 	import IssueComments from '$lib/components/IssueComments.svelte';
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
@@ -20,59 +19,27 @@
 	let projectId = $derived($page.params.projectId!);
 	let issueId = $derived($page.params.issueId!);
 
-	// Action states
 	let showEditForm = $state(false);
 	let working = $state(false);
-
-	// Edit form
 	let editTitle = $state('');
 	let editDescription = $state('');
 
-	// Tab navigation
-	let activeTab = $state<'description' | 'comments' | 'activity' | 'terminal'>('description');
+	let activeTab = $state<'description' | 'comments' | 'activity'>('description');
 
-	// Activity timeline
 	let activityEntries = $state<ActivityLog[]>([]);
 	let activityLoading = $state(true);
 	let activityExpanded = $state<Set<string>>(new Set());
-
-	// Terminal session state
-	let activeSessionId = $state<string | null>(null);
-	let sessionAgentName = $state('Agent');
-	let sessionStatus = $state<'running' | 'completed' | 'idle'>('idle');
 
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
 		getIssue(projectId, issueId)
-			.then((d) => {
-				if (cancelled) return;
-				issue = d;
-
-				// After setting issue, load active session
-				listSessions(projectId, { issue_id: issueId, status: 'running' })
-					.then((sessions) => {
-						if (cancelled) return;
-						if (sessions.length > 0) {
-							activeSessionId = sessions[0].id;
-							sessionStatus = 'running';
-							// Try to find agent name from issue_agents
-							const agentId = sessions[0].agent_id;
-							const ia = d.issue_agents?.find((a: any) => a.agent_id === agentId);
-							sessionAgentName = ia?.agent?.name ?? 'Agent';
-						} else {
-							activeSessionId = null;
-							sessionStatus = 'idle';
-						}
-					})
-					.catch(() => {});
-			})
+			.then((d) => { if (!cancelled) issue = d; })
 			.catch(() => { if (!cancelled) issue = null; })
 			.finally(() => { if (!cancelled) loading = false; });
 		return () => { cancelled = true; };
 	});
 
-	// Fetch activity for this issue
 	$effect(() => {
 		activityLoading = true;
 		let cancelled = false;
@@ -83,7 +50,6 @@
 		return () => { cancelled = true; };
 	});
 
-	// WebSocket real-time updates
 	$effect(() => {
 		const ws = getWs();
 		if (!ws) return;
@@ -98,36 +64,15 @@
 		const unsubs = [
 			ws.on('issue.updated', reloadIssue),
 			ws.on('issue.status_changed', reloadIssue),
-			ws.on('issue.approved', reloadIssue),
 			ws.on('comment.added', reloadIssue),
 			ws.on('comment.updated', reloadIssue),
 			ws.on('comment.deleted', reloadIssue),
-			ws.on('review.completed', reloadIssue),
 			ws.on('pr.created', reloadIssue),
 			ws.on('pr.status_changed', reloadIssue),
-			ws.on('session.started', (data) => {
-				if (data.issue_id === issueId) {
-					activeSessionId = data.session_id as string;
-					sessionStatus = 'running';
-					const ia = issue?.issue_agents?.find((a: any) => a.agent_id === data.agent_id);
-					sessionAgentName = ia?.agent?.name ?? 'Agent';
-				}
-			}),
-			ws.on('session.ended', (data) => {
-				if (data.session_id === activeSessionId) {
-					sessionStatus = 'completed';
-				}
-			}),
+			ws.on('mention.spawned', reloadActivity),
+			ws.on('mention.completed', (data) => { reloadIssue(); reloadActivity(); }),
 			ws.on('issue.status_changed', reloadActivity),
-			ws.on('issue.assigned', reloadActivity),
 			ws.on('comment.added', reloadActivity),
-			ws.on('session.started', reloadActivity),
-			ws.on('session.ended', reloadActivity),
-			ws.on('orchestrator.decision', reloadActivity),
-			ws.on('review.completed', reloadActivity),
-			ws.on('agent.finished', reloadActivity),
-			ws.on('agent.error', reloadActivity),
-			ws.on('agent.needs_help', reloadActivity),
 			ws.on('pr.created', reloadActivity),
 		];
 		return () => unsubs.forEach(fn => fn());
@@ -160,56 +105,24 @@
 		else next.add(id);
 		activityExpanded = next;
 	}
-
 </script>
 
 {#if loading}
-	<!-- Skeleton issue detail while data loads -->
 	<div class="p-6 max-w-6xl fade-up">
-		<!-- Back link skeleton -->
-		<div class="mb-6">
-			<div class="skeleton h-3 w-24 rounded"></div>
-		</div>
+		<div class="mb-6"><div class="skeleton h-3 w-24 rounded"></div></div>
 		<div class="grid lg:grid-cols-[1fr_288px] gap-5">
-			<!-- Left: content skeleton -->
 			<div class="bg-surface border border-edge rounded overflow-hidden">
-				<!-- Tabs skeleton -->
 				<div class="flex border-b border-edge gap-1 px-1 pt-1">
-					{#each [80, 100, 70] as w}
-						<div class="skeleton h-8 rounded-t" style="width: {w}px"></div>
-					{/each}
+					{#each [80, 100, 70] as w}<div class="skeleton h-8 rounded-t" style="width: {w}px"></div>{/each}
 				</div>
 				<div class="p-6 flex flex-col gap-4">
 					<div class="skeleton h-6 w-3/4 rounded"></div>
-					<div class="flex flex-col gap-2">
-						{#each [100, 90, 95, 70, 85] as pct}
-							<div class="skeleton h-4 rounded" style="width: {pct}%"></div>
-						{/each}
-					</div>
-					<div class="mt-4 flex flex-col gap-2">
-						{#each [60, 80, 55] as pct}
-							<div class="skeleton h-4 rounded" style="width: {pct}%"></div>
-						{/each}
-					</div>
+					{#each [100, 90, 95, 70, 85] as pct}<div class="skeleton h-4 rounded" style="width: {pct}%"></div>{/each}
 				</div>
 			</div>
-			<!-- Right: sidebar skeleton -->
 			<div class="flex flex-col gap-4">
 				<div class="bg-surface border border-edge rounded p-4 flex flex-col gap-3">
-					{#each Array(6) as _}
-						<div class="flex items-center gap-2">
-							<div class="skeleton h-3 w-20 rounded"></div>
-							<div class="skeleton h-4 w-24 rounded"></div>
-						</div>
-					{/each}
-				</div>
-				<div class="bg-surface border border-edge rounded p-4">
-					<div class="skeleton h-3 w-16 rounded mb-3"></div>
-					<div class="flex flex-col gap-2">
-						{#each Array(2) as _}
-							<div class="skeleton h-8 w-full rounded"></div>
-						{/each}
-					</div>
+					{#each Array(6) as _}<div class="flex items-center gap-2"><div class="skeleton h-3 w-20 rounded"></div><div class="skeleton h-4 w-24 rounded"></div></div>{/each}
 				</div>
 			</div>
 		</div>
@@ -221,74 +134,33 @@
 	</div>
 {:else}
 	<div class="p-6 max-w-6xl fade-up">
-		<!-- Back link -->
 		<div class="mb-6">
 			<a href="/projects/{projectId}" class="text-muted text-xs hover:text-secondary transition-colors">&larr; Back to Board</a>
 		</div>
 
-		<!-- Main grid: content + sidebar -->
 		<div class="grid lg:grid-cols-[1fr_288px] gap-5">
-			<!-- Left: tabbed content -->
 			<div class="bg-surface border border-edge rounded overflow-hidden">
-				<!-- Tab nav -->
 				<div class="flex border-b border-edge text-xs">
-					<button
-						onclick={() => activeTab = 'description'}
-						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'description' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
-					>Description</button>
-					<button
-						onclick={() => activeTab = 'comments'}
-						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'comments' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
-					>Comments ({issue.comments.length})</button>
-					<button
-						onclick={() => activeTab = 'activity'}
-						class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'activity' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
-					>Activity ({activityEntries.length})</button>
-					<button
-						onclick={() => activeTab = 'terminal'}
-						class="px-4 py-2.5 border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'terminal' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}"
-					>
-						Terminal
-						{#if sessionStatus === 'running'}
-							<span class="inline-block w-1.5 h-1.5 rounded-full bg-green animate-pulse"></span>
-						{/if}
-					</button>
+					<button onclick={() => activeTab = 'description'} class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'description' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Description</button>
+					<button onclick={() => activeTab = 'comments'} class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'comments' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Comments ({issue.comments.length})</button>
+					<button onclick={() => activeTab = 'activity'} class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'activity' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Activity ({activityEntries.length})</button>
 				</div>
 
-				<!-- Tab content -->
 				<div class="p-6">
 					{#if activeTab === 'description'}
 						{#if showEditForm}
 							<div class="flex flex-col gap-3">
-								<input
-									bind:value={editTitle}
-									class="bg-base border border-edge rounded px-3 py-2 text-primary text-sm w-full focus:border-cyan focus:outline-none"
-									placeholder="Title"
-								/>
-								<textarea
-									bind:value={editDescription}
-									rows={10}
-									class="bg-base border border-edge rounded px-3 py-2 text-secondary text-xs w-full focus:border-cyan focus:outline-none resize-none"
-									placeholder="Description (Markdown supported)"
-								></textarea>
+								<input bind:value={editTitle} class="bg-base border border-edge rounded px-3 py-2 text-primary text-sm w-full focus:border-cyan focus:outline-none" placeholder="Title" />
+								<textarea bind:value={editDescription} rows={10} class="bg-base border border-edge rounded px-3 py-2 text-secondary text-xs w-full focus:border-cyan focus:outline-none resize-none" placeholder="Description (Markdown supported)"></textarea>
 								<div class="flex gap-2">
-									<button
-										onclick={handleEditSave}
-										disabled={working}
-										class="px-3 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors"
-									>Save</button>
-									<button
-										onclick={() => showEditForm = false}
-										class="px-3 py-1.5 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors"
-									>Cancel</button>
+									<button onclick={handleEditSave} disabled={working} class="px-3 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors">Save</button>
+									<button onclick={() => showEditForm = false} class="px-3 py-1.5 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors">Cancel</button>
 								</div>
 							</div>
 						{:else}
 							<h1 class="text-lg font-bold text-primary mb-5">{issue.title}</h1>
 							{#if issue.description}
-								<div class="issue-prose text-secondary text-sm leading-relaxed">
-									{@html md(issue.description)}
-								</div>
+								<div class="issue-prose text-secondary text-sm leading-relaxed">{@html md(issue.description)}</div>
 							{:else}
 								<p class="text-muted text-sm italic">No description.</p>
 							{/if}
@@ -297,7 +169,6 @@
 					{:else if activeTab === 'comments'}
 						<IssueComments
 							comments={issue.comments}
-							issueAgents={issue.issue_agents}
 							{projectId}
 							{issueId}
 							onCommentAdded={(c) => { issue = { ...issue!, comments: [...issue!.comments, c] }; }}
@@ -311,10 +182,7 @@
 								{#each Array(5) as _, i}
 									<div class="flex gap-3 animate-pulse" style="animation-delay: {i * 50}ms">
 										<div class="skeleton w-5 h-5 rounded-full shrink-0"></div>
-										<div class="flex-1">
-											<div class="skeleton h-3 w-24 rounded mb-1"></div>
-											<div class="skeleton h-4 w-3/4 rounded"></div>
-										</div>
+										<div class="flex-1"><div class="skeleton h-3 w-24 rounded mb-1"></div><div class="skeleton h-4 w-3/4 rounded"></div></div>
 									</div>
 								{/each}
 							</div>
@@ -328,30 +196,17 @@
 								compact={true}
 							/>
 						{/if}
-
-					{:else if activeTab === 'terminal'}
-						{#if activeSessionId}
-							<Terminal sessionId={activeSessionId} agentName={sessionAgentName} status={sessionStatus} />
-						{:else}
-							<div class="flex flex-col items-center justify-center py-16 gap-3 text-center">
-								<span class="text-3xl text-muted opacity-40">{'\u2B1B'}</span>
-								<p class="text-muted text-sm">No active session</p>
-								<p class="text-muted text-xs">An agent terminal will appear here once a session starts.</p>
-							</div>
-						{/if}
 					{/if}
 				</div>
 			</div>
 
-			<!-- Right: sidebar -->
 			<IssueSidebar
 				{issue}
 				{projectId}
-				onApprove={() => { issue = { ...issue!, status: 'open' }; }}
+				onStatusChange={() => { getIssue(projectId, issueId).then(d => { issue = d; }).catch(() => {}); }}
 				onEdit={openEdit}
 			/>
 		</div>
-
 	</div>
 {/if}
 

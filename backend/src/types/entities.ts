@@ -19,8 +19,6 @@ export interface Project {
   name: string;
   description: string | null;
   max_concurrency: number;
-  max_review_rounds: number;
-  orchestrator_session_id: string | null;
   github_account_id: string | null;
   created_at: string;
   updated_at: string;
@@ -37,23 +35,13 @@ export interface Repo {
   created_at: string;
 }
 
-export interface Crew {
-  id: string;
-  project_id: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Agent {
   id: string;
-  crew_id: string;
+  project_id: string;
   name: string;
   title: string;
   description: string | null;
   system_prompt: string;
-  is_captain: boolean;
-  status: string;
   created_at: string;
   updated_at: string;
 }
@@ -65,10 +53,8 @@ export interface Issue {
   description: string;
   status: string;
   priority: number;
-  assigned_agent_id: string | null;
   created_by: string;
-  max_review_rounds: number | null;
-  current_review_round: number;
+  chain_depth: number;
   branch_name: string | null;
   worktree_path: string | null;
   base_branch: string | null;
@@ -86,19 +72,6 @@ export interface Comment {
   created_at: string;
 }
 
-export interface IssueAgent {
-  id: string;
-  issue_id: string;
-  agent_id: string;
-  role: string;
-  status: string;
-  review_order: number | null;
-  review_round: number | null;
-  session_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface IssuePR {
   id: string;
   issue_id: string;
@@ -106,21 +79,6 @@ export interface IssuePR {
   pr_number: number;
   pr_url: string;
   status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Session {
-  id: string;
-  project_id: string;
-  session_type: string;
-  agent_id: string | null;
-  issue_id: string | null;
-  tmux_session_name: string | null;
-  tmux_pane_id: string | null;
-  claude_session_id: string | null;
-  status: string;
-  context: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -134,23 +92,6 @@ export interface ActivityLog {
   action: string;
   details: unknown;
   created_at: string;
-}
-
-export interface CaptainMessage {
-  id: string;
-  project_id: string;
-  author_type: string;
-  author_id: string | null;
-  content: string;
-  context: unknown;
-  created_at: string;
-}
-
-export interface CreateCaptainMessageInput {
-  author_type: string;
-  author_id?: string;
-  content: string;
-  context?: unknown;
 }
 
 export interface EnvironmentVariable {
@@ -182,33 +123,13 @@ export interface ProjectWithStats extends Project {
   issues: {
     open: number;
     in_progress: number;
-    in_review: number;
-    ready: number;
+    pr_created: number;
     done: number;
   };
-  orchestrator_status: "none" | "active" | "error" | "idle";
 }
 
-export interface AgentWithStatus extends Agent {
-  current_issue: { id: string; title: string } | null;
-}
-
-export interface CrewWithAgents extends Crew {
-  agents: AgentWithStatus[];
-}
-
-export interface IssueAgentWithName extends IssueAgent {
-  agent: { id: string; name: string } | null;
-}
-
-// TODO: remove legacy agents/prs/activity fields once all consumers use issue_agents/issue_prs/activity_log
 export interface IssueWithDetails extends Issue {
-  assigned_agent: { id: string; name: string } | null;
   comments: Comment[];
-  agents: IssueAgentWithName[];
-  prs: IssuePR[];
-  activity: ActivityLog[];
-  issue_agents: IssueAgentWithName[];
   issue_prs: IssuePR[];
   activity_log: ActivityLog[];
   repo: { id: string; name: string } | null;
@@ -219,7 +140,6 @@ export interface CreateProjectInput {
   name: string;
   description?: string;
   max_concurrency?: number;
-  max_review_rounds?: number;
   github_url?: string;
   default_branch?: string;
   github_account_id?: string;
@@ -229,8 +149,6 @@ export interface UpdateProjectInput {
   name?: string;
   description?: string;
   max_concurrency?: number;
-  max_review_rounds?: number;
-  orchestrator_session_id?: string | null;
   github_account_id?: string | null;
 }
 
@@ -239,16 +157,11 @@ export interface CreateRepoInput {
   default_branch?: string;
 }
 
-export interface UpdateCrewInput {
-  name: string;
-}
-
 export interface CreateAgentInput {
   name: string;
   title: string;
   description?: string;
   system_prompt: string;
-  is_captain?: boolean;
 }
 
 export interface UpdateAgentInput {
@@ -256,15 +169,12 @@ export interface UpdateAgentInput {
   title?: string;
   description?: string;
   system_prompt?: string;
-  is_captain?: boolean;
-  status?: string;
 }
 
 export interface CreateIssueInput {
   title: string;
   description: string;
   status?: string;
-  max_review_rounds?: number;
   priority?: number;
   created_by?: string;
 }
@@ -274,9 +184,7 @@ export interface UpdateIssueInput {
   description?: string;
   status?: string;
   priority?: number;
-  assigned_agent_id?: string | null;
-  max_review_rounds?: number;
-  current_review_round?: number | null;
+  chain_depth?: number;
   branch_name?: string | null;
   worktree_path?: string | null;
   base_branch?: string | null;
@@ -285,7 +193,6 @@ export interface UpdateIssueInput {
 
 export interface IssueFilters {
   status?: string[];
-  assigned_agent_id?: string;
   created_by?: string;
   sort?: "priority" | "created_at" | "updated_at";
   order?: "asc" | "desc";
@@ -295,23 +202,6 @@ export interface CreateCommentInput {
   content: string;
   author_type?: string;
   author_id?: string;
-}
-
-export interface CreateIssueAgentInput {
-  issue_id: string;
-  agent_id: string;
-  role: string;
-  status?: string;
-  review_order?: number;
-  review_round?: number;
-  session_id?: string;
-}
-
-export interface UpdateIssueAgentInput {
-  status?: string;
-  review_order?: number;
-  review_round?: number;
-  session_id?: string | null;
 }
 
 export interface CreateIssuePRInput {
@@ -325,35 +215,6 @@ export interface CreateIssuePRInput {
 export interface UpdateIssuePRInput {
   status?: string;
   pr_url?: string;
-}
-
-export interface CreateSessionInput {
-  project_id: string;
-  session_type: string;
-  agent_id?: string;
-  issue_id?: string;
-  tmux_session_name?: string;
-  tmux_pane_id?: string;
-  claude_session_id?: string;
-  status?: string;
-  context?: unknown;
-}
-
-export interface UpdateSessionInput {
-  session_type?: string;
-  agent_id?: string | null;
-  issue_id?: string | null;
-  tmux_session_name?: string | null;
-  tmux_pane_id?: string | null;
-  claude_session_id?: string | null;
-  status?: string;
-  context?: unknown;
-}
-
-export interface SessionFilters {
-  status?: string;
-  session_type?: string;
-  issue_id?: string;
 }
 
 export interface CreateActivityInput {

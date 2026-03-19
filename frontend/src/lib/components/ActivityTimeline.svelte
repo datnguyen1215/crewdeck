@@ -12,7 +12,6 @@
 		issueMap = {},
 		showRecentGlow = false,
 		compact = false,
-		captainName = undefined,
 		highlightHandoffs = false,
 		filterIssue = ''
 	}: {
@@ -23,20 +22,12 @@
 		issueMap?: Record<string, string>;
 		showRecentGlow?: boolean;
 		compact?: boolean;
-		captainName?: string;
 		highlightHandoffs?: boolean;
 		filterIssue?: string;
 	} = $props();
 
 	function isRecent(dateStr: string): boolean {
 		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
-	}
-
-	function getDisplayName(entry: ActivityLog): string {
-		if (captainName && (entry.actor_type === 'orchestrator' || entry.actor_type === 'captain')) {
-			return captainName;
-		}
-		return actorName(entry);
 	}
 
 	function shortIssueId(id: string): string {
@@ -71,7 +62,7 @@
 				<!-- Event content -->
 				<div class="flex-1 min-w-0 pt-0.5">
 					<div class="flex items-center gap-2 mb-0.5 flex-wrap">
-						<span class="text-xs font-semibold {cfg.color}">{getDisplayName(entry)}</span>
+						<span class="text-xs font-semibold {cfg.color}">{actorName(entry)}</span>
 						<span class="text-muted text-xs font-mono" title={new Date(entry.created_at).toLocaleString()}>
 							{relTime(entry.created_at)}
 						</span>

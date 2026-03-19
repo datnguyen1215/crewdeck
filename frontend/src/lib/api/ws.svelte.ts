@@ -1,19 +1,8 @@
-/**
- * WebSocket client for real-time project events.
- * Connects to /ws?projectId=<id>, auto-reconnects with exponential backoff.
- * Push-only — the server ignores client messages.
- */
-
-/** Returns the WebSocket base URL pointing at the backend.
- *  In dev, connects directly to the backend to avoid Vite proxy issues.
- *  In production, uses the same origin (backend serves both HTTP and WS). */
 function wsBase(): string {
   const backendUrl: string =
     import.meta.env.VITE_BACKEND_URL ||
     (import.meta.env.DEV ? "http://localhost:9381" : "");
-  if (backendUrl) {
-    return backendUrl.replace(/^http/, "ws");
-  }
+  if (backendUrl) return backendUrl.replace(/^http/, "ws");
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${location.host}`;
 }
@@ -21,25 +10,17 @@ function wsBase(): string {
 export type WsEvent =
   | "issue.created"
   | "issue.updated"
-  | "issue.approved"
   | "issue.status_changed"
-  | "issue.assigned"
   | "comment.added"
   | "comment.updated"
   | "comment.deleted"
-  | "session.started"
-  | "session.ended"
-  | "agent.finished"
-  | "agent.status_changed"
-  | "agent.error"
-  | "agent.needs_help"
-  | "review.completed"
   | "pr.created"
   | "pr.status_changed"
-  | "orchestrator.decision"
-  | "orchestrator.draft_issue"
-  | "captain.message"
-  | "agent.created";
+  | "agent.created"
+  | "mention.spawned"
+  | "mention.completed"
+  | "mention.error"
+  | "mention.chain_depth_reached";
 
 export interface WsMessage {
   event: WsEvent;
@@ -49,11 +30,7 @@ export interface WsMessage {
 
 type Handler = (data: Record<string, unknown>) => void;
 
-export type WsState =
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "reconnecting";
+export type WsState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
 const INITIAL_DELAY = 1000;
 const MAX_DELAY = 30000;
@@ -81,58 +58,31 @@ export class ProjectWebSocket {
   disconnect() {
     this.#intentionalClose = true;
     this.#clearReconnect();
-    if (this.#ws) {
-      this.#ws.close();
-      this.#ws = null;
-    }
+    if (this.#ws) { this.#ws.close(); this.#ws = null; }
     this.state = "disconnected";
   }
 
   on(event: WsEvent | "*", handler: Handler) {
     let set = this.#listeners.get(event);
-    if (!set) {
-      set = new Set();
-      this.#listeners.set(event, set);
-    }
+    if (!set) { set = new Set(); this.#listeners.set(event, set); }
     set.add(handler);
-    return () => {
-      this.#listeners.get(event)?.delete(handler);
-    };
+    return () => { this.#listeners.get(event)?.delete(handler); };
   }
 
   #open() {
-    this.state =
-      this.#reconnectDelay > INITIAL_DELAY ? "reconnecting" : "connecting";
-
+    this.state = this.#reconnectDelay > INITIAL_DELAY ? "reconnecting" : "connecting";
     const url = `${wsBase()}/ws?projectId=${encodeURIComponent(this.#projectId)}`;
     const ws = new WebSocket(url);
 
-    ws.onopen = () => {
-      this.state = "connected";
-      this.#reconnectDelay = INITIAL_DELAY;
-    };
-
+    ws.onopen = () => { this.state = "connected"; this.#reconnectDelay = INITIAL_DELAY; };
     ws.onmessage = (e) => {
-      try {
-        const msg: WsMessage = JSON.parse(e.data);
-        this.#dispatch(msg.event, msg.data);
-      } catch {
-        // ignore malformed messages
-      }
+      try { const msg: WsMessage = JSON.parse(e.data); this.#dispatch(msg.event, msg.data); } catch {}
     };
-
     ws.onclose = () => {
       this.#ws = null;
-      if (!this.#intentionalClose) {
-        this.state = "reconnecting";
-        this.#scheduleReconnect();
-      }
+      if (!this.#intentionalClose) { this.state = "reconnecting"; this.#scheduleReconnect(); }
     };
-
-    ws.onerror = () => {
-      // onclose will fire after onerror, which handles reconnection
-    };
-
+    ws.onerror = () => {};
     this.#ws = ws;
   }
 
@@ -150,9 +100,6 @@ export class ProjectWebSocket {
   }
 
   #clearReconnect() {
-    if (this.#reconnectTimer) {
-      clearTimeout(this.#reconnectTimer);
-      this.#reconnectTimer = null;
-    }
+    if (this.#reconnectTimer) { clearTimeout(this.#reconnectTimer); this.#reconnectTimer = null; }
   }
 }

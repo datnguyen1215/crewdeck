@@ -36,8 +36,7 @@
 				...project,
 				repo_count: 1,
 				agent_count: 1,
-				issues: { open: 0, in_progress: 0, in_review: 0, ready: 0, done: 0 },
-				orchestrator_status: 'none'
+				issues: { open: 0, in_progress: 0, pr_created: 0, done: 0 }
 			}
 		];
 		closeModal();
@@ -50,8 +49,7 @@
 	const ISSUE_STATUSES = [
 		{ key: 'open', label: 'Op', color: 'bg-blue' },
 		{ key: 'in_progress', label: 'IP', color: 'bg-amber' },
-		{ key: 'in_review', label: 'IR', color: 'bg-purple' },
-		{ key: 'ready', label: 'Rd', color: 'bg-green' },
+		{ key: 'pr_created', label: 'PR', color: 'bg-purple' },
 		{ key: 'done', label: 'Dn', color: 'bg-secondary' }
 	] as const;
 
@@ -66,9 +64,8 @@
 	/** Setup completeness: count how many key milestones are done. */
 	function setupProgress(project: ProjectWithStats): { done: number; total: number; label: string } {
 		const checks = [
-			project.repo_count > 0,       // has a repo
-			project.agent_count > 1,       // has agents beyond captain
-			project.orchestrator_status === 'active' || project.orchestrator_status === 'idle',
+			project.repo_count > 0,
+			project.agent_count > 0,
 		];
 		const done = checks.filter(Boolean).length;
 		const total = checks.length;
@@ -204,33 +201,13 @@
 						{/if}
 					</div>
 
-					<!-- Orchestrator + concurrency -->
-					<div class="flex items-center justify-between text-xs border-t border-edge pt-3">
-						<div class="flex items-center gap-2">
-							{#if project.orchestrator_status === 'active'}
-								<span class="relative flex h-2 w-2 flex-shrink-0">
-									<span
-										class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"
-									></span>
-									<span class="relative inline-flex h-2 w-2 rounded-full bg-green"></span>
-								</span>
-								<span class="text-green">Orchestrator Active</span>
-							{:else if project.orchestrator_status === 'error'}
-								<span class="h-2 w-2 rounded-full bg-red flex-shrink-0"></span>
-								<span class="text-red">Orchestrator Error</span>
-							{:else if project.orchestrator_status === 'idle'}
-								<span class="h-2 w-2 rounded-full bg-muted flex-shrink-0"></span>
-								<span class="text-muted">Orchestrator Idle</span>
-							{:else}
-								<span class="h-2 w-2 rounded-full bg-edge flex-shrink-0"></span>
-								<span class="text-muted">No Orchestrator</span>
-							{/if}
-						</div>
-						<span class="text-muted">
-							<span class="text-secondary">{project.issues.in_progress}</span>/{project.max_concurrency}
-							<span class="text-muted ml-1">conc</span>
-						</span>
-					</div>
+					<!-- Concurrency -->
+				<div class="flex items-center justify-end text-xs border-t border-edge pt-3">
+					<span class="text-muted">
+						<span class="text-secondary">{project.issues.in_progress}</span>/{project.max_concurrency}
+						<span class="text-muted ml-1">conc</span>
+					</span>
+				</div>
 
 					<!-- Enter project link -->
 					<a

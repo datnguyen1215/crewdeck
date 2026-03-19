@@ -1,12 +1,11 @@
 <script lang="ts">
-	import { addComment, editComment, deleteComment, type Comment, type IssueAgent } from '$lib/api/http.js';
+	import { addComment, editComment, deleteComment, listAgents, type Comment, type Agent } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let {
 		comments,
-		issueAgents,
 		projectId,
 		issueId,
 		onCommentAdded,
@@ -14,7 +13,6 @@
 		onCommentDeleted
 	}: {
 		comments: Comment[];
-		issueAgents: IssueAgent[];
 		projectId: string;
 		issueId: string;
 		onCommentAdded: (comment: Comment) => void;
@@ -29,20 +27,36 @@
 	let deletingCommentId = $state<string | null>(null);
 	let commentWorking = $state(false);
 
+	// @mention autocomplete
+	let agents = $state<Agent[]>([]);
+	let showMentions = $state(false);
+	let mentionFilter = $state('');
+	let mentionIdx = $state(0);
+	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
+
+	const filteredAgents = $derived(
+		mentionFilter
+			? agents.filter(a => a.name.toLowerCase().includes(mentionFilter.toLowerCase()))
+			: agents
+	);
+
+	// Load agents for autocomplete
+	$effect(() => {
+		listAgents(projectId).then(a => { agents = a; }).catch(() => {});
+	});
+
 	function commentStyle(authorType: string, content: string): { border: string; textColor: string } {
-		if (/requesting changes|changes requested/i.test(content)) return { border: 'var(--color-amber)', textColor: 'text-amber' };
-		if (authorType === 'orchestrator') return { border: 'var(--color-purple)', textColor: 'text-purple' };
+		if (authorType === 'system') return { border: 'var(--color-muted)', textColor: 'text-muted' };
 		if (authorType === 'agent') return { border: 'var(--color-cyan)', textColor: 'text-cyan' };
 		return { border: 'var(--color-edge-hi)', textColor: 'text-secondary' };
 	}
 
-	function commentAuthorLabel(comment: any): string {
-		if (comment.author_type === 'orchestrator') return 'Captain';
+	function commentAuthorLabel(comment: Comment): string {
+		if (comment.author_type === 'system') return 'System';
 		if (comment.author_type === 'user') return 'User';
-		if (comment.author_type === 'agent' && comment.author_id) {
-			const ia = issueAgents?.find((ia: any) => ia.agent_id === comment.author_id);
-			if (ia?.agent) return `${ia.agent.name} · ${ia.role}`;
-			return comment.author_id;
+		if (comment.author_type === 'agent') {
+			const agent = agents.find(a => a.id === comment.author_id);
+			return agent ? agent.name : 'Agent';
 		}
 		return comment.author_type;
 	}
@@ -61,7 +75,7 @@
 		}
 	}
 
-	function startEditComment(comment: any) {
+	function startEditComment(comment: Comment) {
 		editingCommentId = comment.id;
 		editingCommentText = comment.content;
 	}
@@ -91,6 +105,54 @@
 			toastStore.add(err instanceof Error ? err.message : 'Failed to delete comment', 'error');
 		} finally {
 			commentWorking = false;
+		}
+	}
+
+	function handleInput(e: Event) {
+		const ta = e.target as HTMLTextAreaElement;
+		const val = ta.value;
+		const pos = ta.selectionStart ?? 0;
+
+		// Find @ before cursor
+		const before = val.slice(0, pos);
+		const atIdx = before.lastIndexOf('@');
+		if (atIdx >= 0 && (atIdx === 0 || /\s/.test(before[atIdx - 1]))) {
+			const typed = before.slice(atIdx + 1);
+			if (!/\s/.test(typed)) {
+				mentionFilter = typed;
+				showMentions = true;
+				mentionIdx = 0;
+				return;
+			}
+		}
+		showMentions = false;
+	}
+
+	function selectMention(agent: Agent) {
+		if (!textareaEl) return;
+		const val = textareaEl.value;
+		const pos = textareaEl.selectionStart ?? 0;
+		const before = val.slice(0, pos);
+		const atIdx = before.lastIndexOf('@');
+
+		commentText = val.slice(0, atIdx) + '@' + agent.name + ' ' + val.slice(pos);
+		showMentions = false;
+
+		// Move cursor
+		requestAnimationFrame(() => {
+			const newPos = atIdx + agent.name.length + 2;
+			textareaEl!.selectionStart = newPos;
+			textareaEl!.selectionEnd = newPos;
+			textareaEl!.focus();
+		});
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (showMentions && filteredAgents.length > 0) {
+			if (e.key === 'ArrowDown') { e.preventDefault(); mentionIdx = (mentionIdx + 1) % filteredAgents.length; return; }
+			if (e.key === 'ArrowUp') { e.preventDefault(); mentionIdx = (mentionIdx - 1 + filteredAgents.length) % filteredAgents.length; return; }
+			if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); selectMention(filteredAgents[mentionIdx]); return; }
+			if (e.key === 'Escape') { e.preventDefault(); showMentions = false; return; }
 		}
 	}
 </script>
@@ -141,15 +203,8 @@
 							class="w-full bg-base border border-edge rounded px-3 py-2 text-secondary text-sm resize-none focus:border-cyan focus:outline-none"
 						></textarea>
 						<div class="flex gap-2">
-							<button
-								onclick={saveEditComment}
-								disabled={commentWorking || !editingCommentText.trim()}
-								class="px-3 py-1 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors"
-							>Save</button>
-							<button
-								onclick={() => editingCommentId = null}
-								class="px-3 py-1 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors"
-							>Cancel</button>
+							<button onclick={saveEditComment} disabled={commentWorking || !editingCommentText.trim()} class="px-3 py-1 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors">Save</button>
+							<button onclick={() => editingCommentId = null} class="px-3 py-1 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors">Cancel</button>
 						</div>
 					</div>
 				{:else}
@@ -164,14 +219,32 @@
 	<p class="text-muted text-sm mb-6">No comments yet.</p>
 {/if}
 
-<!-- Add comment form -->
-<div class="border border-edge rounded p-4">
+<!-- Add comment form with @mention autocomplete -->
+<div class="border border-edge rounded p-4 relative">
 	<textarea
+		bind:this={textareaEl}
 		bind:value={commentText}
+		oninput={handleInput}
+		onkeydown={handleKeydown}
 		rows={3}
-		placeholder="Type your comment here..."
+		placeholder="Type @ to mention an agent..."
 		class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
 	></textarea>
+
+	{#if showMentions && filteredAgents.length > 0}
+		<div class="absolute bottom-full left-0 mb-1 w-64 bg-surface border border-edge rounded shadow-lg max-h-48 overflow-auto z-10">
+			{#each filteredAgents as agent, i (agent.id)}
+				<button
+					onclick={() => selectMention(agent)}
+					class="w-full text-left px-3 py-2 text-sm hover:bg-base transition-colors flex flex-col {i === mentionIdx ? 'bg-base' : ''}"
+				>
+					<span class="text-primary font-medium">{agent.name}</span>
+					<span class="text-muted text-xs">{agent.title}</span>
+				</button>
+			{/each}
+		</div>
+	{/if}
+
 	<div class="flex justify-end mt-3 pt-3 border-t border-edge">
 		<button
 			onclick={postComment}

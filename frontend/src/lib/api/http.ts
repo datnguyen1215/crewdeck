@@ -1,46 +1,32 @@
-/**
- * HTTP API client — talks to the backend REST API at /api/v1/*.
- * Uses relative URLs so the Vite dev proxy and same-domain prod both work.
- */
-
 import type {
   Project,
   ProjectWithStats,
   Repo,
-  Crew,
   Agent,
-  CrewWithAgents,
   Issue,
   IssueWithDetails,
   Comment,
-  Session,
   ActivityLog,
   GitHubAccount,
   DeviceCodeResponse,
   DeviceCodePollResponse,
   EnvironmentVariable,
-  CaptainMessage,
 } from './types.js';
 
 export type {
   Project,
   ProjectWithStats,
   Repo,
-  Crew,
   Agent,
-  CrewWithAgents,
   Issue,
-  IssueAgent,
   IssuePR,
   IssueWithDetails,
   Comment,
-  Session,
   ActivityLog,
   GitHubAccount,
   DeviceCodeResponse,
   DeviceCodePollResponse,
   EnvironmentVariable,
-  CaptainMessage,
 } from './types.js';
 
 const BASE = "/api/v1";
@@ -55,7 +41,6 @@ class ApiError extends Error {
   }
 }
 
-/** Build a query string from an optional filter object. Returns "" or "?key=val&…". */
 function qs(filters?: Record<string, unknown>): string {
   if (!filters) return "";
   const params = new URLSearchParams();
@@ -66,372 +51,120 @@ function qs(filters?: Record<string, unknown>): string {
   return s ? `?${s}` : "";
 }
 
-async function request<T>(
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const opts: RequestInit = {
     method,
     headers: { "Content-Type": "application/json" },
   };
   if (body !== undefined) opts.body = JSON.stringify(body);
-
   const res = await fetch(`${BASE}${path}`, opts);
-
   if (res.status === 204) return undefined as T;
-
   const json = await res.json();
   if (!res.ok) {
     const err = json.error ?? {};
-    throw new ApiError(
-      res.status,
-      err.code ?? "UNKNOWN",
-      err.message ?? res.statusText,
-    );
+    throw new ApiError(res.status, err.code ?? "UNKNOWN", err.message ?? res.statusText);
   }
   return json as T;
 }
 
-// ---------------------------------------------------------------------------
-// Projects
-// ---------------------------------------------------------------------------
-
-export function listProjects() {
-  return request<Project[]>("GET", "/projects");
-}
-
-export function getProject(id: string) {
-  return request<Project>("GET", `/projects/${encodeURIComponent(id)}`);
-}
-
-export function createProject(data: {
-  github_url: string;
-  github_account_id?: string;
-}) {
-  return request<Project>("POST", "/projects", data);
-}
-
-export function updateProject(id: string, data: Partial<Project>) {
-  return request<Project>("PATCH", `/projects/${encodeURIComponent(id)}`, data);
-}
-
-export function deleteProject(id: string) {
-  return request<void>("DELETE", `/projects/${encodeURIComponent(id)}`);
-}
-
-export function listProjectsWithStats() {
-  return request<ProjectWithStats[]>("GET", "/projects?stats");
-}
-
-// ---------------------------------------------------------------------------
-// Repos
-// ---------------------------------------------------------------------------
-
 const e = encodeURIComponent;
 
-export function listRepos(projectId: string) {
-  return request<Repo[]>("GET", `/projects/${e(projectId)}/repos`);
+// Projects
+export function listProjects() { return request<Project[]>("GET", "/projects"); }
+export function getProject(id: string) { return request<Project>("GET", `/projects/${e(id)}`); }
+export function createProject(data: { github_url: string; github_account_id?: string }) {
+  return request<Project>("POST", "/projects", data);
 }
+export function updateProject(id: string, data: Partial<Project>) {
+  return request<Project>("PATCH", `/projects/${e(id)}`, data);
+}
+export function deleteProject(id: string) { return request<void>("DELETE", `/projects/${e(id)}`); }
+export function listProjectsWithStats() { return request<ProjectWithStats[]>("GET", "/projects?stats"); }
 
-export function createRepo(
-  projectId: string,
-  data: { github_url: string; default_branch?: string },
-) {
+// Repos
+export function listRepos(projectId: string) { return request<Repo[]>("GET", `/projects/${e(projectId)}/repos`); }
+export function createRepo(projectId: string, data: { github_url: string; default_branch?: string }) {
   return request<Repo>("POST", `/projects/${e(projectId)}/repos`, data);
 }
-
 export function deleteRepo(projectId: string, repoId: string) {
-  return request<void>(
-    "DELETE",
-    `/projects/${e(projectId)}/repos/${e(repoId)}`,
-  );
+  return request<void>("DELETE", `/projects/${e(projectId)}/repos/${e(repoId)}`);
 }
 
-// ---------------------------------------------------------------------------
-// Crew & Agents
-// ---------------------------------------------------------------------------
-
-export function getCrew(projectId: string) {
-  return request<CrewWithAgents>("GET", `/projects/${e(projectId)}/crew`);
-}
-
-export function updateCrew(projectId: string, data: { name: string }) {
-  return request<Crew>("PATCH", `/projects/${e(projectId)}/crew`, data);
-}
-
+// Agents
 export function listAgents(projectId: string) {
   return request<Agent[]>("GET", `/projects/${e(projectId)}/crew/agents`);
 }
-
-export function createAgent(
-  projectId: string,
-  data: {
-    name: string;
-    title: string;
-    description?: string;
-    system_prompt: string;
-    is_captain?: boolean;
-  },
-) {
+export function createAgent(projectId: string, data: { name: string; title: string; description?: string; system_prompt: string }) {
   return request<Agent>("POST", `/projects/${e(projectId)}/crew/agents`, data);
 }
-
 export function generateAgent(projectId: string, data: { prompt: string }) {
-  return request<{
-    name: string;
-    title: string;
-    description: string;
-    system_prompt: string;
-  }>("POST", `/projects/${e(projectId)}/crew/agents/generate`, data);
-}
-
-export function updateAgent(
-  projectId: string,
-  agentId: string,
-  data: Partial<Agent>,
-) {
-  return request<Agent>(
-    "PATCH",
-    `/projects/${e(projectId)}/crew/agents/${e(agentId)}`,
-    data,
+  return request<{ name: string; title: string; description: string; system_prompt: string }>(
+    "POST", `/projects/${e(projectId)}/crew/agents/generate`, data,
   );
 }
-
+export function updateAgent(projectId: string, agentId: string, data: Partial<Agent>) {
+  return request<Agent>("PATCH", `/projects/${e(projectId)}/crew/agents/${e(agentId)}`, data);
+}
 export function deleteAgent(projectId: string, agentId: string) {
-  return request<void>(
-    "DELETE",
-    `/projects/${e(projectId)}/crew/agents/${e(agentId)}`,
-  );
+  return request<void>("DELETE", `/projects/${e(projectId)}/crew/agents/${e(agentId)}`);
 }
 
-// ---------------------------------------------------------------------------
 // Issues
-// ---------------------------------------------------------------------------
-
-export function listIssues(
-  projectId: string,
-  filters?: {
-    status?: string;
-    agent?: string;
-    created_by?: string;
-    sort?: string;
-    order?: string;
-  },
-) {
-  return request<Issue[]>(
-    "GET",
-    `/projects/${e(projectId)}/issues${qs(filters)}`,
-  );
+export function listIssues(projectId: string, filters?: { status?: string; created_by?: string; sort?: string; order?: string }) {
+  return request<Issue[]>("GET", `/projects/${e(projectId)}/issues${qs(filters)}`);
 }
-
 export function getIssue(projectId: string, issueId: string) {
-  return request<IssueWithDetails>(
-    "GET",
-    `/projects/${e(projectId)}/issues/${e(issueId)}`,
-  );
+  return request<IssueWithDetails>("GET", `/projects/${e(projectId)}/issues/${e(issueId)}`);
 }
-
-export function createIssue(
-  projectId: string,
-  data: {
-    title: string;
-    description?: string;
-    priority?: number;
-    max_review_rounds?: number;
-    created_by?: string;
-  },
-) {
+export function createIssue(projectId: string, data: { title: string; description?: string; priority?: number }) {
   return request<Issue>("POST", `/projects/${e(projectId)}/issues`, data);
 }
-
-export function updateIssue(
-  projectId: string,
-  issueId: string,
-  data: Partial<Issue>,
-) {
-  return request<Issue>(
-    "PATCH",
-    `/projects/${e(projectId)}/issues/${e(issueId)}`,
-    data,
-  );
+export function updateIssue(projectId: string, issueId: string, data: Partial<Issue>) {
+  return request<Issue>("PATCH", `/projects/${e(projectId)}/issues/${e(issueId)}`, data);
 }
-
 export function deleteIssue(projectId: string, issueId: string) {
-  return request<void>(
-    "DELETE",
-    `/projects/${e(projectId)}/issues/${e(issueId)}`,
-  );
+  return request<void>("DELETE", `/projects/${e(projectId)}/issues/${e(issueId)}`);
+}
+export function markPrCreated(projectId: string, issueId: string) {
+  return request<Issue>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/mark-pr-created`);
+}
+export function markDone(projectId: string, issueId: string) {
+  return request<Issue>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/mark-done`);
+}
+export function resetChainDepth(projectId: string, issueId: string) {
+  return request<Issue>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/reset-chain-depth`);
 }
 
-export function approveIssue(projectId: string, issueId: string) {
-  return request<Issue>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/approve`,
-  );
-}
-
-export function discardIssue(projectId: string, issueId: string) {
-  return request<void>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/discard`,
-  );
-}
-
-export function createPR(projectId: string, issueId: string) {
-  return request<Issue>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/create-pr`,
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Comments
-// ---------------------------------------------------------------------------
-
-export function addComment(
-  projectId: string,
-  issueId: string,
-  data: { content: string },
-) {
-  return request<Comment>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/comments`,
-    data,
-  );
+export function addComment(projectId: string, issueId: string, data: { content: string }) {
+  return request<Comment>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/comments`, data);
+}
+export function editComment(projectId: string, issueId: string, commentId: string, data: { content: string }) {
+  return request<Comment>("PATCH", `/projects/${e(projectId)}/issues/${e(issueId)}/comments/${e(commentId)}`, data);
+}
+export function deleteComment(projectId: string, issueId: string, commentId: string) {
+  return request<void>("DELETE", `/projects/${e(projectId)}/issues/${e(issueId)}/comments/${e(commentId)}`);
 }
 
-export function editComment(
-  projectId: string,
-  issueId: string,
-  commentId: string,
-  data: { content: string },
-) {
-  return request<Comment>(
-    "PATCH",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/comments/${e(commentId)}`,
-    data,
-  );
-}
-
-export function deleteComment(
-  projectId: string,
-  issueId: string,
-  commentId: string,
-) {
-  return request<void>(
-    "DELETE",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/comments/${e(commentId)}`,
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Sessions
-// ---------------------------------------------------------------------------
-
-export function listSessions(
-  projectId: string,
-  filters?: { status?: string; type?: string; issue_id?: string },
-) {
-  return request<Session[]>(
-    "GET",
-    `/projects/${e(projectId)}/sessions${qs(filters)}`,
-  );
-}
-
-export function getSession(projectId: string, sessionId: string) {
-  return request<Session>(
-    "GET",
-    `/projects/${e(projectId)}/sessions/${e(sessionId)}`,
-  );
-}
-
-// ---------------------------------------------------------------------------
 // GitHub Accounts
-// ---------------------------------------------------------------------------
-
-export function listGitHubAccounts() {
-  return request<GitHubAccount[]>("GET", "/github-accounts");
-}
-
+export function listGitHubAccounts() { return request<GitHubAccount[]>("GET", "/github-accounts"); }
 export function startDeviceFlow(clientId?: string) {
-  return request<DeviceCodeResponse>(
-    "POST",
-    "/github-accounts/device-code",
-    clientId ? { client_id: clientId } : {},
-  );
+  return request<DeviceCodeResponse>("POST", "/github-accounts/device-code", clientId ? { client_id: clientId } : {});
 }
-
 export function pollDeviceFlow(deviceCode: string, clientId?: string) {
-  return request<DeviceCodePollResponse>(
-    "POST",
-    "/github-accounts/device-code/poll",
-    {
-      device_code: deviceCode,
-      ...(clientId ? { client_id: clientId } : {}),
-    },
-  );
+  return request<DeviceCodePollResponse>("POST", "/github-accounts/device-code/poll", {
+    device_code: deviceCode,
+    ...(clientId ? { client_id: clientId } : {}),
+  });
 }
+export function deleteGitHubAccount(id: string) { return request<void>("DELETE", `/github-accounts/${e(id)}`); }
 
-export function deleteGitHubAccount(id: string) {
-  return request<void>("DELETE", `/github-accounts/${e(id)}`);
-}
-
-// ---------------------------------------------------------------------------
 // Activity
-// ---------------------------------------------------------------------------
-
-export function listActivity(
-  projectId: string,
-  filters?: {
-    issue_id?: string;
-    actor_type?: string;
-    action?: string;
-    since?: string;
-    limit?: number;
-    offset?: number;
-  },
-) {
-  return request<ActivityLog[]>(
-    "GET",
-    `/projects/${e(projectId)}/activity${qs(filters)}`,
-  );
+export function listActivity(projectId: string, filters?: { issue_id?: string; actor_type?: string; action?: string; since?: string; limit?: number; offset?: number }) {
+  return request<ActivityLog[]>("GET", `/projects/${e(projectId)}/activity${qs(filters)}`);
 }
 
-// ---------------------------------------------------------------------------
 // Environment Variables
-// ---------------------------------------------------------------------------
-
-export function createEnvironmentVariable(
-  projectId: string,
-  data: { key: string; value: string; is_secret?: boolean },
-) {
-  return request<EnvironmentVariable>(
-    "POST",
-    `/projects/${e(projectId)}/environment`,
-    data,
-  );
+export function createEnvironmentVariable(projectId: string, data: { key: string; value: string; is_secret?: boolean }) {
+  return request<EnvironmentVariable>("POST", `/projects/${e(projectId)}/environment`, data);
 }
-
-// ---------------------------------------------------------------------------
-// Captain Messages
-// ---------------------------------------------------------------------------
-
-export function listCaptainMessages(projectId: string) {
-  return request<CaptainMessage[]>(
-    "GET",
-    `/projects/${e(projectId)}/captain/messages`,
-  );
-}
-
-export function sendCaptainMessage(
-  projectId: string,
-  data: { content: string },
-) {
-  return request<CaptainMessage>(
-    "POST",
-    `/projects/${e(projectId)}/captain/messages`,
-    data,
-  );
-}
-

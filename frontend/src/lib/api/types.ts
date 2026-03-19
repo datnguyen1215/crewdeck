@@ -3,8 +3,6 @@ export interface Project {
   name: string;
   description: string | null;
   max_concurrency: number;
-  max_review_rounds: number;
-  orchestrator_session_id: string | null;
   github_account_id: string | null;
   created_at: string;
   updated_at: string;
@@ -16,11 +14,9 @@ export interface ProjectWithStats extends Project {
   issues: {
     open: number;
     in_progress: number;
-    in_review: number;
-    ready: number;
+    pr_created: number;
     done: number;
   };
-  orchestrator_status: string;
 }
 
 export interface Repo {
@@ -32,31 +28,15 @@ export interface Repo {
   updated_at: string;
 }
 
-export interface Crew {
-  id: string;
-  project_id: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Agent {
   id: string;
-  crew_id: string;
+  project_id: string;
   name: string;
   title: string;
   description: string | null;
   system_prompt: string;
-  is_captain: boolean;
-  status: string;
   created_at: string;
   updated_at: string;
-}
-
-export interface CrewWithAgents extends Crew {
-  agents: (Agent & {
-    current_issue: { id: string; title: string } | null;
-  })[];
 }
 
 export interface Issue {
@@ -66,26 +46,14 @@ export interface Issue {
   description: string | null;
   status: string;
   priority: number;
-  assigned_agent_id: string | null;
   created_by: string;
-  max_review_rounds: number | null;
-  current_review_round: number;
+  chain_depth: number;
   branch_name: string | null;
   worktree_path: string | null;
   base_branch: string;
   repo_id: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface IssueAgent {
-  id: string;
-  issue_id: string;
-  agent_id: string;
-  role: "worker" | "reviewer";
-  status: string;
-  review_order: number | null;
-  agent: { id: string; name: string } | null;
 }
 
 export interface IssuePR {
@@ -97,12 +65,10 @@ export interface IssuePR {
 }
 
 export interface IssueWithDetails extends Issue {
-  assigned_agent: { id: string; name: string } | null;
   repo: { id: string; name: string } | null;
   comments: Comment[];
-  activity_log: ActivityLog[];
-  issue_agents: IssueAgent[];
   issue_prs: IssuePR[];
+  activity_log: ActivityLog[];
 }
 
 export interface Comment {
@@ -112,20 +78,6 @@ export interface Comment {
   author_id: string | null;
   content: string;
   created_at: string;
-}
-
-export interface Session {
-  id: string;
-  project_id: string;
-  session_type: string;
-  agent_id: string | null;
-  issue_id: string | null;
-  tmux_session_name: string;
-  tmux_pane_id: string | null;
-  status: string;
-  context: Record<string, unknown> | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface ActivityLog {
@@ -175,14 +127,4 @@ export interface EnvironmentVariable {
   is_secret: boolean;
   created_at: string;
   updated_at: string;
-}
-
-export interface CaptainMessage {
-  id: string;
-  project_id: string;
-  author_type: string;
-  author_id: string | null;
-  content: string;
-  context: Record<string, unknown> | null;
-  created_at: string;
 }

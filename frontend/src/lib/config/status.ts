@@ -5,11 +5,9 @@ export type StatusConfig = {
 	border: string;
 	glow?: string;
 	pulse?: boolean;
-	dashed?: boolean;
 };
 
 export const STATUS_CFG: Record<string, StatusConfig> = {
-	draft: { label: 'Draft', dot: '◌', text: 'text-muted', border: 'border-muted', dashed: true },
 	open: { label: 'Open', dot: '○', text: 'text-blue', border: 'border-blue', glow: 'var(--glow-blue)' },
 	in_progress: {
 		label: 'In Progress',
@@ -18,27 +16,6 @@ export const STATUS_CFG: Record<string, StatusConfig> = {
 		border: 'border-green',
 		glow: 'var(--glow-green)',
 		pulse: true
-	},
-	in_review: {
-		label: 'In Review',
-		dot: '◉',
-		text: 'text-amber',
-		border: 'border-amber',
-		glow: 'var(--glow-amber)'
-	},
-	feedback: {
-		label: 'Feedback',
-		dot: '◉',
-		text: 'text-red',
-		border: 'border-red',
-		glow: 'var(--glow-red)'
-	},
-	ready: {
-		label: 'Ready',
-		dot: '●',
-		text: 'text-green',
-		border: 'border-green',
-		glow: 'var(--glow-green)'
 	},
 	pr_created: {
 		label: 'PR Created',
