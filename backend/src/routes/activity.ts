@@ -1,8 +1,9 @@
 import { Router, type Request } from "express";
 import { listActivity } from "../db/repositories/activity-log.js";
 import { getProject } from "../db/repositories/projects.js";
+import { getAgent } from "../db/repositories/agents.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
-import type { ActivityFilters } from "../types/entities.js";
+import type { ActivityFilters, ActivityLog } from "../types/entities.js";
 
 const router = Router({ mergeParams: true });
 
@@ -37,7 +38,22 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
     filters.offset = parsed;
   }
 
-  res.json(listActivity(projectId, filters));
+  const entries = listActivity(projectId, filters);
+
+  // Resolve agent names so the frontend doesn't display raw UUIDs
+  const agentCache = new Map<string, string | null>();
+  const enriched = entries.map((entry: ActivityLog) => {
+    if (entry.actor_type === 'agent' && entry.actor_id) {
+      if (!agentCache.has(entry.actor_id)) {
+        agentCache.set(entry.actor_id, getAgent(entry.actor_id)?.name ?? null);
+      }
+      const name = agentCache.get(entry.actor_id);
+      if (name) return { ...entry, actor_name: name };
+    }
+    return entry;
+  });
+
+  res.json(enriched);
 });
 
 export default router;
