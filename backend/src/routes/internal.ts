@@ -11,6 +11,8 @@ import {
   updateIssue,
 } from "../db/repositories/issues.js";
 import { getAgent, updateAgent } from "../db/repositories/agents.js";
+import { getCrewWithAgents } from "../db/repositories/crews.js";
+import { getProject } from "../db/repositories/projects.js";
 import {
   getSession,
   listSessions,
@@ -192,11 +194,45 @@ const RouteReviewSchema = z.object({
 
 router.post("/route-review", validate(RouteReviewSchema), (req, res) => {
   const { project_id, issue_id, reviewer_agent_id } = req.body;
-  eventBus.emit("captain.route_review", {
-    project_id,
-    issue_id,
-    reviewer_agent_id,
-  });
+
+  // Validate upfront so we can return proper errors to CLI
+  const issue = getIssue(issue_id);
+  if (!issue) {
+    res.status(404).json({ ok: false, error: "Issue not found" });
+    return;
+  }
+  if (issue.project_id !== project_id) {
+    res.status(400).json({ ok: false, error: "Issue does not belong to project" });
+    return;
+  }
+  if (!["in_progress", "feedback", "in_review"].includes(issue.status)) {
+    res.status(400).json({ ok: false, error: `Issue is not in a reviewable state (current: ${issue.status})` });
+    return;
+  }
+
+  const reviewer = getAgent(reviewer_agent_id);
+  if (!reviewer) {
+    res.status(404).json({ ok: false, error: "Reviewer agent not found" });
+    return;
+  }
+
+  const project = getProject(project_id);
+  if (!project) {
+    res.status(404).json({ ok: false, error: "Project not found" });
+    return;
+  }
+
+  const crew = getCrewWithAgents(project_id);
+  if (!crew) {
+    res.status(404).json({ ok: false, error: "Crew not found for project" });
+    return;
+  }
+  if (reviewer.crew_id !== crew.id) {
+    res.status(400).json({ ok: false, error: "Reviewer does not belong to project crew" });
+    return;
+  }
+
+  eventBus.emit("captain.route_review", { project_id, issue_id, reviewer_agent_id });
   res.json({ ok: true });
 });
 

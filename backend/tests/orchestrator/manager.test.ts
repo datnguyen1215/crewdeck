@@ -645,7 +645,7 @@ describe("OrchestratorManager", () => {
   // --- Review pipeline ---
 
   describe("review pipeline", () => {
-    it("marks IssueAgent approved and issue ready when all reviewers approve", async () => {
+    it("marks IssueAgent approved but keeps issue in_review (captain controls ready transition)", async () => {
       seedIssue("in_review");
       db.prepare("UPDATE Issue SET current_review_round = 1 WHERE id = ?").run(
         issueId,
@@ -669,10 +669,11 @@ describe("OrchestratorManager", () => {
         .get(iaId) as { status: string };
       expect(ia.status).toBe("approved");
 
+      // Issue stays in_review - captain decides when to transition to ready
       const issue = db
         .prepare("SELECT status FROM Issue WHERE id = ?")
         .get(issueId) as { status: string };
-      expect(issue.status).toBe("ready");
+      expect(issue.status).toBe("in_review");
     });
 
     it("marks IssueAgent changes_requested and issue feedback on changes_requested verdict", async () => {
