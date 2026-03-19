@@ -325,7 +325,7 @@ crewdeck route-review issue_abc123 agent_reviewer01
 
 ### create-pr
 
-Push the issue branch and create a GitHub pull request. Captain-only command, called after all reviewers approve an issue.
+Push the issue branch and create a GitHub pull request. Captain-only command, called when the captain decides reviews are complete and sets the issue to Ready.
 
 ```
 crewdeck create-pr <issue_id>
