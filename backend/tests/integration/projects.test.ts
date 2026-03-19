@@ -94,13 +94,12 @@ describe("Projects CRUD", () => {
       expect(res.body.error.message).not.toMatch(/https?:\/\/[^\s]+github/);
     });
 
-    it("applies default values for max_concurrency and max_review_rounds", async () => {
+    it("applies default value for max_concurrency", async () => {
       const res = await request(app)
         .post(BASE)
         .send({ name: name("defaults"), github_url: "https://github.com/test/repo" });
       expect(res.status).toBe(201);
       expect(typeof res.body.max_concurrency).toBe("number");
-      expect(typeof res.body.max_review_rounds).toBe("number");
     });
   });
 

@@ -211,7 +211,8 @@ describe("Issues API", () => {
   });
 
   // --- Status transitions (valid) ---
-  // Issues default to "open" status when created via the API.
+  // Allowed: open -> in_progress, in_progress -> pr_created, pr_created -> in_progress
+  // Any status can transition to done.
 
   describe("status transitions - valid", () => {
     it("open -> in_progress", async () => {
@@ -223,63 +224,9 @@ describe("Issues API", () => {
       expect(res.body.status).toBe("in_progress");
     });
 
-    it("in_progress -> in_review", async () => {
+    it("in_progress -> pr_created", async () => {
       const issue = await createIssue(app, projectId);
       await transitionTo(app, projectId, issue.id, ["in_progress"]);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "in_review" });
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("in_review");
-    });
-
-    it("in_review -> feedback", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-      ]);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "feedback" });
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("feedback");
-    });
-
-    it("in_review -> ready", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-      ]);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "ready" });
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("ready");
-    });
-
-    it("feedback -> in_progress", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-        "feedback",
-      ]);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "in_progress" });
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("in_progress");
-    });
-
-    it("ready -> pr_created", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-        "ready",
-      ]);
       const res = await request(app)
         .patch(`${base(projectId)}/${issue.id}`)
         .send({ status: "pr_created" });
@@ -287,12 +234,20 @@ describe("Issues API", () => {
       expect(res.body.status).toBe("pr_created");
     });
 
+    it("pr_created -> in_progress", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, ["in_progress", "pr_created"]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "in_progress" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("in_progress");
+    });
+
     it("pr_created -> done", async () => {
       const issue = await createIssue(app, projectId);
       await transitionTo(app, projectId, issue.id, [
         "in_progress",
-        "in_review",
-        "ready",
         "pr_created",
       ]);
       const res = await request(app)
@@ -315,14 +270,6 @@ describe("Issues API", () => {
   // --- Status transitions (invalid) ---
 
   describe("status transitions - invalid", () => {
-    it("open -> ready is rejected", async () => {
-      const issue = await createIssue(app, projectId);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "ready" });
-      expect(res.status).toBe(400);
-    });
-
     it("open -> pr_created is rejected", async () => {
       const issue = await createIssue(app, projectId);
       const res = await request(app)
@@ -342,50 +289,56 @@ describe("Issues API", () => {
   });
 
   // --- Action endpoints ---
-  // /approve and /discard require draft status, which can't be reached via the API
-  // (issues default to "open"). These tests verify the error paths.
 
-  describe("POST /approve", () => {
-    it("rejects non-draft issue", async () => {
+  describe("POST /mark-pr-created", () => {
+    it("transitions in_progress issue to pr_created", async () => {
       const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, ["in_progress"]);
       const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/approve`,
-      );
-      expect(res.status).toBe(400);
-    });
-  });
-
-  describe("POST /discard", () => {
-    it("rejects non-draft issue with 400", async () => {
-      const issue = await createIssue(app, projectId);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/discard`,
-      );
-      expect(res.status).toBe(400);
-    });
-  });
-
-  describe("POST /create-pr", () => {
-    it("accepts ready issue and returns ok", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-        "ready",
-      ]);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/create-pr`,
+        `${base(projectId)}/${issue.id}/mark-pr-created`,
       );
       expect(res.status).toBe(200);
-      expect(res.body.ok).toBe(true);
+      expect(res.body.status).toBe("pr_created");
     });
 
-    it("rejects non-ready issue", async () => {
+    it("rejects open issue", async () => {
       const issue = await createIssue(app, projectId);
       const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/create-pr`,
+        `${base(projectId)}/${issue.id}/mark-pr-created`,
       );
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe("POST /mark-done", () => {
+    it("transitions issue to done", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app).post(
+        `${base(projectId)}/${issue.id}/mark-done`,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("done");
+    });
+
+    it("returns issue unchanged when already done", async () => {
+      const issue = await createIssue(app, projectId);
+      await request(app).post(`${base(projectId)}/${issue.id}/mark-done`);
+      const res = await request(app).post(
+        `${base(projectId)}/${issue.id}/mark-done`,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("done");
+    });
+  });
+
+  describe("POST /reset-chain-depth", () => {
+    it("resets chain_depth to 0", async () => {
+      const issue = await createIssue(app, projectId);
+      const res = await request(app).post(
+        `${base(projectId)}/${issue.id}/reset-chain-depth`,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.chain_depth).toBe(0);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import http from "http";
 import express from "express";
 import { WebSocket as WsClient } from "ws";
@@ -110,10 +110,10 @@ describe("WebSocket integration", () => {
     let ws2Received = false;
     ws2.on("message", () => { ws2Received = true; });
 
-    bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: projectId, state: "active" });
+    bus.emit("mention.spawned", { project_id: projectId, issue_id: "i1", agent_id: "a1", pid: 42 });
 
     const msg = await msgPromise;
-    expect(msg.event).toBe("agent.status_changed");
+    expect(msg.event).toBe("mention.spawned");
 
     // Give ws2 a moment to receive — it should not
     await new Promise((r) => setTimeout(r, 50));
