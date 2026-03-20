@@ -11,6 +11,7 @@ import * as log from "../logger.js";
 import * as dispatchQueue from "./queue.js";
 import * as crew from "./crew.js";
 import { getActiveProcessCount } from "./processes.js";
+import { postSystemComment } from "./spawner.js";
 
 /** Delay before recovery to ensure server is fully initialized */
 const RECOVERY_DELAY_MS = 2000;
@@ -53,17 +54,6 @@ export const killOrphanedProcess = (pid: number): void => {
   } catch (err) {
     log.logger.warn({ pid, err }, "Failed to kill orphaned process");
   }
-};
-
-/**
- * Post a system comment and emit comment.added.
- */
-const postSystemComment = (issueId: string, projectId: string, content: string): void => {
-  const comment = commentRepo.createComment(issueId, {
-    content,
-    author_type: "system",
-  });
-  events.eventBus.emit("comment.added", { comment, project_id: projectId });
 };
 
 /**
