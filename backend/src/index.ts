@@ -9,6 +9,8 @@ import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { setupTerminalWs, shutdownTerminalWs } from "./terminal-ws.js";
 import { initOrchestrator } from "./orchestrator/index.js";
 import { createApp } from "./app.js";
+import { initPRDetector } from "./pr/detector.js";
+import { startPRPoller, stopPRPoller } from "./pr/poller.js";
 
 const app = createApp({ corsOrigin: config.corsOrigin });
 
@@ -25,6 +27,10 @@ async function main(): Promise<void> {
     logger.error({ err }, "Failed to auto-start captain sessions");
   });
 
+  // Initialize PR auto-detection from comments and polling
+  initPRDetector();
+  startPRPoller();
+
   const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const s = app.listen(config.port, config.host, () => {
       logger.info(`Server ready on port ${config.port}`);
@@ -39,6 +45,7 @@ async function main(): Promise<void> {
     shutdownTerminalWs();
     shutdownWebSocket(wss);
     processMonitor.stop();
+    stopPRPoller();
     try {
       await gracefulShutdown(claudeCodeAdapter);
     } finally {
