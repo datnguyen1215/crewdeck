@@ -50,24 +50,70 @@ describe("createWorktree", () => {
     mockExecSuccess();
   });
 
+  it("fetches from origin before creating worktree", async () => {
+    await createWorktree(repo, issue, "main");
+
+    const calls = vi.mocked(exec).mock.calls.map((c) => c[0] as string);
+    expect(calls[0]).toContain("git -C");
+    expect(calls[0]).toContain("fetch origin");
+  });
+
+  it("uses origin/<baseBranch> as start point after successful fetch", async () => {
+    await createWorktree(repo, issue, "main");
+
+    const calls = vi.mocked(exec).mock.calls.map((c) => c[0] as string);
+    const worktreeCmd = calls.find((c) => c.includes("worktree add"));
+    expect(worktreeCmd).toContain("origin/main");
+  });
+
+  it("falls back to local branch when fetch fails", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const mockedExec = vi.mocked(exec);
+    let callCount = 0;
+    mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
+      callCount++;
+      // First call (fetch) fails; second call (worktree add) succeeds
+      if (callCount === 1) {
+        (callback as (err: Error) => void)(new Error("network error"));
+      } else {
+        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
+          null,
+          { stdout: "", stderr: "" }
+        );
+      }
+      return {} as ReturnType<typeof exec>;
+    });
+
+    await createWorktree(repo, issue, "main");
+
+    const calls = mockedExec.mock.calls.map((c) => c[0] as string);
+    const worktreeCmd = calls.find((c) => c.includes("worktree add"));
+    // Should use local branch, not origin/main
+    expect(worktreeCmd).not.toContain("origin/main");
+    expect(worktreeCmd).toMatch(/'main'$/);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it("runs git worktree add with correct arguments", async () => {
     await createWorktree(repo, issue, "main");
 
-    const cmd = vi.mocked(exec).mock.calls[0][0] as string;
-    expect(cmd).toContain("git -C");
-    expect(cmd).toContain("/repos/myrepo");
-    expect(cmd).toContain("worktree add");
-    expect(cmd).toContain("-b");
-    expect(cmd).toContain("main");
+    const calls = vi.mocked(exec).mock.calls.map((c) => c[0] as string);
+    const worktreeCmd = calls.find((c) => c.includes("worktree add"));
+    expect(worktreeCmd).toContain("git -C");
+    expect(worktreeCmd).toContain("/repos/myrepo");
+    expect(worktreeCmd).toContain("worktree add");
+    expect(worktreeCmd).toContain("-b");
   });
 
   it("uses correct branch naming convention: crewdeck/<issueId-short>-<slug>", async () => {
     await createWorktree(repo, issue, "main");
 
-    const cmd = vi.mocked(exec).mock.calls[0][0] as string;
+    const calls = vi.mocked(exec).mock.calls.map((c) => c[0] as string);
+    const worktreeCmd = calls.find((c) => c.includes("worktree add"));
     // Branch should start with crewdeck/ and include the first 8 chars of the issue ID
-    expect(cmd).toContain("crewdeck/abc12345");
-    expect(cmd).toContain("fix-the-login-bug");
+    expect(worktreeCmd).toContain("crewdeck/abc12345");
+    expect(worktreeCmd).toContain("fix-the-login-bug");
   });
 
   it("places worktree inside .worktrees directory", async () => {
