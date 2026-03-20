@@ -51,12 +51,11 @@ function buildApiSection(agentId: string): string {
       "- POST $CREWDECK_API_URL/api/v1/internal/issues/update — update issue priority (body: { project_id, issue_id, priority })",
     );
   } else {
+    // Non-captain agents don't need API access — their stdout is automatically
+    // captured and posted as a comment by the backend.
     lines.push(
       "",
-      "API endpoints (via curl):",
-      "- POST $CREWDECK_API_URL/api/v1/internal/comment — post a comment (body: { issue_id, project_id, agent_id, content })",
-      "",
-      "You only have access to post comments. Do not attempt to call other API endpoints.",
+      "You do not have API access. Your stdout is automatically posted as a comment.",
     );
   }
 

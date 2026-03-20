@@ -125,10 +125,9 @@ describe("buildPrompt options form", () => {
     expect(prompt).toContain("internal/issues/update");
     expect(prompt).toContain("PATCH");
     expect(prompt).toContain("/activity");
-    expect(prompt).not.toContain("Do not attempt to call other API endpoints");
   });
 
-  it("engineer gets comment-only API access", () => {
+  it("engineer gets no API access (stdout is the comment)", () => {
     const prompt = buildPrompt({
       issue,
       comments: [],
@@ -136,13 +135,13 @@ describe("buildPrompt options form", () => {
       worktreePath: "/tmp/work",
       agentId: "engineer",
     });
-    expect(prompt).toContain("internal/comment");
-    expect(prompt).toContain("Do not attempt to call other API endpoints");
+    expect(prompt).toContain("stdout is automatically posted as a comment");
+    expect(prompt).not.toContain("internal/comment");
     expect(prompt).not.toContain("internal/issues/create");
     expect(prompt).not.toContain("PATCH");
   });
 
-  it("security/architect/quality get comment-only API access", () => {
+  it("security/architect/quality get no API access", () => {
     for (const agentId of ["security", "architect", "quality"]) {
       const prompt = buildPrompt({
         issue,
@@ -151,7 +150,7 @@ describe("buildPrompt options form", () => {
         worktreePath: "/tmp/work",
         agentId,
       });
-      expect(prompt).toContain("Do not attempt to call other API endpoints");
+      expect(prompt).toContain("stdout is automatically posted as a comment");
       expect(prompt).not.toContain("internal/issues/create");
     }
   });
@@ -179,7 +178,6 @@ describe("buildPrompt options form", () => {
       agentId: "captain",
       projectIssues: [issue, ...otherIssues],
     });
-    // The current issue title appears in the Issue section but not in the project issues list
     const issuesSection = prompt.split("## All Open/In-Progress Issues")[1]?.split("##")[0] ?? "";
     expect(issuesSection).not.toContain("issue-1");
     expect(issuesSection).toContain("issue-2");
