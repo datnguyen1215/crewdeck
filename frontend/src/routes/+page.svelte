@@ -1,6 +1,9 @@
 <script lang="ts">
-	import { listProjectsWithStats, createProject, listGitHubAccounts, type ProjectWithStats, type GitHubAccount } from '$lib/api/http.js';
+	import { listProjectsWithStats, listGitHubAccounts, type ProjectWithStats, type GitHubAccount, type Project } from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import SetupWizard from '$lib/components/SetupWizard.svelte';
+	import ProjectForm from '$lib/components/ProjectForm.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 
 	let projects = $state<ProjectWithStats[]>([]);
 	let loading = $state(true);
@@ -8,11 +11,6 @@
 
 	// Modal state
 	let showModal = $state(false);
-	let githubUrl = $state('');
-	let selectedGitHubAccountId = $state('');
-	let submitting = $state(false);
-	let githubUrlError = $state('');
-	let formError = $state('');
 
 	$effect(() => {
 		listProjectsWithStats()
@@ -21,63 +19,36 @@
 			.finally(() => { loading = false; });
 	});
 
+	// Only fetch accounts when projects exist (for the modal form).
+	// When projects.length === 0 the wizard manages its own account list.
 	$effect(() => {
-		listGitHubAccounts()
-			.then((data) => { githubAccounts = data; })
-			.catch(() => { /* silently fail — dropdown will just be empty */ });
+		if (projects.length > 0) {
+			listGitHubAccounts()
+				.then((data) => { githubAccounts = data; })
+				.catch(() => { /* silently fail — dropdown will just be empty */ });
+		}
 	});
 
-	async function submitProject() {
-		githubUrlError = '';
-		formError = '';
-
-		if (!githubUrl.trim()) {
-			githubUrlError = 'GitHub URL is required';
-			return;
-		}
-
-		submitting = true;
-		try {
-			const project = await createProject({
-				github_url: githubUrl.trim(),
-				github_account_id: selectedGitHubAccountId || undefined
-			});
-			projects = [
-				...projects,
-				{
-					...project,
-					repo_count: 1,
-					agent_count: 0,
-					issues: { open: 0, in_progress: 0, in_review: 0, ready: 0, done: 0 },
-					orchestrator_status: 'none'
-				}
-			];
-			closeModal();
-		} catch (err) {
-			formError = err instanceof Error ? err.message : 'Failed to create project';
-		} finally {
-			submitting = false;
-		}
+	function handleProjectCreated(project: Project) {
+		projects = [
+			...projects,
+			{
+				...project,
+				repo_count: 1,
+				issues: { open: 0, in_progress: 0, pr_created: 0, done: 0 }
+			}
+		];
+		closeModal();
 	}
 
 	function closeModal() {
-		if (submitting) return;
 		showModal = false;
-		githubUrl = '';
-		selectedGitHubAccountId = '';
-		githubUrlError = '';
-		formError = '';
-	}
-
-	function handleModalKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') closeModal();
 	}
 
 	const ISSUE_STATUSES = [
 		{ key: 'open', label: 'Op', color: 'bg-blue' },
 		{ key: 'in_progress', label: 'IP', color: 'bg-amber' },
-		{ key: 'in_review', label: 'IR', color: 'bg-purple' },
-		{ key: 'ready', label: 'Rd', color: 'bg-green' },
+		{ key: 'pr_created', label: 'PR', color: 'bg-purple' },
 		{ key: 'done', label: 'Dn', color: 'bg-secondary' }
 	] as const;
 
@@ -88,9 +59,13 @@
 	function totalIssues(issues: ProjectWithStats['issues']) {
 		return Object.values(issues).reduce((a, b) => a + b, 0);
 	}
-</script>
 
-<svelte:window onkeydown={handleModalKeydown} />
+	/** Setup completeness: count how many key milestones are done. */
+	function setupProgress(project: ProjectWithStats): { done: boolean; label: string } {
+		const done = project.repo_count > 0;
+		return { done, label: done ? 'Ready' : 'Setup needed' };
+	}
+</script>
 
 <div class="p-8 h-full overflow-auto">
 	<!-- Header -->
@@ -104,14 +79,16 @@
 			</h1>
 			<p class="text-muted text-xs mt-1 tracking-widest uppercase">AI Agent Crew Management</p>
 		</div>
-		<button
-			onclick={() => (showModal = true)}
-			class="flex items-center gap-2 px-4 py-2 bg-surface border border-edge rounded text-sm text-secondary hover:text-cyan hover:border-cyan transition-colors"
-			style="hover:box-shadow: var(--glow-cyan)"
-		>
-			<span class="text-cyan font-bold">+</span>
-			New Project
-		</button>
+		{#if projects.length > 0}
+			<button
+				onclick={() => (showModal = true)}
+				class="flex items-center gap-2 px-4 py-2 bg-surface border border-edge rounded text-sm text-secondary hover:text-cyan hover:border-cyan transition-colors"
+				style="hover:box-shadow: var(--glow-cyan)"
+			>
+				<span class="text-cyan font-bold">+</span>
+				New Project
+			</button>
+		{/if}
 	</div>
 
 	{#if loading}
@@ -143,33 +120,14 @@
 			{/each}
 		</div>
 	{:else if projects.length === 0}
-		<!-- Empty state -->
-		<div
-			class="flex flex-col items-center justify-center py-24 text-center"
-			style="animation: fade-up 0.4s ease both"
-		>
-			<div
-				class="text-muted text-xs tracking-[0.4em] uppercase mb-6 border border-edge rounded px-4 py-2"
-			>
-				~/projects $<span class="animate-pulse">_</span>
-			</div>
-			<p class="text-primary text-lg font-semibold mb-2">No projects yet</p>
-			<p class="text-secondary text-sm mb-8 max-w-sm">
-				Create your first project to start managing AI agent crews
-			</p>
-			<button
-				onclick={() => (showModal = true)}
-				class="px-6 py-2.5 bg-surface border border-cyan text-cyan rounded text-sm hover:bg-surface-hi transition-colors"
-				style="box-shadow: var(--glow-cyan)"
-			>
-				+ Create Project
-			</button>
-		</div>
+		<!-- Setup wizard for first-time users -->
+		<SetupWizard />
 	{:else}
 		<!-- Project grid -->
 		<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 			{#each projects as project, i (project.id)}
 				{@const total = totalIssues(project.issues)}
+				{@const setup = setupProgress(project)}
 				<div
 					class="project-card group relative bg-surface border border-edge rounded-lg p-5 flex flex-col gap-4
 						hover:border-edge-hi hover:-translate-y-0.5 transition-all duration-200"
@@ -193,10 +151,11 @@
 							<span class="text-muted">repos</span>
 							<span class="text-primary ml-1">{project.repo_count}</span>
 						</span>
-						<span>
-							<span class="text-muted">agents</span>
-							<span class="text-primary ml-1">{project.agent_count}</span>
-						</span>
+						{#if !setup.done}
+							<span class="ml-auto">
+								<span class="text-amber text-xs">{setup.label}</span>
+							</span>
+						{/if}
 					</div>
 
 					<!-- Issue breakdown -->
@@ -231,33 +190,13 @@
 						{/if}
 					</div>
 
-					<!-- Orchestrator + concurrency -->
-					<div class="flex items-center justify-between text-xs border-t border-edge pt-3">
-						<div class="flex items-center gap-2">
-							{#if project.orchestrator_status === 'active'}
-								<span class="relative flex h-2 w-2 flex-shrink-0">
-									<span
-										class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"
-									></span>
-									<span class="relative inline-flex h-2 w-2 rounded-full bg-green"></span>
-								</span>
-								<span class="text-green">Orchestrator Active</span>
-							{:else if project.orchestrator_status === 'error'}
-								<span class="h-2 w-2 rounded-full bg-red flex-shrink-0"></span>
-								<span class="text-red">Orchestrator Error</span>
-							{:else if project.orchestrator_status === 'idle'}
-								<span class="h-2 w-2 rounded-full bg-muted flex-shrink-0"></span>
-								<span class="text-muted">Orchestrator Idle</span>
-							{:else}
-								<span class="h-2 w-2 rounded-full bg-edge flex-shrink-0"></span>
-								<span class="text-muted">No Orchestrator</span>
-							{/if}
-						</div>
-						<span class="text-muted">
-							<span class="text-secondary">{project.issues.in_progress}</span>/{project.max_concurrency}
-							<span class="text-muted ml-1">conc</span>
-						</span>
-					</div>
+					<!-- Concurrency -->
+				<div class="flex items-center justify-end text-xs border-t border-edge pt-3">
+					<span class="text-muted">
+						<span class="text-secondary">{project.issues.in_progress}</span>/{project.max_concurrency}
+						<span class="text-muted ml-1">conc</span>
+					</span>
+				</div>
 
 					<!-- Enter project link -->
 					<a
@@ -275,113 +214,20 @@
 </div>
 
 <!-- New Project Modal -->
-{#if showModal}
-	<!-- Backdrop -->
-	<!-- Decision: clicking backdrop closes modal for standard UX -->
-	<!-- eslint-disable-next-line svelte/valid-compile -->
-	<div
-		class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center p-4"
-		role="dialog"
-		aria-modal="true"
-		aria-label="Create new project"
-	>
-		<!-- Click outside to close -->
+<Modal open={showModal} onClose={closeModal} label="Create new project" maxWidth="max-w-md">
+	<div class="flex items-center justify-between mb-6">
+		<h2 class="text-primary font-bold tracking-wide uppercase text-sm">New Project</h2>
 		<button
-			class="absolute inset-0 w-full h-full cursor-default"
-			aria-label="Close modal"
 			onclick={closeModal}
-		></button>
-
-		<div
-			class="relative z-50 w-full max-w-md bg-surface border border-edge rounded-lg p-6"
-			style="animation: fade-up 0.2s ease both; box-shadow: 0 0 40px rgba(0,0,0,0.6)"
+			class="text-muted hover:text-primary transition-colors text-lg leading-none"
+			aria-label="Close"
 		>
-			<div class="flex items-center justify-between mb-6">
-				<h2 class="text-primary font-bold tracking-wide uppercase text-sm">New Project</h2>
-				<button
-					onclick={closeModal}
-					class="text-muted hover:text-primary transition-colors text-lg leading-none"
-					aria-label="Close"
-				>
-					✕
-				</button>
-			</div>
-
-			<form
-				onsubmit={(e) => {
-					e.preventDefault();
-					submitProject();
-				}}
-				class="flex flex-col gap-4"
-			>
-				<!-- GitHub URL -->
-				<div>
-					<label for="proj-github-url" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-						GitHub URL <span class="text-red">*</span>
-					</label>
-					<input
-						id="proj-github-url"
-						type="text"
-						bind:value={githubUrl}
-						placeholder="https://github.com/owner/repo"
-						class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
-							focus:outline-none focus:border-cyan transition-colors"
-						class:border-red={githubUrlError}
-					/>
-					{#if githubUrlError}
-						<p class="text-red text-xs mt-1">{githubUrlError}</p>
-					{:else}
-						<p class="text-muted text-xs mt-1">Name, description, and branch will be fetched automatically</p>
-					{/if}
-				</div>
-
-				<!-- GitHub Account -->
-				{#if githubAccounts.length > 0}
-					<div>
-						<label for="proj-gh-account" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-							GitHub Account
-						</label>
-						<select
-							id="proj-gh-account"
-							bind:value={selectedGitHubAccountId}
-							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary
-								focus:outline-none focus:border-cyan transition-colors"
-						>
-							<option value="">None (use host credentials)</option>
-							{#each githubAccounts as account}
-								<option value={account.id}>{account.github_username} ({account.account_name})</option>
-							{/each}
-						</select>
-					</div>
-				{/if}
-
-				{#if formError}
-					<p class="text-red text-sm">{formError}</p>
-				{/if}
-
-				<!-- Actions -->
-				<div class="flex gap-3 mt-2">
-					<button
-						type="button"
-						onclick={closeModal}
-						disabled={submitting}
-						class="flex-1 px-4 py-2 border border-edge rounded text-sm text-secondary hover:text-primary hover:border-edge-hi transition-colors disabled:opacity-50"
-					>
-						Cancel
-					</button>
-					<button
-						type="submit"
-						disabled={submitting}
-						class="flex-1 px-4 py-2 bg-cyan/10 border border-cyan rounded text-sm text-cyan
-							hover:bg-cyan/20 transition-colors disabled:opacity-50"
-					>
-						{submitting ? 'Creating...' : 'Create Project'}
-					</button>
-				</div>
-			</form>
-		</div>
+			✕
+		</button>
 	</div>
-{/if}
+
+	<ProjectForm {githubAccounts} onCreated={handleProjectCreated} onCancel={closeModal} />
+</Modal>
 
 <style>
 	.project-card {

@@ -18,45 +18,6 @@ export function createDb(path: string): Database.Database {
   const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
 
-  // Migration: rebuild IssueAgent if it has the old UNIQUE constraint (missing review_round).
-  // SQLite can't ALTER constraints, so we rebuild the table.
-  const columns = db.pragma("table_info(IssueAgent)") as { name: string }[];
-  if (!columns.some((c) => c.name === "review_round")) {
-    db.pragma("foreign_keys = OFF");
-    db.transaction(() => {
-      db.exec(`
-        ALTER TABLE IssueAgent RENAME TO IssueAgent_old;
-
-        CREATE TABLE IssueAgent (
-          id TEXT PRIMARY KEY,
-          issue_id TEXT NOT NULL REFERENCES Issue(id),
-          agent_id TEXT NOT NULL REFERENCES Agent(id),
-          role TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'pending',
-          review_order INTEGER,
-          review_round INTEGER,
-          session_id TEXT REFERENCES Session(id),
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(issue_id, agent_id, role, review_round)
-        );
-
-        INSERT INTO IssueAgent (id, issue_id, agent_id, role, status, review_order, review_round, session_id, created_at, updated_at)
-          SELECT ia.id, ia.issue_id, ia.agent_id, ia.role, ia.status, ia.review_order,
-            CASE ia.role WHEN 'worker' THEN 0 ELSE i.current_review_round END,
-            ia.session_id, ia.created_at, ia.updated_at
-          FROM IssueAgent_old ia
-          LEFT JOIN Issue i ON i.id = ia.issue_id;
-
-        DROP TABLE IssueAgent_old;
-
-        CREATE INDEX IF NOT EXISTS idx_issue_agent_issue ON IssueAgent(issue_id);
-        CREATE INDEX IF NOT EXISTS idx_issue_agent_agent ON IssueAgent(agent_id);
-      `);
-    })();
-    db.pragma("foreign_keys = ON");
-  }
-
   // Migration: add github_account_id column to Project if missing.
   const projectCols = db.pragma("table_info(Project)") as { name: string }[];
   if (!projectCols.some((c) => c.name === "github_account_id")) {
@@ -65,42 +26,15 @@ export function createDb(path: string): Database.Database {
     );
   }
 
-  // Migration: rename role→title, add description, drop expertise & can_review from Agent.
-  const agentCols = db.pragma("table_info(Agent)") as { name: string }[];
-  if (agentCols.some((c) => c.name === "role")) {
-    db.pragma("foreign_keys = OFF");
-    db.transaction(() => {
-      db.exec(`
-        ALTER TABLE Agent RENAME TO Agent_old;
-
-        CREATE TABLE Agent (
-          id TEXT PRIMARY KEY,
-          crew_id TEXT NOT NULL REFERENCES Crew(id),
-          name TEXT NOT NULL,
-          title TEXT NOT NULL,
-          description TEXT,
-          system_prompt TEXT NOT NULL,
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-
-        INSERT INTO Agent (id, crew_id, name, title, description, system_prompt, created_at, updated_at)
-          SELECT id, crew_id, name, role, NULL, system_prompt, created_at, updated_at
-          FROM Agent_old;
-
-        DROP TABLE Agent_old;
-
-        CREATE INDEX IF NOT EXISTS idx_agent_crew ON Agent(crew_id);
-      `);
-    })();
-    db.pragma("foreign_keys = ON");
+  // Migration: add chain_depth column to Issue if missing (from legacy schema).
+  const issueCols = db.pragma("table_info(Issue)") as { name: string }[];
+  if (!issueCols.some((c) => c.name === "chain_depth")) {
+    db.exec("ALTER TABLE Issue ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0");
   }
 
-  // Migration: add is_captain column to Agent if missing.
-  const agentCols2 = db.pragma("table_info(Agent)") as { name: string }[];
-  if (!agentCols2.some((c) => c.name === "is_captain")) {
-    db.exec("ALTER TABLE Agent ADD COLUMN is_captain INTEGER NOT NULL DEFAULT 0");
-  }
+  // Migration: drop Agent table — agents are now fixed constants in code.
+  db.exec("DROP TABLE IF EXISTS Agent");
+  db.exec("DROP INDEX IF EXISTS idx_agent_project");
 
   return db;
 }

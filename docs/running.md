@@ -109,6 +109,6 @@ docker compose logs -f frontend
 
 ## Troubleshooting
 
-**GitHub authentication**: GitHub accounts are connected in-app via Device Flow (Settings → GitHub Accounts). You do not need `gh auth login` on your host. Make sure `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set for your GitHub OAuth App.
+**GitHub authentication**: GitHub accounts are connected in-app via Device Flow (Settings → GitHub Accounts). You do not need `gh auth login` on your host. Make sure `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set for your GitHub OAuth App. The device flow requests the `repo` and `workflow` scopes — existing accounts authenticated before the `workflow` scope was added will need to disconnect and re-authenticate to push changes to `.github/workflows/` files.
 
 **Claude Code not working**: Ensure `~/.claude` exists on your host with valid configuration.

@@ -6,8 +6,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc && cp src/db/schema.sql dist/db/schema.sql",
     "start": "node dist/index.js",
-    "test": "vitest",
-    "test:run": "vitest run",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.config.integration.ts"
   },
   "dependencies": {

@@ -7,6 +7,8 @@ import { cleanupOrphans, gracefulShutdown } from "./agent/orphan-cleanup.js";
 import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { setupTerminalWs, shutdownTerminalWs } from "./terminal-ws.js";
+import { initActivityLogger } from "./events/activity-logger.js";
+import { initMentionHandler, shutdownMentionHandler, recoverOnStartup } from "./mention/handler.js";
 import { initOrchestrator } from "./orchestrator/index.js";
 import { createApp } from "./app.js";
 import { initPRDetector } from "./pr/detector.js";
@@ -27,6 +29,10 @@ async function main(): Promise<void> {
     logger.error({ err }, "Failed to auto-start captain sessions");
   });
 
+  initActivityLogger();
+  initMentionHandler();
+  recoverOnStartup();
+
   // Initialize PR auto-detection from comments and polling
   initPRDetector();
   startPRPoller();
@@ -41,9 +47,21 @@ async function main(): Promise<void> {
   const wss = setupWebSocket(server, eventBus);
   setupTerminalWs(server);
 
+  server.on("upgrade", (req, socket, head) => {
+    const pathname = new URL(req.url ?? "", "http://localhost").pathname;
+    if (pathname === "/ws") {
+      wss.handleUpgrade(req, socket, head, (ws) =>
+        wss.emit("connection", ws, req),
+      );
+    } else {
+      socket.destroy();
+    }
+  });
+
   async function shutdown() {
     shutdownTerminalWs();
     shutdownWebSocket(wss);
+    shutdownMentionHandler();
     processMonitor.stop();
     stopPRPoller();
     try {
@@ -53,12 +71,8 @@ async function main(): Promise<void> {
       process.exit(0);
     }
   }
-  process.on("SIGTERM", () => {
-    void shutdown();
-  });
-  process.on("SIGINT", () => {
-    void shutdown();
-  });
+  process.on("SIGTERM", () => { void shutdown(); });
+  process.on("SIGINT", () => { void shutdown(); });
 }
 
 main().catch((err) => {

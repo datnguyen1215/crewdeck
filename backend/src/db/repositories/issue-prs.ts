@@ -1,5 +1,6 @@
 import { db } from "../index.js";
 import type { IssuePR, CreateIssuePRInput, UpdateIssuePRInput } from "../../types/entities.js";
+import { buildAndRunUpdate } from "./utils.js";
 
 export function listIssuePRs(issueId: string): IssuePR[] {
   return db
@@ -28,17 +29,7 @@ export function createIssuePR(input: CreateIssuePRInput): IssuePR {
 }
 
 export function updateIssuePR(id: string, input: UpdateIssuePRInput): IssuePR {
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (input.status !== undefined) { fields.push("status = ?"); values.push(input.status); }
-  if (input.pr_url !== undefined) { fields.push("pr_url = ?"); values.push(input.pr_url); }
-
-  if (fields.length > 0) {
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    db.prepare(`UPDATE IssuePR SET ${fields.join(", ")} WHERE id = ?`).run(...values, id);
-  }
-
+  buildAndRunUpdate("IssuePR", id, input);
   return getIssuePR(id)!;
 }
 

@@ -16,14 +16,10 @@ import { updateProject } from "../../src/db/repositories/projects.js";
 
 function clearAll() {
   db.exec("DELETE FROM ActivityLog");
-  db.exec("DELETE FROM IssueAgent");
   db.exec("DELETE FROM IssuePR");
   db.exec("DELETE FROM Comment");
-  db.exec("DELETE FROM Session");
   db.exec("DELETE FROM Issue");
-  db.exec("DELETE FROM Agent");
   db.exec("DELETE FROM Repo");
-  db.exec("DELETE FROM Crew");
   db.exec("DELETE FROM Project");
   db.exec("DELETE FROM GitHubAccount");
 }

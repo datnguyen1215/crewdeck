@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import http from "http";
 import express from "express";
 import { WebSocket as WsClient } from "ws";
@@ -15,6 +15,17 @@ async function startServer(bus: EventBus): Promise<{
   const app = express();
   const server = http.createServer(app);
   const wss = setupWebSocket(server, bus);
+
+  // setupWebSocket uses noServer mode — wire up upgrade handling like index.ts does
+  server.on("upgrade", (req, socket, head) => {
+    const pathname = new URL(req.url ?? "", "http://localhost").pathname;
+    if (pathname === "/ws") {
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+    } else {
+      socket.destroy();
+    }
+  });
+
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as { port: number };
   return { server, wss, port };
@@ -99,10 +110,10 @@ describe("WebSocket integration", () => {
     let ws2Received = false;
     ws2.on("message", () => { ws2Received = true; });
 
-    bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: projectId, state: "active" });
+    bus.emit("mention.spawned", { project_id: projectId, issue_id: "i1", agent_id: "a1", pid: 42 });
 
     const msg = await msgPromise;
-    expect(msg.event).toBe("agent.status_changed");
+    expect(msg.event).toBe("mention.spawned");
 
     // Give ws2 a moment to receive — it should not
     await new Promise((r) => setTimeout(r, 50));

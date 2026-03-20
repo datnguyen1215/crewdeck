@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "../../src/db/index.js";
 import { createProject } from "../../src/db/repositories/projects.js";
-import { getCrew } from "../../src/db/repositories/crews.js";
-import { createAgent } from "../../src/db/repositories/agents.js";
 import {
   listIssues,
   getIssue,
@@ -12,21 +10,16 @@ import {
   deleteIssue,
 } from "../../src/db/repositories/issues.js";
 import { createComment } from "../../src/db/repositories/comments.js";
-import { createIssueAgent } from "../../src/db/repositories/issue-agents.js";
 import { createRepo } from "../../src/db/repositories/repos.js";
 import { createIssuePR } from "../../src/db/repositories/issue-prs.js";
 import { createActivity } from "../../src/db/repositories/activity-log.js";
 
 function clearAll() {
   db.exec("DELETE FROM ActivityLog");
-  db.exec("DELETE FROM IssueAgent");
   db.exec("DELETE FROM IssuePR");
   db.exec("DELETE FROM Comment");
-  db.exec("DELETE FROM Session");
   db.exec("DELETE FROM Issue");
-  db.exec("DELETE FROM Agent");
   db.exec("DELETE FROM Repo");
-  db.exec("DELETE FROM Crew");
   db.exec("DELETE FROM Project");
 }
 
@@ -66,19 +59,6 @@ describe("listIssues", () => {
 
     const active = listIssues(p.id, { status: ["open", "in_progress"] });
     expect(active.length).toBe(2);
-  });
-
-  it("filters by assigned_agent_id", () => {
-    const p = createProject({ name: "P" });
-    const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", title: "dev", system_prompt: "s" });
-    const i1 = createIssue(p.id, { title: "Assigned", description: "D" });
-    updateIssue(i1.id, { assigned_agent_id: agent.id });
-    createIssue(p.id, { title: "Unassigned", description: "D" });
-
-    const assigned = listIssues(p.id, { assigned_agent_id: agent.id });
-    expect(assigned.length).toBe(1);
-    expect(assigned[0].title).toBe("Assigned");
   });
 
   it("filters by created_by", () => {
@@ -134,25 +114,23 @@ describe("getIssueWithDetails", () => {
     expect(getIssueWithDetails("missing")).toBeNull();
   });
 
-  it("returns issue with nested comments, agents, prs, activity", () => {
+  it("returns issue with nested comments, prs, activity", () => {
     const p = createProject({ name: "P" });
     const repo = createRepo(p.id, {
       github_url: "https://github.com/acme/x",
     });
-    const crew = getCrew(p.id)!;
-    const agent = createAgent(crew.id, { name: "A", title: "dev", system_prompt: "s" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
+    updateIssue(issue.id, { repo_id: repo.id });
 
     createComment(issue.id, { content: "A comment" });
-    createIssueAgent({ issue_id: issue.id, agent_id: agent.id, role: "developer" });
     createIssuePR({ issue_id: issue.id, repo_id: repo.id, pr_number: 42, pr_url: "https://github.com/acme/x/pull/42" });
     createActivity({ project_id: p.id, issue_id: issue.id, actor_type: "user", action: "created" });
 
     const details = getIssueWithDetails(issue.id);
     expect(details).not.toBeNull();
     expect(details!.comments.length).toBe(1);
-    expect(details!.agents.length).toBe(1);
-    expect(details!.prs.length).toBe(1);
-    expect(details!.activity.length).toBe(1);
+    expect(details!.issue_prs.length).toBe(1);
+    expect(details!.activity_log.length).toBe(1);
+    expect(details!.repo).toEqual({ id: repo.id, name: "x" });
   });
 });
