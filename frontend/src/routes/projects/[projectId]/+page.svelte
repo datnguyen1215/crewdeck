@@ -72,7 +72,7 @@
 	let filtered = $derived.by(() => {
 		let result = [...issues];
 		// Hide done issues unless showCompleted is enabled
-		if (!showCompleted) {
+		if (!showCompleted && !filterStatuses.includes('done')) {
 			result = result.filter((i) => i.status !== 'done');
 		}
 		if (filterStatuses.length > 0) {
