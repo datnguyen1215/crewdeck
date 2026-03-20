@@ -176,14 +176,14 @@ describe("handler queue integration", () => {
     it("queues agent when concurrency limit is reached", async () => {
       // Spawn 2 agents to hit the concurrency limit (max_concurrency = 2)
       await dispatchAgent("engineer");
-      await dispatchAgent("security");
+      await dispatchAgent("lead");
 
       // Both should spawn - check via events
       expect(spawnedEvents.length).toBe(2);
       expect(handler.getActiveProcessCount(projectId)).toBe(2);
 
       // Now try to spawn a third agent - should be queued
-      await dispatchAgent("architect");
+      await dispatchAgent("docs");
 
       // Third should NOT spawn (still 2 spawned events)
       expect(spawnedEvents.length).toBe(2);
@@ -193,13 +193,13 @@ describe("handler queue integration", () => {
       expect(queuedEvents[0]).toMatchObject({
         project_id: projectId,
         issue_id: issueId,
-        agent_id: "architect",
+        agent_id: "docs",
         position: 0,
       });
 
       // Check the queue state
       expect(dispatchQueue.getQueueLength(projectId)).toBe(1);
-      expect(dispatchQueue.isQueued(projectId, issueId, "architect")).toBe(true);
+      expect(dispatchQueue.isQueued(projectId, issueId, "docs")).toBe(true);
     });
 
     it("rolls back chain_depth when queueing", async () => {
@@ -211,7 +211,7 @@ describe("handler queue integration", () => {
 
       // Fill concurrency limit
       await dispatchAgent("engineer");
-      await dispatchAgent("security");
+      await dispatchAgent("lead");
 
       // Chain depth should have increased by 2 for the two spawns
       const afterSpawnsIssue = db
@@ -220,7 +220,7 @@ describe("handler queue integration", () => {
       expect(afterSpawnsIssue.chain_depth).toBe(initialDepth + 2);
 
       // Try to queue a third agent
-      await dispatchAgent("architect");
+      await dispatchAgent("docs");
 
       // Chain depth should NOT have increased (rollback happened)
       const afterQueueIssue = db
@@ -235,13 +235,13 @@ describe("handler queue integration", () => {
     it("creates system comment when queueing with correct position message", async () => {
       // Fill concurrency limit
       await dispatchAgent("engineer");
-      await dispatchAgent("security");
+      await dispatchAgent("lead");
 
       // Queue first agent - should say "next in line"
-      await dispatchAgent("architect");
+      await dispatchAgent("docs");
 
       // Queue second agent - should say "1 agent ahead"
-      await dispatchAgent("quality");
+      await dispatchAgent("captain");
 
       // Check system comments were created
       const comments = db
@@ -259,13 +259,13 @@ describe("handler queue integration", () => {
     it("spawns next queued agent when concurrency frees up", async () => {
       // Fill concurrency limit
       await dispatchAgent("engineer");
-      await dispatchAgent("security");
+      await dispatchAgent("lead");
 
       expect(spawnedEvents.length).toBe(2);
       expect(handler.getActiveProcessCount(projectId)).toBe(2);
 
       // Queue an agent
-      await dispatchAgent("architect");
+      await dispatchAgent("docs");
 
       expect(spawnedEvents.length).toBe(2);
       expect(dispatchQueue.getQueueLength(projectId)).toBe(1);
@@ -283,17 +283,17 @@ describe("handler queue integration", () => {
       expect(dequeuedEvents[0]).toMatchObject({
         project_id: projectId,
         issue_id: issueId,
-        agent_id: "architect",
+        agent_id: "docs",
       });
     });
 
     it("creates dequeued system comment when spawning from queue", async () => {
       // Fill concurrency limit
       await dispatchAgent("engineer");
-      await dispatchAgent("security");
+      await dispatchAgent("lead");
 
       // Queue an agent
-      await dispatchAgent("architect");
+      await dispatchAgent("docs");
 
       // Complete one agent to trigger drain
       completeProcess(1000, 0, "{}");
@@ -310,11 +310,11 @@ describe("handler queue integration", () => {
     it("respects FIFO order when draining queue", async () => {
       // Fill concurrency limit
       await dispatchAgent("engineer");
-      await dispatchAgent("security");
+      await dispatchAgent("lead");
 
       // Queue multiple agents
-      await dispatchAgent("architect");
-      await dispatchAgent("quality");
+      await dispatchAgent("docs");
+      await dispatchAgent("captain");
 
       expect(dispatchQueue.getQueueLength(projectId)).toBe(2);
 
@@ -322,18 +322,18 @@ describe("handler queue integration", () => {
       completeProcess(1000, 0, "{}");
       await new Promise((r) => setTimeout(r, 100));
 
-      // Architect should be dequeued first (FIFO)
+      // Docs should be dequeued first (FIFO)
       expect(dequeuedEvents.length).toBe(1);
-      expect(dequeuedEvents[0].agent_id).toBe("architect");
+      expect(dequeuedEvents[0].agent_id).toBe("docs");
       expect(dispatchQueue.getQueueLength(projectId)).toBe(1);
 
       // Complete another agent
       completeProcess(1001, 0, "{}");
       await new Promise((r) => setTimeout(r, 100));
 
-      // Quality should be dequeued next
+      // Captain should be dequeued next
       expect(dequeuedEvents.length).toBe(2);
-      expect(dequeuedEvents[1].agent_id).toBe("quality");
+      expect(dequeuedEvents[1].agent_id).toBe("captain");
       expect(dispatchQueue.getQueueLength(projectId)).toBe(0);
     });
   });
@@ -343,8 +343,8 @@ describe("handler queue integration", () => {
       // Spawn engineer on issue 1
       await dispatchAgent("engineer");
 
-      // Spawn security on issue 1 to fill limit
-      await dispatchAgent("security");
+      // Spawn lead on issue 1 to fill limit
+      await dispatchAgent("lead");
 
       expect(spawnedEvents.length).toBe(2);
 
@@ -356,25 +356,25 @@ describe("handler queue integration", () => {
         queuedAt: new Date(),
       });
 
-      // Queue architect for the same issue (will be spawned)
+      // Queue docs for the same issue (will be spawned)
       dispatchQueue.enqueue({
         projectId: projectId,
         issueId: issueId,
-        agentId: "architect",
+        agentId: "docs",
         queuedAt: new Date(),
       });
 
       expect(dispatchQueue.getQueueLength(projectId)).toBe(2);
 
-      // Complete security (not engineer) to trigger drain
+      // Complete lead (not engineer) to trigger drain
       completeProcess(1001, 0, "{}");
       await new Promise((r) => setTimeout(r, 100));
 
-      // Engineer should be skipped (still running), architect should spawn
+      // Engineer should be skipped (still running), docs should spawn
       expect(dequeuedEvents.length).toBe(1);
-      expect(dequeuedEvents[0].agent_id).toBe("architect");
+      expect(dequeuedEvents[0].agent_id).toBe("docs");
 
-      // Queue should be empty - engineer was dequeued (and skipped), architect was dequeued and spawned
+      // Queue should be empty - engineer was dequeued (and skipped), docs was dequeued and spawned
       expect(dispatchQueue.getQueueLength(projectId)).toBe(0);
     });
 
@@ -382,8 +382,8 @@ describe("handler queue integration", () => {
       // Spawn engineer on issue 1
       await dispatchAgent("engineer");
 
-      // Spawn security on issue 1 to fill limit
-      await dispatchAgent("security");
+      // Spawn lead on issue 1 to fill limit
+      await dispatchAgent("lead");
 
       expect(spawnedEvents.length).toBe(2);
 
@@ -415,12 +415,12 @@ describe("handler queue integration", () => {
     it("drains queue when agent completes", async () => {
       // Fill concurrency limit
       await dispatchAgent("engineer");
-      await dispatchAgent("security");
+      await dispatchAgent("lead");
 
       expect(spawnedEvents.length).toBe(2);
 
       // Queue an agent
-      await dispatchAgent("architect");
+      await dispatchAgent("docs");
 
       expect(spawnedEvents.length).toBe(2);
       expect(dispatchQueue.getQueueLength(projectId)).toBe(1);
