@@ -95,10 +95,6 @@
 	function goToProject() {
 		if (createdProject) goto(`/projects/${createdProject.id}`);
 	}
-
-	function goToProjectDashboard() {
-		if (createdProject) goto(`/projects/${createdProject.id}`);
-	}
 </script>
 
 <div class="flex flex-col items-center justify-center py-16 px-4" style="animation: fade-up 0.4s ease both">
@@ -279,18 +275,11 @@
 				<!-- Actions -->
 				<div class="space-y-3">
 					<button
-						onclick={goToProjectDashboard}
+						onclick={goToProject}
 						class="w-full px-4 py-2.5 bg-cyan/10 border border-cyan text-cyan rounded text-sm hover:bg-cyan/20 transition-colors uppercase tracking-wide"
 						style="box-shadow: var(--glow-cyan)"
 					>
-						Go to Dashboard
-					</button>
-
-					<button
-						onclick={goToProject}
-						class="w-full px-4 py-2 border border-edge rounded text-sm text-secondary hover:text-primary hover:border-edge-hi transition-colors"
-					>
-						Go to Project Dashboard
+						Go to Project
 					</button>
 				</div>
 			</div>

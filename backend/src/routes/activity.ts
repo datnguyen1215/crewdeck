@@ -40,7 +40,8 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
 
   const entries = listActivity(projectId, filters);
 
-  // Resolve agent names so the frontend doesn't display raw UUIDs
+  // Resolve agent names for display. Old activity logs may have UUID actor_ids
+  // from before the fixed crew migration — they'll display without actor_name.
   const agentCache = new Map<string, string | null>();
   const enriched = entries.map((entry: ActivityLog) => {
     if (entry.actor_type === 'agent' && entry.actor_id) {
