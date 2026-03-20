@@ -156,6 +156,7 @@ function buildPrompt(opts: BuildPromptOptions): string
   opts.worktreePath   — absolute path to the git worktree
   opts.agentId        — controls which API section is injected
   opts.projectIssues  — all open/in-progress issues (captain only)
+  opts.projectMemory  — project context/conventions (injected as ## Project Context)
 ```
 
 A backward-compatible 4-argument form (`issue, comments, repo, worktreePath`) is also accepted for callers that do not need the new fields.
