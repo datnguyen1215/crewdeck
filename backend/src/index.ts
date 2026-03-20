@@ -8,6 +8,7 @@ import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { setupTerminalWs, shutdownTerminalWs } from "./terminal-ws.js";
 import { initOrchestrator } from "./orchestrator/index.js";
+import { initMentionHandler } from "./mention/handler.js";
 import { createApp } from "./app.js";
 
 const app = createApp({ corsOrigin: config.corsOrigin });
@@ -20,6 +21,8 @@ async function main(): Promise<void> {
   await cleanupOrphans();
   processMonitor.start();
   const orchestrator = initOrchestrator(claudeCodeAdapter);
+  // Initialize mention handler for @mention-based agent spawning
+  initMentionHandler(claudeCodeAdapter);
   // Start captain sessions for all projects in the background
   orchestrator.startAllCaptains().catch((err) => {
     logger.error({ err }, "Failed to auto-start captain sessions");
