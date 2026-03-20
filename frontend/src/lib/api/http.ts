@@ -11,6 +11,8 @@ import type {
   DeviceCodeResponse,
   DeviceCodePollResponse,
   EnvironmentVariable,
+  AgentRun,
+  AgentRunWithEvents,
 } from './types.js';
 
 export type {
@@ -27,6 +29,11 @@ export type {
   DeviceCodeResponse,
   DeviceCodePollResponse,
   EnvironmentVariable,
+  AgentRun,
+  AgentRunEvent,
+  AgentRunWithEvents,
+  AgentRunStatus,
+  AgentRunEventType,
 } from './types.js';
 
 const BASE = "/api/v1";
@@ -144,4 +151,15 @@ export function listActivity(projectId: string, filters?: { issue_id?: string; a
 // Environment Variables
 export function createEnvironmentVariable(projectId: string, data: { key: string; value: string; is_secret?: boolean }) {
   return request<EnvironmentVariable>("POST", `/projects/${e(projectId)}/environment`, data);
+}
+
+// Agent Runs
+export function listIssueRuns(projectId: string, issueId: string) {
+  return request<AgentRun[]>("GET", `/projects/${e(projectId)}/issues/${e(issueId)}/runs`);
+}
+export function getRun(projectId: string, runId: string) {
+  return request<AgentRunWithEvents>("GET", `/projects/${e(projectId)}/runs/${e(runId)}`);
+}
+export function listProjectRuns(projectId: string, filters?: { limit?: number; offset?: number }) {
+  return request<AgentRun[]>("GET", `/projects/${e(projectId)}/runs${qs(filters)}`);
 }

@@ -100,3 +100,34 @@ CREATE INDEX IF NOT EXISTS idx_activity_project ON ActivityLog(project_id);
 CREATE INDEX IF NOT EXISTS idx_activity_issue ON ActivityLog(issue_id);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON ActivityLog(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_env_var_project ON EnvironmentVariable(project_id);
+
+-- Agent run persistence
+CREATE TABLE IF NOT EXISTS AgentRun (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES Project(id),
+  issue_id TEXT NOT NULL REFERENCES Issue(id),
+  agent_id TEXT NOT NULL,
+  pid INTEGER,
+  status TEXT NOT NULL DEFAULT 'queued',
+  exit_code INTEGER,
+  cost_usd REAL,
+  duration_ms INTEGER,
+  started_at DATETIME,
+  completed_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS AgentRunEvent (
+  id TEXT PRIMARY KEY,
+  agent_run_id TEXT NOT NULL REFERENCES AgentRun(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_run_project ON AgentRun(project_id);
+CREATE INDEX IF NOT EXISTS idx_agent_run_issue ON AgentRun(issue_id);
+CREATE INDEX IF NOT EXISTS idx_agent_run_status ON AgentRun(project_id, status);
+CREATE INDEX IF NOT EXISTS idx_agent_run_created ON AgentRun(project_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_run_event_run ON AgentRunEvent(agent_run_id);
+CREATE INDEX IF NOT EXISTS idx_agent_run_event_created ON AgentRunEvent(agent_run_id, created_at);

@@ -9,6 +9,7 @@
 	import ActivityTimeline from '$lib/components/ActivityTimeline.svelte';
 	import IssueComments from '$lib/components/IssueComments.svelte';
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
+	import AgentRuns from '$lib/components/AgentRuns.svelte';
 
 	type Issue = IssueWithDetails;
 
@@ -24,7 +25,7 @@
 	let editTitle = $state('');
 	let editDescription = $state('');
 
-	let activeTab = $state<'description' | 'comments' | 'activity'>('description');
+	let activeTab = $state<'description' | 'comments' | 'runs' | 'activity'>('description');
 
 	let activityEntries = $state<ActivityLog[]>([]);
 	let activityLoading = $state(true);
@@ -143,6 +144,7 @@
 				<div class="flex border-b border-edge text-xs">
 					<button onclick={() => activeTab = 'description'} class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'description' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Description</button>
 					<button onclick={() => activeTab = 'comments'} class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'comments' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Comments ({issue.comments.length})</button>
+					<button onclick={() => activeTab = 'runs'} class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'runs' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Runs</button>
 					<button onclick={() => activeTab = 'activity'} class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'activity' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Activity ({activityEntries.length})</button>
 				</div>
 
@@ -175,6 +177,9 @@
 							onCommentUpdated={(c) => { issue = { ...issue!, comments: issue!.comments.map(x => x.id === c.id ? c : x) }; }}
 							onCommentDeleted={(id) => { issue = { ...issue!, comments: issue!.comments.filter(x => x.id !== id) }; }}
 						/>
+
+					{:else if activeTab === 'runs'}
+						<AgentRuns {projectId} {issueId} />
 
 					{:else if activeTab === 'activity'}
 						{#if activityLoading}

@@ -91,6 +91,37 @@ export interface ActivityLog {
   created_at: string;
 }
 
+export type AgentRunStatus = "queued" | "running" | "completed" | "failed" | "timeout";
+
+export interface AgentRun {
+  id: string;
+  project_id: string;
+  issue_id: string;
+  agent_id: string;
+  pid: number | null;
+  status: AgentRunStatus;
+  exit_code: number | null;
+  cost_usd: number | null;
+  duration_ms: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export type AgentRunEventType = "system" | "assistant" | "tool_use" | "tool_result" | "result";
+
+export interface AgentRunEvent {
+  id: string;
+  agent_run_id: string;
+  type: AgentRunEventType;
+  data: unknown;
+  created_at: string;
+}
+
+export interface AgentRunWithEvents extends AgentRun {
+  events: AgentRunEvent[];
+}
+
 export interface EnvironmentVariable {
   id: string;
   project_id: string;

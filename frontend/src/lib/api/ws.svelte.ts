@@ -19,7 +19,10 @@ export type WsEvent =
   | "mention.spawned"
   | "mention.completed"
   | "mention.error"
-  | "mention.chain_depth_reached";
+  | "mention.chain_depth_reached"
+  | "run.started"
+  | "run.event"
+  | "run.completed";
 
 export interface WsMessage {
   event: WsEvent;
