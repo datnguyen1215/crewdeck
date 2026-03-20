@@ -70,7 +70,9 @@ comment.added event
     │       ├── check active process count < max_concurrency
     │       ├── regress issue status to in_progress if needed
     │       ├── create worktree if needed
-    │       ├── build prompt from issue + comments
+    │       ├── build prompt from issue + comments + agentId
+    │       │       (captain also receives all open/in-progress issues)
+    │       ├── if captain: inject GH_TOKEN from linked GitHub account
     │       └── spawnClaude(...)
     │
     └── on process exit:
@@ -119,15 +121,20 @@ The worktree path and branch name are recorded on the issue and reused for subse
 `backend/src/agent/prompt.ts`
 
 ```
-function buildPrompt(issue, comments, repo, worktreePath):
-    parts = []
-    parts += issue title and description (XML-tagged)
-    if repo:
-        parts += repo name and worktree path
-    if comments:
-        parts += all previous comments (XML-tagged, in order)
-    return join(parts, "\n\n")
+function buildPrompt(opts: BuildPromptOptions): string
+  opts.issue          — issue title and description (XML-tagged)
+  opts.comments       — all previous comments (XML-tagged, in order)
+  opts.repo           — repo name and worktree path (optional)
+  opts.worktreePath   — absolute path to the git worktree
+  opts.agentId        — controls which API section is injected
+  opts.projectIssues  — all open/in-progress issues (captain only)
 ```
+
+A backward-compatible 4-argument form (`issue, comments, repo, worktreePath`) is also accepted for callers that do not need the new fields.
+
+**Role-specific API access:** The prompt's API section varies by `agentId`. Captain receives the full API reference (issues CRUD, status transitions, activity log, internal comment/issue endpoints). All other agents receive a notice that their stdout is automatically posted as a comment — no direct API access.
+
+**Captain project issues:** When `agentId` is `"captain"`, the prompt includes a summary of all open and in-progress issues (excluding the current one) to support dependency-aware scheduling.
 
 Every invocation gets a complete, self-contained prompt from the database. The backend does not rely on Claude's session management.
 

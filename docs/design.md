@@ -88,7 +88,7 @@ Open → In Progress → PR Created → Done
 |-------|-------------|
 | **Open** | Issue is in the queue, ready to be worked on. |
 | **In Progress** | An agent is actively working (or has worked) on the issue. Set automatically when an agent is spawned. |
-| **PR Created** | A pull request has been created. Set via the "Mark as PR Created" button. |
+| **PR Created** | A pull request has been created. Set via the "Mark as PR Created" button or automatically by the Captain agent after creating a PR with `gh pr create`. |
 | **Done** | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running). |
 
 Mentioning an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress`.
