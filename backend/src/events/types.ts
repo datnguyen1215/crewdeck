@@ -50,4 +50,15 @@ export interface EventMap {
     project_id: string;
     issue_id: string;
   };
+  "dispatch.queued": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+    position: number;
+  };
+  "dispatch.dequeued": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+  };
 }
