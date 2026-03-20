@@ -786,8 +786,92 @@ export const shutdownMentionHandler = (): void => {
 };
 
 /**
+ * Check if a process with the given PID is still running.
+ * @param {number} pid - Process ID to check
+ * @returns {boolean} True if the process is alive
+ */
+const isProcessAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Send SIGTERM to an orphaned process, then SIGKILL after 5s if still alive.
+ * @param {number} pid - Process ID to kill
+ */
+const killOrphanedProcess = (pid: number): void => {
+  if (!isProcessAlive(pid)) return;
+
+  log.logger.info({ pid }, "Killing orphaned agent process");
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    return;
+  }
+
+  setTimeout(() => {
+    if (isProcessAlive(pid)) {
+      log.logger.warn({ pid }, "Orphaned process did not exit, sending SIGKILL");
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // Process already exited
+      }
+    }
+  }, 5000);
+};
+
+/**
+ * Re-dispatch captain on issues stuck in in_progress, respecting max_concurrency.
+ * Staggers dispatches by 500ms to avoid dispatch storms.
+ * @param {Map<string, Set<string>>} projectIssues - Map of projectId to set of issueIds
+ */
+const dispatchCaptainsForRecovery = async (
+  projectIssues: Map<string, Set<string>>,
+): Promise<void> => {
+  const captain = crew.getCrewMember("captain");
+  if (!captain) return;
+
+  for (const [projectId, issueIds] of projectIssues) {
+    const project = projectRepo.getProject(projectId);
+    if (!project) continue;
+
+    for (const issueId of issueIds) {
+      const issue = issueRepo.getIssue(issueId);
+      if (!issue || issue.status !== "in_progress") continue;
+
+      const activeCount = getActiveProcessCount(projectId);
+      if (activeCount >= project.max_concurrency) {
+        log.logger.info(
+          { projectId, issueId },
+          "Skipping recovery dispatch: max concurrency reached",
+        );
+        break;
+      }
+
+      log.logger.info({ issueId, projectId }, "Recovery: re-dispatching captain");
+      postSystemComment(issueId, projectId, "Re-dispatching Captain for recovery after server restart");
+
+      try {
+        await spawnAgent(captain, issueId, projectId);
+      } catch (err) {
+        log.logger.error({ err, issueId }, "Failed to spawn captain for recovery");
+      }
+
+      // Stagger dispatches by 500ms
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+};
+
+/**
  * Recover orphaned agent runs on startup.
- * Marks any "running" runs as "failed" and posts system comments.
+ * Kills orphaned processes, marks runs as failed, and re-dispatches captain
+ * on issues stuck in in_progress.
  */
 export const recoverOnStartup = (): void => {
   const orphanedRuns = agentRunRepo.listRunningAgentRuns();
@@ -802,7 +886,13 @@ export const recoverOnStartup = (): void => {
     "MentionHandler startup recovery: marking orphaned runs as failed",
   );
 
+  // Track affected issues by project for captain re-dispatch
+  const projectIssues = new Map<string, Set<string>>();
+
   for (const run of orphanedRuns) {
+    // Kill orphaned process if still alive
+    if (run.pid) killOrphanedProcess(run.pid);
+
     agentRunRepo.markRunFailed(run.id);
 
     const agent = crew.getCrewMember(run.agent_id);
@@ -813,11 +903,23 @@ export const recoverOnStartup = (): void => {
       `Agent run interrupted by server restart (${agentName})`,
     );
 
+    // Track this issue for recovery dispatch
+    if (!projectIssues.has(run.project_id))
+      projectIssues.set(run.project_id, new Set());
+    projectIssues.get(run.project_id)!.add(run.issue_id);
+
     log.logger.info(
       { runId: run.id, agentId: run.agent_id, issueId: run.issue_id },
       "Marked orphaned run as failed",
     );
   }
 
-  log.logger.info("MentionHandler startup recovery complete");
+  log.logger.info("MentionHandler startup recovery complete, scheduling captain re-dispatch");
+
+  // Delay 2s to ensure the server is fully initialized before spawning agents
+  setTimeout(() => {
+    dispatchCaptainsForRecovery(projectIssues).catch((err) => {
+      log.logger.error({ err }, "Failed to dispatch captains for recovery");
+    });
+  }, 2000);
 };
