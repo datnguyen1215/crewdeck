@@ -60,19 +60,19 @@
 			if (!run || run.issue_id !== issueId) return;
 
 			const event: AgentRunEvent = {
-				id: crypto.randomUUID(),
+				id: data.event_id as string,
 				agent_run_id: runId,
 				type: data.type as AgentRunEvent['type'],
 				data: data.data,
-				created_at: new Date().toISOString()
+				created_at: data.created_at as string
 			};
 
 			const existing = liveEvents.get(runId) ?? [];
 			liveEvents.set(runId, [...existing, event]);
 			liveEvents = new Map(liveEvents);
 
-			// If this run is expanded, update expanded events
-			if (expandedRun === runId) {
+			// If this run is expanded, append only if not already present (dedupe by ID)
+			if (expandedRun === runId && !expandedEvents.some(e => e.id === event.id)) {
 				expandedEvents = [...expandedEvents, event];
 			}
 		};
@@ -120,21 +120,22 @@
 		}
 
 		expandedRun = runId;
-		const run = runs.find(r => r.id === runId);
 
-		// For running processes, use live events
-		if (run?.status === 'running') {
-			expandedEvents = liveEvents.get(runId) ?? [];
-			return;
-		}
-
-		// For completed runs, load from API
+		// Always fetch stored events from API first
 		loadingEvents = true;
 		try {
 			const full = await getRun(projectId, runId);
-			expandedEvents = full.events;
+			const apiEvents = full.events;
+
+			// Merge with live events, deduplicating by ID
+			// (handles race condition where event is both fetched and received via WS)
+			const live = liveEvents.get(runId) ?? [];
+			const apiEventIds = new Set(apiEvents.map(e => e.id));
+			const newLiveEvents = live.filter(e => !apiEventIds.has(e.id));
+			expandedEvents = [...apiEvents, ...newLiveEvents];
 		} catch {
-			expandedEvents = [];
+			// Fallback to live events only if API fails
+			expandedEvents = liveEvents.get(runId) ?? [];
 		} finally {
 			loadingEvents = false;
 		}

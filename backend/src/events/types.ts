@@ -79,8 +79,10 @@ export interface EventMap {
   "run.event": {
     agent_run_id: string;
     project_id: string;
+    event_id: string;
     type: string;
     data: unknown;
+    created_at: string;
   };
   "run.completed": {
     agent_run_id: string;

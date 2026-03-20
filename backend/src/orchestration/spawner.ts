@@ -115,14 +115,16 @@ export async function processAgentStream(
     const eventType = mapEventType(event.type);
 
     // Persist event to DB
-    agentRunRepo.createAgentRunEvent(agentRunId, eventType, event);
+    const savedEvent = agentRunRepo.createAgentRunEvent(agentRunId, eventType, event);
 
     // Broadcast via WebSocket
     events.eventBus.emit("run.event", {
       agent_run_id: agentRunId,
       project_id: projectId,
+      event_id: savedEvent.id,
       type: eventType,
       data: event,
+      created_at: savedEvent.created_at,
     });
 
     // Extract result info from final result event

@@ -820,7 +820,7 @@ All events follow this structure:
 | Event | Description | Data |
 |-------|-------------|------|
 | `run.started` | Agent run started (process spawned) | `{ agent_run_id, project_id, issue_id, agent_id, status, started_at }` |
-| `run.event` | Streamed event received from Claude CLI | `{ agent_run_id, project_id, type, data }` |
+| `run.event` | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }` |
 | `run.completed` | Agent run finished | `{ agent_run_id, project_id, issue_id, status, exit_code, cost_usd, duration_ms, completed_at }` |
 
 #### PR Events
