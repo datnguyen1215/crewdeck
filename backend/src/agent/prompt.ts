@@ -42,7 +42,7 @@ function buildApiSection(agentId: string): string {
       // actual API uses PATCH status transitions.
       "- PATCH $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID — update issue fields",
       "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID/comments — list comments",
-      "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/crew — list available agents",
+      "- GET $CREWDECK_API_URL/api/v1/crew — list available agents",
       "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity — view activity log",
       "",
       "Internal API (for agent actions):",
