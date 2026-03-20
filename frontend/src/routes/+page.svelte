@@ -35,7 +35,6 @@
 			{
 				...project,
 				repo_count: 1,
-				agent_count: 1,
 				issues: { open: 0, in_progress: 0, pr_created: 0, done: 0 }
 			}
 		];
@@ -62,15 +61,9 @@
 	}
 
 	/** Setup completeness: count how many key milestones are done. */
-	function setupProgress(project: ProjectWithStats): { done: number; total: number; label: string } {
-		const checks = [
-			project.repo_count > 0,
-			project.agent_count > 0,
-		];
-		const done = checks.filter(Boolean).length;
-		const total = checks.length;
-		if (done === total) return { done, total, label: 'Ready' };
-		return { done, total, label: `${done}/${total} setup` };
+	function setupProgress(project: ProjectWithStats): { done: boolean; label: string } {
+		const done = project.repo_count > 0;
+		return { done, label: done ? 'Ready' : 'Setup needed' };
 	}
 </script>
 
@@ -158,11 +151,7 @@
 							<span class="text-muted">repos</span>
 							<span class="text-primary ml-1">{project.repo_count}</span>
 						</span>
-						<span>
-							<span class="text-muted">agents</span>
-							<span class="text-primary ml-1">{project.agent_count}</span>
-						</span>
-						{#if setup.done < setup.total}
+						{#if !setup.done}
 							<span class="ml-auto">
 								<span class="text-amber text-xs">{setup.label}</span>
 							</span>

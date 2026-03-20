@@ -15,7 +15,6 @@ function clearAll() {
   db.exec("DELETE FROM IssuePR");
   db.exec("DELETE FROM Comment");
   db.exec("DELETE FROM Issue");
-  db.exec("DELETE FROM Agent");
   db.exec("DELETE FROM Repo");
   db.exec("DELETE FROM Project");
 }

@@ -37,13 +37,10 @@ export interface Repo {
 
 export interface Agent {
   id: string;
-  project_id: string;
   name: string;
   title: string;
   description: string | null;
   system_prompt: string;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface Issue {
@@ -119,7 +116,6 @@ export interface UpdateEnvironmentVariableInput {
 // Composite types
 export interface ProjectWithStats extends Project {
   repo_count: number;
-  agent_count: number;
   issues: {
     open: number;
     in_progress: number;
@@ -157,19 +153,6 @@ export interface CreateRepoInput {
   default_branch?: string;
 }
 
-export interface CreateAgentInput {
-  name: string;
-  title: string;
-  description?: string;
-  system_prompt: string;
-}
-
-export interface UpdateAgentInput {
-  name?: string;
-  title?: string;
-  description?: string;
-  system_prompt?: string;
-}
 
 export interface CreateIssueInput {
   title: string;

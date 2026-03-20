@@ -1,9 +1,8 @@
 import { db } from "../index.js";
 
-type Table = "Agent" | "IssuePR" | "Issue" | "Project";
+type Table = "IssuePR" | "Issue" | "Project";
 
 const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
-  Agent: new Set(["name", "title", "description", "system_prompt"]),
   IssuePR: new Set(["status", "pr_url"]),
   Issue: new Set(["title", "description", "status", "priority", "chain_depth", "branch_name", "worktree_path", "base_branch", "repo_id"]),
   Project: new Set(["name", "description", "max_concurrency", "github_account_id"]),

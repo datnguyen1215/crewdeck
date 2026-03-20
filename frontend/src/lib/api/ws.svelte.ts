@@ -16,7 +16,6 @@ export type WsEvent =
   | "comment.deleted"
   | "pr.created"
   | "pr.status_changed"
-  | "agent.created"
   | "mention.spawned"
   | "mention.completed"
   | "mention.error"

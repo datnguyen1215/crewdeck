@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { listActivity } from "../db/repositories/activity-log.js";
 import { getProject } from "../db/repositories/projects.js";
-import { getAgent } from "../db/repositories/agents.js";
+import { getCrewMember } from "../agents/crew.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import type { ActivityFilters, ActivityLog } from "../types/entities.js";
 
@@ -40,12 +40,13 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
 
   const entries = listActivity(projectId, filters);
 
-  // Resolve agent names so the frontend doesn't display raw UUIDs
+  // Resolve agent names for display. Old activity logs may have UUID actor_ids
+  // from before the fixed crew migration — they'll display without actor_name.
   const agentCache = new Map<string, string | null>();
   const enriched = entries.map((entry: ActivityLog) => {
     if (entry.actor_type === 'agent' && entry.actor_id) {
       if (!agentCache.has(entry.actor_id)) {
-        agentCache.set(entry.actor_id, getAgent(entry.actor_id)?.name ?? null);
+        agentCache.set(entry.actor_id, getCrewMember(entry.actor_id)?.name ?? null);
       }
       const name = agentCache.get(entry.actor_id);
       if (name) return { ...entry, actor_name: name };

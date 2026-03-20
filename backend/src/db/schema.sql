@@ -20,18 +20,6 @@ CREATE TABLE IF NOT EXISTS Repo (
   UNIQUE(project_id, github_url)
 );
 
-CREATE TABLE IF NOT EXISTS Agent (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL REFERENCES Project(id),
-  name TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT,
-  system_prompt TEXT NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(project_id, name)
-);
-
 CREATE TABLE IF NOT EXISTS Issue (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES Project(id),
@@ -103,7 +91,6 @@ CREATE TABLE IF NOT EXISTS EnvironmentVariable (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_repo_project ON Repo(project_id);
-CREATE INDEX IF NOT EXISTS idx_agent_project ON Agent(project_id);
 CREATE INDEX IF NOT EXISTS idx_issue_project ON Issue(project_id);
 CREATE INDEX IF NOT EXISTS idx_issue_status ON Issue(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_comment_issue ON Comment(issue_id);

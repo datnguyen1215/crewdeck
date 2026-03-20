@@ -10,7 +10,6 @@ export interface Project {
 
 export interface ProjectWithStats extends Project {
   repo_count: number;
-  agent_count: number;
   issues: {
     open: number;
     in_progress: number;
@@ -30,13 +29,10 @@ export interface Repo {
 
 export interface Agent {
   id: string;
-  project_id: string;
   name: string;
   title: string;
   description: string | null;
   system_prompt: string;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface Issue {

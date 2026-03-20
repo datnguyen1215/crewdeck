@@ -72,10 +72,6 @@ export function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "pr.status_changed", { pr_id, from, to }),
   );
 
-  bus.on("agent.created", ({ agent_id, name, project_id }) =>
-    broadcast(project_id, "agent.created", { agent_id, name }),
-  );
-
   bus.on("mention.spawned", ({ project_id, issue_id, agent_id, pid }) =>
     broadcast(project_id, "mention.spawned", { issue_id, agent_id, pid }),
   );
