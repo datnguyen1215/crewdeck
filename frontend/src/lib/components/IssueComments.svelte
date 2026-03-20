@@ -154,6 +154,10 @@
 			if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); selectMention(filteredAgents[mentionIdx]); return; }
 			if (e.key === 'Escape') { e.preventDefault(); showMentions = false; return; }
 		}
+		if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			postComment();
+		}
 	}
 </script>
 
