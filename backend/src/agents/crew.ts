@@ -45,7 +45,3 @@ export function listCrew(): Agent[] {
 export function getCrewMember(id: string): Agent | null {
   return CREW.find((a) => a.id === id) ?? null;
 }
-
-export function findCrewMemberByName(name: string): Agent | null {
-  return CREW.find((a) => a.name.toLowerCase() === name.toLowerCase()) ?? null;
-}
