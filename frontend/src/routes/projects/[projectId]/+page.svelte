@@ -5,7 +5,7 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
-	import { parseUTC } from '$lib/utils/time.js';
+	import { parseUTC, relTimeDiff } from '$lib/utils/time.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -94,17 +94,6 @@
 			: [...filterStatuses, status];
 	}
 
-	function age(dateStr: string): string {
-		const diff = Date.now() - parseUTC(dateStr).getTime();
-		const mins = Math.floor(diff / 60000);
-		const hours = Math.floor(diff / 3600000);
-		const days = Math.floor(diff / 86400000);
-		const weeks = Math.floor(days / 7);
-		if (weeks > 0) return `${weeks}w`;
-		if (days > 0) return `${days}d`;
-		if (hours > 0) return `${hours}h`;
-		return `${mins}m`;
-	}
 
 	function priorityColor(priority: number): string {
 		if (!priority) return 'text-muted';
@@ -363,7 +352,7 @@
 									class="text-xs text-muted font-mono"
 									title={parseUTC(issue.created_at).toLocaleString()}
 								>
-									{age(issue.created_at)}
+									{relTimeDiff(issue.created_at)}
 								</span>
 							</div>
 						</a>
