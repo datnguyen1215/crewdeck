@@ -1,6 +1,6 @@
 ---
 title: CrewDeck API Specification
-version: 0.2.0
+version: 0.3.0
 status: draft
 ---
 
@@ -11,6 +11,8 @@ status: draft
 The backend exposes a REST API for CRUD operations and a WebSocket server for real-time events. All REST endpoints return JSON. All request bodies are JSON.
 
 **Base URL:** `http://localhost:<port>/api/v1`
+
+**Health check:** `GET /health` returns `{ "status": "ok" }` (outside the `/api/v1` prefix).
 
 **Configuration:** Port and other settings are configured via environment variables (`.env` file).
 
@@ -106,6 +108,7 @@ POST /projects
 | github_url | Yes | — | GitHub URL of the repository to link to this project. |
 | name | No | Repo name from GitHub API | Project name. |
 | description | No | Repo description from GitHub API | Project description. |
+| max_concurrency | No | — | Max concurrent agent processes. |
 | github_account_id | No | null | ID of a connected GitHubAccount to use for git operations in this project. |
 
 **Response:** `201 Created` — The created project object.
@@ -211,7 +214,7 @@ GET /github-accounts
 DELETE /github-accounts/:id
 ```
 
-Disconnects the account. Best-effort token revocation is attempted. Projects referencing this account will have `github_account_id` set to null.
+Disconnects the account. Best-effort token revocation is attempted (requires both `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`).
 
 **Response:** `204 No Content`
 
@@ -250,7 +253,7 @@ POST /projects/:projectId/repos
 
 **Response:** `201 Created` — The created repo object.
 
-**Side effects:** The backend clones the repo to a managed directory if not already present.
+**Side effects:** The backend clones the repo to a managed directory if not already present. Uses the project's linked GitHub account token when available.
 
 **Validation:**
 - github_url must be a valid GitHub URL.
@@ -306,7 +309,7 @@ POST /projects/:projectId/agents
 
 **Side effects:** Emits `agent.created` WebSocket event to connected clients.
 
-#### Generate Agent Prompt
+#### Generate Agent Configuration
 
 ```
 POST /projects/:projectId/agents/generate
@@ -382,7 +385,7 @@ GET /projects/:projectId/issues
 GET /projects/:projectId/issues/:issueId
 ```
 
-**Response:** `200 OK` — Full issue object including comments, linked agents, linked PRs, and activity log.
+**Response:** `200 OK` — Full issue object including comments, linked PRs, and activity log.
 
 ```json
 {
@@ -428,10 +431,9 @@ POST /projects/:projectId/issues
 | description | Yes | — | Issue description. |
 | priority | No | 0 | Priority score. Higher = more urgent. |
 
-**Response:** `201 Created` — The created issue object with status `open`.
+**Response:** `201 Created` — The created issue object with status `open` and `created_by: "user"`.
 
 **Side effects:**
-- ActivityLog entry created.
 - WebSocket event emitted: `issue.created`.
 
 #### Update Issue
@@ -445,10 +447,9 @@ PATCH /projects/:projectId/issues/:issueId
 **Response:** `200 OK` — The updated issue object.
 
 **Side effects:**
-- ActivityLog entry for each changed field.
-- WebSocket event emitted: `issue.updated`.
+- WebSocket event emitted: `issue.status_changed` (when status changes).
 
-**Note:** Status changes have specific validation rules (see Status Transitions below).
+**Note:** Status changes are validated against the transition rules (see Status Transitions below).
 
 #### Mark as PR Created
 
@@ -507,9 +508,8 @@ GET /projects/:projectId/issues/:issueId/comments
   {
     "id": "uuid",
     "issue_id": "uuid",
-    "author_type": "agent",
-    "author_id": "uuid",
-    "author": { "id": "uuid", "name": "Alice", "title": "Senior Engineer" },
+    "author_type": "user | agent",
+    "author_id": "uuid | null",
     "content": "I've identified the root cause...",
     "created_at": "ISO 8601"
   }
@@ -533,7 +533,6 @@ POST /projects/:projectId/issues/:issueId/comments
 
 **Side effects:**
 - WebSocket event: `comment.added`.
-- ActivityLog entry.
 
 **Note:** Agent and system comments are created internally (by agent processes and the MentionHandler), not through this endpoint.
 
@@ -688,7 +687,7 @@ These endpoints are used by agent processes (`claude -p` subprocesses) spawned b
 POST /internal/comment
 ```
 
-Agent posts a comment on its current issue.
+Agent posts a comment on an issue.
 
 **Request Body:**
 ```json
@@ -757,6 +756,12 @@ Agent updates an issue's priority.
 }
 ```
 
+| Field | Required | Description |
+|-------|----------|-------------|
+| project_id | Yes | Must match the issue's project. |
+| issue_id | Yes | The issue to update. |
+| priority | Yes | New priority level (integer). |
+
 **Response:** `200 OK` — The updated issue object.
 
 **Side effects:** Emits `issue.updated` on the event bus.
@@ -765,7 +770,7 @@ Agent updates an issue's priority.
 
 ## Status Transition Rules
 
-Issue status changes are validated to ensure a valid lifecycle:
+Issue status changes are validated to ensure a valid lifecycle. The system uses a simplified 4-status model driven by @mention-based orchestration:
 
 | From | Allowed Transitions |
 |------|---------------------|
@@ -788,7 +793,7 @@ Mentioning an agent on a `pr_created` or `done` issue automatically regresses it
 ws://localhost:<port>/ws?projectId=<uuid>
 ```
 
-Clients connect with a project ID to receive events scoped to that project.
+Clients connect with a project ID to receive events scoped to that project. The server validates that the project exists on connection.
 
 ### Event Format
 
@@ -866,4 +871,5 @@ All error responses follow this structure:
 | VALIDATION_ERROR | 400 | Request body fails validation. |
 | INVALID_TRANSITION | 400 | Invalid status transition. |
 | CONFLICT | 409 | Operation conflicts with current state (e.g., marking done while agents are running). |
+| FORBIDDEN | 403 | Action not allowed (e.g., editing agent comments). |
 | INTERNAL_ERROR | 500 | Unexpected server error. |
