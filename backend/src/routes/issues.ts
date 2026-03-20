@@ -74,6 +74,24 @@ router.patch(
 
     if (req.body.status && req.body.status !== existing.status) {
       assertTransition(existing.status, req.body.status);
+      if (req.body.status === "done") {
+        if (hasActiveProcesses(existing.id)) {
+          throw new ConflictError(
+            "Cannot mark as done — agents are still running on this issue",
+          );
+        }
+      }
+    }
+
+    // Idempotent: no-op if only setting the same status
+    const keys = Object.keys(req.body);
+    if (
+      keys.length === 1 &&
+      req.body.status &&
+      req.body.status === existing.status
+    ) {
+      res.json(existing);
+      return;
     }
 
     const updated = updateIssue(existing.id, req.body);
@@ -94,45 +112,6 @@ router.patch(
 router.delete("/:issueId", verifyIssueOwnership, (req, res) => {
   deleteIssue(req.issue!.id);
   res.status(204).send();
-});
-
-// POST /mark-pr-created — transition to pr_created
-router.post("/:issueId/mark-pr-created", verifyIssueOwnership, (req, res) => {
-  const issue = req.issue!;
-  assertTransition(issue.status, "pr_created");
-  const updated = updateIssue(issue.id, { status: "pr_created" });
-  eventBus.emit("issue.status_changed", {
-    issue_id: updated.id,
-    project_id: updated.project_id,
-    from: issue.status,
-    to: "pr_created",
-  });
-  res.json(updated);
-});
-
-// POST /mark-done — transition to done (rejected if active processes)
-router.post("/:issueId/mark-done", verifyIssueOwnership, (req, res) => {
-  const issue = req.issue!;
-  if (hasActiveProcesses(issue.id)) {
-    throw new ConflictError("Cannot mark as done — agents are still running on this issue");
-  }
-  const from = issue.status;
-  if (from === "done") { res.json(issue); return; }
-  const updated = updateIssue(issue.id, { status: "done" });
-  eventBus.emit("issue.status_changed", {
-    issue_id: updated.id,
-    project_id: updated.project_id,
-    from,
-    to: "done",
-  });
-  res.json(updated);
-});
-
-// POST /reset-chain-depth — reset chain depth counter
-router.post("/:issueId/reset-chain-depth", verifyIssueOwnership, (req, res) => {
-  const issue = req.issue!;
-  const updated = updateIssue(issue.id, { chain_depth: 0 });
-  res.json(updated);
 });
 
 export default router;

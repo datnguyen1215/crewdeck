@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { markPrCreated, markDone, resetChainDepth, type IssueWithDetails } from '$lib/api/http.js';
+	import { updateIssue, type IssueWithDetails } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
@@ -38,7 +38,7 @@
 	async function handleMarkPrCreated() {
 		working = true;
 		try {
-			await markPrCreated(projectId, issue.id);
+			await updateIssue(projectId, issue.id, { status: 'pr_created' });
 			onStatusChange();
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to mark PR created', 'error');
@@ -50,7 +50,7 @@
 	async function handleMarkDone() {
 		working = true;
 		try {
-			await markDone(projectId, issue.id);
+			await updateIssue(projectId, issue.id, { status: 'done' });
 			onStatusChange();
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to mark as done', 'error');
@@ -62,7 +62,7 @@
 	async function handleResetChainDepth() {
 		working = true;
 		try {
-			await resetChainDepth(projectId, issue.id);
+			await updateIssue(projectId, issue.id, { chain_depth: 0 });
 			onStatusChange();
 			toastStore.add('Chain depth reset', 'success');
 		} catch (err) {

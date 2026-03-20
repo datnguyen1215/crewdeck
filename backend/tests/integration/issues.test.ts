@@ -288,55 +288,26 @@ describe("Issues API", () => {
     });
   });
 
-  // --- Action endpoints ---
+  // --- PATCH consolidation (formerly action endpoints) ---
 
-  describe("POST /mark-pr-created", () => {
-    it("transitions in_progress issue to pr_created", async () => {
+  describe("PATCH status idempotency", () => {
+    it("returns issue unchanged when status already matches", async () => {
       const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, ["in_progress"]);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/mark-pr-created`,
-      );
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("pr_created");
-    });
-
-    it("rejects open issue", async () => {
-      const issue = await createIssue(app, projectId);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/mark-pr-created`,
-      );
-      expect(res.status).toBe(400);
-    });
-  });
-
-  describe("POST /mark-done", () => {
-    it("transitions issue to done", async () => {
-      const issue = await createIssue(app, projectId);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/mark-done`,
-      );
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("done");
-    });
-
-    it("returns issue unchanged when already done", async () => {
-      const issue = await createIssue(app, projectId);
-      await request(app).post(`${base(projectId)}/${issue.id}/mark-done`);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/mark-done`,
-      );
+      await transitionTo(app, projectId, issue.id, ["done"]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "done" });
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("done");
     });
   });
 
-  describe("POST /reset-chain-depth", () => {
+  describe("PATCH chain_depth reset", () => {
     it("resets chain_depth to 0", async () => {
       const issue = await createIssue(app, projectId);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/reset-chain-depth`,
-      );
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ chain_depth: 0 });
       expect(res.status).toBe(200);
       expect(res.body.chain_depth).toBe(0);
     });

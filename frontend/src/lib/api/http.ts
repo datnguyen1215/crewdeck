@@ -125,15 +125,6 @@ export function updateIssue(projectId: string, issueId: string, data: Partial<Is
 export function deleteIssue(projectId: string, issueId: string) {
   return request<void>("DELETE", `/projects/${e(projectId)}/issues/${e(issueId)}`);
 }
-export function markPrCreated(projectId: string, issueId: string) {
-  return request<Issue>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/mark-pr-created`);
-}
-export function markDone(projectId: string, issueId: string) {
-  return request<Issue>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/mark-done`);
-}
-export function resetChainDepth(projectId: string, issueId: string) {
-  return request<Issue>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/reset-chain-depth`);
-}
 
 // Comments
 export function addComment(projectId: string, issueId: string, data: { content: string }) {
