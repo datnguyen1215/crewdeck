@@ -16,7 +16,7 @@ import { logger } from "../logger.js";
 // Regex to match GitHub PR URLs: https://github.com/owner/repo/pull/123
 const PR_URL_REGEX = /https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/g;
 
-interface ParsedPR {
+export interface ParsedPR {
   owner: string;
   name: string;
   prNumber: number;
@@ -24,7 +24,7 @@ interface ParsedPR {
 }
 
 /** Extract all GitHub PR URLs from text content. */
-function parsePRUrls(content: string): ParsedPR[] {
+export function parsePRUrls(content: string): ParsedPR[] {
   const results: ParsedPR[] = [];
   let match;
 
