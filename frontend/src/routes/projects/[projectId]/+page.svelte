@@ -19,8 +19,8 @@
 	let filterStatuses = $state<string[]>([]);
 	let filterAgent = $state('');
 
-	// Sort state — priority descending by default
-	let sortField = $state<'priority' | 'created_at' | 'updated_at'>('priority');
+	// Sort state — newest first by default
+	let sortField = $state<'priority' | 'created_at' | 'updated_at'>('created_at');
 	let sortDesc = $state(true);
 
 	// Modal state
