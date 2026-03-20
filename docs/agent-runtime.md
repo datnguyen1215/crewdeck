@@ -12,7 +12,7 @@ The Agent Runtime spawns AI agents as `claude -p` subprocesses. There are no tmu
 
 ## ProcessAdapter
 
-`backend/src/agent/adapters/process.ts`
+`backend/src/orchestration/process.ts`
 
 ### spawnClaude
 
@@ -54,7 +54,7 @@ claude -p <prompt> \
 
 ## MentionHandler
 
-`backend/src/mention/handler.ts`
+`backend/src/orchestration/handler.ts`
 
 The MentionHandler subscribes to `comment.added` events and drives agent spawning.
 
@@ -118,7 +118,7 @@ Each process is given a 10-minute timeout. On timeout, SIGTERM is sent; if the p
 
 ## MentionParser
 
-`backend/src/mention/parser.ts`
+`backend/src/orchestration/parser.ts`
 
 Parses `/dispatch` commands from comment text.
 
@@ -146,7 +146,7 @@ The worktree path and branch name are recorded on the issue and reused for subse
 
 ## Prompt Construction
 
-`backend/src/agent/prompt.ts`
+`backend/src/orchestration/prompt.ts`
 
 ```
 function buildPrompt(opts: BuildPromptOptions): string
