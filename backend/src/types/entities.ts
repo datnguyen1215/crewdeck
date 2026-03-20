@@ -57,6 +57,7 @@ export interface Issue {
   worktree_path: string | null;
   base_branch: string | null;
   repo_id: string | null;
+  agent_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -193,6 +194,7 @@ export interface CreateIssueInput {
   status?: string;
   priority?: number;
   created_by?: string;
+  agent_id?: string | null;
 }
 
 export interface UpdateIssueInput {
@@ -205,6 +207,7 @@ export interface UpdateIssueInput {
   worktree_path?: string | null;
   base_branch?: string | null;
   repo_id?: string | null;
+  agent_id?: string | null;
 }
 
 export interface IssueFilters {

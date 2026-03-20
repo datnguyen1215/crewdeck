@@ -37,6 +37,11 @@ export function createDb(path: string): Database.Database {
     db.exec("ALTER TABLE Project ADD COLUMN memory TEXT");
   }
 
+  // Migration: add agent_id column to Issue if missing.
+  if (!issueCols.some((c) => c.name === "agent_id")) {
+    db.exec("ALTER TABLE Issue ADD COLUMN agent_id TEXT");
+  }
+
   // Migration: drop Agent table — agents are now fixed constants in code.
   db.exec("DROP TABLE IF EXISTS Agent");
   db.exec("DROP INDEX IF EXISTS idx_agent_project");

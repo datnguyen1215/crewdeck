@@ -371,6 +371,7 @@ POST /projects/:projectId/issues
 | title | Yes | — | Issue title. |
 | description | Yes | — | Issue description. |
 | priority | No | 0 | Priority score. Higher = more urgent. |
+| agent_id | No | null | Assigned agent ID (one of: captain, engineer, lead, docs). |
 
 **Response:** `201 Created` — The created issue object with status `open` and `created_by: "user"`.
 
@@ -383,7 +384,7 @@ POST /projects/:projectId/issues
 PATCH /projects/:projectId/issues/:issueId
 ```
 
-**Request Body:** Any subset of issue fields (title, description, status, priority, chain_depth).
+**Request Body:** Any subset of issue fields (title, description, status, priority, chain_depth, agent_id).
 
 **Response:** `200 OK` — The updated issue object. If the request only sets a field to its current value (e.g. same status), the issue is returned unchanged.
 
