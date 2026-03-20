@@ -12,18 +12,23 @@ import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
 import { buildAndRunUpdate } from "./utils.js";
 
-export function listIssues(projectId: string, filters: IssueFilters = {}): Issue[] {
-  const conditions: string[] = ["project_id = ?"];
+export interface IssueWithRunningAgent extends Issue {
+  running_agent_id: string | null;
+  running_agent_status: string | null;
+}
+
+export function listIssues(projectId: string, filters: IssueFilters = {}): IssueWithRunningAgent[] {
+  const conditions: string[] = ["i.project_id = ?"];
   const values: unknown[] = [projectId];
 
   if (filters.status?.length) {
     const placeholders = filters.status.map(() => "?").join(", ");
-    conditions.push(`status IN (${placeholders})`);
+    conditions.push(`i.status IN (${placeholders})`);
     values.push(...filters.status);
   }
 
   if (filters.created_by !== undefined) {
-    conditions.push("created_by = ?");
+    conditions.push("i.created_by = ?");
     values.push(filters.created_by);
   }
 
@@ -35,9 +40,23 @@ export function listIssues(projectId: string, filters: IssueFilters = {}): Issue
   const order = ORDERS.includes(filters.order as (typeof ORDERS)[number])
     ? filters.order!
     : "desc";
-  const sql = `SELECT * FROM Issue WHERE ${conditions.join(" AND ")} ORDER BY ${sortCol} ${order}`;
 
-  return db.prepare(sql).all(...values) as Issue[];
+  // LEFT JOIN to get the most recent running/queued agent per issue
+  // Uses a subquery to pick the single most recent active run per issue
+  const sql = `
+    SELECT i.*, ar.agent_id AS running_agent_id, ar.status AS running_agent_status
+    FROM Issue i
+    LEFT JOIN (
+      SELECT issue_id, agent_id, status,
+        ROW_NUMBER() OVER (PARTITION BY issue_id ORDER BY created_at DESC) AS rn
+      FROM AgentRun
+      WHERE status IN ('running', 'queued')
+    ) ar ON ar.issue_id = i.id AND ar.rn = 1
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY i.${sortCol} ${order}
+  `;
+
+  return db.prepare(sql).all(...values) as IssueWithRunningAgent[];
 }
 
 export function getIssue(id: string): Issue | null {
