@@ -85,7 +85,6 @@ comment.added event
     │
     └── on process exit:
             ├── post agent output as comment (author_type: "agent")
-            ├── post system comment with cost/duration
             ├── emit mention.completed
             ├── drain dispatch queue: dequeue next for this project (if any),
             │       post "Agent X dequeued, spawning now" system comment,

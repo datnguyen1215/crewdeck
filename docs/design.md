@@ -64,7 +64,7 @@ Comments are the communication and orchestration layer. Agents post comments wit
 - Review feedback.
 - `/dispatch` commands to trigger follow-up work from other agents.
 
-System comments are posted automatically for lifecycle events (agent started, finished, chain depth reached, etc.).
+System comments are posted automatically for error and limit conditions (chain depth reached, agent queued, timeout/crash, failed spawns). Successful agent completion is recorded only in the activity log.
 
 Humans can post comments to provide direction, ask questions, or trigger agents.
 
