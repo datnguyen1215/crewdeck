@@ -2,6 +2,9 @@
  * In-memory per-project FIFO queue for agent dispatches.
  * When concurrency limits are reached, dispatches are queued here
  * instead of being rejected.
+ *
+ * Queue is in-memory; queued dispatches are lost on restart (same as active processes).
+ * No explicit queue size limit — bounded implicitly by chain_depth and practical dispatch rates.
  */
 import * as log from "../logger.js";
 

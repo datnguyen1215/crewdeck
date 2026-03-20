@@ -299,6 +299,15 @@ const spawnAgent = async (
 
   const activeCount = getActiveProcessCount(projectId);
   if (activeCount >= project.max_concurrency) {
+    // Don't queue duplicates
+    if (dispatchQueue.isQueued(projectId, issueId, agent.id)) {
+      postSystemComment(issueId, projectId, `Agent ${agent.name} is already queued`);
+      // Rollback the chain_depth increment since we're not spawning
+      database.db
+        .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
+        .run(issueId);
+      return;
+    }
     // Queue the dispatch instead of rejecting
     const position = dispatchQueue.enqueue({
       projectId,
@@ -499,59 +508,61 @@ const drainQueue = async (projectId: string): Promise<void> => {
   const project = projectRepo.getProject(projectId);
   if (!project) return;
 
-  const activeCount = getActiveProcessCount(projectId);
-  if (activeCount >= project.max_concurrency) return;
+  while (true) {
+    const activeCount = getActiveProcessCount(projectId);
+    if (activeCount >= project.max_concurrency) return;
 
-  const next = dispatchQueue.dequeue(projectId);
-  if (!next) return;
+    const next = dispatchQueue.dequeue(projectId);
+    if (!next) return;
 
-  const agent = crew.getCrewMember(next.agentId);
-  if (!agent) {
-    log.logger.warn({ agentId: next.agentId }, "Queued agent not found");
-    return;
-  }
+    const agent = crew.getCrewMember(next.agentId);
+    if (!agent) {
+      log.logger.warn({ agentId: next.agentId }, "Queued agent not found");
+      continue;
+    }
 
-  // Skip if agent already has an active process for this issue
-  if (hasActiveAgentProcess(agent.id, next.issueId)) {
-    log.logger.info(
-      { agentId: agent.id, issueId: next.issueId },
-      "Skipping queued spawn: agent already running for this issue"
-    );
-    // Try the next one in the queue
-    drainQueue(projectId);
-    return;
-  }
+    // Skip if agent already has an active process for this issue
+    if (hasActiveAgentProcess(agent.id, next.issueId)) {
+      log.logger.info(
+        { agentId: agent.id, issueId: next.issueId },
+        "Skipping queued spawn: agent already running for this issue",
+      );
+      continue;
+    }
 
-  postSystemComment(
-    next.issueId,
-    projectId,
-    `Agent ${agent.name} dequeued, spawning now`,
-  );
-
-  events.eventBus.emit("dispatch.dequeued", {
-    project_id: projectId,
-    issue_id: next.issueId,
-    agent_id: next.agentId,
-  });
-
-  try {
-    await spawnAgent(agent, next.issueId, projectId, next.commentAuthorAgentId);
-  } catch (err) {
-    log.logger.error(
-      { err, agent: agent.name, issueId: next.issueId },
-      "Failed to spawn queued agent",
-    );
-    events.eventBus.emit("mention.error", {
-      project_id: projectId,
-      issue_id: next.issueId,
-      agent_id: agent.id,
-      message: err instanceof Error ? err.message : "unknown error",
-    });
     postSystemComment(
       next.issueId,
       projectId,
-      `Failed to spawn queued agent ${agent.name}: ${err instanceof Error ? err.message : "unknown error"}`,
+      `Agent ${agent.name} dequeued, spawning now`,
     );
+
+    events.eventBus.emit("dispatch.dequeued", {
+      project_id: projectId,
+      issue_id: next.issueId,
+      agent_id: next.agentId,
+    });
+
+    try {
+      await spawnAgent(agent, next.issueId, projectId, next.commentAuthorAgentId);
+    } catch (err) {
+      log.logger.error(
+        { err, agent: agent.name, issueId: next.issueId },
+        "Failed to spawn queued agent",
+      );
+      events.eventBus.emit("mention.error", {
+        project_id: projectId,
+        issue_id: next.issueId,
+        agent_id: agent.id,
+        message: err instanceof Error ? err.message : "unknown error",
+      });
+      postSystemComment(
+        next.issueId,
+        projectId,
+        `Failed to spawn queued agent ${agent.name}: ${err instanceof Error ? err.message : "unknown error"}`,
+      );
+      // Spawn failed — continue draining so the slot isn't wasted
+      continue;
+    }
   }
 };
 
