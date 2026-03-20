@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { updateIssue, type IssueWithDetails } from '$lib/api/http.js';
+	import { updateIssue, deleteIssue, type IssueWithDetails } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
@@ -18,6 +18,7 @@
 
 	let working = $state(false);
 	let copied = $state(false);
+	let confirmingDelete = $state(false);
 
 	const STATUS_CFG: Record<
 		string,
@@ -185,6 +186,30 @@
 			{/if}
 
 			<button onclick={onEdit} class="w-full py-1.5 border border-edge text-secondary rounded hover:border-edge-hi hover:text-primary transition-colors text-left px-3">Edit Issue</button>
+
+			{#if confirmingDelete}
+				<div class="flex gap-2">
+					<button
+						onclick={async () => {
+							working = true;
+							try {
+								await deleteIssue(projectId, issue.id);
+								goto(`/projects/${projectId}`);
+							} catch (err) {
+								toastStore.add(err instanceof Error ? err.message : 'Failed to delete issue', 'error');
+								confirmingDelete = false;
+							} finally {
+								working = false;
+							}
+						}}
+						disabled={working}
+						class="flex-1 py-1.5 border border-red text-red rounded hover:bg-red/10 transition-colors px-3 disabled:opacity-50"
+					>Confirm</button>
+					<button onclick={() => confirmingDelete = false} class="flex-1 py-1.5 border border-edge text-muted rounded hover:text-secondary transition-colors px-3">Cancel</button>
+				</div>
+			{:else}
+				<button onclick={() => confirmingDelete = true} class="w-full py-1.5 border border-red/50 text-red/50 rounded hover:border-red hover:text-red transition-colors text-left px-3">Delete Issue</button>
+			{/if}
 		</div>
 	</div>
 
