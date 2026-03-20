@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, listAgents, listRepos, createIssue, type Issue, type Agent, type Repo } from '$lib/api/http.js';
+	import { listIssues, listAgents, createIssue, type Issue, type Agent } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
@@ -11,7 +11,6 @@
 
 	let issues = $state<Issue[]>([]);
 	let agents = $state<Agent[]>([]);
-	let repos = $state<Repo[]>([]);
 	let loading = $state(true);
 
 	let projectId = $derived($page.params.projectId!);
@@ -34,12 +33,11 @@
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
-		Promise.all([listIssues(projectId), listAgents(), listRepos(projectId)])
-			.then(([i, a, r]) => {
+		Promise.all([listIssues(projectId), listAgents()])
+			.then(([i, a]) => {
 				if (cancelled) return; // discard stale response if projectId changed
 				issues = i;
 				agents = a;
-				repos = r;
 				loading = false;
 			})
 			.catch(() => {
@@ -54,8 +52,8 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
-			Promise.all([listIssues(projectId), listAgents(), listRepos(projectId)])
-				.then(([i, a, r]) => { issues = i; agents = a; repos = r; })
+			Promise.all([listIssues(projectId), listAgents()])
+				.then(([i, a]) => { issues = i; agents = a; })
 				.catch(() => {});
 		};
 		const unsubs = [
@@ -63,12 +61,13 @@
 			ws.on('issue.updated', reload),
 			ws.on('issue.status_changed', reload),
 			ws.on('mention.completed', reload),
+			ws.on('run.started', reload),
+			ws.on('run.completed', reload),
 		];
 		return () => unsubs.forEach(fn => fn());
 	});
 
 	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
-	let repoMap = $derived(Object.fromEntries(repos.map((r) => [r.id, r.github_url.split('/').pop() ?? r.github_url])));
 
 	let filtered = $derived.by(() => {
 		let result = [...issues];
@@ -237,19 +236,18 @@
 	{#if loading}
 		<!-- Skeleton table while issues load -->
 		<div class="overflow-x-auto fade-up">
-			<div class="min-w-[680px] border border-edge rounded overflow-hidden">
-				<div class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+			<div class="min-w-[580px] border border-edge rounded overflow-hidden">
+				<div class="grid grid-cols-[52px_1fr_148px_96px_60px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
 					<div class="px-3 py-2.5 text-center">Pri</div>
 					<div class="px-3 py-2.5">Title</div>
 					<div class="px-3 py-2.5">Status</div>
 					<div class="px-3 py-2.5">Agent</div>
-					<div class="px-3 py-2.5">Repo</div>
 					<div class="px-3 py-2.5 text-right">Age</div>
 				</div>
 				{#each Array(8) as _, i}
 					{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 					<div
-						class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						class="grid grid-cols-[52px_1fr_148px_96px_60px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
 					style="animation-delay: {i * 30}ms"
 					>
 						<div class="px-3 py-3 flex justify-center items-center">
@@ -263,9 +261,6 @@
 						</div>
 						<div class="px-3 py-3 flex items-center">
 							<div class="skeleton h-4 w-16 rounded"></div>
-						</div>
-						<div class="px-3 py-3 flex items-center">
-							<div class="skeleton h-4 w-14 rounded"></div>
 						</div>
 						<div class="px-3 py-3 flex items-center justify-end">
 							<div class="skeleton h-3 w-8 rounded"></div>
@@ -291,25 +286,26 @@
 		</div>
 	{:else}
 		<div class="overflow-x-auto">
-				<div class="min-w-[680px] border border-edge rounded overflow-hidden">
+				<div class="min-w-[580px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
 					<div
-						class="grid grid-cols-[52px_1fr_148px_96px_96px_60px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
+						class="grid grid-cols-[52px_1fr_148px_96px_60px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
 					>
 						<div class="px-3 py-2.5 text-center">Pri</div>
 						<div class="px-3 py-2.5">Title</div>
 						<div class="px-3 py-2.5">Status</div>
 						<div class="px-3 py-2.5">Agent</div>
-						<div class="px-3 py-2.5">Repo</div>
 						<div class="px-3 py-2.5 text-right">Age</div>
 					</div>
 
 					<!-- Rows -->
 					{#each filtered as issue, i (issue.id)}
 						{@const cfg = STATUS_CFG[issue.status] ?? STATUS_CFG.open}
+						{@const runningAgentName = issue.running_agent_id ? agentMap[issue.running_agent_id] : null}
+						{@const isQueued = issue.running_agent_status === 'queued'}
 						<a
 							href="/projects/{projectId}/issues/{issue.id}"
-							class="issue-row grid grid-cols-[52px_1fr_148px_96px_96px_60px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''}"
+							class="issue-row grid grid-cols-[52px_1fr_148px_96px_60px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''}"
 							style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 						>
 							<!-- Priority -->
@@ -340,18 +336,15 @@
 								</span>
 							</div>
 
-							<!-- Agent -->
+							<!-- Agent (shows running/queued agent if active, else "—") -->
 							<div class="px-3 py-3 self-center">
-								<span class="text-sm {issue.agent_id ? 'text-secondary' : 'text-muted'} truncate block">
-									{agentMap[issue.agent_id ?? ''] ?? '—'}
-								</span>
-							</div>
-
-							<!-- Repo -->
-							<div class="px-3 py-3 self-center">
-								<span class="text-sm {issue.repo_id ? 'text-secondary' : 'text-muted'} truncate block">
-									{repoMap[issue.repo_id ?? ''] ?? '—'}
-								</span>
+								{#if runningAgentName}
+									<span class="text-sm truncate block {isQueued ? 'text-muted' : 'text-cyan'}">
+										{runningAgentName}
+									</span>
+								{:else}
+									<span class="text-sm text-muted truncate block">—</span>
+								{/if}
 							</div>
 
 							<!-- Age -->

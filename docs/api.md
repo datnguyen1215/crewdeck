@@ -318,7 +318,25 @@ GET /projects/:projectId/issues
 | sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `created_at`. |
 | order | TEXT | Sort order. `asc` or `desc`. Default: `desc`. |
 
-**Response:** `200 OK` — Array of issue objects (without full comment thread).
+**Response:** `200 OK` — Array of issue objects (without full comment thread). Each issue includes `running_agent_id` and `running_agent_status` fields indicating the currently running or queued agent (if any).
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "title": "Fix authentication bug",
+    "status": "in_progress",
+    "priority": 5,
+    "running_agent_id": "engineer",
+    "running_agent_status": "running",
+    "...": "..."
+  }
+]
+```
+
+- `running_agent_id`: The ID of the agent currently running or queued on this issue. NULL if no agent is active.
+- `running_agent_status`: Either `"running"` or `"queued"`. NULL if no agent is active.
 
 #### Get Issue
 
