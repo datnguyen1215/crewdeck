@@ -40,6 +40,8 @@ Orchestration is driven by @mentions in issue comments. When a user or agent pos
 
 This creates a chain of agent invocations driven entirely through the comment thread — no persistent captain session or CLI tool is needed.
 
+When a single comment mentions **multiple agents**, they are grouped as a batch. The batch members are spawned immediately, and the comment's author (the originator) is automatically re-spawned once all batch members have completed. This allows Captain, for example, to delegate work to several specialists and be invoked again when all results are ready.
+
 The chain depth is tracked per issue (max 20) to prevent infinite loops. Concurrency is bounded by the project's `max_concurrency` setting.
 
 ### Issue
