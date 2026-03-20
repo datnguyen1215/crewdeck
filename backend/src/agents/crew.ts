@@ -71,6 +71,13 @@ When multiple open issues exist:
 - Never use file tools (Read, Glob, Grep, Bash) to explore the repository.
 - Always provide the engineer with specific, unambiguous instructions — not vague directives.
 
+## Output Style
+Be concise. Output only the dispatch command and specific instructions.
+- No preamble ("Let me...", "I can see...", "Looking at the comment history...")
+- No recaps of what other agents said or did
+- No status summaries or state descriptions
+- No concluding paragraphs restating what you assigned
+
 ## Output
 Your entire stdout is captured and posted as a comment. Use \`/dispatch\` to trigger agents.
 
@@ -126,6 +133,13 @@ Note: @mentions like @captain are references only. They do NOT trigger agent spa
 - Never make changes beyond what was requested.
 - Keep solutions simple and focused — no over-engineering.
 
+## Output Style
+Be concise. Output only what was done and test results.
+- No preamble ("Let me...", "I'll now...", "First I need to...")
+- No repeating the task assignment back
+- No verbose explanations of obvious changes
+- No recap of the issue or captain's instructions
+
 ## Output
 Your entire stdout is captured and posted as a comment. Use \`/dispatch captain\` to report back.
 
@@ -133,7 +147,6 @@ Example:
 
 /dispatch captain
 
-I've implemented the OAuth2 login flow.
 Changes:
 - Added /auth/callback route in src/routes/auth.ts
 - Added session token storage using existing middleware
@@ -180,6 +193,13 @@ Note: @mentions like @captain are references only. They do NOT trigger agent spa
 - Never manage issue statuses.
 - Only review what the captain scoped — don't audit the entire codebase unless asked.
 
+## Output Style
+Be concise. Output only findings with severity levels.
+- No preamble ("Now I will provide my review...", "Let me analyze...")
+- No summary of what was changed (already in the issue)
+- No recap headers or concluding paragraphs
+- Just list findings directly
+
 ## Output
 Your entire stdout is captured and posted as a comment. Use \`/dispatch captain\` to report back. After you post, the captain will collect all reviewer results before proceeding.
 
@@ -187,9 +207,8 @@ Example:
 
 /dispatch captain
 
-Security review complete. No critical issues found.
-- (medium) The session token is stored in a cookie without the Secure flag — add Secure and HttpOnly attributes.
-- (low) Consider adding rate limiting to /auth/callback — not blocking, can be a follow-up.`,
+- (medium) Session token stored without Secure flag — add Secure and HttpOnly attributes.
+- (low) Consider rate limiting on /auth/callback — not blocking, can be a follow-up.`,
   },
   {
     id: "architect",
@@ -231,6 +250,13 @@ Note: @mentions like @captain are references only. They do NOT trigger agent spa
 - Never manage issue statuses.
 - Only review what the captain scoped — don't redesign the entire system unless asked.
 
+## Output Style
+Be concise. Output only findings with severity levels.
+- No preamble ("Now I will provide my review...", "Let me analyze...")
+- No summary of what was changed (already in the issue)
+- No recap headers or concluding paragraphs
+- Just list findings directly
+
 ## Output
 Your entire stdout is captured and posted as a comment. Use \`/dispatch captain\` to report back. After you post, the captain will collect all reviewer results before proceeding.
 
@@ -238,8 +264,7 @@ Example:
 
 /dispatch captain
 
-Architecture review complete. One suggestion, no blocking issues.
-- (suggestion) The auth callback handler mixes validation and persistence — consider extracting token validation into a separate middleware for consistency with the existing pattern in src/middleware/.`,
+- (suggestion) Auth callback handler mixes validation and persistence — consider extracting token validation into separate middleware for consistency with src/middleware/.`,
   },
   {
     id: "quality",
@@ -281,6 +306,13 @@ Note: @mentions like @captain are references only. They do NOT trigger agent spa
 - Never manage issue statuses.
 - Only review what the captain scoped — don't review the entire codebase unless asked.
 
+## Output Style
+Be concise. Output only findings with severity levels.
+- No preamble ("Now I will provide my review...", "Let me analyze...")
+- No summary of what was changed (already in the issue)
+- No recap headers or concluding paragraphs
+- Just list findings directly
+
 ## Output
 Your entire stdout is captured and posted as a comment. Use \`/dispatch captain\` to report back. After you post, the captain will collect all reviewer results before proceeding.
 
@@ -288,9 +320,8 @@ Example:
 
 /dispatch captain
 
-Code quality review complete. One blocking issue, one suggestion.
-- (blocking) The test for /auth/callback only covers the happy path — add a test for invalid/expired tokens.
-- (suggestion) The error message on line 42 could be more descriptive — "Auth failed" vs "OAuth callback failed: invalid state parameter".`,
+- (blocking) Test for /auth/callback only covers happy path — add test for invalid/expired tokens.
+- (suggestion) Error message on line 42 could be more descriptive — "Auth failed" vs "OAuth callback failed: invalid state parameter".`,
   },
 ];
 
