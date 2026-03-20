@@ -27,7 +27,7 @@
 	let deletingCommentId = $state<string | null>(null);
 	let commentWorking = $state(false);
 
-	// @mention autocomplete
+	// /dispatch autocomplete
 	let agents = $state<Agent[]>([]);
 	let showMentions = $state(false);
 	let mentionFilter = $state('');
@@ -113,11 +113,12 @@
 		const val = ta.value;
 		const pos = ta.selectionStart ?? 0;
 
-		// Find @ before cursor
+		// Find /dispatch before cursor
 		const before = val.slice(0, pos);
-		const atIdx = before.lastIndexOf('@');
-		if (atIdx >= 0 && (atIdx === 0 || /\s/.test(before[atIdx - 1]))) {
-			const typed = before.slice(atIdx + 1);
+		const prefix = '/dispatch ';
+		const idx = before.lastIndexOf(prefix);
+		if (idx >= 0 && (idx === 0 || /\s/.test(before[idx - 1]))) {
+			const typed = before.slice(idx + prefix.length);
 			if (!/\s/.test(typed)) {
 				mentionFilter = typed;
 				showMentions = true;
@@ -133,14 +134,16 @@
 		const val = textareaEl.value;
 		const pos = textareaEl.selectionStart ?? 0;
 		const before = val.slice(0, pos);
-		const atIdx = before.lastIndexOf('@');
+		const prefix = '/dispatch ';
+		const idx = before.lastIndexOf(prefix);
 
-		commentText = val.slice(0, atIdx) + '@' + agent.name + ' ' + val.slice(pos);
+		const insertion = prefix + agent.name + ' ';
+		commentText = val.slice(0, idx) + insertion + val.slice(pos);
 		showMentions = false;
 
 		// Move cursor
 		requestAnimationFrame(() => {
-			const newPos = atIdx + agent.name.length + 2;
+			const newPos = idx + insertion.length;
 			textareaEl!.selectionStart = newPos;
 			textareaEl!.selectionEnd = newPos;
 			textareaEl!.focus();
@@ -223,7 +226,7 @@
 	<p class="text-muted text-sm mb-6">No comments yet.</p>
 {/if}
 
-<!-- Add comment form with @mention autocomplete -->
+<!-- Add comment form with /dispatch autocomplete -->
 <div class="border border-edge rounded p-4 relative">
 	<textarea
 		bind:this={textareaEl}
@@ -231,7 +234,7 @@
 		oninput={handleInput}
 		onkeydown={handleKeydown}
 		rows={3}
-		placeholder="Type @ to mention an agent..."
+		placeholder="Type /dispatch to spawn an agent..."
 		class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
 	></textarea>
 
