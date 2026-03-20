@@ -40,7 +40,7 @@
 			const updated = await updateProject(project.id, {
 				name: name.trim(),
 				description: description.trim() || null,
-				max_concurrency: maxConcurrency,
+				max_concurrency: Number(maxConcurrency),
 			});
 			project = updated;
 			name = updated.name;
