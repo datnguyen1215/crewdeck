@@ -6,6 +6,8 @@ import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { initActivityLogger } from "./events/activity-logger.js";
 import { initMentionHandler, shutdownMentionHandler, recoverOnStartup } from "./mention/handler.js";
 import { createApp } from "./app.js";
+import { initPRDetector } from "./pr/detector.js";
+import { startPRPoller, stopPRPoller } from "./pr/poller.js";
 
 const app = createApp({ corsOrigin: config.corsOrigin });
 
@@ -13,6 +15,10 @@ async function main(): Promise<void> {
   initActivityLogger();
   initMentionHandler();
   recoverOnStartup();
+
+  // Initialize PR auto-detection from comments and polling
+  initPRDetector();
+  startPRPoller();
 
   const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const s = app.listen(config.port, config.host, () => {
@@ -37,6 +43,7 @@ async function main(): Promise<void> {
   async function shutdown() {
     shutdownWebSocket(wss);
     shutdownMentionHandler();
+    stopPRPoller();
     db.close();
     process.exit(0);
   }
