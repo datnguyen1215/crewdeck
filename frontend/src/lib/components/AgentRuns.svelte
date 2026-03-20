@@ -120,21 +120,24 @@
 		}
 
 		expandedRun = runId;
-		const run = runs.find(r => r.id === runId);
 
-		// For running processes, use live events
-		if (run?.status === 'running') {
-			expandedEvents = liveEvents.get(runId) ?? [];
-			return;
-		}
-
-		// For completed runs, load from API
+		// Always fetch stored events from API first
 		loadingEvents = true;
 		try {
 			const full = await getRun(projectId, runId);
-			expandedEvents = full.events;
+			const apiEvents = full.events;
+
+			// Merge with live events that arrived after the last API event
+			// (handles race condition where event is both fetched and received via WS)
+			const live = liveEvents.get(runId) ?? [];
+			const lastApiTime = apiEvents.length > 0
+				? new Date(apiEvents[apiEvents.length - 1].created_at).getTime()
+				: 0;
+			const newLiveEvents = live.filter(e => new Date(e.created_at).getTime() > lastApiTime);
+			expandedEvents = [...apiEvents, ...newLiveEvents];
 		} catch {
-			expandedEvents = [];
+			// Fallback to live events only if API fails
+			expandedEvents = liveEvents.get(runId) ?? [];
 		} finally {
 			loadingEvents = false;
 		}
