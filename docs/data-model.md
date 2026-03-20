@@ -16,12 +16,6 @@ All persistent state is stored in a local SQLite database. This document defines
 ┌─────────────┐    ┌──────────┐       ┌──────────┐
 │GitHubAccount│0──N│ Project  │1────N│   Repo   │
 └─────────────┘    └──────────┘       └──────────┘
-                        │1
-                        │
-                        │N
-                   ┌──────────┐
-                   │  Agent   │
-                   └──────────┘
 
 ┌──────────┐       ┌──────────┐       ┌──────────────┐
 │  Issue   │1────N│ Comment  │       │ Activity Log │
@@ -84,24 +78,6 @@ A GitHub repository linked to a project.
 
 **Constraints:**
 - UNIQUE(project_id, github_url) — a repo can only be linked once per project.
-
-### Agent
-
-A specialized AI persona belonging to a project.
-
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| name | TEXT | NOT NULL | Agent name (e.g., "Alice"). Used for @mention matching. |
-| title | TEXT | NOT NULL | Professional title (e.g., "Senior Software Engineer"). |
-| description | TEXT | | Optional 1-2 sentence summary of what this agent does. |
-| system_prompt | TEXT | NOT NULL | Full system prompt defining this agent's persona and behavior. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
-| updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
-
-**Constraints:**
-- UNIQUE(project_id, name) — agent names must be unique within a project (names are used for @mention matching).
 
 ### Issue
 
@@ -194,7 +170,6 @@ Immutable audit trail of every action in the system.
 |-------------|------|-------------|
 | GitHubAccount → Project | One-to-Many | A GitHub account can be linked to multiple projects. |
 | Project → Repo | One-to-Many | A project has multiple repos. |
-| Project → Agent | One-to-Many | A project has multiple agents. |
 | Project → Issue | One-to-Many | A project has multiple issues. |
 | Project → ActivityLog | One-to-Many | A project has many activity log entries. |
 | Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes. |
@@ -205,7 +180,6 @@ Immutable audit trail of every action in the system.
 ## Indexes
 
 - `idx_repo_project` on Repo(project_id)
-- `idx_agent_project` on Agent(project_id)
 - `idx_issue_project` on Issue(project_id)
 - `idx_issue_status` on Issue(project_id, status)
 - `idx_comment_issue` on Comment(issue_id)
