@@ -31,19 +31,6 @@ export const CreateRepoSchema = z.object({
   default_branch: z.string().optional(),
 });
 
-export const CreateAgentSchema = z.object({
-  name: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().optional(),
-  system_prompt: z.string().min(1),
-});
-
-export const UpdateAgentSchema = CreateAgentSchema.partial();
-
-export const GenerateAgentSchema = z.object({
-  prompt: z.string().min(1).max(2000),
-});
-
 export const CreateIssueSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),

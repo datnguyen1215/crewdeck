@@ -41,8 +41,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   const v1 = "/api/v1";
   app.use(`${v1}/projects`, projectsRouter);
   app.use(`${v1}/projects/:projectId/repos`, reposRouter);
-  // Keep /crew/agents path for backward compatibility with frontend
-  app.use(`${v1}/projects/:projectId/crew/agents`, agentsRouter);
+  app.use(`${v1}/projects/:projectId/crew`, agentsRouter);
   app.use(`${v1}/projects/:projectId/agents`, agentsRouter);
   app.use(`${v1}/projects/:projectId/issues`, issuesRouter);
   app.use(`${v1}/projects/:projectId/issues/:issueId/comments`, commentsRouter);

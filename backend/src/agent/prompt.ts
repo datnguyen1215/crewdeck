@@ -49,7 +49,7 @@ Read-only API endpoints (via curl):
 - GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues — list issues
 - GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID — get this issue
 - GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID/comments — list comments
-- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/crew/agents — list available agents`);
+- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/crew — list available agents`);
 
   parts.push(`## Instructions
 Work on the issue described above. Your entire stdout will be captured and posted as a comment on the issue.${diffInstruction}

@@ -9,7 +9,7 @@ import * as mentionParser from "./parser.js";
 import * as agentProcess from "../agent/adapters/process.js";
 import * as agentPrompt from "../agent/prompt.js";
 import * as agentWorktree from "../agent/worktree.js";
-import * as agentRepo from "../db/repositories/agents.js";
+import * as crew from "../agents/crew.js";
 import * as issueRepo from "../db/repositories/issues.js";
 import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
@@ -307,7 +307,7 @@ export const initMentionHandler = (): void => {
     const issue = issueRepo.getIssue(comment.issue_id);
     if (!issue) return;
 
-    const agents = agentRepo.listAgents(project_id);
+    const agents = crew.listCrew();
     const mentioned = mentionParser.parseMentions(
       comment.content,
       agents,

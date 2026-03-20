@@ -28,7 +28,6 @@ export interface EventMap {
     from: string;
     to: string;
   };
-  "agent.created": { agent_id: string; name: string; project_id: string };
   "mention.spawned": {
     project_id: string;
     issue_id: string;

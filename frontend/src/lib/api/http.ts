@@ -90,23 +90,9 @@ export function deleteRepo(projectId: string, repoId: string) {
   return request<void>("DELETE", `/projects/${e(projectId)}/repos/${e(repoId)}`);
 }
 
-// Agents
+// Agents (read-only — crew is fixed)
 export function listAgents(projectId: string) {
-  return request<Agent[]>("GET", `/projects/${e(projectId)}/crew/agents`);
-}
-export function createAgent(projectId: string, data: { name: string; title: string; description?: string; system_prompt: string }) {
-  return request<Agent>("POST", `/projects/${e(projectId)}/crew/agents`, data);
-}
-export function generateAgent(projectId: string, data: { prompt: string }) {
-  return request<{ name: string; title: string; description: string; system_prompt: string }>(
-    "POST", `/projects/${e(projectId)}/crew/agents/generate`, data,
-  );
-}
-export function updateAgent(projectId: string, agentId: string, data: Partial<Agent>) {
-  return request<Agent>("PATCH", `/projects/${e(projectId)}/crew/agents/${e(agentId)}`, data);
-}
-export function deleteAgent(projectId: string, agentId: string) {
-  return request<void>("DELETE", `/projects/${e(projectId)}/crew/agents/${e(agentId)}`);
+  return request<Agent[]>("GET", `/projects/${e(projectId)}/crew`);
 }
 
 // Issues

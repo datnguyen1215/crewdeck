@@ -2,13 +2,9 @@
 	import { goto } from '$app/navigation';
 	import {
 		listGitHubAccounts,
-		listAgents,
-		createAgent,
-		generateAgent,
 		createEnvironmentVariable,
 		type GitHubAccount,
-		type Project,
-		type Agent
+		type Project
 	} from '$lib/api/http.js';
 	import GitHubConnect from './GitHubConnect.svelte';
 	import ProjectForm from './ProjectForm.svelte';
@@ -18,20 +14,9 @@
 	let loading = $state(true);
 	let createdProject = $state<Project | null>(null);
 
-	const totalSteps = 5;
+	const totalSteps = 4;
 
-	// --- Agent Setup (step 3) ---
-	let agents = $state<Agent[]>([]);
-	let agentLoading = $state(false);
-	let agentPrompt = $state('');
-	let agentError = $state('');
-
-	const TEMPLATES = [
-		{ label: 'Developer', prompt: 'A senior full-stack developer who writes clean, well-tested code' },
-		{ label: 'Reviewer', prompt: 'A meticulous code reviewer focused on quality, security, and best practices' }
-	];
-
-	// --- Environment Variables (step 4) ---
+	// --- Environment Variables (step 3) ---
 	let envVars = $state<{ id: number; key: string; value: string; is_secret: boolean }[]>([]);
 	let envIdCounter = $state(0);
 	let savedEnvCount = $state(0);
@@ -56,39 +41,7 @@
 
 	function handleProjectCreated(project: Project) {
 		createdProject = project;
-		// Non-critical — agents are still accessible from the project dashboard if this fails
-		listAgents(project.id)
-			.then((a) => { agents = a; })
-			.catch(() => {});
 		step = 3;
-	}
-
-	// --- Agent helpers ---
-
-	async function addAgent(prompt: string) {
-		if (!createdProject || agentLoading) return;
-		agentError = '';
-		agentLoading = true;
-		try {
-			const generated = await generateAgent(createdProject.id, { prompt });
-			const agent = await createAgent(createdProject.id, {
-				name: generated.name,
-				title: generated.title,
-				description: generated.description,
-				system_prompt: generated.system_prompt
-			});
-			agents = [...agents, agent];
-		} catch (err) {
-			agentError = err instanceof Error ? err.message : 'Failed to add agent';
-		} finally {
-			agentLoading = false;
-		}
-	}
-
-	async function addFromPrompt() {
-		if (!agentPrompt.trim()) return;
-		await addAgent(agentPrompt.trim());
-		if (!agentError) agentPrompt = '';
 	}
 
 	// --- Env var helpers ---
@@ -105,7 +58,7 @@
 		if (!createdProject) return;
 		const valid = envVars.filter((v) => v.key.trim() && v.value.trim());
 		if (valid.length === 0) {
-			step = 5;
+			step = 4;
 			return;
 		}
 		envSaving = true;
@@ -130,7 +83,7 @@
 				const reason = (failed[0] as PromiseRejectedResult).reason;
 				envError = reason instanceof Error ? reason.message : 'Failed to save some environment variables';
 			} else {
-				step = 5;
+				step = 4;
 			}
 		} finally {
 			envSaving = false;
@@ -138,8 +91,6 @@
 	}
 
 	// --- Review & Launch ---
-
-	let nonCaptainAgents = $derived(agents);
 
 	function goToProject() {
 		if (createdProject) goto(`/projects/${createdProject.id}`);
@@ -224,100 +175,7 @@
 				<ProjectForm {githubAccounts} onCreated={handleProjectCreated} />
 			</div>
 		{:else if step === 3}
-			<!-- Step 3: Agent Setup -->
-			<div style="animation: fade-up 0.25s ease both">
-				<h2 class="text-primary font-bold tracking-wide uppercase text-sm mb-1">
-					Add Agents
-				</h2>
-				<p class="text-muted text-xs mb-5">
-					Add crew members to your project. Use a template or describe your own agent.
-				</p>
-
-				<!-- Recommended templates -->
-				<div class="mb-4">
-					<p class="text-xs text-muted uppercase tracking-widest mb-2">Quick Add</p>
-					<div class="flex gap-2">
-						{#each TEMPLATES as template (template.label)}
-							<button
-								onclick={() => addAgent(template.prompt)}
-								disabled={agentLoading}
-								class="flex-1 px-3 py-2 bg-base border border-edge rounded text-xs text-secondary hover:text-cyan hover:border-cyan transition-colors disabled:opacity-50"
-							>
-								+ {template.label}
-							</button>
-						{/each}
-					</div>
-				</div>
-
-				<!-- Custom prompt -->
-				<div class="mb-4">
-					<p class="text-xs text-muted uppercase tracking-widest mb-2">Or Describe</p>
-					<div class="flex gap-2">
-						<input
-							type="text"
-							bind:value={agentPrompt}
-							placeholder="e.g. DevOps specialist for CI/CD"
-							disabled={agentLoading}
-							class="flex-1 bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
-							onkeydown={(e) => { if (e.key === 'Enter') addFromPrompt(); }}
-						/>
-						<button
-							onclick={addFromPrompt}
-							disabled={!agentPrompt.trim() || agentLoading}
-							class="px-3 py-2 bg-cyan/10 border border-cyan text-cyan text-xs rounded hover:bg-cyan/20 transition-colors disabled:opacity-50"
-						>
-							{agentLoading ? '...' : 'Add'}
-						</button>
-					</div>
-				</div>
-
-				{#if agentLoading}
-					<div class="flex items-center gap-2 text-muted text-xs mb-3">
-						<span class="inline-block w-3 h-3 border-2 border-cyan border-t-transparent rounded-full animate-spin"></span>
-						Generating agent...
-					</div>
-				{/if}
-
-				{#if agentError}
-					<p class="text-red text-xs mb-3">{agentError}</p>
-				{/if}
-
-				<!-- Added agents list -->
-				{#if agents.length > 0}
-					<div class="border-t border-edge pt-3 mb-4">
-						<p class="text-xs text-muted uppercase tracking-widest mb-2">
-							Agents ({agents.length})
-						</p>
-						<div class="space-y-1.5">
-							{#each agents as agent (agent.id)}
-								<div class="flex items-center gap-2 text-xs">
-									<span class="text-cyan">&#10003;</span>
-									<span class="text-primary">{agent.name}</span>
-									<span class="text-muted">- {agent.title}</span>
-								</div>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Both advance to step 4 — agents are already saved server-side as they're added -->
-				<div class="flex gap-3 mt-4 pt-4 border-t border-edge">
-					<button
-						onclick={() => { step = 4; }}
-						class="flex-1 px-4 py-2 bg-cyan/10 border border-cyan text-cyan rounded text-sm hover:bg-cyan/20 transition-colors uppercase tracking-wide"
-					>
-						Continue
-					</button>
-					<button
-						onclick={() => { step = 4; }}
-						class="px-4 py-2 border border-edge rounded text-sm text-secondary hover:text-primary hover:border-edge-hi transition-colors"
-					>
-						Skip
-					</button>
-				</div>
-			</div>
-		{:else if step === 4}
-			<!-- Step 4: Environment Variables -->
+			<!-- Step 3: Environment Variables -->
 			<div style="animation: fade-up 0.25s ease both">
 				<h2 class="text-primary font-bold tracking-wide uppercase text-sm mb-1">
 					Environment Variables
@@ -384,7 +242,7 @@
 						{envSaving ? 'Saving...' : 'Continue'}
 					</button>
 					<button
-						onclick={() => { step = 5; }}
+						onclick={() => { step = 4; }}
 						disabled={envSaving}
 						class="px-4 py-2 border border-edge rounded text-sm text-secondary hover:text-primary hover:border-edge-hi transition-colors disabled:opacity-50"
 					>
@@ -392,8 +250,8 @@
 					</button>
 				</div>
 			</div>
-		{:else if step === 5}
-			<!-- Step 5: Review & Launch -->
+		{:else if step === 4}
+			<!-- Step 4: Review & Launch -->
 			<div style="animation: fade-up 0.25s ease both">
 				<h2 class="text-primary font-bold tracking-wide uppercase text-sm mb-1">
 					Review & Launch
@@ -409,8 +267,8 @@
 						<span class="text-cyan">{createdProject?.name}</span>
 					</div>
 					<div class="flex justify-between text-sm">
-						<span class="text-muted">Agents</span>
-						<span class="text-primary">{agents.length}</span>
+						<span class="text-muted">Crew</span>
+						<span class="text-primary">5 members</span>
 					</div>
 					<div class="flex justify-between text-sm">
 						<span class="text-muted">Env Variables</span>

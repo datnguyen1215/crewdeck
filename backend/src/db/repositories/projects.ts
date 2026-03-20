@@ -18,7 +18,6 @@ export function listProjects(): Project[] {
 export function listProjectsWithStats(): ProjectWithStats[] {
   type StatsRow = Project & {
     repo_count: number;
-    agent_count: number;
     issue_open: number | null;
     issue_in_progress: number | null;
     issue_pr_created: number | null;
@@ -30,14 +29,12 @@ export function listProjectsWithStats(): ProjectWithStats[] {
       `SELECT
         p.*,
         COUNT(DISTINCT r.id) AS repo_count,
-        COUNT(DISTINCT a.id) AS agent_count,
         SUM(i.status = 'open')        AS issue_open,
         SUM(i.status = 'in_progress') AS issue_in_progress,
         SUM(i.status = 'pr_created')  AS issue_pr_created,
         SUM(i.status = 'done')        AS issue_done
       FROM Project p
       LEFT JOIN Repo  r ON r.project_id = p.id
-      LEFT JOIN Agent a ON a.project_id = p.id
       LEFT JOIN Issue i ON i.project_id = p.id
       GROUP BY p.id
       ORDER BY p.created_at DESC`,
@@ -111,7 +108,6 @@ export function deleteProject(id: string): void {
       "DELETE FROM Comment WHERE issue_id IN (SELECT id FROM Issue WHERE project_id = ?)",
     ).run(id);
     db.prepare("DELETE FROM Issue WHERE project_id = ?").run(id);
-    db.prepare("DELETE FROM Agent WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM Repo WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM Project WHERE id = ?").run(id);
   })();
