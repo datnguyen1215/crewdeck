@@ -557,11 +557,7 @@ async function processAgentStream(
       events.eventBus.emit("comment.added", { comment, project_id: projectId });
     }
 
-    postSystemComment(
-      issueId,
-      projectId,
-      `Agent ${agent.name} finished${cost ? ` (cost: $${cost.toFixed(4)})` : ""}${durationMs ? ` (${Math.round(durationMs / 1000)}s)` : ""}`,
-    );
+    // No system comment for successful completion — this info is in the activity log (run.completed event)
 
     log.logger.info(
       { pid: result.pid, agent: agent.name, cost, durationMs, runId: agentRunId },
