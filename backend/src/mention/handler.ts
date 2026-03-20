@@ -13,6 +13,7 @@ import * as crew from "../agents/crew.js";
 import * as issueRepo from "../db/repositories/issues.js";
 import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
+import * as githubAccountRepo from "../db/repositories/github-accounts.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import type { Agent, Comment } from "../types/entities.js";
@@ -208,6 +209,12 @@ const spawnAgent = async (
     CREWDECK_AGENT_ID: agent.id,
     CREWDECK_ISSUE_ID: issueId,
   };
+
+  // Captain needs GH_TOKEN for gh pr create
+  if (agent.id === "captain" && project.github_account_id) {
+    const account = githubAccountRepo.getGitHubAccount(project.github_account_id);
+    if (account) env.GH_TOKEN = account.oauth_token;
+  }
 
   const result = await agentProcess.spawnClaude({
     prompt,
