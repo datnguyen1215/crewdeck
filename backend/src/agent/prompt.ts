@@ -15,7 +15,11 @@ function formatIssueSummary(issue: Issue): string {
   return `- [${issue.status}] #${issue.id}: ${escapeXml(issue.title)}`;
 }
 
-/** Agents with full API access (issues CRUD, status management, comments, activity, crew list). */
+/**
+ * Agents with full API access (issues CRUD, status management, comments, activity, crew list).
+ * Enforcement is via system prompts only — no server-side per-agent auth since the API is
+ * localhost-only. The system prompt is the contract (see #321 "API Access Matrix").
+ */
 const FULL_ACCESS_AGENTS = new Set(["captain"]);
 
 function buildApiSection(agentId: string): string {
@@ -34,6 +38,8 @@ function buildApiSection(agentId: string): string {
       "API endpoints (via curl):",
       "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues — list issues",
       "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID — get this issue",
+      // Spec (#321) listed mark-pr-created/mark-done/reset-chain-depth as separate endpoints;
+      // actual API uses PATCH status transitions.
       "- PATCH $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID — update issue fields",
       "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID/comments — list comments",
       "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/crew — list available agents",
@@ -62,7 +68,7 @@ export interface BuildPromptOptions {
   comments: Comment[];
   repo: Repo | { local_path: string; default_branch: string; name: string } | null;
   worktreePath: string;
-  agentId?: string;
+  agentId: string;
   /** All open/in-progress issues for the project (injected for captain). */
   projectIssues?: Issue[];
 }
@@ -88,6 +94,7 @@ export function buildPrompt(
       comments: comments!,
       repo: repo ?? null,
       worktreePath: worktreePath!,
+      agentId: "",
     };
   } else {
     opts = issueOrOpts as BuildPromptOptions;
@@ -125,7 +132,7 @@ export function buildPrompt(
     ? `\n\nTo see what changed, run:\n  git diff $(git merge-base HEAD origin/${safeBranch}) HEAD`
     : "";
 
-  parts.push(buildApiSection(agentId ?? ""));
+  parts.push(buildApiSection(agentId));
 
   parts.push(`## Instructions
 Work on the issue described above. Your entire stdout will be captured and posted as a comment on the issue.${diffInstruction}
