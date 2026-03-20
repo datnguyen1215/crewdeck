@@ -102,6 +102,7 @@ The fundamental unit of work.
 | worktree_path | TEXT | NULLABLE | Absolute path to the git worktree. |
 | base_branch | TEXT | NULLABLE | The branch this issue's work is based on. |
 | repo_id | TEXT | FOREIGN KEY → Repo.id, NULLABLE | The repo this issue is being worked on in. |
+| agent_id | TEXT | NULLABLE | The agent currently assigned to this issue. One of the fixed agent IDs (captain, engineer, lead, docs) or NULL if unassigned. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
