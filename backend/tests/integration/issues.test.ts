@@ -16,7 +16,9 @@ const transitionTo = async (
       .patch(`/api/v1/projects/${projectId}/issues/${issueId}`)
       .send({ status });
     if (res.status !== 200) {
-      throw new Error(`transitionTo failed: expected 200 for "${status}", got ${res.status}`);
+      throw new Error(
+        `transitionTo failed: expected 200 for "${status}", got ${res.status}`,
+      );
     }
   }
 };
@@ -46,7 +48,10 @@ describe("Issues API", () => {
     app = await getApp();
     const res = await request(app)
       .post("/api/v1/projects")
-      .send({ name: "issues-test-project", github_url: "https://github.com/test/repo" });
+      .send({
+        name: "issues-test-project",
+        github_url: "https://github.com/test/repo",
+      });
     projectId = res.body.id;
   });
 
@@ -56,7 +61,10 @@ describe("Issues API", () => {
     it("returns empty array when no issues", async () => {
       const proj = await request(app)
         .post("/api/v1/projects")
-        .send({ name: "empty-project", github_url: "https://github.com/test/repo" });
+        .send({
+          name: "empty-project",
+          github_url: "https://github.com/test/repo",
+        });
       const res = await request(app).get(base(proj.body.id));
       expect(res.status).toBe(200);
       expect(res.body).toEqual([]);
@@ -203,7 +211,8 @@ describe("Issues API", () => {
   });
 
   // --- Status transitions (valid) ---
-  // Issues default to "open" status when created via the API.
+  // Allowed: open -> in_progress, in_progress -> pr_created, pr_created -> in_progress
+  // Any status can transition to done.
 
   describe("status transitions - valid", () => {
     it("open -> in_progress", async () => {
@@ -215,63 +224,9 @@ describe("Issues API", () => {
       expect(res.body.status).toBe("in_progress");
     });
 
-    it("in_progress -> in_review", async () => {
+    it("in_progress -> pr_created", async () => {
       const issue = await createIssue(app, projectId);
       await transitionTo(app, projectId, issue.id, ["in_progress"]);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "in_review" });
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("in_review");
-    });
-
-    it("in_review -> feedback", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-      ]);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "feedback" });
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("feedback");
-    });
-
-    it("in_review -> ready", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-      ]);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "ready" });
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("ready");
-    });
-
-    it("feedback -> in_progress", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-        "feedback",
-      ]);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "in_progress" });
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("in_progress");
-    });
-
-    it("ready -> pr_created", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-        "ready",
-      ]);
       const res = await request(app)
         .patch(`${base(projectId)}/${issue.id}`)
         .send({ status: "pr_created" });
@@ -279,12 +234,20 @@ describe("Issues API", () => {
       expect(res.body.status).toBe("pr_created");
     });
 
+    it("pr_created -> in_progress", async () => {
+      const issue = await createIssue(app, projectId);
+      await transitionTo(app, projectId, issue.id, ["in_progress", "pr_created"]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "in_progress" });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("in_progress");
+    });
+
     it("pr_created -> done", async () => {
       const issue = await createIssue(app, projectId);
       await transitionTo(app, projectId, issue.id, [
         "in_progress",
-        "in_review",
-        "ready",
         "pr_created",
       ]);
       const res = await request(app)
@@ -307,14 +270,6 @@ describe("Issues API", () => {
   // --- Status transitions (invalid) ---
 
   describe("status transitions - invalid", () => {
-    it("open -> ready is rejected", async () => {
-      const issue = await createIssue(app, projectId);
-      const res = await request(app)
-        .patch(`${base(projectId)}/${issue.id}`)
-        .send({ status: "ready" });
-      expect(res.status).toBe(400);
-    });
-
     it("open -> pr_created is rejected", async () => {
       const issue = await createIssue(app, projectId);
       const res = await request(app)
@@ -333,51 +288,28 @@ describe("Issues API", () => {
     });
   });
 
-  // --- Action endpoints ---
-  // /approve and /discard require draft status, which can't be reached via the API
-  // (issues default to "open"). These tests verify the error paths.
+  // --- PATCH consolidation (formerly action endpoints) ---
 
-  describe("POST /approve", () => {
-    it("rejects non-draft issue", async () => {
+  describe("PATCH status idempotency", () => {
+    it("returns issue unchanged when status already matches", async () => {
       const issue = await createIssue(app, projectId);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/approve`,
-      );
-      expect(res.status).toBe(400);
-    });
-  });
-
-  describe("POST /discard", () => {
-    it("rejects non-draft issue with 400", async () => {
-      const issue = await createIssue(app, projectId);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/discard`,
-      );
-      expect(res.status).toBe(400);
-    });
-  });
-
-  describe("POST /create-pr", () => {
-    it("transitions ready to pr_created", async () => {
-      const issue = await createIssue(app, projectId);
-      await transitionTo(app, projectId, issue.id, [
-        "in_progress",
-        "in_review",
-        "ready",
-      ]);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/create-pr`,
-      );
+      await transitionTo(app, projectId, issue.id, ["done"]);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "done" });
       expect(res.status).toBe(200);
-      expect(res.body.status).toBe("pr_created");
+      expect(res.body.status).toBe("done");
     });
+  });
 
-    it("rejects non-ready issue", async () => {
+  describe("PATCH chain_depth reset", () => {
+    it("resets chain_depth to 0", async () => {
       const issue = await createIssue(app, projectId);
-      const res = await request(app).post(
-        `${base(projectId)}/${issue.id}/create-pr`,
-      );
-      expect(res.status).toBe(400);
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ chain_depth: 0 });
+      expect(res.status).toBe(200);
+      expect(res.body.chain_depth).toBe(0);
     });
   });
 });

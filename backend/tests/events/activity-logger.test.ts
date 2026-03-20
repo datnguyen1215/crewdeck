@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { db } from "../../src/db/index.js";
 import { eventBus } from "../../src/events/bus.js";
 import { initActivityLogger } from "../../src/events/activity-logger.js";
-import type { Issue, Comment, IssuePR } from "../../src/events/types.js";
+import type { Comment, IssuePR } from "../../src/types/entities.js";
 
 const PROJECT_ID = "proj-test";
 const ISSUE_ID = "issue-test";
@@ -33,17 +33,15 @@ function getLog() {
   }>;
 }
 
-const baseIssue: Issue = {
+const baseIssue = {
   id: ISSUE_ID,
   project_id: PROJECT_ID,
   title: "Test Issue",
   description: "desc",
   status: "open",
   priority: 0,
-  assigned_agent_id: null,
   created_by: "user",
-  max_review_rounds: null,
-  current_review_round: 0,
+  chain_depth: 0,
   branch_name: null,
   worktree_path: null,
   base_branch: null,
@@ -66,12 +64,12 @@ describe("ActivityLogger", () => {
     expect(JSON.parse(logs[0].details!)).toEqual({ title: "Test Issue" });
   });
 
-  it("logs issue.created with orchestrator actor_type", () => {
+  it("logs issue.created with agent actor_type", () => {
     eventBus.emit("issue.created", {
-      issue: { ...baseIssue, created_by: "orchestrator" },
+      issue: { ...baseIssue, created_by: "agent" },
     });
     const logs = getLog();
-    expect(logs[0].actor_type).toBe("orchestrator");
+    expect(logs[0].actor_type).toBe("agent");
   });
 
   it("clamps unknown actor_type to 'unknown' for issue.created", () => {
@@ -98,24 +96,6 @@ describe("ActivityLogger", () => {
       action: "issue.status_changed",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({ from: "open", to: "in_progress" });
-  });
-
-  it("logs issue.assigned as agent.assigned", () => {
-    eventBus.emit("issue.assigned", {
-      issue_id: ISSUE_ID,
-      project_id: PROJECT_ID,
-      agent_id: "agent-1",
-      agent_name: "Alice",
-    });
-    const logs = getLog();
-    expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatchObject({
-      project_id: PROJECT_ID,
-      issue_id: ISSUE_ID,
-      actor_type: "orchestrator",
-      action: "agent.assigned",
-    });
-    expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "agent-1", agent_name: "Alice" });
   });
 
   it("logs comment.added with author info and content preview", () => {
@@ -156,41 +136,6 @@ describe("ActivityLogger", () => {
     expect(details.content_preview).toHaveLength(200);
   });
 
-  it("logs session.started", () => {
-    eventBus.emit("session.started", {
-      session_id: "s1",
-      agent_id: "a1",
-      issue_id: ISSUE_ID,
-      project_id: PROJECT_ID,
-      tmux_session_name: "tmux-1",
-    });
-    const logs = getLog();
-    expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatchObject({
-      project_id: PROJECT_ID,
-      issue_id: ISSUE_ID,
-      actor_type: "system",
-      action: "session.started",
-    });
-    expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "a1", tmux_session_name: "tmux-1" });
-  });
-
-  it("logs session.ended", () => {
-    eventBus.emit("session.ended", {
-      session_id: "s1",
-      project_id: PROJECT_ID,
-      status: "completed",
-    });
-    const logs = getLog();
-    expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatchObject({
-      project_id: PROJECT_ID,
-      actor_type: "system",
-      action: "session.ended",
-    });
-    expect(JSON.parse(logs[0].details!)).toEqual({ status: "completed" });
-  });
-
   it("logs pr.created", () => {
     const issuePr: IssuePR = {
       id: "pr1",
@@ -217,9 +162,45 @@ describe("ActivityLogger", () => {
     });
   });
 
+  it("logs mention.spawned", () => {
+    eventBus.emit("mention.spawned", {
+      project_id: PROJECT_ID,
+      issue_id: ISSUE_ID,
+      agent_id: "a1",
+      pid: 1234,
+    });
+    const logs = getLog();
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      project_id: PROJECT_ID,
+      issue_id: ISSUE_ID,
+      actor_type: "system",
+      action: "mention.spawned",
+    });
+    expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "a1", pid: 1234 });
+  });
+
+  it("logs mention.completed", () => {
+    eventBus.emit("mention.completed", {
+      project_id: PROJECT_ID,
+      issue_id: ISSUE_ID,
+      agent_id: "a1",
+      exit_code: 0,
+    });
+    const logs = getLog();
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      project_id: PROJECT_ID,
+      issue_id: ISSUE_ID,
+      actor_type: "system",
+      action: "mention.completed",
+    });
+    expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "a1", exit_code: 0 });
+  });
+
   it("unsubscribed events are not logged", () => {
     // Events not subscribed to by activity logger should produce no logs
-    eventBus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: PROJECT_ID, state: "active" });
+    eventBus.emit("pr.status_changed", { pr_id: "pr1", project_id: PROJECT_ID, from: "open", to: "closed" });
     expect(getLog()).toHaveLength(0);
   });
 });
