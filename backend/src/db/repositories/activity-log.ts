@@ -1,12 +1,13 @@
 import { db } from "../index.js";
 import type { ActivityLog, CreateActivityInput, ActivityFilters } from "../../types/entities.js";
+import { deserializeJson } from "./utils.js";
 
 type ActivityRow = Omit<ActivityLog, "details"> & { details: string | null };
 
 function fromRow(row: ActivityRow): ActivityLog {
   return {
     ...row,
-    details: row.details ? (JSON.parse(row.details) as unknown) : null,
+    details: deserializeJson(row.details),
   };
 }
 

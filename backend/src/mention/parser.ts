@@ -1,53 +1,47 @@
-/**
- * Parse @mentions from comment content.
- *
- * Extracts agent mentions like @engineer, @captain, etc. from text content.
- */
-
-export interface ParsedMention {
-  /** The agent name mentioned (without the @ symbol) */
-  agentName: string;
-  /** The position in the text where the mention starts */
-  position: number;
-}
+import type { Agent } from "../types/entities.js";
 
 /**
- * Parse all @mentions from a text string.
- *
- * @param content - The text to parse for mentions
- * @param selfAgentName - Optional: skip mentions of this agent (self-mentions)
- * @returns Array of parsed mentions
+ * Parse @mentions from a comment. Returns matched agents.
+ * Rules:
+ * - One mention per line
+ * - Longest agent name matched first (greedy)
+ * - Case-insensitive matching
+ * - Skips mentions inside fenced code blocks or inline backticks
+ * - Skips self-mentions
  */
-export function parseMentions(content: string, selfAgentName?: string): ParsedMention[] {
-  const mentions: ParsedMention[] = [];
-  // Match @word where word is alphanumeric, hyphen, or underscore
-  const regex = /@([a-zA-Z][a-zA-Z0-9_-]*)/g;
-  let match: RegExpExecArray | null;
+export function parseMentions(
+  text: string,
+  agents: Agent[],
+  selfAgentId?: string,
+): Agent[] {
+  // Remove fenced code blocks
+  const withoutFenced = text.replace(/```[\s\S]*?```/g, "");
+  // Remove inline backticks
+  const withoutCode = withoutFenced.replace(/`[^`]+`/g, "");
 
-  while ((match = regex.exec(content)) !== null) {
-    const agentName = match[1].toLowerCase();
-    // Skip self-mentions
-    if (selfAgentName && agentName === selfAgentName.toLowerCase()) {
-      continue;
+  // Sort agents by name length descending for greedy matching
+  const sorted = [...agents].sort((a, b) => b.name.length - a.name.length);
+
+  const matched: Agent[] = [];
+  const seenIds = new Set<string>();
+
+  for (const line of withoutCode.split("\n")) {
+    // Find @mention in this line
+    const atIdx = line.indexOf("@");
+    if (atIdx === -1) continue;
+
+    const afterAt = line.slice(atIdx + 1);
+    for (const agent of sorted) {
+      if (afterAt.toLowerCase().startsWith(agent.name.toLowerCase())) {
+        if (agent.id === selfAgentId) break; // skip self
+        if (!seenIds.has(agent.id)) {
+          seenIds.add(agent.id);
+          matched.push(agent);
+        }
+        break; // one mention per line
+      }
     }
-    mentions.push({
-      agentName,
-      position: match.index,
-    });
   }
 
-  // Deduplicate by agent name (keep first occurrence)
-  const seen = new Set<string>();
-  return mentions.filter((m) => {
-    if (seen.has(m.agentName)) return false;
-    seen.add(m.agentName);
-    return true;
-  });
-}
-
-/**
- * Extract unique agent names from mentions.
- */
-export function extractAgentNames(content: string, selfAgentName?: string): string[] {
-  return parseMentions(content, selfAgentName).map((m) => m.agentName);
+  return matched;
 }

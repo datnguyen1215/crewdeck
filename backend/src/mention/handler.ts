@@ -1,32 +1,45 @@
 /**
- * Mention handler with batch tracking for agent spawning.
+ * Core orchestration for @mention-driven agent spawning.
+ * Listens for comment.added events, parses mentions, spawns agents,
+ * and posts results back as comments.
  *
  * When a comment spawns multiple agents, they are grouped as a batch.
  * The system tracks batch completion and auto-spawns the originator
  * when all batch members finish.
  */
-
-import { extractAgentNames } from "./parser.js";
-import { logger } from "../logger.js";
-import { eventBus } from "../events/bus.js";
-import type { EventBus } from "../events/bus.js";
-import type { AgentAdapter } from "../agent/types.js";
-import { agentSessionName } from "../agent/types.js";
-import { buildAgentPrompt, buildReviewerPrompt } from "../agent/prompt.js";
-import { getAgent, listAgents, getCaptain } from "../db/repositories/agents.js";
-import { getIssue } from "../db/repositories/issues.js";
-import { getProject } from "../db/repositories/projects.js";
-import { getCrewWithAgents, getCrew } from "../db/repositories/crews.js";
-import { listRepos } from "../db/repositories/repos.js";
-import { listComments, createComment } from "../db/repositories/comments.js";
-import { createSession, updateSession } from "../db/repositories/sessions.js";
-import { db } from "../db/index.js";
-import { createIssueAgent, updateIssueAgent } from "../db/repositories/issue-agents.js";
-import { getGitHubAccount } from "../db/repositories/github-accounts.js";
+import { type ChildProcess } from "node:child_process";
+import * as events from "../events/bus.js";
+import * as mentionParser from "./parser.js";
+import * as agentProcess from "../agent/adapters/process.js";
+import * as agentPrompt from "../agent/prompt.js";
+import * as agentWorktree from "../agent/worktree.js";
+import * as crew from "../agents/crew.js";
+import * as issueRepo from "../db/repositories/issues.js";
+import * as commentRepo from "../db/repositories/comments.js";
+import * as projectRepo from "../db/repositories/projects.js";
+import * as githubAccountRepo from "../db/repositories/github-accounts.js";
+import * as database from "../db/index.js";
+import * as log from "../logger.js";
 import type { Agent, Comment } from "../types/entities.js";
 
+const MAX_CHAIN_DEPTH = 20;
+const PROCESS_TIMEOUT_MS = 10 * 60 * 1000;
+/** Default batch timeout in milliseconds (30 minutes) */
+const BATCH_TIMEOUT_MS = 30 * 60 * 1000;
+/** Cleanup interval in milliseconds (5 minutes) */
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
+interface ActiveProcess {
+  pid: number;
+  process: ChildProcess;
+  projectId: string;
+  issueId: string;
+  agentId: string;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 /** Batch tracking for grouped agent spawns */
-export interface AgentBatch {
+interface AgentBatch {
   id: string;
   issueId: string;
   projectId: string;
@@ -36,426 +49,513 @@ export interface AgentBatch {
   createdAt: Date;
 }
 
-/** Default batch timeout in milliseconds (30 minutes) */
-const BATCH_TIMEOUT_MS = 30 * 60 * 1000;
-/** Cleanup interval in milliseconds (5 minutes) */
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const activeProcesses = new Map<number, ActiveProcess>();
+/** Active batches by batch ID */
+const batches = new Map<string, AgentBatch>();
+/** Map from issueId to active batch ID for that issue */
+const issueBatches = new Map<string, string>();
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
-export class MentionHandler {
-  /** Active batches by batch ID */
-  private batches = new Map<string, AgentBatch>();
-  /** Map from issueId to active batch ID for that issue */
-  private issueBatches = new Map<string, string>();
-  /** Cleanup interval handle */
-  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+/**
+ * Count active processes for a project.
+ * @param {string} projectId - Project to count for
+ * @returns {number} Number of active processes
+ */
+export const getActiveProcessCount = (projectId: string): number => {
+  let count = 0;
+  for (const p of activeProcesses.values())
+    if (p.projectId === projectId) count++;
+  return count;
+};
 
-  constructor(
-    private readonly bus: EventBus,
-    private readonly adapter: AgentAdapter,
-  ) {}
+/**
+ * Check if an issue has any active processes.
+ * @param {string} issueId - Issue to check
+ * @returns {boolean} True if processes are running
+ */
+export const hasActiveProcesses = (issueId: string): boolean => {
+  for (const p of activeProcesses.values())
+    if (p.issueId === issueId) return true;
+  return false;
+};
 
-  init(): void {
-    // Listen for comment.added to handle @mentions
-    this.bus.on("comment.added", ({ comment, project_id }) => {
-      void this.handleComment(comment, project_id);
-    });
+/**
+ * Post a system comment and emit comment.added.
+ * @param {string} issueId - Target issue
+ * @param {string} projectId - Parent project
+ * @param {string} content - Comment body
+ */
+const postSystemComment = (issueId: string, projectId: string, content: string): void => {
+  const comment = commentRepo.createComment(issueId, {
+    content,
+    author_type: "system",
+  });
+  events.eventBus.emit("comment.added", { comment, project_id: projectId });
+};
 
-    // Listen for agent.finished to track batch completion
-    this.bus.on("agent.finished", ({ session_id, agent_id, issue_id, project_id }) => {
-      this.markAgentCompleted(agent_id, issue_id, project_id);
-    });
+/**
+ * Get the first repo for a project.
+ * Direct query to avoid circular dependency with repos repository.
+ * @param {string} projectId - Project to look up
+ * @returns {object|undefined} Repo row or undefined
+ */
+const getFirstRepo = (projectId: string) => {
+  const row = database.db
+    .prepare("SELECT * FROM Repo WHERE project_id = ? LIMIT 1")
+    .get(projectId);
+  return row as
+    | {
+        id: string;
+        project_id: string;
+        github_url: string;
+        name: string;
+        owner: string;
+        local_path: string;
+        default_branch: string;
+      }
+    | undefined;
+};
 
-    // Start periodic cleanup of stale batches
-    this.cleanupInterval = setInterval(() => {
-      this.cleanupStaleBatches();
-    }, CLEANUP_INTERVAL_MS);
+/**
+ * Load environment variables for a project as key-value pairs.
+ * @param {string} projectId - Project to load vars for
+ * @returns {Record<string, string>} Environment variable map
+ */
+const getEnvVars = (projectId: string): Record<string, string> => {
+  const rows = database.db
+    .prepare("SELECT key, value FROM EnvironmentVariable WHERE project_id = ?")
+    .all(projectId) as { key: string; value: string }[];
+  const env: Record<string, string> = {};
+  for (const row of rows) env[row.key] = row.value;
+  return env;
+};
+
+/**
+ * Create a new batch for tracking grouped agent spawns.
+ */
+const createBatch = (
+  issueId: string,
+  projectId: string,
+  originatorAgentId: string,
+  memberAgentIds: string[],
+): string => {
+  const batchId = crypto.randomUUID();
+  const batch: AgentBatch = {
+    id: batchId,
+    issueId,
+    projectId,
+    originatorAgentId,
+    memberAgentIds: new Set(memberAgentIds),
+    completedAgentIds: new Set(),
+    createdAt: new Date(),
+  };
+  batches.set(batchId, batch);
+  issueBatches.set(issueId, batchId);
+  log.logger.info(
+    { batchId, issueId, originatorAgentId, members: memberAgentIds },
+    "Created agent batch",
+  );
+  return batchId;
+};
+
+/**
+ * Handle batch completion - auto-spawn the originator agent.
+ */
+const handleBatchComplete = (batch: AgentBatch): void => {
+  log.logger.info(
+    { batchId: batch.id, originatorAgentId: batch.originatorAgentId },
+    "Batch complete, auto-spawning originator",
+  );
+
+  // Clean up batch tracking
+  batches.delete(batch.id);
+  issueBatches.delete(batch.issueId);
+
+  // Get the originator agent
+  const originator = crew.getCrewMember(batch.originatorAgentId);
+  if (!originator) {
+    log.logger.warn({ agentId: batch.originatorAgentId }, "Batch originator not found");
+    return;
   }
 
-  /**
-   * Stop the handler and clean up resources.
-   */
-  stop(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
+  // Create a system comment noting batch completion
+  postSystemComment(
+    batch.issueId,
+    batch.projectId,
+    `All batch members have completed. Auto-invoking ${originator.name} for follow-up.`,
+  );
+
+  // Spawn the originator
+  spawnAgent(originator, batch.issueId, batch.projectId).catch((err) => {
+    log.logger.error(
+      { err, agent: originator.name, issueId: batch.issueId },
+      "Failed to auto-spawn batch originator",
+    );
+  });
+};
+
+/**
+ * Clean up stale batches that have exceeded the timeout.
+ */
+const cleanupStaleBatches = (): void => {
+  const now = Date.now();
+  const stale: AgentBatch[] = [];
+
+  for (const batch of batches.values()) {
+    const age = now - batch.createdAt.getTime();
+    if (age > BATCH_TIMEOUT_MS) {
+      log.logger.warn(
+        { batchId: batch.id, issueId: batch.issueId, age: Math.round(age / 1000 / 60) },
+        "Cleaning up stale batch (timeout exceeded)",
+      );
+      stale.push(batch);
     }
   }
 
-  /**
-   * Handle a new comment and spawn agents for any @mentions.
-   */
-  async handleComment(comment: Comment, projectId: string): Promise<void> {
-    // Only process agent comments for @mentions (user comments go to captain via orchestrator)
-    if (comment.author_type !== "agent") return;
+  for (const batch of stale) {
+    handleBatchComplete(batch);
+  }
+};
 
-    const issue = getIssue(comment.issue_id);
-    if (!issue) return;
+/**
+ * Mark an agent as completed in its batch and check for batch completion.
+ */
+const markAgentCompleted = (agentId: string, issueId: string): void => {
+  const batchId = issueBatches.get(issueId);
+  if (!batchId) return;
 
-    const crew = getCrew(projectId);
-    if (!crew) return;
+  const batch = batches.get(batchId);
+  if (!batch) return;
 
-    const agents = listAgents(crew.id);
-    const agentsByName = new Map(agents.map((a) => [a.name.toLowerCase(), a]));
+  if (!batch.memberAgentIds.has(agentId)) return;
 
-    // Get the authoring agent (if any)
-    const authorAgent = comment.author_id ? getAgent(comment.author_id) : null;
-    const selfAgentName = authorAgent?.name;
+  batch.completedAgentIds.add(agentId);
+  log.logger.debug(
+    {
+      batchId,
+      agentId,
+      completed: batch.completedAgentIds.size,
+      total: batch.memberAgentIds.size,
+    },
+    "Agent completed in batch",
+  );
 
-    // Parse mentions, skipping self-mentions
-    const mentionedNames = extractAgentNames(comment.content, selfAgentName);
-    if (mentionedNames.length === 0) return;
+  if (batch.completedAgentIds.size >= batch.memberAgentIds.size) {
+    handleBatchComplete(batch);
+  }
+};
 
-    // Resolve mentioned names to agents
-    const mentionedAgents: Agent[] = [];
-    for (const name of mentionedNames) {
-      const agent = agentsByName.get(name);
-      if (agent) {
-        mentionedAgents.push(agent);
-      } else {
-        logger.debug({ name, issueId: issue.id }, "Mentioned agent not found in crew");
+/**
+ * Spawn an agent process for a mentioned agent on an issue.
+ * Handles chain depth, concurrency, worktree creation, and process lifecycle.
+ * @param {Agent} agent - Agent to spawn
+ * @param {string} issueId - Target issue
+ * @param {string} projectId - Parent project
+ * @param {string} [commentAuthorAgentId] - Author of the triggering comment
+ */
+const spawnAgent = async (
+  agent: Agent,
+  issueId: string,
+  projectId: string,
+  commentAuthorAgentId?: string,
+): Promise<void> => {
+  const issue = issueRepo.getIssue(issueId);
+  if (!issue) return;
+
+  const project = projectRepo.getProject(projectId);
+  if (!project) return;
+
+  // Atomic check-and-increment to prevent concurrent mentions from exceeding the limit.
+  // If chain_depth is already at MAX, the UPDATE matches zero rows and we reject.
+  const incResult = database.db
+    .prepare("UPDATE Issue SET chain_depth = chain_depth + 1 WHERE id = ? AND chain_depth < ?")
+    .run(issueId, MAX_CHAIN_DEPTH);
+
+  if (incResult.changes === 0) {
+    postSystemComment(
+      issueId,
+      projectId,
+      `Chain depth limit reached (${MAX_CHAIN_DEPTH}). No more agents can be spawned on this issue. Use the "Reset chain depth" button to continue.`,
+    );
+    events.eventBus.emit("mention.chain_depth_reached", {
+      issue_id: issueId,
+      project_id: projectId,
+    });
+    return;
+  }
+
+  const activeCount = getActiveProcessCount(projectId);
+  if (activeCount >= project.max_concurrency) {
+    postSystemComment(
+      issueId,
+      projectId,
+      `Too many agents running (${activeCount}/${project.max_concurrency}). Try again later.`,
+    );
+    return;
+  }
+
+  // Regress status to in_progress when work restarts
+  if (
+    issue.status === "done" ||
+    issue.status === "pr_created" ||
+    issue.status === "open"
+  ) {
+    issueRepo.updateIssue(issueId, { status: "in_progress" });
+    events.eventBus.emit("issue.status_changed", {
+      issue_id: issueId,
+      project_id: projectId,
+      from: issue.status,
+      to: "in_progress",
+    });
+  }
+
+  // Create worktree if needed
+  const repo = getFirstRepo(projectId);
+  let worktreePath = issue.worktree_path;
+
+  if (!worktreePath && repo) {
+    const freshIssue = issueRepo.getIssue(issueId)!;
+    const result = await agentWorktree.createWorktree(
+      repo as any,
+      freshIssue,
+      repo.default_branch,
+    );
+    worktreePath = result.path;
+  }
+
+  const comments = commentRepo.listComments(issueId);
+
+  // Captain gets all open/in-progress issues for dependency-aware scheduling
+  const projectIssues =
+    agent.id === "captain"
+      ? issueRepo.listIssues(projectId, { status: ["open", "in_progress"] })
+      : undefined;
+
+  const prompt = agentPrompt.buildPrompt({
+    issue: issueRepo.getIssue(issueId)!,
+    comments,
+    repo: repo ?? null,
+    worktreePath: worktreePath ?? ".",
+    agentId: agent.id,
+    projectIssues,
+  });
+
+  const envVars = getEnvVars(projectId);
+  const env: Record<string, string> = {
+    ...envVars,
+    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
+    CREWDECK_PROJECT_ID: projectId,
+    CREWDECK_AGENT_ID: agent.id,
+    CREWDECK_ISSUE_ID: issueId,
+  };
+
+  // Captain needs GH_TOKEN for gh pr create
+  if (agent.id === "captain" && project.github_account_id) {
+    const account = githubAccountRepo.getGitHubAccount(project.github_account_id);
+    if (account) env.GH_TOKEN = account.oauth_token;
+  }
+
+  const result = await agentProcess.spawnClaude({
+    prompt,
+    systemPrompt: agent.system_prompt,
+    workdir: worktreePath ?? ".",
+    env,
+  });
+
+  const timer = setTimeout(() => {
+    log.logger.warn(
+      { pid: result.pid, agentId: agent.id, issueId },
+      "Agent process timed out",
+    );
+    result.process.kill("SIGTERM");
+    setTimeout(() => {
+      if (!result.process.killed) result.process.kill("SIGKILL");
+    }, 5000);
+  }, PROCESS_TIMEOUT_MS);
+
+  const entry: ActiveProcess = {
+    pid: result.pid,
+    process: result.process,
+    projectId,
+    issueId,
+    agentId: agent.id,
+    timer,
+  };
+  activeProcesses.set(result.pid, entry);
+
+  events.eventBus.emit("mention.spawned", {
+    project_id: projectId,
+    issue_id: issueId,
+    agent_id: agent.id,
+    pid: result.pid,
+  });
+
+  log.logger.info({ pid: result.pid, agent: agent.name, issueId }, "Agent spawned");
+
+  result.exitPromise.then(({ code, stdout }) => {
+    clearTimeout(timer);
+    activeProcesses.delete(result.pid);
+
+    if (code === 0) {
+      let resultText = "";
+      let cost: number | undefined;
+      let durationMs: number | undefined;
+
+      try {
+        const parsed = JSON.parse(stdout);
+        // Claude CLI with --output-format json returns a JSON array of events.
+        // The final element with type "result" contains the actual output.
+        const resultObj = Array.isArray(parsed)
+          ? parsed.findLast((e: any) => e.type === "result") ?? parsed
+          : parsed;
+        resultText = resultObj.result ?? stdout;
+        cost = resultObj.cost_usd ?? resultObj.total_cost_usd;
+        durationMs = resultObj.duration_ms;
+      } catch {
+        resultText = stdout;
       }
-    }
 
-    if (mentionedAgents.length === 0) return;
-
-    // Check if there's a pending batch for this issue with the authoring agent as originator
-    // If so, filter out mentions of the batch originator
-    const existingBatchId = this.issueBatches.get(issue.id);
-    if (existingBatchId) {
-      const batch = this.batches.get(existingBatchId);
-      if (batch) {
-        // Filter out the batch originator from mentions
-        const filteredAgents = mentionedAgents.filter(
-          (a) => a.id !== batch.originatorAgentId
-        );
-        if (filteredAgents.length === 0) {
-          logger.debug(
-            { issueId: issue.id, batchId: existingBatchId },
-            "All mentions filtered out (batch originator)"
-          );
-          return;
-        }
-        // Spawn filtered agents without creating a new batch
-        await this.spawnAgents(filteredAgents, issue.id, projectId, null);
-        return;
+      if (resultText) {
+        const comment = commentRepo.createComment(issueId, {
+          content: resultText,
+          author_type: "agent",
+          author_id: agent.id,
+        });
+        events.eventBus.emit("comment.added", { comment, project_id: projectId });
       }
-    }
 
-    // Create a batch if multiple agents are being spawned by an agent author
-    let batchId: string | null = null;
-    if (mentionedAgents.length > 1 && authorAgent) {
-      batchId = this.createBatch(
-        issue.id,
+      postSystemComment(
+        issueId,
         projectId,
-        authorAgent.id,
-        mentionedAgents.map((a) => a.id)
+        `Agent ${agent.name} finished${cost ? ` (cost: $${cost.toFixed(4)})` : ""}${durationMs ? ` (${Math.round(durationMs / 1000)}s)` : ""}`,
+      );
+
+      log.logger.info(
+        { pid: result.pid, agent: agent.name, cost, durationMs },
+        "Agent finished",
+      );
+    } else {
+      const hasOutput = stdout.trim().length > 0;
+      postSystemComment(
+        issueId,
+        projectId,
+        `Agent ${agent.name} ${code === null ? "timed out (10 min limit" : `crashed (exit code ${code}`}${hasOutput ? "" : ", no output"})`,
+      );
+      log.logger.error(
+        { pid: result.pid, code, agent: agent.name },
+        "Agent process failed",
       );
     }
 
-    // Spawn the mentioned agents
-    await this.spawnAgents(mentionedAgents, issue.id, projectId, batchId);
-  }
+    // Track batch completion
+    markAgentCompleted(agent.id, issueId);
 
-  /**
-   * Create a new batch for tracking grouped agent spawns.
-   */
-  private createBatch(
-    issueId: string,
-    projectId: string,
-    originatorAgentId: string,
-    memberAgentIds: string[]
-  ): string {
-    const batchId = crypto.randomUUID();
-    const batch: AgentBatch = {
-      id: batchId,
-      issueId,
-      projectId,
-      originatorAgentId,
-      memberAgentIds: new Set(memberAgentIds),
-      completedAgentIds: new Set(),
-      createdAt: new Date(),
-    };
-    this.batches.set(batchId, batch);
-    this.issueBatches.set(issueId, batchId);
-    logger.info(
-      { batchId, issueId, originatorAgentId, members: memberAgentIds },
-      "Created agent batch"
-    );
-    return batchId;
-  }
+    events.eventBus.emit("mention.completed", {
+      project_id: projectId,
+      issue_id: issueId,
+      agent_id: agent.id,
+      exit_code: code,
+    });
+  });
+};
 
-  /**
-   * Spawn agents for the given mentions.
-   */
-  private async spawnAgents(
-    agents: Agent[],
-    issueId: string,
-    projectId: string,
-    batchId: string | null
-  ): Promise<void> {
-    const issue = getIssue(issueId);
+/**
+ * Initialize the mention handler by subscribing to comment.added events.
+ */
+export const initMentionHandler = (): void => {
+  events.eventBus.on("comment.added", ({ comment, project_id }) => {
+    // Skip system comments to avoid infinite loops
+    if (comment.author_type === "system") return;
+
+    const issue = issueRepo.getIssue(comment.issue_id);
     if (!issue) return;
 
-    const project = getProject(projectId);
-    if (!project) return;
+    const agents = crew.listCrew();
+    const mentioned = mentionParser.parseMentions(
+      comment.content,
+      agents,
+      comment.author_id ?? undefined,
+    );
 
-    const repos = listRepos(projectId);
-    const repo = repos.length > 0 ? repos[0] : null;
-    const worktreePath = issue.worktree_path ?? "/tmp";
+    if (mentioned.length === 0) return;
 
-    const ghAccount = project.github_account_id
-      ? getGitHubAccount(project.github_account_id)
-      : null;
-
-    for (const agent of agents) {
-      // Dedup guard: skip if agent is already running on this issue (query Session table)
-      if (this.isAgentRunningOnIssue(issueId, agent.id)) {
-        logger.debug(
-          { agentId: agent.id, issueId },
-          "Skipping spawn: agent already running on issue"
+    // Create a batch if multiple agents are being spawned by an agent author
+    if (mentioned.length > 1 && comment.author_id) {
+      const existingBatchId = issueBatches.get(comment.issue_id);
+      if (!existingBatchId) {
+        createBatch(
+          comment.issue_id,
+          project_id,
+          comment.author_id,
+          mentioned.map((a) => a.id),
         );
-        continue;
       }
+    }
 
-      // Check for pending batch with this agent as originator
-      const existingBatchId = this.issueBatches.get(issueId);
+    for (const agent of mentioned) {
+      // Skip spawning the batch originator if there's a pending batch
+      const existingBatchId = issueBatches.get(comment.issue_id);
       if (existingBatchId) {
-        const batch = this.batches.get(existingBatchId);
+        const batch = batches.get(existingBatchId);
         if (batch && batch.originatorAgentId === agent.id) {
-          logger.debug(
-            { agentId: agent.id, issueId, batchId: existingBatchId },
-            "Skipping spawn: agent is batch originator with pending batch"
+          log.logger.debug(
+            { agentId: agent.id, issueId: comment.issue_id, batchId: existingBatchId },
+            "Skipping spawn: agent is batch originator with pending batch",
           );
           continue;
         }
       }
 
-      await this.spawnAgent(agent, issue, projectId, repo, worktreePath, ghAccount, batchId);
-    }
-  }
-
-  /**
-   * Spawn a single agent.
-   */
-  private async spawnAgent(
-    agent: Agent,
-    issue: ReturnType<typeof getIssue>,
-    projectId: string,
-    repo: ReturnType<typeof listRepos>[0] | null,
-    worktreePath: string,
-    ghAccount: ReturnType<typeof getGitHubAccount>,
-    batchId: string | null
-  ): Promise<void> {
-    if (!issue) return;
-
-    // Determine role based on agent type
-    const role = agent.is_captain ? "captain" : "mention";
-
-    const sessionName = agentSessionName(issue.id, agent.id, role);
-
-    // Build prompt based on role
-    const previousComments = repo ? listComments(issue.id) : undefined;
-    const promptText = buildAgentPrompt(issue, agent, repo, {
-      worktreePath,
-      previousComments,
-    });
-
-    const session = createSession({
-      project_id: projectId,
-      session_type: role,
-      agent_id: agent.id,
-      issue_id: issue.id,
-      tmux_session_name: sessionName,
-      status: "running",
-      context: batchId ? { batch_id: batchId } : {},
-    });
-
-    const issueAgent = createIssueAgent({
-      issue_id: issue.id,
-      agent_id: agent.id,
-      role,
-      status: "active",
-      review_round: issue.current_review_round ?? 0,
-    });
-
-    updateIssueAgent(issueAgent.id, { session_id: session.id });
-
-    try {
-      await this.adapter.spawn({
-        sessionName,
-        workdir: worktreePath,
-        prompt: promptText,
-        systemPrompt: agent.system_prompt,
-        env: {
-          CREWDECK_SESSION_ID: session.id,
-          CREWDECK_AGENT_ID: agent.id,
-          CREWDECK_ISSUE_ID: issue.id,
-          CREWDECK_PROJECT_ID: projectId,
-          ...(ghAccount ? { GH_TOKEN: ghAccount.oauth_token } : {}),
+      spawnAgent(agent, comment.issue_id, project_id, comment.author_id ?? undefined).catch(
+        (err) => {
+          log.logger.error(
+            { err, agent: agent.name, issueId: comment.issue_id },
+            "Failed to spawn agent",
+          );
+          events.eventBus.emit("mention.error", {
+            project_id,
+            issue_id: comment.issue_id,
+            agent_id: agent.id,
+            message: err instanceof Error ? err.message : "unknown error",
+          });
+          postSystemComment(
+            comment.issue_id,
+            project_id,
+            `Failed to spawn agent ${agent.name}: ${err instanceof Error ? err.message : "unknown error"}`,
+          );
         },
-      });
-
-      this.bus.emit("session.started", {
-        session_id: session.id,
-        agent_id: agent.id,
-        issue_id: issue.id,
-        project_id: projectId,
-        tmux_session_name: sessionName,
-      });
-
-      logger.info(
-        { agentId: agent.id, agentName: agent.name, issueId: issue.id, batchId },
-        "Spawned agent via @mention"
       );
-    } catch (err) {
-      logger.error({ err, agentId: agent.id, issueId: issue.id }, "Failed to spawn agent");
-      updateSession(session.id, { status: "error" });
-      updateIssueAgent(issueAgent.id, { status: "error" });
     }
+  });
+
+  // Start periodic cleanup of stale batches
+  cleanupInterval = setInterval(() => {
+    cleanupStaleBatches();
+  }, CLEANUP_INTERVAL_MS);
+
+  log.logger.info("MentionHandler initialized");
+};
+
+/**
+ * Terminate all active processes and clear tracking state.
+ */
+export const shutdownMentionHandler = (): void => {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
   }
-
-  /**
-   * Mark an agent as completed in its batch and check for batch completion.
-   */
-  private markAgentCompleted(agentId: string, issueId: string, projectId: string): void {
-    const batchId = this.issueBatches.get(issueId);
-    if (!batchId) return;
-
-    const batch = this.batches.get(batchId);
-    if (!batch) return;
-
-    // Only track members of the batch
-    if (!batch.memberAgentIds.has(agentId)) return;
-
-    batch.completedAgentIds.add(agentId);
-    logger.debug(
-      {
-        batchId,
-        agentId,
-        completed: batch.completedAgentIds.size,
-        total: batch.memberAgentIds.size,
-      },
-      "Agent completed in batch"
-    );
-
-    // Check if batch is complete
-    if (batch.completedAgentIds.size >= batch.memberAgentIds.size) {
-      this.handleBatchComplete(batch);
-    }
+  for (const entry of activeProcesses.values()) {
+    clearTimeout(entry.timer);
+    entry.process.kill("SIGTERM");
   }
+  activeProcesses.clear();
+  batches.clear();
+  issueBatches.clear();
+};
 
-  /**
-   * Handle batch completion - auto-spawn the originator agent.
-   */
-  private handleBatchComplete(batch: AgentBatch): void {
-    logger.info(
-      { batchId: batch.id, originatorAgentId: batch.originatorAgentId },
-      "Batch complete, auto-spawning originator"
-    );
-
-    // Clean up batch tracking
-    this.batches.delete(batch.id);
-    this.issueBatches.delete(batch.issueId);
-
-    // Get the originator agent
-    const originator = getAgent(batch.originatorAgentId);
-    if (!originator) {
-      logger.warn({ agentId: batch.originatorAgentId }, "Batch originator not found");
-      return;
-    }
-
-    // Create a system comment to trigger the originator
-    const comment = createComment(batch.issueId, {
-      content: `All batch members have completed. Auto-invoking ${originator.name} for follow-up.`,
-      author_type: "orchestrator",
-    });
-
-    this.bus.emit("comment.added", { comment, project_id: batch.projectId });
-
-    // Directly spawn the originator (since orchestrator comments won't trigger handleComment)
-    const issue = getIssue(batch.issueId);
-    if (!issue) return;
-
-    const project = getProject(batch.projectId);
-    if (!project) return;
-
-    const repos = listRepos(batch.projectId);
-    const repo = repos.length > 0 ? repos[0] : null;
-    const worktreePath = issue.worktree_path ?? "/tmp";
-
-    const ghAccount = project.github_account_id
-      ? getGitHubAccount(project.github_account_id)
-      : null;
-
-    // Dedup check before spawning originator (query Session table)
-    if (this.isAgentRunningOnIssue(batch.issueId, originator.id)) {
-      logger.debug(
-        { agentId: originator.id, issueId: batch.issueId },
-        "Skipping originator spawn: already running"
-      );
-      return;
-    }
-
-    void this.spawnAgent(originator, issue, batch.projectId, repo, worktreePath, ghAccount, null);
-  }
-
-  /**
-   * Check if an agent is the originator of a pending batch on an issue.
-   */
-  hasPendingBatchForOriginator(issueId: string, agentId: string): boolean {
-    const batchId = this.issueBatches.get(issueId);
-    if (!batchId) return false;
-    const batch = this.batches.get(batchId);
-    if (!batch) return false;
-    return batch.originatorAgentId === agentId;
-  }
-
-  /**
-   * Check if an agent is already running on an issue by querying the Session table.
-   * This is the single source of truth for active sessions, avoiding state divergence.
-   */
-  isAgentRunningOnIssue(issueId: string, agentId: string): boolean {
-    const row = db.prepare(
-      "SELECT 1 FROM Session WHERE issue_id = ? AND agent_id = ? AND status = 'running' LIMIT 1"
-    ).get(issueId, agentId);
-    return row !== undefined;
-  }
-
-  /**
-   * Clean up stale batches that have exceeded the timeout.
-   * This handles cases where an agent crashes and never finishes.
-   */
-  private cleanupStaleBatches(): void {
-    const now = Date.now();
-    const staleBatches: AgentBatch[] = [];
-
-    // Collect stale batches first to avoid mutating during iteration
-    for (const batch of this.batches.values()) {
-      const age = now - batch.createdAt.getTime();
-      if (age > BATCH_TIMEOUT_MS) {
-        logger.warn(
-          { batchId: batch.id, issueId: batch.issueId, age: Math.round(age / 1000 / 60) },
-          "Cleaning up stale batch (timeout exceeded)"
-        );
-        staleBatches.push(batch);
-      }
-    }
-
-    // Process stale batches (handleBatchComplete will clean up the maps)
-    for (const batch of staleBatches) {
-      this.handleBatchComplete(batch);
-    }
-  }
-}
-
-let mentionHandler: MentionHandler | null = null;
-
-export function initMentionHandler(adapter: AgentAdapter): MentionHandler {
-  mentionHandler = new MentionHandler(eventBus, adapter);
-  mentionHandler.init();
-  return mentionHandler;
-}
-
-export function getMentionHandler(): MentionHandler | null {
-  return mentionHandler;
-}
+/**
+ * Log startup recovery. Spawns from before a crash are lost.
+ */
+export const recoverOnStartup = (): void => {
+  log.logger.info("MentionHandler startup recovery complete");
+};
