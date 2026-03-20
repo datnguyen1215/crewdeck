@@ -249,7 +249,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 All state changes are broadcast to connected frontend clients via WebSocket:
 
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
-- **Agent events** — mention spawned, mention completed, chain depth reached.
+- **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued.
 - **PR events** — PR created, status updated.
 
 The frontend subscribes to events scoped by project.
@@ -270,6 +270,7 @@ Each `/dispatch` command spawns a one-shot `claude -p` process:
 4. Chain depth checked (atomic DB increment, max 20)
       ↓
 5. Concurrency checked (active processes < max_concurrency)
+      → if limit reached: dispatch queued; system comment posted; stops here
       ↓
 6. Issue status regressed to in_progress if needed
       ↓
@@ -295,7 +296,7 @@ Each issue gets its own git worktree:
 
 - Each project has a configurable concurrency limit (`max_concurrency`).
 - The MentionHandler counts active processes for the project before each spawn.
-- If the limit is reached, a system comment is posted and the spawn is dropped.
+- If the limit is reached, the dispatch is placed in an in-memory per-project FIFO queue and a system comment is posted with the queue position. When a running process exits, the handler dequeues the next pending dispatch and spawns it automatically. Queued dispatches are lost on restart.
 
 ## Process Lifecycle
 
