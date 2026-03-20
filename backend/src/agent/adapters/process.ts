@@ -50,6 +50,13 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
       }
       resolve({ code: code ?? 1, stdout });
     });
+
+    child.on("error", async (err) => {
+      // Handle spawn/pipe failures (e.g., ENOENT if claude binary not found)
+      try { await unlink(tmpFile); } catch { /* ignore */ }
+      logger.error({ pid: child.pid, err }, "claude process error");
+      resolve({ code: 1, stdout: `Spawn error: ${err.message}` });
+    });
   });
 
   logger.info({ pid: child.pid, workdir: opts.workdir }, "Spawned claude process");

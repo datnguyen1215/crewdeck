@@ -35,7 +35,7 @@
 	<div class="flex flex-col gap-1 p-2 flex-1 overflow-hidden">
 		{#if projectId}
 			{@render navItem(`/projects/${projectId}`, 'Issues', 'issues', isActive(`/projects/${projectId}`))}
-			{@render navItem(`/projects/${projectId}/crew`, 'Agents', 'crew', isActive(`/projects/${projectId}/crew`))}
+			{@render navItem('/crew', 'Agents', 'crew', isActive('/crew'))}
 			{@render navItem(`/projects/${projectId}/activity`, 'Activity', 'activity', isActive(`/projects/${projectId}/activity`))}
 			{@render navItem(`/projects/${projectId}/settings`, 'Settings', 'settings', isActive(`/projects/${projectId}/settings`))}
 

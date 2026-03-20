@@ -29,6 +29,12 @@ export const createGitHubAccount = (
   return getGitHubAccount(id)!;
 };
 
+/** @returns The first GitHub account matching the given username, or null. */
+export const getGitHubAccountByUsername = (username: string): GitHubAccount | null =>
+  (db
+    .prepare("SELECT * FROM GitHubAccount WHERE github_username = ? LIMIT 1")
+    .get(username) as GitHubAccount) ?? null;
+
 /** Deletes a GitHub account. Project.github_account_id is nullified by ON DELETE SET NULL. */
 export const deleteGitHubAccount = (id: string): void => {
   db.prepare("DELETE FROM GitHubAccount WHERE id = ?").run(id);

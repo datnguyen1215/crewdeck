@@ -23,6 +23,7 @@ import * as githubAccountRepo from "../db/repositories/github-accounts.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
+import * as dispatchQueue from "../dispatch/queue.js";
 import type { Agent, AgentRunStatus } from "../types/entities.js";
 
 const MAX_CHAIN_DEPTH = 20;
@@ -302,11 +303,39 @@ const spawnAgent = async (
 
   const activeCount = getActiveProcessCount(projectId);
   if (activeCount >= project.max_concurrency) {
+    // Don't queue duplicates
+    if (dispatchQueue.isQueued(projectId, issueId, agent.id)) {
+      postSystemComment(issueId, projectId, `Agent ${agent.name} is already queued`);
+      // Rollback the chain_depth increment since we're not spawning
+      database.db
+        .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
+        .run(issueId);
+      return;
+    }
+    // Queue the dispatch instead of rejecting
+    const position = dispatchQueue.enqueue({
+      projectId,
+      issueId,
+      agentId: agent.id,
+      queuedAt: new Date(),
+      commentAuthorAgentId,
+    });
+    const ahead = position;
     postSystemComment(
       issueId,
       projectId,
-      `Too many agents running (${activeCount}/${project.max_concurrency}). Try again later.`,
+      `Agent ${agent.name} queued${ahead > 0 ? ` (${ahead} agent${ahead === 1 ? "" : "s"} ahead)` : " (next in line)"}`,
     );
+    events.eventBus.emit("dispatch.queued", {
+      project_id: projectId,
+      issue_id: issueId,
+      agent_id: agent.id,
+      position,
+    });
+    // Rollback the chain_depth increment since we're not spawning now
+    database.db
+      .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
+      .run(issueId);
     return;
   }
 
@@ -581,6 +610,72 @@ function mapEventType(type: string): string {
 }
 
 /**
+ * Process the dispatch queue for a project after an agent completes.
+ * Spawns the next queued agent if concurrency allows.
+ */
+const drainQueue = async (projectId: string): Promise<void> => {
+  const project = projectRepo.getProject(projectId);
+  if (!project) return;
+
+  while (true) {
+    const activeCount = getActiveProcessCount(projectId);
+    if (activeCount >= project.max_concurrency) return;
+
+    const next = dispatchQueue.dequeue(projectId);
+    if (!next) return;
+
+    const agent = crew.getCrewMember(next.agentId);
+    if (!agent) {
+      log.logger.warn({ agentId: next.agentId }, "Queued agent not found");
+      continue;
+    }
+
+    // Skip if agent already has an active process for this issue
+    if (hasActiveAgentProcess(agent.id, next.issueId)) {
+      log.logger.info(
+        { agentId: agent.id, issueId: next.issueId },
+        "Skipping queued spawn: agent already running for this issue",
+      );
+      continue;
+    }
+
+    postSystemComment(
+      next.issueId,
+      projectId,
+      `Agent ${agent.name} dequeued, spawning now`,
+    );
+
+    events.eventBus.emit("dispatch.dequeued", {
+      project_id: projectId,
+      issue_id: next.issueId,
+      agent_id: next.agentId,
+    });
+
+    try {
+      await spawnAgent(agent, next.issueId, projectId, next.commentAuthorAgentId);
+    } catch (err) {
+      log.logger.error(
+        { err, agent: agent.name, issueId: next.issueId },
+        "Failed to spawn queued agent",
+      );
+      events.eventBus.emit("mention.error", {
+        project_id: projectId,
+        issue_id: next.issueId,
+        agent_id: agent.id,
+        message: err instanceof Error ? err.message : "unknown error",
+      });
+      postSystemComment(
+        next.issueId,
+        projectId,
+        `Failed to spawn queued agent ${agent.name}: ${err instanceof Error ? err.message : "unknown error"}`,
+      );
+      // Spawn failed — continue draining so the slot isn't wasted
+      continue;
+    }
+  }
+};
+
+/**
  * Initialize the mention handler by subscribing to comment.added events.
  */
 export const initMentionHandler = (): void => {
@@ -600,8 +695,8 @@ export const initMentionHandler = (): void => {
 
     if (mentioned.length === 0) return;
 
-    // Create a batch if multiple agents are being spawned by an agent author
-    if (mentioned.length > 1 && comment.author_id) {
+    // Create a batch when an agent dispatches other agents, so the originator is auto-invoked on completion
+    if (mentioned.length >= 1 && comment.author_id) {
       const existingBatchId = issueBatches.get(comment.issue_id);
       if (!existingBatchId) {
         createBatch(
@@ -658,6 +753,13 @@ export const initMentionHandler = (): void => {
     }
   });
 
+  // Drain queue when an agent completes
+  events.eventBus.on("mention.completed", ({ project_id }) => {
+    drainQueue(project_id).catch((err) => {
+      log.logger.error({ err, projectId: project_id }, "Failed to drain dispatch queue");
+    });
+  });
+
   // Start periodic cleanup of stale batches
   cleanupInterval = setInterval(() => {
     cleanupStaleBatches();
@@ -703,7 +805,6 @@ export const recoverOnStartup = (): void => {
   for (const run of orphanedRuns) {
     agentRunRepo.markRunFailed(run.id);
 
-    // Post a system comment about the interrupted run
     const agent = crew.getCrewMember(run.agent_id);
     const agentName = agent?.name ?? run.agent_id;
     postSystemComment(

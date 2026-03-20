@@ -18,9 +18,10 @@
 	// Filter state
 	let filterStatuses = $state<string[]>([]);
 	let filterAgent = $state('');
+	let showCompleted = $state(false);
 
-	// Sort state — priority descending by default
-	let sortField = $state<'priority' | 'created_at' | 'updated_at'>('priority');
+	// Sort state — newest first by default
+	let sortField = $state<'priority' | 'created_at' | 'updated_at'>('created_at');
 	let sortDesc = $state(true);
 
 	// Modal state
@@ -32,7 +33,7 @@
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
-		Promise.all([listIssues(projectId), listAgents(projectId), listRepos(projectId)])
+		Promise.all([listIssues(projectId), listAgents(), listRepos(projectId)])
 			.then(([i, a, r]) => {
 				if (cancelled) return; // discard stale response if projectId changed
 				issues = i;
@@ -52,7 +53,7 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
-			Promise.all([listIssues(projectId), listAgents(projectId), listRepos(projectId)])
+			Promise.all([listIssues(projectId), listAgents(), listRepos(projectId)])
 				.then(([i, a, r]) => { issues = i; agents = a; repos = r; })
 				.catch(() => {});
 		};
@@ -70,6 +71,10 @@
 
 	let filtered = $derived.by(() => {
 		let result = [...issues];
+		// Hide done issues unless showCompleted is enabled
+		if (!showCompleted && !filterStatuses.includes('done')) {
+			result = result.filter((i) => i.status !== 'done');
+		}
 		if (filterStatuses.length > 0) {
 			result = result.filter((i) => filterStatuses.includes(i.status));
 		}
@@ -222,6 +227,15 @@
 					{sortDesc ? '↓ Desc' : '↑ Asc'}
 				</button>
 			</div>
+
+			<label class="flex items-center gap-1.5 cursor-pointer">
+				<input
+					type="checkbox"
+					bind:checked={showCompleted}
+					class="accent-cyan"
+				/>
+				<span class="text-xs text-muted">Show completed</span>
+			</label>
 		</div>
 	</div>
 

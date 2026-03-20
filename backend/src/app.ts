@@ -42,9 +42,9 @@ export function createApp(opts: CreateAppOpts = {}) {
   const v1 = "/api/v1";
   app.use(`${v1}/projects`, projectsRouter);
   app.use(`${v1}/projects/:projectId/repos`, reposRouter);
-  app.use(`${v1}/projects/:projectId/crew`, agentsRouter);
+  app.use(`${v1}/crew`, agentsRouter);
   // /agents is a backward-compatible alias for /crew
-  app.use(`${v1}/projects/:projectId/agents`, agentsRouter);
+  app.use(`${v1}/agents`, agentsRouter);
   app.use(`${v1}/projects/:projectId/issues`, issuesRouter);
   app.use(`${v1}/projects/:projectId/issues/:issueId/comments`, commentsRouter);
   app.use(`${v1}/projects/:projectId`, runsRouter);
