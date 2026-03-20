@@ -81,7 +81,7 @@ comment.added event
 
 ### Chain Depth
 
-Each spawn atomically increments `Issue.chain_depth`. If `chain_depth` is already at the limit (20), the increment fails and a system comment is posted instead. Chain depth can be reset via the API (`POST /api/v1/projects/:projectId/issues/:issueId/reset-chain-depth`).
+Each spawn atomically increments `Issue.chain_depth`. If `chain_depth` is already at the limit (20), the increment fails and a system comment is posted instead. Chain depth can be reset via `PATCH /api/v1/projects/:projectId/issues/:issueId` with `{ "chain_depth": 0 }`.
 
 ### Concurrency
 
