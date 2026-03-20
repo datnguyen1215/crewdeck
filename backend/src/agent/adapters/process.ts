@@ -103,8 +103,17 @@ export async function spawnClaudeStream(opts: SpawnOpts): Promise<StreamSpawnRes
       if (!line.trim()) continue;
       try {
         yield JSON.parse(line) as ClaudeStreamEvent;
-      } catch {
-        logger.warn({ pid: child.pid, line: line.slice(0, 200) }, "Failed to parse stream event");
+      } catch (err) {
+        // Emit a system event so the parse failure is visible in the run events
+        logger.error(
+          { pid: child.pid, line: line.slice(0, 200), err },
+          "Failed to parse stream event - data may be lost"
+        );
+        yield {
+          type: "system",
+          message: `Failed to parse stream event: ${line.slice(0, 100)}${line.length > 100 ? "..." : ""}`,
+          error: true,
+        } as ClaudeStreamEvent;
       }
     }
   }

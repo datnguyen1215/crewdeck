@@ -389,9 +389,9 @@ const spawnAgent = async (
   // Update run with PID
   agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
 
-  let timedOut = false;
+  const timeoutState = { timedOut: false };
   const timer = setTimeout(() => {
-    timedOut = true;
+    timeoutState.timedOut = true;
     log.logger.warn(
       { pid: result.pid, agentId: agent.id, issueId },
       "Agent process timed out",
@@ -432,7 +432,7 @@ const spawnAgent = async (
   log.logger.info({ pid: result.pid, agent: agent.name, issueId, runId: agentRun.id }, "Agent spawned");
 
   // Process streamed events
-  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timedOut)
+  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timeoutState)
     .catch((err) => {
       log.logger.error({ err, runId: agentRun.id }, "Error processing agent stream");
     });
@@ -448,7 +448,7 @@ async function processAgentStream(
   issueId: string,
   agent: Agent,
   timer: ReturnType<typeof setTimeout>,
-  timedOut: boolean,
+  timeoutState: { timedOut: boolean },
 ): Promise<void> {
   const startTime = Date.now();
   let resultText = "";
@@ -489,7 +489,7 @@ async function processAgentStream(
 
   // Determine final status
   let status: AgentRunStatus;
-  if (timedOut) {
+  if (timeoutState.timedOut) {
     status = "timeout";
   } else if (code === 0) {
     status = "completed";
@@ -542,7 +542,7 @@ async function processAgentStream(
     postSystemComment(
       issueId,
       projectId,
-      `Agent ${agent.name} ${timedOut ? "timed out (10 min limit" : `crashed (exit code ${code}`}${hasEvents ? "" : ", no output"})`,
+      `Agent ${agent.name} ${timeoutState.timedOut ? "timed out (10 min limit" : `crashed (exit code ${code}`}${hasEvents ? "" : ", no output"})`,
     );
     log.logger.error(
       { pid: result.pid, code, agent: agent.name, runId: agentRunId },

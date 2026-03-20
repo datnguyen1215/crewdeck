@@ -52,7 +52,7 @@ router.get(
   verifyProject,
   (req: Request<{ projectId: string }>, res) => {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
-    const offset = parseInt(req.query.offset as string) || 0;
+    const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
     const runs = listAgentRunsForProject(req.params.projectId, { limit, offset });
     res.json(runs);
   }
