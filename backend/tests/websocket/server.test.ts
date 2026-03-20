@@ -153,19 +153,10 @@ describe("event bus bridge", () => {
   it("issue.status_changed broadcasts { issue_id, from, to }", () => {
     const ws = mockWs();
     addSubscriber("p1", ws);
-    bus.emit("issue.status_changed", { issue_id: "i1", project_id: "p1", from: "open", to: "closed" });
+    bus.emit("issue.status_changed", { issue_id: "i1", project_id: "p1", from: "open", to: "in_progress" });
     const msg = lastMessage(ws);
     expect(msg.event).toBe("issue.status_changed");
-    expect(msg.data).toEqual({ issue_id: "i1", from: "open", to: "closed" });
-  });
-
-  it("agent.status_changed broadcasts { agent_id, issue_id, state }", () => {
-    const ws = mockWs();
-    addSubscriber("p1", ws);
-    bus.emit("agent.status_changed", { agent_id: "a1", issue_id: "i1", project_id: "p1", state: "active" });
-    const msg = lastMessage(ws);
-    expect(msg.event).toBe("agent.status_changed");
-    expect(msg.data).toEqual({ agent_id: "a1", issue_id: "i1", state: "active" });
+    expect(msg.data).toEqual({ issue_id: "i1", from: "open", to: "in_progress" });
   });
 
   it("pr.status_changed broadcasts { pr_id, from, to }", () => {
@@ -176,5 +167,31 @@ describe("event bus bridge", () => {
     expect(msg.event).toBe("pr.status_changed");
     expect(msg.data).toEqual({ pr_id: "pr1", from: "open", to: "merged" });
   });
-});
 
+  it("mention.spawned broadcasts { issue_id, agent_id, pid }", () => {
+    const ws = mockWs();
+    addSubscriber("p1", ws);
+    bus.emit("mention.spawned", { project_id: "p1", issue_id: "i1", agent_id: "a1", pid: 1234 });
+    const msg = lastMessage(ws);
+    expect(msg.event).toBe("mention.spawned");
+    expect(msg.data).toEqual({ issue_id: "i1", agent_id: "a1", pid: 1234 });
+  });
+
+  it("mention.completed broadcasts { issue_id, agent_id, exit_code }", () => {
+    const ws = mockWs();
+    addSubscriber("p1", ws);
+    bus.emit("mention.completed", { project_id: "p1", issue_id: "i1", agent_id: "a1", exit_code: 0 });
+    const msg = lastMessage(ws);
+    expect(msg.event).toBe("mention.completed");
+    expect(msg.data).toEqual({ issue_id: "i1", agent_id: "a1", exit_code: 0 });
+  });
+
+  it("mention.error broadcasts { issue_id, agent_id, message }", () => {
+    const ws = mockWs();
+    addSubscriber("p1", ws);
+    bus.emit("mention.error", { project_id: "p1", issue_id: "i1", agent_id: "a1", message: "boom" });
+    const msg = lastMessage(ws);
+    expect(msg.event).toBe("mention.error");
+    expect(msg.data).toEqual({ issue_id: "i1", agent_id: "a1", message: "boom" });
+  });
+});

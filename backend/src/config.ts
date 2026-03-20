@@ -11,9 +11,9 @@ function parseIntEnv(name: string, fallback: number): number {
 }
 
 export const config = {
-  port: parseIntEnv("PORT", 3000),
+  port: parseIntEnv("PORT", 9381),
   host: optional("HOST", "localhost"),
-  corsOrigin: optional("CORS_ORIGIN", "http://localhost:5173"),
+  corsOrigin: optional("CORS_ORIGIN", "http://localhost:9380"),
   dbPath: optional("DB_PATH", "./data/crewdeck.db"),
   logLevel: optional("LOG_LEVEL", "info"),
   processMonitorInterval: parseIntEnv("PROCESS_MONITOR_INTERVAL", 5000),
