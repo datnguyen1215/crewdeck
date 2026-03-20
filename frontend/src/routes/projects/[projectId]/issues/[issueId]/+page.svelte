@@ -577,6 +577,12 @@ function esc(s: string) {
 								rows={3}
 								placeholder="Type your comment here..."
 								class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
+								onkeydown={(e) => {
+									if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+										e.preventDefault();
+										postComment();
+									}
+								}}
 							></textarea>
 							<div class="flex justify-end mt-3 pt-3 border-t border-edge">
 								<button
