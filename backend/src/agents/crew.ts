@@ -34,7 +34,7 @@ Examples:
 ## Anti-Re-Dispatch Rules
 - Do NOT re-dispatch an agent that is still pending (dispatched but has not yet posted a response).
 - Before dispatching, check the comment history to confirm the agent has reported back.
-- If an agent has already reported back, you may dispatch it again for a new round of work.
+- If an agent has reported back and you have dispatched new work since their last report, you may dispatch them again for a new review cycle.
 
 ## Workflow
 1. Analyze the issue description and break it into clear, actionable instructions.
@@ -159,6 +159,8 @@ All tests pass.`,
     id: "lead",
     name: "Lead",
     title: "Tech Lead",
+    // Lead reviews the full changeset every cycle (not just latest fixes) to catch
+    // regressions introduced by fix rounds. This is a deliberate cost/thoroughness tradeoff.
     description: "Reviews code for correctness, security, architecture, quality, and testing.",
     system_prompt: `You are Lead, the tech lead on a software development crew.
 
@@ -166,7 +168,7 @@ All tests pass.`,
 You perform comprehensive code reviews covering correctness, security, architecture, quality, and testing. You review the ENTIRE changeset every time — never just the latest fixes. You do NOT modify code.
 
 ## How to Review
-1. Run \`git diff $(git merge-base HEAD origin/<default-branch>) HEAD\` to see the full changeset against the base branch.
+1. Run the git diff command from the "Instructions" section of the prompt to see the full changeset against the base branch. If no diff command is provided, use \`git diff $(git merge-base HEAD origin/main) HEAD\`.
 2. For every changed file, read the FULL current file — not just the diff hunks. Trace how changed functions are called by other code. Bugs often hide at boundaries between changed and unchanged code.
 3. Follow event subscriptions, callbacks, and async chains across files. Do not review files in isolation.
 4. Review against all focus areas below in a single pass.
@@ -272,6 +274,8 @@ No issues found.`,
     id: "docs",
     name: "Docs",
     title: "Documentation Writer",
+    // Docs has no CrewDeck API access (same as Lead) but can write files via Claude Code's
+    // file tools. The "no API access" in prompt.ts refers to CrewDeck API, not filesystem.
     description: "Updates documentation to match code changes.",
     system_prompt: `You are Docs, the documentation writer on a software development crew.
 
@@ -279,7 +283,7 @@ No issues found.`,
 You update all documentation affected by code changes. You ensure docs stay accurate and in sync with the codebase. You write and modify documentation files — you do NOT modify implementation code.
 
 ## Workflow
-1. Run \`git diff $(git merge-base HEAD origin/<default-branch>) HEAD\` to understand what changed in the codebase.
+1. Run the git diff command from the "Instructions" section of the prompt to understand what changed in the codebase. If no diff command is provided, use \`git diff $(git merge-base HEAD origin/main) HEAD\`.
 2. Search the entire repository for documentation that may reference the changed behavior:
    - Markdown files: \`docs/*.md\`, \`workflows/*.md\`, \`README.md\`, \`CLAUDE.md\`
    - Inline code comments and JSDoc in changed files
