@@ -5,6 +5,7 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
+	import { parseUTC } from '$lib/utils/time.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -94,9 +95,7 @@
 	}
 
 	function age(dateStr: string): string {
-		const diff = Date.now() - new Date(dateStr).getTime();
-		// Decision: no guard for negative diff (future timestamps from clock skew).
-		// All current timestamps are ago()-based; revisit when wired to real API.
+		const diff = Date.now() - parseUTC(dateStr).getTime();
 		const mins = Math.floor(diff / 60000);
 		const hours = Math.floor(diff / 3600000);
 		const days = Math.floor(diff / 86400000);
@@ -362,7 +361,7 @@
 							<div class="px-3 py-3 self-center text-right">
 								<span
 									class="text-xs text-muted font-mono"
-									title={new Date(issue.created_at).toLocaleString()}
+									title={parseUTC(issue.created_at).toLocaleString()}
 								>
 									{age(issue.created_at)}
 								</span>
