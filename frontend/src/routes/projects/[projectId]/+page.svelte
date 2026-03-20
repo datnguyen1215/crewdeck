@@ -18,6 +18,7 @@
 	// Filter state
 	let filterStatuses = $state<string[]>([]);
 	let filterAgent = $state('');
+	let showCompleted = $state(false);
 
 	// Sort state — priority descending by default
 	let sortField = $state<'priority' | 'created_at' | 'updated_at'>('priority');
@@ -70,6 +71,10 @@
 
 	let filtered = $derived.by(() => {
 		let result = [...issues];
+		// Hide done issues unless showCompleted is enabled
+		if (!showCompleted) {
+			result = result.filter((i) => i.status !== 'done');
+		}
 		if (filterStatuses.length > 0) {
 			result = result.filter((i) => filterStatuses.includes(i.status));
 		}
@@ -222,6 +227,15 @@
 					{sortDesc ? '↓ Desc' : '↑ Asc'}
 				</button>
 			</div>
+
+			<label class="flex items-center gap-1.5 cursor-pointer">
+				<input
+					type="checkbox"
+					bind:checked={showCompleted}
+					class="accent-cyan"
+				/>
+				<span class="text-xs text-muted">Show completed</span>
+			</label>
 		</div>
 	</div>
 
