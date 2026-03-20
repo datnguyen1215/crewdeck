@@ -19,8 +19,8 @@ export const ACTION_LABELS: Record<string, (d: Record<string, unknown>) => strin
 		`Status: ${String(d.from).replace(/_/g, ' ')} → ${String(d.to).replace(/_/g, ' ')}`,
 	'comment.added': () => 'Posted a comment',
 	'pr.created': (d) => `Created PR #${d.pr_number}`,
-	'mention.spawned': (d) => `Agent spawned (pid ${d.pid})`,
-	'mention.completed': (d) => `Agent finished (exit ${d.exit_code})`
+	'mention.spawned': (d) => `${d.agent_id ? String(d.agent_id).charAt(0).toUpperCase() + String(d.agent_id).slice(1) : 'Agent'} spawned (pid ${d.pid})`,
+	'mention.completed': (d) => `${d.agent_id ? String(d.agent_id).charAt(0).toUpperCase() + String(d.agent_id).slice(1) : 'Agent'} finished (exit ${d.exit_code})`
 };
 
 export const ACTION_DISPLAY: Record<string, string> = {
