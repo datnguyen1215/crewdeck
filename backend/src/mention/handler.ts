@@ -264,9 +264,14 @@ const spawnAgent = async (
 
       try {
         const parsed = JSON.parse(stdout);
-        resultText = parsed.result ?? stdout;
-        cost = parsed.cost_usd ?? parsed.total_cost_usd;
-        durationMs = parsed.duration_ms;
+        // Claude CLI with --output-format json returns a JSON array of events.
+        // The final element with type "result" contains the actual output.
+        const resultObj = Array.isArray(parsed)
+          ? parsed.findLast((e: any) => e.type === "result") ?? parsed
+          : parsed;
+        resultText = resultObj.result ?? stdout;
+        cost = resultObj.cost_usd ?? resultObj.total_cost_usd;
+        durationMs = resultObj.duration_ms;
       } catch {
         resultText = stdout;
       }
