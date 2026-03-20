@@ -491,8 +491,8 @@ export const initMentionHandler = (): void => {
 
     if (mentioned.length === 0) return;
 
-    // Create a batch if multiple agents are being spawned by an agent author
-    if (mentioned.length > 1 && comment.author_id) {
+    // Create a batch when an agent dispatches other agents, so the originator is auto-invoked on completion
+    if (mentioned.length >= 1 && comment.author_id) {
       const existingBatchId = issueBatches.get(comment.issue_id);
       if (!existingBatchId) {
         createBatch(
