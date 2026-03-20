@@ -2,6 +2,10 @@
  * Core orchestration for @mention-driven agent spawning.
  * Listens for comment.added events, parses mentions, spawns agents,
  * and posts results back as comments.
+ *
+ * When a comment spawns multiple agents, they are grouped as a batch.
+ * The system tracks batch completion and auto-spawns the originator
+ * when all batch members finish.
  */
 import { type ChildProcess } from "node:child_process";
 import * as events from "../events/bus.js";
@@ -20,6 +24,10 @@ import type { Agent, Comment } from "../types/entities.js";
 
 const MAX_CHAIN_DEPTH = 20;
 const PROCESS_TIMEOUT_MS = 10 * 60 * 1000;
+/** Default batch timeout in milliseconds (30 minutes) */
+const BATCH_TIMEOUT_MS = 30 * 60 * 1000;
+/** Cleanup interval in milliseconds (5 minutes) */
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 interface ActiveProcess {
   pid: number;
@@ -30,7 +38,23 @@ interface ActiveProcess {
   timer: ReturnType<typeof setTimeout>;
 }
 
+/** Batch tracking for grouped agent spawns */
+interface AgentBatch {
+  id: string;
+  issueId: string;
+  projectId: string;
+  originatorAgentId: string;
+  memberAgentIds: Set<string>;
+  completedAgentIds: Set<string>;
+  createdAt: Date;
+}
+
 const activeProcesses = new Map<number, ActiveProcess>();
+/** Active batches by batch ID */
+const batches = new Map<string, AgentBatch>();
+/** Map from issueId to active batch ID for that issue */
+const issueBatches = new Map<string, string>();
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Count active processes for a project.
@@ -104,6 +128,121 @@ const getEnvVars = (projectId: string): Record<string, string> => {
   const env: Record<string, string> = {};
   for (const row of rows) env[row.key] = row.value;
   return env;
+};
+
+/**
+ * Create a new batch for tracking grouped agent spawns.
+ */
+const createBatch = (
+  issueId: string,
+  projectId: string,
+  originatorAgentId: string,
+  memberAgentIds: string[],
+): string => {
+  const batchId = crypto.randomUUID();
+  const batch: AgentBatch = {
+    id: batchId,
+    issueId,
+    projectId,
+    originatorAgentId,
+    memberAgentIds: new Set(memberAgentIds),
+    completedAgentIds: new Set(),
+    createdAt: new Date(),
+  };
+  batches.set(batchId, batch);
+  issueBatches.set(issueId, batchId);
+  log.logger.info(
+    { batchId, issueId, originatorAgentId, members: memberAgentIds },
+    "Created agent batch",
+  );
+  return batchId;
+};
+
+/**
+ * Handle batch completion - auto-spawn the originator agent.
+ */
+const handleBatchComplete = (batch: AgentBatch): void => {
+  log.logger.info(
+    { batchId: batch.id, originatorAgentId: batch.originatorAgentId },
+    "Batch complete, auto-spawning originator",
+  );
+
+  // Clean up batch tracking
+  batches.delete(batch.id);
+  issueBatches.delete(batch.issueId);
+
+  // Get the originator agent
+  const originator = crew.getCrewMember(batch.originatorAgentId);
+  if (!originator) {
+    log.logger.warn({ agentId: batch.originatorAgentId }, "Batch originator not found");
+    return;
+  }
+
+  // Create a system comment noting batch completion
+  postSystemComment(
+    batch.issueId,
+    batch.projectId,
+    `All batch members have completed. Auto-invoking ${originator.name} for follow-up.`,
+  );
+
+  // Spawn the originator
+  spawnAgent(originator, batch.issueId, batch.projectId).catch((err) => {
+    log.logger.error(
+      { err, agent: originator.name, issueId: batch.issueId },
+      "Failed to auto-spawn batch originator",
+    );
+  });
+};
+
+/**
+ * Clean up stale batches that have exceeded the timeout.
+ */
+const cleanupStaleBatches = (): void => {
+  const now = Date.now();
+  const stale: AgentBatch[] = [];
+
+  for (const batch of batches.values()) {
+    const age = now - batch.createdAt.getTime();
+    if (age > BATCH_TIMEOUT_MS) {
+      log.logger.warn(
+        { batchId: batch.id, issueId: batch.issueId, age: Math.round(age / 1000 / 60) },
+        "Cleaning up stale batch (timeout exceeded)",
+      );
+      stale.push(batch);
+    }
+  }
+
+  for (const batch of stale) {
+    handleBatchComplete(batch);
+  }
+};
+
+/**
+ * Mark an agent as completed in its batch and check for batch completion.
+ */
+const markAgentCompleted = (agentId: string, issueId: string): void => {
+  const batchId = issueBatches.get(issueId);
+  if (!batchId) return;
+
+  const batch = batches.get(batchId);
+  if (!batch) return;
+
+  if (!batch.memberAgentIds.has(agentId)) return;
+
+  batch.completedAgentIds.add(agentId);
+  log.logger.debug(
+    {
+      batchId,
+      agentId,
+      completed: batch.completedAgentIds.size,
+      total: batch.memberAgentIds.size,
+    },
+    "Agent completed in batch",
+  );
+
+  if (batch.completedAgentIds.size >= batch.memberAgentIds.size) {
+    handleBatchComplete(batch);
+  }
 };
 
 /**
@@ -308,6 +447,9 @@ const spawnAgent = async (
       );
     }
 
+    // Track batch completion
+    markAgentCompleted(agent.id, issueId);
+
     events.eventBus.emit("mention.completed", {
       project_id: projectId,
       issue_id: issueId,
@@ -335,7 +477,35 @@ export const initMentionHandler = (): void => {
       comment.author_id ?? undefined,
     );
 
+    if (mentioned.length === 0) return;
+
+    // Create a batch if multiple agents are being spawned by an agent author
+    if (mentioned.length > 1 && comment.author_id) {
+      const existingBatchId = issueBatches.get(comment.issue_id);
+      if (!existingBatchId) {
+        createBatch(
+          comment.issue_id,
+          project_id,
+          comment.author_id,
+          mentioned.map((a) => a.id),
+        );
+      }
+    }
+
     for (const agent of mentioned) {
+      // Skip spawning the batch originator if there's a pending batch
+      const existingBatchId = issueBatches.get(comment.issue_id);
+      if (existingBatchId) {
+        const batch = batches.get(existingBatchId);
+        if (batch && batch.originatorAgentId === agent.id) {
+          log.logger.debug(
+            { agentId: agent.id, issueId: comment.issue_id, batchId: existingBatchId },
+            "Skipping spawn: agent is batch originator with pending batch",
+          );
+          continue;
+        }
+      }
+
       spawnAgent(agent, comment.issue_id, project_id, comment.author_id ?? undefined).catch(
         (err) => {
           log.logger.error(
@@ -358,6 +528,11 @@ export const initMentionHandler = (): void => {
     }
   });
 
+  // Start periodic cleanup of stale batches
+  cleanupInterval = setInterval(() => {
+    cleanupStaleBatches();
+  }, CLEANUP_INTERVAL_MS);
+
   log.logger.info("MentionHandler initialized");
 };
 
@@ -365,11 +540,17 @@ export const initMentionHandler = (): void => {
  * Terminate all active processes and clear tracking state.
  */
 export const shutdownMentionHandler = (): void => {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
   for (const entry of activeProcesses.values()) {
     clearTimeout(entry.timer);
     entry.process.kill("SIGTERM");
   }
   activeProcesses.clear();
+  batches.clear();
+  issueBatches.clear();
 };
 
 /**
