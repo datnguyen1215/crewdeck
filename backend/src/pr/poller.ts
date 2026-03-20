@@ -5,7 +5,7 @@
  * Auto-transitions issues from pr_created to done when PRs are merged.
  */
 import { eventBus } from "../events/bus.js";
-import { getGitHubAccount } from "../db/repositories/github-accounts.js";
+import { getGitHubAccount, getGitHubAccountByUsername } from "../db/repositories/github-accounts.js";
 import { getIssue, updateIssue } from "../db/repositories/issues.js";
 import {
   listOpenPRsWithContext,
@@ -80,70 +80,79 @@ async function pollPRs(): Promise<void> {
   const openPRs = listOpenPRsWithContext();
   if (openPRs.length === 0) return;
 
-  // Group PRs by github_account_id to batch requests by token
-  const byAccount = new Map<string, typeof openPRs>();
-  for (const pr of openPRs) {
-    if (!pr.github_account_id) continue;
-    if (!byAccount.has(pr.github_account_id)) {
-      byAccount.set(pr.github_account_id, []);
+  // Resolve OAuth token for each PR: project account first, then fallback to repo owner username
+  const tokenCache = new Map<string, string | null>();
+
+  function resolveToken(pr: (typeof openPRs)[number]): string | null {
+    const key = pr.github_account_id ?? `owner:${pr.repo_owner}`;
+    if (tokenCache.has(key)) return tokenCache.get(key)!;
+
+    let token: string | null = null;
+    if (pr.github_account_id) {
+      token = getGitHubAccount(pr.github_account_id)?.oauth_token ?? null;
     }
-    byAccount.get(pr.github_account_id)!.push(pr);
+    if (!token) {
+      token = getGitHubAccountByUsername(pr.repo_owner)?.oauth_token ?? null;
+    }
+    tokenCache.set(key, token);
+    return token;
   }
 
-  for (const [accountId, prs] of byAccount) {
-    const account = getGitHubAccount(accountId);
-    if (!account?.oauth_token) {
-      logger.debug({ accountId }, "Skipping PRs: no OAuth token");
+  // Process PRs sequentially to respect rate limits
+  for (const pr of openPRs) {
+    const token = resolveToken(pr);
+    if (!token) {
+      logger.warn(
+        { pr_number: pr.pr_number, repo_owner: pr.repo_owner, project_id: pr.project_id },
+        "Skipping PR: no GitHub token (project has no account and no account matches repo owner)"
+      );
       continue;
     }
 
-    // Process PRs sequentially to respect rate limits
-    for (const pr of prs) {
-      const ghPR = await fetchPRStatus(
-        pr.repo_owner,
-        pr.repo_name,
-        pr.pr_number,
-        account.oauth_token
-      );
+    const ghPR = await fetchPRStatus(
+      pr.repo_owner,
+      pr.repo_name,
+      pr.pr_number,
+      token
+    );
 
-      if (!ghPR) continue;
+    if (!ghPR) continue;
 
-      const newStatus = mapPRStatus(ghPR);
-      if (newStatus === pr.status) continue;
+    const newStatus = mapPRStatus(ghPR);
+    if (newStatus === pr.status) continue;
 
-      // Update PR status
-      updateIssuePR(pr.id, { status: newStatus });
+    // Update PR status
+    updateIssuePR(pr.id, { status: newStatus });
 
-      logger.info(
-        { pr_id: pr.id, pr_number: pr.pr_number, from: pr.status, to: newStatus },
-        "PR status changed"
-      );
+    logger.info(
+      { pr_id: pr.id, pr_number: pr.pr_number, from: pr.status, to: newStatus },
+      "PR status changed"
+    );
 
-      eventBus.emit("pr.status_changed", {
-        pr_id: pr.id,
-        project_id: pr.project_id,
-        from: pr.status,
-        to: newStatus,
-      });
+    eventBus.emit("pr.status_changed", {
+      pr_id: pr.id,
+      project_id: pr.project_id,
+      from: pr.status,
+      to: newStatus,
+    });
 
-      // Auto-transition issue to done if PR is merged and issue is in pr_created status
-      if (newStatus === "merged") {
-        const issue = getIssue(pr.issue_id);
-        if (issue?.status === "pr_created") {
-          updateIssue(pr.issue_id, { status: "done" });
+    // Auto-transition issue to done if PR is merged and issue is in pr_created status
+    if (newStatus === "merged") {
+      const issue = getIssue(pr.issue_id);
+      if (issue?.status === "pr_created") {
+        updateIssue(pr.issue_id, { status: "done" });
 
-          logger.info(
-            { issue_id: pr.issue_id, pr_number: pr.pr_number },
-            "Issue auto-transitioned to done (PR merged)"
-          );
+        logger.info(
+          { issue_id: pr.issue_id, pr_number: pr.pr_number },
+          "Issue auto-transitioned to done (PR merged)"
+        );
 
-          eventBus.emit("issue.status_changed", {
-            issue_id: pr.issue_id,
-            project_id: pr.project_id,
-            from: "pr_created",
-            to: "done",
-          });
-        }
+        eventBus.emit("issue.status_changed", {
+          issue_id: pr.issue_id,
+          project_id: pr.project_id,
+          from: "pr_created",
+          to: "done",
+        });
       }
     }
   }
