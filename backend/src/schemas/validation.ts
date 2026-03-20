@@ -12,7 +12,7 @@ const githubUrl = z
 
 const CreateProjectBase = z.object({
   name: z.string().min(1).optional(),
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
   max_concurrency: z.number().int().positive().optional(),
   github_url: githubUrl,
   default_branch: z.string().optional(),
