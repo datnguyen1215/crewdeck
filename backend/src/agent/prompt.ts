@@ -136,8 +136,10 @@ export function buildPrompt(
   parts.push(`## Instructions
 Work on the issue described above. Your entire stdout will be captured and posted as a comment on the issue.${diffInstruction}
 
-To trigger another agent after you're done, include @agent-name in your output.
-For example: "@captain I've completed the work, please review."
+To trigger another agent after you're done, use \`/dispatch agent-name\` at the start of a line.
+For example: "/dispatch captain" followed by your summary of completed work.
+
+Note: @mentions are cosmetic references only — they do NOT trigger agent spawns.
 
 Do your best work.`);
 
