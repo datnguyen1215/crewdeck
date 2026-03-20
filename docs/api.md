@@ -312,7 +312,7 @@ GET /projects/:projectId/issues
 |-----------|------|-------------|
 | status | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
 | created_by | TEXT | Filter by creator (`user`, `agent`, or `system`). |
-| sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `priority`. |
+| sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `created_at`. |
 | order | TEXT | Sort order. `asc` or `desc`. Default: `desc`. |
 
 **Response:** `200 OK` — Array of issue objects (without full comment thread).
@@ -806,10 +806,10 @@ All events follow this structure:
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `mention.spawned` | Agent process started for a /dispatch command | `{ issue_id, agent_id, pid }` |
-| `mention.completed` | Agent process finished | `{ issue_id, agent_id, exit_code }` |
-| `mention.error` | Agent process failed | `{ issue_id, agent_id, message }` |
-| `mention.chain_depth_reached` | Issue chain depth limit (20) reached | `{ issue_id }` |
+| `mention.spawned` | Agent process started for a /dispatch command | `{ issue_id, agent_id, agent_name?, issue_title?, pid }` |
+| `mention.completed` | Agent process finished | `{ issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
+| `mention.error` | Agent process failed | `{ issue_id, agent_id, agent_name?, issue_title?, message }` |
+| `mention.chain_depth_reached` | Issue chain depth limit (20) reached | `{ issue_id, issue_title? }` |
 
 #### Agent Run Events
 
@@ -823,7 +823,7 @@ All events follow this structure:
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `pr.created` | PR recorded on an issue | Full IssuePR object |
+| `pr.created` | PR recorded on an issue | Full IssuePR object + `issue_title?` |
 | `pr.status_changed` | PR status updated | `{ pr_id, from, to }` |
 
 ---

@@ -70,7 +70,10 @@ Humans can post comments to provide direction, ask questions, or trigger agents.
 
 ### Pull Request
 
-Pull requests are tracked in the `IssuePR` table. When an issue's work is ready, the user clicks "Mark as PR Created" which transitions the issue to `pr_created` and records the PR.
+Pull requests are tracked in the `IssuePR` table. They can be linked to an issue in two ways:
+
+- **Manual**: the user clicks "Mark as PR Created", which transitions the issue to `pr_created` and records the PR.
+- **Auto-link**: when a comment is posted containing a GitHub PR URL (e.g. `https://github.com/owner/repo/pull/123`), the PR detector automatically creates an `IssuePR` record linking it to the issue (deduped by repo + PR number).
 
 ## Issue Lifecycle
 
@@ -84,8 +87,8 @@ Open → In Progress → PR Created → Done
 |-------|-------------|
 | **Open** | Issue is in the queue, ready to be worked on. |
 | **In Progress** | An agent is actively working (or has worked) on the issue. Set automatically when an agent is spawned. |
-| **PR Created** | A pull request has been created. Set via the "Mark as PR Created" button or automatically by the Captain agent after creating a PR with `gh pr create`. |
-| **Done** | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running). |
+| **PR Created** | A pull request has been created. Set via the "Mark as PR Created" button, automatically by the Captain agent after creating a PR with `gh pr create`, or auto-detected when a PR URL is posted in a comment. |
+| **Done** | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running), or automatically when a linked PR is merged. |
 
 Dispatching an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress`.
 
@@ -192,11 +195,26 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Captures stdout (JSON output format) and resolves on process exit.
 - Enforces 10-minute timeout per process.
 
+**PR Detector**
+- Subscribes to `comment.added` events.
+- Parses GitHub PR URLs from comment text.
+- Matches URLs against repos linked to the project.
+- Creates `IssuePR` records for new PRs (deduped by repo + PR number).
+- Emits `pr.created` for each newly linked PR.
+
+**PR Poller**
+- Runs every 60 seconds (started at startup, stopped on shutdown).
+- Queries all open `IssuePR` records with their project/repo context.
+- Fetches current PR state from the GitHub API using the project's OAuth token.
+- Updates `IssuePR.status` when a PR is merged or closed.
+- Auto-transitions the linked issue from `pr_created` → `done` when a PR is merged.
+- Emits `pr.status_changed` and `issue.status_changed` events accordingly.
+
 **Event Bus**
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than calling each other directly.
-- Producers: REST API handlers, MentionHandler.
-- Consumers: MentionHandler, WebSocket broadcaster, Activity Logger.
+- Producers: REST API handlers, MentionHandler, PR Detector, PR Poller.
+- Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger.
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
 **SQLite Database**
@@ -220,8 +238,9 @@ The backend uses an in-process typed EventEmitter as the central communication b
 │                                                          │
 │  Producers:                    Consumers:                │
 │  ├── REST API handlers    ──→  MentionHandler            │
-│  └── MentionHandler       ──→  WebSocket broadcaster     │
-│                           ──→  Activity Logger           │
+│  ├── MentionHandler       ──→  WebSocket broadcaster     │
+│  └── PR Detector/Poller   ──→  Activity Logger           │
+│                           ──→  PR Detector               │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -241,7 +260,8 @@ The backend uses an in-process typed EventEmitter as the central communication b
 4. Activity Logger receives event → writes ActivityLog entry
 5. WebSocket broadcaster receives event → sends to connected frontend clients
 6. MentionHandler receives event → parses /dispatch commands → spawns agent processes
-7. API handler returns 201 to the client
+7. PR Detector receives event → parses PR URLs → creates IssuePR records
+8. API handler returns 201 to the client
 ```
 
 ## Real-Time Communication
@@ -249,7 +269,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 All state changes are broadcast to connected frontend clients via WebSocket:
 
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
-- **Agent events** — mention spawned, mention completed, chain depth reached.
+- **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued.
 - **PR events** — PR created, status updated.
 
 The frontend subscribes to events scoped by project.
@@ -270,6 +290,7 @@ Each `/dispatch` command spawns a one-shot `claude -p` process:
 4. Chain depth checked (atomic DB increment, max 20)
       ↓
 5. Concurrency checked (active processes < max_concurrency)
+      → if limit reached: dispatch queued; system comment posted; stops here
       ↓
 6. Issue status regressed to in_progress if needed
       ↓
@@ -295,7 +316,7 @@ Each issue gets its own git worktree:
 
 - Each project has a configurable concurrency limit (`max_concurrency`).
 - The MentionHandler counts active processes for the project before each spawn.
-- If the limit is reached, a system comment is posted and the spawn is dropped.
+- If the limit is reached, the dispatch is placed in an in-memory per-project FIFO queue and a system comment is posted with the queue position. When a running process exits, the handler dequeues the next pending dispatch and spawns it automatically. Queued dispatches are lost on restart.
 
 ## Process Lifecycle
 
@@ -307,9 +328,11 @@ On startup, the backend:
 2. Initializes SQLite database (runs `schema.sql` if tables don't exist).
 3. Initializes the activity logger (registers event listeners).
 4. Initializes the MentionHandler (subscribes to `comment.added`).
-5. Starts the Express HTTP server.
-6. Starts the WebSocket server.
-7. Logs startup complete via pino.
+5. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
+6. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
+7. Starts the Express HTTP server.
+8. Starts the WebSocket server.
+9. Logs startup complete via pino.
 
 Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery).
 
@@ -319,8 +342,9 @@ On SIGTERM or SIGINT, the backend:
 
 1. Stops accepting new HTTP connections.
 2. Sends SIGTERM to all active agent processes (via `shutdownMentionHandler()`).
-3. Closes the SQLite database connection.
-4. Exits the process.
+3. Stops the PR poller.
+4. Closes the SQLite database connection.
+5. Exits the process.
 
 ## Security and Access
 

@@ -74,6 +74,8 @@ comment.added event
     │       ├── skip if agent already has an active process for this issue (deduplication)
     │       ├── check chain_depth < 20 (atomic DB increment)
     │       ├── check active process count < max_concurrency
+    │       │       └── if limit reached: enqueue dispatch, post "Agent X queued (N ahead)"
+    │       │               system comment, emit dispatch.queued — skip remaining steps
     │       ├── regress issue status to in_progress if needed
     │       ├── create worktree if needed
     │       ├── build prompt from issue + comments + agentId
@@ -85,6 +87,9 @@ comment.added event
             ├── post agent output as comment (author_type: "agent")
             ├── post system comment with cost/duration
             ├── emit mention.completed
+            ├── drain dispatch queue: dequeue next for this project (if any),
+            │       post "Agent X dequeued, spawning now" system comment,
+            │       emit dispatch.dequeued, then spawn
             └── if agent is a batch member: mark completed in batch
                     └── if all batch members done: auto-spawn originator
 ```
@@ -105,7 +110,7 @@ Each spawn atomically increments `Issue.chain_depth`. If `chain_depth` is alread
 
 ### Concurrency
 
-Active processes are tracked in an in-memory map keyed by PID. Before spawning, the handler counts active processes for the project and rejects if `count >= project.max_concurrency`.
+Active processes are tracked in an in-memory map keyed by PID. Before spawning, the handler counts active processes for the project. If the count has reached `project.max_concurrency`, the dispatch is placed in an in-memory per-project FIFO queue instead of being dropped. A system comment is posted with the agent's queue position. When any active process exits, the handler dequeues the next pending dispatch for that project and spawns it. Queue state is in-memory and lost on restart.
 
 ### Timeouts
 
@@ -163,6 +168,6 @@ Every invocation gets a complete, self-contained prompt from the database. The b
 
 ## Startup and Shutdown
 
-**Startup:** `recoverOnStartup()` logs that any in-flight processes from before the crash are lost. In-memory state cannot be recovered.
+**Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed` and posts a system comment on each affected issue notifying users to re-dispatch.
 
 **Shutdown:** `shutdownMentionHandler()` stops the batch cleanup interval, sends SIGTERM to all active processes, and clears the active-process and batch tracking maps.
