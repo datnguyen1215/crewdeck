@@ -44,7 +44,7 @@ Mentioning an agent on an issue automatically regresses its status to `in_progre
 | Trigger | Status change |
 |---------|--------------|
 | Agent spawned on open/done/pr_created issue | → `in_progress` |
-| User clicks "Mark as PR Created" | → `pr_created` |
+| User clicks "Mark as PR Created", or Captain runs `gh pr create` | → `pr_created` |
 | User clicks "Mark as Done" (no active processes) | → `done` |
 
 ## Environment Variables
@@ -57,6 +57,7 @@ The following variables are passed to each agent process:
 | `CREWDECK_PROJECT_ID` | The project ID |
 | `CREWDECK_AGENT_ID` | The agent's ID |
 | `CREWDECK_ISSUE_ID` | The issue ID being worked on |
+| `GH_TOKEN` | GitHub OAuth token — injected for Captain only, from the project's linked GitHub account |
 
 In addition, any project-level environment variables configured via the [Environment Variables API](api.md#environment-variables) are injected.
 
@@ -67,6 +68,7 @@ Each agent receives a prompt built from:
 - The issue title and description
 - The repository name and worktree path
 - All previous comments on the issue (in order)
+- For Captain only: a summary of all other open/in-progress issues (for dependency-aware scheduling)
 
 The agent's system prompt is passed via `--system-prompt-file`. The backend does not rely on Claude's session management — every invocation gets a complete, self-contained prompt built from CrewDeck's database.
 
