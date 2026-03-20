@@ -91,7 +91,7 @@ comment.added event
 
 ### Batch Tracking
 
-When a single comment dispatches multiple agents (e.g. Captain using `/dispatch engineer security quality`), the handler groups them into a **batch**:
+When a single comment dispatches multiple agents (e.g. Captain using `/dispatch engineer lead`), the handler groups them into a **batch**:
 
 - The comment's author becomes the **originator**.
 - The dispatched agents become **batch members** and are spawned immediately; the originator is skipped until the batch completes.

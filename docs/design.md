@@ -25,12 +25,12 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 
 - A name and description.
 - One or more linked GitHub repositories.
-- A shared roster of 5 fixed agents (defined globally, not per-project).
+- A shared roster of 4 fixed agents (defined globally, not per-project).
 - A concurrency limit (max simultaneous agent processes).
 
 ### Agent
 
-The crew is a fixed set of 5 immutable agents defined in code (Captain, Engineer, Security, Architect, Quality). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
+The crew is a fixed set of 4 immutable agents defined in code (Captain, Engineer, Lead, Docs). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
 Agent names are used for `/dispatch` command matching.
 
@@ -40,7 +40,7 @@ Orchestration is driven by `/dispatch` commands in issue comments. When a user o
 
 `@mentions` are cosmetic references only — they do NOT trigger agent spawns. This prevents duplicate spawns when agents reference each other in summaries or feedback.
 
-A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch security architect quality`. When multiple agents are dispatched, they are grouped as a batch. The batch members are spawned immediately, and the comment's author (the originator) is automatically re-spawned once all batch members have completed. This allows Captain, for example, to delegate work to several specialists and be invoked again when all results are ready.
+A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch engineer lead`. When multiple agents are dispatched, they are grouped as a batch. The batch members are spawned immediately, and the comment's author (the originator) is automatically re-spawned once all batch members have completed. This allows Captain, for example, to delegate work to several specialists and be invoked again when all results are ready.
 
 The chain depth is tracked per issue (max 20) to prevent infinite loops. Concurrency is bounded by the project's `max_concurrency` setting.
 

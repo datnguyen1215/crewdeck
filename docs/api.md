@@ -271,7 +271,7 @@ DELETE /projects/:projectId/repos/:repoId
 
 ### Crew / Agents
 
-The crew is a fixed set of 5 global agents (captain, engineer, security, architect, quality). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data.
+The crew is a fixed set of 4 global agents (captain, engineer, lead, docs). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data.
 
 #### List Crew
 
@@ -280,7 +280,7 @@ GET /crew
 GET /agents
 ```
 
-Both paths return the same fixed 5-agent crew. The `/crew` path is canonical; `/agents` is kept for compatibility.
+Both paths return the same fixed 4-agent crew. The `/crew` path is canonical; `/agents` is kept for compatibility.
 
 **Response:** `200 OK` — Array of agent objects.
 

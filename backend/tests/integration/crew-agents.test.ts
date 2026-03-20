@@ -10,16 +10,15 @@ beforeAll(async () => {
 });
 
 describe("GET /api/v1/crew", () => {
-  it("returns the fixed 5-member crew", async () => {
+  it("returns the fixed 4-member crew", async () => {
     const res = await request(app).get("/api/v1/crew");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(5);
+    expect(res.body).toHaveLength(4);
     expect(res.body.map((a: { id: string }) => a.id).sort()).toEqual([
-      "architect",
       "captain",
+      "docs",
       "engineer",
-      "quality",
-      "security",
+      "lead",
     ]);
   });
 });
@@ -28,7 +27,7 @@ describe("GET /api/v1/agents", () => {
   it("returns the same fixed crew", async () => {
     const res = await request(app).get("/api/v1/agents");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(5);
+    expect(res.body).toHaveLength(4);
   });
 });
 

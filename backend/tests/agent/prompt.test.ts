@@ -142,8 +142,8 @@ describe("buildPrompt options form", () => {
     expect(prompt).not.toContain("PATCH");
   });
 
-  it("security/architect/quality get no API access", () => {
-    for (const agentId of ["security", "architect", "quality"]) {
+  it("lead/docs get no API access", () => {
+    for (const agentId of ["lead", "docs"]) {
       const prompt = buildPrompt({
         issue,
         comments: [],
