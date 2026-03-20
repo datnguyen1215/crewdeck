@@ -18,120 +18,58 @@ beforeAll(async () => {
   projectId = res.body.id;
 });
 
-describe("GET /api/v1/projects/:projectId/crew/agents", () => {
-  it("returns empty array for new project", async () => {
-    const proj = await request(app).post("/api/v1/projects").send({
-      name: "crew-agents-empty-project",
-      github_url: "https://github.com/test/repo",
-    });
+describe("GET /api/v1/projects/:projectId/crew", () => {
+  it("returns the fixed 5-member crew", async () => {
     const res = await request(app).get(
-      `/api/v1/projects/${proj.body.id}/crew/agents`,
+      `/api/v1/projects/${projectId}/crew`,
     );
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
-  });
-});
-
-describe("POST /api/v1/projects/:projectId/crew/agents", () => {
-  it("creates agent with valid body", async () => {
-    const res = await request(app)
-      .post(`/api/v1/projects/${projectId}/crew/agents`)
-      .send({
-        name: "Agent One",
-        title: "developer",
-        system_prompt: "You are a dev",
-      });
-    expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty("id");
-    expect(res.body.name).toBe("Agent One");
-    expect(res.body.title).toBe("developer");
-    expect(res.body.project_id).toBe(projectId);
-  });
-
-  it("validates required fields", async () => {
-    const res = await request(app)
-      .post(`/api/v1/projects/${projectId}/crew/agents`)
-      .send({ name: "Missing fields" });
-    expect(res.status).toBe(400);
+    expect(res.body).toHaveLength(5);
+    expect(res.body.map((a: { id: string }) => a.id).sort()).toEqual([
+      "architect",
+      "captain",
+      "engineer",
+      "quality",
+      "security",
+    ]);
   });
 
   it("returns 404 for non-existent project", async () => {
+    const res = await request(app).get(
+      `/api/v1/projects/${FAKE_ID}/crew`,
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /api/v1/projects/:projectId/agents", () => {
+  it("returns the same fixed crew", async () => {
+    const res = await request(app).get(
+      `/api/v1/projects/${projectId}/agents`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(5);
+  });
+});
+
+describe("CRUD endpoints are removed", () => {
+  it("POST /crew returns 404", async () => {
     const res = await request(app)
-      .post(`/api/v1/projects/${FAKE_ID}/crew/agents`)
+      .post(`/api/v1/projects/${projectId}/crew`)
       .send({ name: "Agent", title: "dev", system_prompt: "prompt" });
     expect(res.status).toBe(404);
   });
-});
 
-describe("GET /api/v1/projects/:projectId/crew/agents (after creation)", () => {
-  beforeAll(async () => {
+  it("PATCH /crew/:id returns 404", async () => {
     const res = await request(app)
-      .post(`/api/v1/projects/${projectId}/crew/agents`)
-      .send({ name: "List Agent", title: "dev", system_prompt: "prompt" });
-    expect(res.status).toBe(201);
-  });
-
-  it("returns agents after creating some", async () => {
-    const res = await request(app).get(
-      `/api/v1/projects/${projectId}/crew/agents`,
-    );
-    expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThanOrEqual(1);
-  });
-});
-
-describe("PATCH /api/v1/projects/:projectId/crew/agents/:agentId", () => {
-  let agentId: string;
-
-  beforeAll(async () => {
-    const res = await request(app)
-      .post(`/api/v1/projects/${projectId}/crew/agents`)
-      .send({
-        name: "Patchable",
-        title: "tester",
-        system_prompt: "test prompt",
-      });
-    expect(res.status).toBe(201);
-    agentId = res.body.id;
-  });
-
-  it("updates agent fields", async () => {
-    const res = await request(app)
-      .patch(`/api/v1/projects/${projectId}/crew/agents/${agentId}`)
-      .send({ name: "Patched Agent" });
-    expect(res.status).toBe(200);
-    expect(res.body.name).toBe("Patched Agent");
-  });
-
-  it("returns 404 for non-existent agent", async () => {
-    const res = await request(app)
-      .patch(`/api/v1/projects/${projectId}/crew/agents/${FAKE_ID}`)
+      .patch(`/api/v1/projects/${projectId}/crew/captain`)
       .send({ name: "Nope" });
     expect(res.status).toBe(404);
   });
-});
 
-describe("DELETE /api/v1/projects/:projectId/crew/agents/:agentId", () => {
-  let agentId: string;
-
-  beforeAll(async () => {
-    const res = await request(app)
-      .post(`/api/v1/projects/${projectId}/crew/agents`)
-      .send({ name: "Deletable", title: "disposable", system_prompt: "bye" });
-    expect(res.status).toBe(201);
-    agentId = res.body.id;
-  });
-
-  it("deletes agent", async () => {
+  it("DELETE /crew/:id returns 404", async () => {
     const res = await request(app).delete(
-      `/api/v1/projects/${projectId}/crew/agents/${agentId}`,
-    );
-    expect(res.status).toBe(204);
-  });
-
-  it("returns 404 for non-existent agent", async () => {
-    const res = await request(app).delete(
-      `/api/v1/projects/${projectId}/crew/agents/${FAKE_ID}`,
+      `/api/v1/projects/${projectId}/crew/captain`,
     );
     expect(res.status).toBe(404);
   });

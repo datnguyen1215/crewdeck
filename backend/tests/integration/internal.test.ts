@@ -8,7 +8,7 @@ const FAKE_ID = "00000000-0000-0000-0000-000000000000";
 
 let app: Express;
 let projectId: string;
-let agentId: string;
+const agentId = "engineer"; // fixed crew member
 let issueId: string;
 
 beforeAll(async () => {
@@ -20,13 +20,6 @@ beforeAll(async () => {
     .send({ name: `internal-test-${Date.now()}`, github_url: "https://github.com/test/repo" });
   expect(projRes.status).toBe(201);
   projectId = projRes.body.id;
-
-  // Create agent
-  const agentRes = await request(app)
-    .post(`/api/v1/projects/${projectId}/crew/agents`)
-    .send({ name: "Test Agent", title: "developer", system_prompt: "test" });
-  expect(agentRes.status).toBe(201);
-  agentId = agentRes.body.id;
 
   // Create issue
   const issueRes = await request(app)
