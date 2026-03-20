@@ -8,38 +8,39 @@ status: draft
 
 ## Overview
 
-Agents are triggered by **@mentions** in issue comments. When a user or another agent posts a comment containing `@agent-name`, the backend automatically spawns that agent as a `claude -p` subprocess. The agent's output is posted back to the issue as a comment.
+Agents are triggered by **`/dispatch` commands** in issue comments. When a user or another agent posts a comment containing `/dispatch agent-name` at the start of a line, the backend automatically spawns that agent as a `claude -p` subprocess. The agent's output is posted back to the issue as a comment.
 
-There is no persistent captain session or CLI tool for agents to call. All orchestration happens through the comment thread.
+`@mentions` are cosmetic references only — they do NOT trigger agent spawns. There is no persistent captain session or CLI tool for agents to call. All orchestration happens through the comment thread.
 
 ## How It Works
 
-1. A user (or agent) posts a comment on an issue containing `@agent-name`.
-2. The `MentionHandler` detects the mention via the `comment.added` event.
+1. A user (or agent) posts a comment on an issue containing `/dispatch agent-name`.
+2. The `MentionHandler` detects the `/dispatch` command via the `comment.added` event.
 3. The backend spawns `claude -p` with the agent's system prompt and a prompt built from the issue + comment history.
 4. The agent runs to completion and its output is posted back as a comment attributed to the agent.
-5. If the agent's output mentions another agent, that agent is spawned in turn (up to the chain depth limit).
+5. If the agent's output includes a `/dispatch` command, that agent is spawned in turn (up to the chain depth limit).
 
-## @Mention Rules
+## /dispatch Rules
 
-- One mention per line is processed.
-- Matching is case-insensitive and greedy (longest agent name matched first).
-- Mentions inside fenced code blocks or inline backticks are ignored.
-- Agents cannot mention themselves (self-mentions are skipped).
+- `/dispatch` must appear at the start of a line (leading whitespace is allowed).
+- Multiple agents can be dispatched on one line: `/dispatch engineer lead`.
+- Matching is case-insensitive.
+- Dispatches inside fenced code blocks or inline backticks are ignored.
+- Agents cannot dispatch themselves (self-dispatches are skipped).
 
 ## Limits
 
 | Limit | Value | Behavior when exceeded |
 |-------|-------|----------------------|
 | Chain depth | 20 | System comment posted; "Reset chain depth" button appears on the issue |
-| Max concurrency | Project setting | System comment posted; mention is dropped |
+| Max concurrency | Project setting | System comment posted; dispatch is dropped |
 | Process timeout | 10 minutes | Process killed; system comment posted |
 
 Chain depth is tracked per-issue and increments each time an agent is spawned on that issue. It can be reset via the "Reset chain depth" button on the issue detail page.
 
 ## Issue Status
 
-Mentioning an agent on an issue automatically regresses its status to `in_progress` if it was `open`, `pr_created`, or `done`. Status transitions are:
+Dispatching an agent on an issue automatically regresses its status to `in_progress` if it was `open`, `pr_created`, or `done`. Status transitions are:
 
 | Trigger | Status change |
 |---------|--------------|

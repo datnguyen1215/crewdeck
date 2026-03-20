@@ -8,12 +8,11 @@ function makeAgent(id: string, name: string): Agent {
 
 const agents: Agent[] = [
   makeAgent("1", "engineer"),
-  makeAgent("2", "security"),
-  makeAgent("3", "architect"),
-  makeAgent("4", "quality"),
-  makeAgent("5", "captain"),
-  makeAgent("6", "code-reviewer"),
-  makeAgent("7", "qa_lead"),
+  makeAgent("2", "lead"),
+  makeAgent("3", "docs"),
+  makeAgent("4", "captain"),
+  makeAgent("5", "code-reviewer"),
+  makeAgent("6", "qa_lead"),
 ];
 
 describe("parseDispatches", () => {
@@ -24,18 +23,18 @@ describe("parseDispatches", () => {
   });
 
   it("extracts multiple agents from single dispatch", () => {
-    const result = parseDispatches("/dispatch security architect quality", agents);
+    const result = parseDispatches("/dispatch engineer lead docs", agents);
     expect(result).toHaveLength(3);
-    expect(result[0].name).toBe("security");
-    expect(result[1].name).toBe("architect");
-    expect(result[2].name).toBe("quality");
+    expect(result[0].name).toBe("engineer");
+    expect(result[1].name).toBe("lead");
+    expect(result[2].name).toBe("docs");
   });
 
   it("extracts agents from multiple dispatch lines", () => {
-    const result = parseDispatches("/dispatch engineer\n/dispatch security", agents);
+    const result = parseDispatches("/dispatch engineer\n/dispatch lead", agents);
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe("engineer");
-    expect(result[1].name).toBe("security");
+    expect(result[1].name).toBe("lead");
   });
 
   it("deduplicates dispatches", () => {
@@ -45,12 +44,12 @@ describe("parseDispatches", () => {
   });
 
   it("matches case-insensitively", () => {
-    const result = parseDispatches("/dispatch Engineer SECURITY Architect", agents);
+    const result = parseDispatches("/dispatch Engineer LEAD Docs", agents);
     expect(result).toHaveLength(3);
   });
 
   it("skips self-dispatch", () => {
-    const result = parseDispatches("/dispatch captain engineer", agents, "5");
+    const result = parseDispatches("/dispatch captain engineer", agents, "4");
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("engineer");
   });
@@ -66,22 +65,22 @@ describe("parseDispatches", () => {
   });
 
   it("ignores @mentions mixed with text", () => {
-    const result = parseDispatches("@engineer and @security should review this", agents);
+    const result = parseDispatches("@engineer and @lead should review this", agents);
     expect(result).toEqual([]);
   });
 
   it("skips dispatch inside fenced code blocks", () => {
-    const text = "Check this:\n```\n/dispatch engineer\n```\n/dispatch security";
+    const text = "Check this:\n```\n/dispatch engineer\n```\n/dispatch lead";
     const result = parseDispatches(text, agents);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("security");
+    expect(result[0].name).toBe("lead");
   });
 
   it("skips dispatch inside inline backticks", () => {
-    const text = "Use `/dispatch engineer` for help\n/dispatch security";
+    const text = "Use `/dispatch engineer` for help\n/dispatch lead";
     const result = parseDispatches(text, agents);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("security");
+    expect(result[0].name).toBe("lead");
   });
 
   it("handles dispatch at start of line with leading whitespace", () => {
@@ -97,17 +96,17 @@ describe("parseDispatches", () => {
 
   it("handles multiline content with dispatch", () => {
     const content = `Please review:
-/dispatch engineer security quality
+/dispatch engineer lead docs
 Some other text here`;
     const result = parseDispatches(content, agents);
     expect(result).toHaveLength(3);
   });
 
   it("ignores unknown agent names in dispatch", () => {
-    const result = parseDispatches("/dispatch engineer unknown-agent security", agents);
+    const result = parseDispatches("/dispatch engineer unknown-agent lead", agents);
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe("engineer");
-    expect(result[1].name).toBe("security");
+    expect(result[1].name).toBe("lead");
   });
 
   it("handles dispatch followed by text content", () => {
