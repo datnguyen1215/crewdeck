@@ -27,9 +27,9 @@ All persistent state is stored in a local SQLite database. This document defines
 │   IssuePR    │                      │  Issue   │
 └──────────────┘                      └──────────┘
 
-┌──────────┐       ┌──────────────┐
-│  Issue   │1────N│  AgentRun    │
-└──────────┘       └──────────────┘
+┌──────────┐       ┌──────────┐       ┌────────────────┐
+│  Issue   │1────N│ AgentRun │1────N│ AgentRunEvent  │
+└──────────┘       └──────────┘       └────────────────┘
 ```
 
 ## Entities
@@ -132,6 +132,39 @@ Links an issue to a GitHub pull request.
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
+### AgentRun
+
+Records a single execution of an agent on an issue.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
+| issue_id | TEXT | NOT NULL, FOREIGN KEY → Issue.id | The issue this run was triggered by. |
+| agent_id | TEXT | NOT NULL | The agent that was spawned (e.g., `captain`). |
+| pid | INTEGER | NULLABLE | OS process ID. NULL until the process is spawned. |
+| status | TEXT | NOT NULL, DEFAULT 'queued' | Current status. One of: `queued`, `running`, `completed`, `failed`, `timeout`. |
+| exit_code | INTEGER | NULLABLE | Process exit code. NULL if not yet completed or if status is `timeout`. |
+| cost_usd | REAL | NULLABLE | Estimated cost in USD from the Claude API. NULL until run completes. |
+| duration_ms | INTEGER | NULLABLE | Wall-clock duration in milliseconds. NULL until run completes. |
+| started_at | DATETIME | NULLABLE | When the agent process started. NULL while queued. |
+| completed_at | DATETIME | NULLABLE | When the agent process ended. NULL while running. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the run record was created. |
+
+### AgentRunEvent
+
+A single streamed event from the Claude CLI (`--output-format stream-json`) captured during an agent run.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| agent_run_id | TEXT | NOT NULL, FOREIGN KEY → AgentRun.id ON DELETE CASCADE | The run this event belongs to. |
+| type | TEXT | NOT NULL | Event type. One of: `system`, `assistant`, `tool_use`, `tool_result`, `result`. |
+| data | TEXT | NOT NULL | JSON-encoded event payload from the Claude CLI. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the event was recorded. |
+
+---
+
 ### EnvironmentVariable
 
 A per-project environment variable injected into agent processes at spawn time.
@@ -201,6 +234,7 @@ Immutable audit trail of every action in the system.
 | Issue → IssuePR | One-to-Many | An issue can have multiple PRs (across repos). |
 | Issue → ActivityLog | One-to-Many | An issue has many activity log entries. |
 | Issue → AgentRun | One-to-Many | An issue has many agent run records. |
+| AgentRun → AgentRunEvent | One-to-Many | A run has many streamed events (ordered by created_at). |
 | Project → AgentRun | One-to-Many | A project has many agent run records. |
 
 ## Indexes
@@ -217,4 +251,7 @@ Immutable audit trail of every action in the system.
 - `idx_env_var_project` on EnvironmentVariable(project_id)
 - `idx_agent_run_project` on AgentRun(project_id)
 - `idx_agent_run_issue` on AgentRun(issue_id)
-- `idx_agent_run_status` on AgentRun(status)
+- `idx_agent_run_status` on AgentRun(project_id, status)
+- `idx_agent_run_created` on AgentRun(project_id, created_at)
+- `idx_agent_run_event_run` on AgentRunEvent(agent_run_id)
+- `idx_agent_run_event_created` on AgentRunEvent(agent_run_id, created_at)

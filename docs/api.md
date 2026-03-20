@@ -469,6 +469,85 @@ DELETE /projects/:projectId/issues/:issueId/comments/:commentId
 
 ---
 
+### Agent Runs
+
+Records of agent executions, including streamed events from the Claude CLI.
+
+#### List Runs for an Issue
+
+```
+GET /projects/:projectId/issues/:issueId/runs
+```
+
+**Response:** `200 OK` — Array of AgentRun objects ordered by `created_at` descending.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "issue_id": "uuid",
+    "agent_id": "captain",
+    "pid": 12345,
+    "status": "completed",
+    "exit_code": 0,
+    "cost_usd": 0.023,
+    "duration_ms": 14200,
+    "started_at": "ISO 8601",
+    "completed_at": "ISO 8601",
+    "created_at": "ISO 8601"
+  }
+]
+```
+
+Status values: `queued`, `running`, `completed`, `failed`, `timeout`.
+
+#### Get Run with Events
+
+```
+GET /projects/:projectId/runs/:runId
+```
+
+**Response:** `200 OK` — AgentRun object with an additional `events` array containing all streamed events.
+
+```json
+{
+  "id": "uuid",
+  "...": "...",
+  "events": [
+    {
+      "id": "uuid",
+      "agent_run_id": "uuid",
+      "type": "assistant",
+      "data": { "message": { "content": [...] } },
+      "created_at": "ISO 8601"
+    }
+  ]
+}
+```
+
+Event `type` values: `system`, `assistant`, `tool_use`, `tool_result`, `result`.
+
+**Error:** `404 Not Found` — Run does not exist or belongs to a different project.
+
+#### List Runs for a Project
+
+```
+GET /projects/:projectId/runs
+GET /projects/:projectId/runs?limit=50&offset=0
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| limit | INTEGER | Max runs to return. Default: 50. Max: 100. |
+| offset | INTEGER | Pagination offset. Default: 0. Must be ≥ 0. |
+
+**Response:** `200 OK` — Array of AgentRun objects ordered by `created_at` descending.
+
+---
+
 ### Activity Log
 
 #### List Activity for a Project
@@ -731,6 +810,14 @@ All events follow this structure:
 | `mention.completed` | Agent process finished | `{ issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
 | `mention.error` | Agent process failed | `{ issue_id, agent_id, agent_name?, issue_title?, message }` |
 | `mention.chain_depth_reached` | Issue chain depth limit (20) reached | `{ issue_id, issue_title? }` |
+
+#### Agent Run Events
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `run.started` | Agent run started (process spawned) | `{ agent_run_id, project_id, issue_id, agent_id, status, started_at }` |
+| `run.event` | Streamed event received from Claude CLI | `{ agent_run_id, project_id, type, data }` |
+| `run.completed` | Agent run finished | `{ agent_run_id, project_id, issue_id, status, exit_code, cost_usd, duration_ms, completed_at }` |
 
 #### PR Events
 
