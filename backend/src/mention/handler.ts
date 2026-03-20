@@ -19,6 +19,7 @@ import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as githubAccountRepo from "../db/repositories/github-accounts.js";
 import * as database from "../db/index.js";
+import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as log from "../logger.js";
 import type { Agent, Comment } from "../types/entities.js";
 
@@ -35,6 +36,7 @@ interface ActiveProcess {
   projectId: string;
   issueId: string;
   agentId: string;
+  agentRunId: string;
   timer: ReturnType<typeof setTimeout>;
 }
 
@@ -374,6 +376,9 @@ const spawnAgent = async (
     env,
   });
 
+  // Persist agent run to database
+  const agentRun = agentRunRepo.createAgentRun(projectId, issueId, agent.id, result.pid);
+
   const timer = setTimeout(() => {
     log.logger.warn(
       { pid: result.pid, agentId: agent.id, issueId },
@@ -391,6 +396,7 @@ const spawnAgent = async (
     projectId,
     issueId,
     agentId: agent.id,
+    agentRunId: agentRun.id,
     timer,
   };
   activeProcesses.set(result.pid, entry);
@@ -407,6 +413,11 @@ const spawnAgent = async (
   result.exitPromise.then(({ code, stdout }) => {
     clearTimeout(timer);
     activeProcesses.delete(result.pid);
+
+    // Determine run status and persist completion
+    const isTimeout = code === null;
+    const runStatus = code === 0 ? "completed" : isTimeout ? "timeout" : "failed";
+    agentRunRepo.completeAgentRun(agentRun.id, runStatus, code);
 
     if (code === 0) {
       let resultText = "";
@@ -575,8 +586,34 @@ export const shutdownMentionHandler = (): void => {
 };
 
 /**
- * Log startup recovery. Spawns from before a crash are lost.
+ * Recover orphaned agent runs on startup.
+ * Marks any runs still in "running" status as failed and posts system comments.
  */
 export const recoverOnStartup = (): void => {
-  log.logger.info("MentionHandler startup recovery complete");
+  const orphans = agentRunRepo.markOrphanedRunsFailed();
+  if (orphans.length === 0) {
+    log.logger.info("MentionHandler startup recovery complete (no orphans)");
+    return;
+  }
+
+  log.logger.warn(
+    { count: orphans.length, pids: orphans.map((o) => o.pid) },
+    "Recovered orphaned agent runs from previous server instance",
+  );
+
+  // Post system comments for each orphaned run
+  for (const run of orphans) {
+    const agent = crew.getCrewMember(run.agent_id);
+    const agentName = agent?.name ?? run.agent_id;
+    postSystemComment(
+      run.issue_id,
+      run.project_id,
+      `Agent ${agentName} was interrupted (server restart). Re-dispatch to continue.`,
+    );
+  }
+
+  log.logger.info(
+    { recovered: orphans.length },
+    "MentionHandler startup recovery complete",
+  );
 };
