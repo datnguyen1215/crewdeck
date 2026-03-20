@@ -203,4 +203,39 @@ describe("ActivityLogger", () => {
     eventBus.emit("pr.status_changed", { pr_id: "pr1", project_id: PROJECT_ID, from: "open", to: "closed" });
     expect(getLog()).toHaveLength(0);
   });
+
+  it("logs dispatch.queued as agent.queued", () => {
+    eventBus.emit("dispatch.queued", {
+      project_id: PROJECT_ID,
+      issue_id: ISSUE_ID,
+      agent_id: "engineer",
+      position: 2,
+    });
+    const logs = getLog();
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      project_id: PROJECT_ID,
+      issue_id: ISSUE_ID,
+      actor_type: "system",
+      action: "agent.queued",
+    });
+    expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "engineer", position: 2 });
+  });
+
+  it("logs dispatch.dequeued as agent.dequeued", () => {
+    eventBus.emit("dispatch.dequeued", {
+      project_id: PROJECT_ID,
+      issue_id: ISSUE_ID,
+      agent_id: "captain",
+    });
+    const logs = getLog();
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      project_id: PROJECT_ID,
+      issue_id: ISSUE_ID,
+      actor_type: "system",
+      action: "agent.dequeued",
+    });
+    expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "captain" });
+  });
 });
