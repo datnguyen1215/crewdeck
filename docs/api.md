@@ -135,7 +135,7 @@ DELETE /projects/:id
 
 **Response:** `204 No Content`
 
-**Side effects:** Deletes all related data (cascading).
+**Side effects:** Kills any active agent processes, cleans up worktrees, deletes all related data (cascading).
 
 ---
 
@@ -270,50 +270,9 @@ DELETE /projects/:projectId/repos/:repoId
 
 ---
 
-### Crew (Backward Compatibility)
-
-#### Get Crew for a Project
-
-```
-GET /projects/:projectId/crew
-```
-
-Returns a crew-like object for backward compatibility with the CLI.
-
-**Response:** `200 OK`
-
-```json
-{
-  "id": "uuid",
-  "project_id": "uuid",
-  "name": "Project Name",
-  "agents": [
-    {
-      "id": "uuid",
-      "name": "Alice",
-      "title": "Senior Software Engineer",
-      "description": "Focuses on backend services and API design.",
-      "system_prompt": "...",
-      "status": "idle",
-      "current_issue": null,
-      "created_at": "ISO 8601",
-      "updated_at": "ISO 8601"
-    }
-  ],
-  "created_at": "ISO 8601",
-  "updated_at": "ISO 8601"
-}
-```
-
-**Note:** The `status` field is always `"idle"` and `current_issue` is always `null` in the current implementation. These fields exist for CLI compatibility.
-
----
-
 ### Agents
 
-Agents are managed per-project. Two equivalent mount paths exist for backward compatibility:
-- `/projects/:projectId/agents` (primary)
-- `/projects/:projectId/crew/agents` (legacy, same behavior)
+Agents belong directly to a project. The canonical path is `/projects/:projectId/agents`; the legacy path `/projects/:projectId/crew/agents` is also accepted for backward compatibility.
 
 #### List Agents
 
@@ -341,7 +300,7 @@ POST /projects/:projectId/agents
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| name | Yes | — | Agent name. |
+| name | Yes | — | Agent name. Must be unique within the project — used for @mention matching. |
 | title | Yes | — | Professional title. |
 | description | No | null | Short description of the agent's focus. |
 | system_prompt | Yes | — | Full system prompt. |
@@ -356,7 +315,7 @@ POST /projects/:projectId/agents
 POST /projects/:projectId/agents/generate
 ```
 
-Uses Claude to generate an agent configuration from a short description.
+Calls Claude to generate an agent configuration from a short description.
 
 **Request Body:**
 ```json
@@ -399,8 +358,6 @@ DELETE /projects/:projectId/agents/:agentId
 
 **Response:** `204 No Content`
 
-**Error:** `404 Not Found` — Agent does not exist.
-
 ---
 
 ### Issues
@@ -416,7 +373,7 @@ GET /projects/:projectId/issues
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | status | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
-| created_by | TEXT | Filter by creator (`user` or `agent`). |
+| created_by | TEXT | Filter by creator (`user`, `agent`, or `system`). |
 | sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `priority`. |
 | order | TEXT | Sort order. `asc` or `desc`. Default: `desc`. |
 
@@ -439,12 +396,12 @@ GET /projects/:projectId/issues/:issueId
   "status": "in_progress",
   "priority": 8,
   "created_by": "user",
-  "chain_depth": 0,
-  "branch_name": "string | null",
-  "worktree_path": "string | null",
-  "base_branch": "string | null",
-  "repo_id": "uuid | null",
-  "repo": { "id": "uuid", "name": "repo" } | null,
+  "chain_depth": 2,
+  "branch_name": "crewdeck/issue-uuid-short",
+  "worktree_path": "/path/to/worktree",
+  "base_branch": "main",
+  "repo_id": "uuid",
+  "repo": { "id": "uuid", "name": "repo" },
   "comments": [...],
   "issue_prs": [...],
   "activity_log": [...],
@@ -472,7 +429,7 @@ POST /projects/:projectId/issues
 |-------|----------|---------|-------------|
 | title | Yes | — | Issue title. |
 | description | Yes | — | Issue description. |
-| priority | No | — | Priority level (integer). |
+| priority | No | 0 | Priority score. Higher = more urgent. |
 
 **Response:** `201 Created` — The created issue object with status `open` and `created_by: "user"`.
 
@@ -485,7 +442,7 @@ POST /projects/:projectId/issues
 PATCH /projects/:projectId/issues/:issueId
 ```
 
-**Request Body:** Any subset of issue fields (title, description, status, priority, chain_depth, branch_name, worktree_path, base_branch, repo_id).
+**Request Body:** Any subset of issue fields (title, description, status, priority).
 
 **Response:** `200 OK` — The updated issue object.
 
@@ -494,23 +451,15 @@ PATCH /projects/:projectId/issues/:issueId
 
 **Note:** Status changes are validated against the transition rules (see Status Transitions below).
 
-#### Delete Issue
-
-```
-DELETE /projects/:projectId/issues/:issueId
-```
-
-**Response:** `204 No Content`
-
 #### Mark as PR Created
 
 ```
 POST /projects/:projectId/issues/:issueId/mark-pr-created
 ```
 
-Transitions an issue to `pr_created` status.
+Transitions an `in_progress` issue to `pr_created`. Used after a PR has been created externally (e.g., by an agent via `gh`).
 
-**Validation:** Issue must be in `in_progress` status.
+**Validation:** Issue must have status `in_progress`.
 
 **Response:** `200 OK` — The updated issue object.
 
@@ -523,16 +472,14 @@ Transitions an issue to `pr_created` status.
 POST /projects/:projectId/issues/:issueId/mark-done
 ```
 
-Transitions an issue to `done` status.
+Transitions an issue to `done`.
 
-**Validation:** Cannot mark as done if agents are still running on this issue (returns `409 CONFLICT`).
+**Validation:** No active agent processes may be running on the issue.
 
-**Response:** `200 OK` — The updated issue object.
+**Response:** `200 OK` — The updated issue object. Idempotent if already `done`.
 
 **Side effects:**
 - WebSocket event: `issue.status_changed`.
-
-**Note:** Idempotent — if the issue is already `done`, returns the issue unchanged.
 
 #### Reset Chain Depth
 
@@ -540,7 +487,7 @@ Transitions an issue to `done` status.
 POST /projects/:projectId/issues/:issueId/reset-chain-depth
 ```
 
-Resets the issue's `chain_depth` counter to 0, allowing agents to continue @mention chains that hit the depth limit.
+Resets the chain depth counter to 0 so @mentions can be processed again after the limit (20) was reached.
 
 **Response:** `200 OK` — The updated issue object.
 
@@ -587,7 +534,7 @@ POST /projects/:projectId/issues/:issueId/comments
 **Side effects:**
 - WebSocket event: `comment.added`.
 
-**Note:** Agent comments are created via the internal API, not this endpoint. Comments with @mentions of agent names trigger the mention handler, which spawns agent processes.
+**Note:** Agent and system comments are created internally (by agent processes and the MentionHandler), not through this endpoint.
 
 #### Edit Comment
 
@@ -604,7 +551,7 @@ PATCH /projects/:projectId/issues/:issueId/comments/:commentId
 
 **Response:** `200 OK` — The updated comment object.
 
-**Error:** `403 Forbidden` — Cannot edit agent comments (author_type ≠ `user`).
+**Error:** `403 Forbidden` — Cannot edit agent or system comments (author_type ≠ `user`).
 
 **Side effects:**
 - WebSocket event: `comment.updated`.
@@ -617,7 +564,7 @@ DELETE /projects/:projectId/issues/:issueId/comments/:commentId
 
 **Response:** `204 No Content`
 
-**Error:** `403 Forbidden` — Cannot delete agent comments (author_type ≠ `user`).
+**Error:** `403 Forbidden` — Cannot delete agent or system comments (author_type ≠ `user`).
 
 **Side effects:**
 - WebSocket event: `comment.deleted`.
@@ -649,7 +596,7 @@ GET /projects/:projectId/activity
 
 ### Environment Variables
 
-Per-project environment variables that are available for agent processes.
+Per-project environment variables that are automatically injected into agent processes at spawn time.
 
 **Note:** Secret values (`is_secret: true`) are masked as `••••••••` in all API responses. They are stored in plaintext server-side for agent injection only.
 
@@ -730,9 +677,9 @@ DELETE /projects/:projectId/environment/:envVarId
 
 ---
 
-### Internal API (Agent Processes)
+### Internal API
 
-These endpoints are used by agent processes spawned via `claude -p`. They are localhost-only and intentionally unauthenticated. Not intended for frontend or external use.
+These endpoints are used by agent processes (`claude -p` subprocesses) spawned by the MentionHandler. They are not intended for frontend or external use. See [Agent Orchestration](agent-cli.md) for details on how agents are spawned and use these endpoints.
 
 #### Post Comment (Internal)
 
@@ -747,7 +694,7 @@ Agent posts a comment on an issue.
 {
   "issue_id": "uuid",
   "project_id": "uuid",
-  "agent_id": "uuid (optional)",
+  "agent_id": "uuid",
   "content": "Fixed the bug, added tests"
 }
 ```
@@ -755,13 +702,13 @@ Agent posts a comment on an issue.
 | Field | Required | Description |
 |-------|----------|-------------|
 | issue_id | Yes | The issue to comment on. |
-| project_id | Yes | Must match the issue's project. |
-| agent_id | No | The agent posting the comment. |
-| content | Yes | Comment text (non-empty). |
+| project_id | Yes | The owning project. |
+| agent_id | No | The agent's ID (for author attribution). |
+| content | Yes | Comment body. |
 
-**Response:** `201 Created` — The created comment object (author_type = `agent`).
+**Response:** `201 Created`
 
-**Side effects:** Emits `comment.added` on the event bus.
+**Side effects:** Emits `comment.added` on the event bus (which may trigger further @mention processing).
 
 #### Create Issue (Internal)
 
@@ -830,24 +777,23 @@ Issue status changes are validated to ensure a valid lifecycle. The system uses 
 | open | in_progress, done |
 | in_progress | pr_created, done |
 | pr_created | in_progress, done |
+| done | (terminal — no further transitions) |
 
-Any status can transition to `done` as an escape hatch.
+Any status can transition to `done` via `POST /mark-done` (rejected if active agent processes are running).
 
-**Note:** When a user posts a comment with an @mention on a `done` or `pr_created` issue, the mention handler automatically transitions the issue back to `in_progress`.
+Mentioning an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress` before the agent is spawned.
 
 ---
 
 ## WebSocket API
 
-### Project Events Connection
+### Connection
 
 ```
 ws://localhost:<port>/ws?projectId=<uuid>
 ```
 
 Clients connect with a project ID to receive events scoped to that project. The server validates that the project exists on connection.
-
-**Keepalive:** Server sends ping frames every 30 seconds with a 10-second pong timeout. Clients that fail to respond are disconnected.
 
 ### Event Format
 
@@ -885,21 +831,21 @@ All events follow this structure:
 |-------|-------------|------|
 | `agent.created` | New agent added to the project | `{ agent_id, name }` |
 
-#### PR Events
-
-| Event | Description | Data |
-|-------|-------------|------|
-| `pr.created` | PR created on GitHub | Full IssuePR object |
-| `pr.status_changed` | PR status updated (reserved for future webhook integration) | `{ pr_id, from, to }` |
-
 #### Mention Events
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `mention.spawned` | Agent process started via @mention | `{ issue_id, agent_id, pid }` |
+| `mention.spawned` | Agent process started for an @mention | `{ issue_id, agent_id, pid }` |
 | `mention.completed` | Agent process finished | `{ issue_id, agent_id, exit_code }` |
-| `mention.error` | Agent process encountered an error | `{ issue_id, agent_id, message }` |
-| `mention.chain_depth_reached` | @mention chain hit the depth limit | `{ issue_id }` |
+| `mention.error` | Agent process failed | `{ issue_id, agent_id, message }` |
+| `mention.chain_depth_reached` | Issue chain depth limit (20) reached | `{ issue_id }` |
+
+#### PR Events
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `pr.created` | PR recorded on an issue | Full IssuePR object |
+| `pr.status_changed` | PR status updated | `{ pr_id, from, to }` |
 
 ---
 
@@ -924,6 +870,6 @@ All error responses follow this structure:
 | NOT_FOUND | 404 | Resource does not exist. |
 | VALIDATION_ERROR | 400 | Request body fails validation. |
 | INVALID_TRANSITION | 400 | Invalid status transition. |
-| CONFLICT | 409 | Operation conflicts with current state (e.g., marking done with active agents). |
+| CONFLICT | 409 | Operation conflicts with current state (e.g., marking done while agents are running). |
 | FORBIDDEN | 403 | Action not allowed (e.g., editing agent comments). |
 | INTERNAL_ERROR | 500 | Unexpected server error. |
