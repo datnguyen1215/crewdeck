@@ -106,6 +106,8 @@ The fundamental unit of work.
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
+**Note:** When listing issues via the API (`GET /projects/:projectId/issues`), each issue is returned with additional computed fields `running_agent_id` and `running_agent_status` derived from a LEFT JOIN on the `AgentRun` table. These fields indicate the most recent running or queued agent for the issue (if any).
+
 ### Comment
 
 A message on an issue from an agent, the system, or a human.
