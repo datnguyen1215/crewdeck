@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDispatches } from "../../src/mention/parser.js";
+import { parseDispatches } from "../../src/orchestration/parser.js";
 import type { Agent } from "../../src/types/entities.js";
 
 function makeAgent(id: string, name: string): Agent {

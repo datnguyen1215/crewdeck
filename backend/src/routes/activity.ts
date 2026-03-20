@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { listActivity } from "../db/repositories/activity-log.js";
 import { getProject } from "../db/repositories/projects.js";
-import { getCrewMember } from "../agents/crew.js";
+import { getCrewMember } from "../orchestration/crew.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import type { ActivityFilters, ActivityLog } from "../types/entities.js";
 

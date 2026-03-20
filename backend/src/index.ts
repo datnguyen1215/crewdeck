@@ -4,7 +4,7 @@ import { db } from "./db/index.js";
 import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { initActivityLogger } from "./events/activity-logger.js";
-import { initMentionHandler, shutdownMentionHandler, recoverOnStartup } from "./mention/handler.js";
+import { initMentionHandler, shutdownMentionHandler, recoverOnStartup } from "./orchestration/handler.js";
 import { createApp } from "./app.js";
 import { initPRDetector } from "./pr/detector.js";
 import { startPRPoller, stopPRPoller } from "./pr/poller.js";

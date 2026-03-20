@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
-import { logger } from "../../logger.js";
+import { logger } from "../logger.js";
 
 export interface SpawnOpts {
   prompt: string;

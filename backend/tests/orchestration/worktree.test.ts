@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createWorktree, cleanupWorktree } from "../../src/agent/worktree.js";
+import { createWorktree, cleanupWorktree } from "../../src/orchestration/worktree.js";
 import type { Repo, Issue } from "../../src/types/entities.js";
 
 vi.mock("node:child_process", () => ({

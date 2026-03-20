@@ -17,7 +17,7 @@ import {
 } from "../middleware/ownership.js";
 import { CreateIssueSchema, UpdateIssueSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
-import { hasActiveProcesses } from "../mention/handler.js";
+import { hasActiveProcesses } from "../orchestration/handler.js";
 import type { IssueFilters } from "../types/entities.js";
 
 const TRANSITIONS: Record<string, string[]> = {

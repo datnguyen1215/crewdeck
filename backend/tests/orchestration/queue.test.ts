@@ -10,7 +10,7 @@ import {
   clearAllQueues,
   getQueue,
   type QueuedDispatch,
-} from "../../src/dispatch/queue.js";
+} from "../../src/orchestration/queue.js";
 
 const PROJECT_ID = "proj-1";
 const PROJECT_ID_2 = "proj-2";
