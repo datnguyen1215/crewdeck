@@ -45,8 +45,7 @@ Without `?stats`:
     "name": "My Project",
     "description": "...",
     "max_concurrency": 3,
-    "max_review_rounds": 3,
-    "orchestrator_session_id": "uuid | null",
+    "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
   }
@@ -61,8 +60,7 @@ With `?stats`:
     "name": "My Project",
     "description": "...",
     "max_concurrency": 3,
-    "max_review_rounds": 3,
-    "orchestrator_session_id": "uuid | null",
+    "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601",
     "repo_count": 2,
@@ -70,11 +68,9 @@ With `?stats`:
     "issues": {
       "open": 3,
       "in_progress": 1,
-      "in_review": 0,
-      "ready": 1,
+      "pr_created": 0,
       "done": 12
-    },
-    "orchestrator_status": "active | idle | error | none"
+    }
   }
 ]
 ```
@@ -124,7 +120,7 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_review_rounds).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, github_account_id).
 
 **Response:** `200 OK` — The updated project object.
 
@@ -136,7 +132,7 @@ DELETE /projects/:id
 
 **Response:** `204 No Content`
 
-**Side effects:** Stops all active sessions, cleans up worktrees, deletes all related data (cascading).
+**Side effects:** Kills any active agent processes, cleans up worktrees, deletes all related data (cascading).
 
 ---
 
@@ -271,78 +267,22 @@ DELETE /projects/:projectId/repos/:repoId
 
 ---
 
-### Crew
-
-#### Get Crew for a Project
-
-```
-GET /projects/:projectId/crew
-```
-
-**Response:** `200 OK` — Crew object with nested agents array.
-
-```json
-{
-  "id": "uuid",
-  "project_id": "uuid",
-  "name": "Backend Team",
-  "agents": [
-    {
-      "id": "uuid",
-      "name": "Alice",
-      "title": "Senior Software Engineer",
-      "description": "Focuses on backend services and API design.",
-      "is_captain": false,
-      "status": "idle | active",
-      "current_issue": { "id": "uuid", "title": "Fix login bug" } | null
-    }
-  ],
-  "created_at": "ISO 8601",
-  "updated_at": "ISO 8601"
-}
-```
-
-**Note:** The crew is automatically created when a project is created.
-
-#### Update Crew
-
-```
-PATCH /projects/:projectId/crew
-```
-
-**Request Body:**
-```json
-{
-  "name": "New Crew Name"
-}
-```
-
-**Response:** `200 OK` — Updated crew object.
-
----
-
 ### Agents
 
-#### List Agents in a Crew
+Agents belong directly to a project. The canonical path is `/projects/:projectId/agents`; the legacy path `/projects/:projectId/crew/agents` is also accepted for backward compatibility.
+
+#### List Agents
 
 ```
-GET /projects/:projectId/crew/agents
+GET /projects/:projectId/agents
 ```
 
 **Response:** `200 OK` — Array of agent objects.
 
-#### Get Agent
-
-```
-GET /projects/:projectId/crew/agents/:agentId
-```
-
-**Response:** `200 OK` — Single agent object including full system_prompt.
-
 #### Create Agent
 
 ```
-POST /projects/:projectId/crew/agents
+POST /projects/:projectId/agents
 ```
 
 **Request Body:**
@@ -351,18 +291,16 @@ POST /projects/:projectId/crew/agents
   "name": "Alice",
   "title": "Senior Software Engineer",
   "description": "Focuses on backend services and API design.",
-  "system_prompt": "You are a senior software engineer...",
-  "is_captain": false
+  "system_prompt": "You are a senior software engineer..."
 }
 ```
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| name | Yes | — | Agent name. |
+| name | Yes | — | Agent name. Must be unique within the project — used for @mention matching. |
 | title | Yes | — | Professional title. |
 | description | No | null | Short description of the agent's focus. |
 | system_prompt | Yes | — | Full system prompt. |
-| is_captain | No | false | Designate this agent as the crew's captain. Only one captain is allowed per crew — setting this demotes the previous captain. |
 
 **Response:** `201 Created` — The created agent object.
 
@@ -371,10 +309,10 @@ POST /projects/:projectId/crew/agents
 #### Generate Agent Prompt
 
 ```
-POST /projects/:projectId/crew/agents/generate
+POST /projects/:projectId/agents/generate
 ```
 
-Uses the CLI tool to generate an agent configuration from a short description.
+Calls Claude to generate an agent configuration from a short description.
 
 **Request Body:**
 ```json
@@ -402,22 +340,20 @@ Uses the CLI tool to generate an agent configuration from a short description.
 #### Update Agent
 
 ```
-PATCH /projects/:projectId/crew/agents/:agentId
+PATCH /projects/:projectId/agents/:agentId
 ```
 
-**Request Body:** Any subset of agent fields.
+**Request Body:** Any subset of agent fields (name, title, description, system_prompt).
 
 **Response:** `200 OK` — The updated agent object.
 
 #### Delete Agent
 
 ```
-DELETE /projects/:projectId/crew/agents/:agentId
+DELETE /projects/:projectId/agents/:agentId
 ```
 
 **Response:** `204 No Content`
-
-**Validation:** Cannot delete an agent that is currently assigned to an active issue (status in_progress, in_review, or feedback).
 
 ---
 
@@ -434,8 +370,7 @@ GET /projects/:projectId/issues
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | status | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
-| assigned_agent_id | TEXT | Filter by assigned agent. |
-| created_by | TEXT | Filter by creator (`user`, `orchestrator`, or `captain`). |
+| created_by | TEXT | Filter by creator (`user`, `agent`, or `system`). |
 | sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `priority`. |
 | order | TEXT | Sort order. `asc` or `desc`. Default: `desc`. |
 
@@ -455,24 +390,18 @@ GET /projects/:projectId/issues/:issueId
   "project_id": "uuid",
   "title": "Fix authentication bug",
   "description": "...",
-  "status": "in_review",
+  "status": "in_progress",
   "priority": 8,
-  "assigned_agent_id": "uuid",
-  "assigned_agent": { "id": "uuid", "name": "Alice" },
   "created_by": "user",
-  "max_review_rounds": null,
-  "current_review_round": 1,
+  "chain_depth": 2,
   "branch_name": "crewdeck/issue-uuid-short",
   "worktree_path": "/path/to/worktree",
   "base_branch": "main",
   "repo_id": "uuid",
   "repo": { "id": "uuid", "name": "repo" },
   "comments": [...],
-  "agents": [...],
-  "issue_agents": [{ "id": "uuid", "issue_id": "uuid", "agent_id": "uuid", "role": "worker", "agent": { "id": "uuid", "name": "Alice" } }],
-  "prs": [...],
   "issue_prs": [...],
-  "activity": [...],
+  "activity_log": [...],
   "created_at": "ISO 8601",
   "updated_at": "ISO 8601"
 }
@@ -489,7 +418,7 @@ POST /projects/:projectId/issues
 {
   "title": "Fix authentication bug",
   "description": "The login endpoint returns 500 when...",
-  "max_review_rounds": 5
+  "priority": 5
 }
 ```
 
@@ -497,14 +426,13 @@ POST /projects/:projectId/issues
 |-------|----------|---------|-------------|
 | title | Yes | — | Issue title. |
 | description | Yes | — | Issue description. |
-| max_review_rounds | No | null | Override project default. |
+| priority | No | 0 | Priority score. Higher = more urgent. |
 
 **Response:** `201 Created` — The created issue object with status `open`.
 
 **Side effects:**
 - ActivityLog entry created.
 - WebSocket event emitted: `issue.created`.
-- Orchestrator session resumed to evaluate the new issue.
 
 #### Update Issue
 
@@ -512,7 +440,7 @@ POST /projects/:projectId/issues
 PATCH /projects/:projectId/issues/:issueId
 ```
 
-**Request Body:** Any subset of issue fields (title, description, status, priority, max_review_rounds).
+**Request Body:** Any subset of issue fields (title, description, status, priority).
 
 **Response:** `200 OK` — The updated issue object.
 
@@ -522,66 +450,45 @@ PATCH /projects/:projectId/issues/:issueId
 
 **Note:** Status changes have specific validation rules (see Status Transitions below).
 
-#### Approve Draft Issue
+#### Mark as PR Created
 
 ```
-POST /projects/:projectId/issues/:issueId/approve
+POST /projects/:projectId/issues/:issueId/mark-pr-created
 ```
 
-Transitions a draft issue to open status.
+Transitions an `in_progress` issue to `pr_created`. Used after a PR has been created externally (e.g., by an agent via `gh`).
 
-**Validation:** Issue must have status `draft`.
+**Validation:** Issue must have status `in_progress`.
 
-**Response:** `200 OK` — The updated issue object with status `open`.
+**Response:** `200 OK` — The updated issue object.
 
 **Side effects:**
-- ActivityLog entry.
-- WebSocket event: `issue.approved`.
-- Orchestrator resumed to prioritize and assign.
+- WebSocket event: `issue.status_changed`.
 
-#### Discard Draft Issue
+#### Mark as Done
 
 ```
-POST /projects/:projectId/issues/:issueId/discard
+POST /projects/:projectId/issues/:issueId/mark-done
 ```
 
-Removes a draft issue.
+Transitions an issue to `done`.
 
-**Validation:** Issue must have status `draft`.
+**Validation:** No active agent processes may be running on the issue.
 
-**Response:** `204 No Content`
-
-#### Create Pull Request
-
-```
-POST /projects/:projectId/issues/:issueId/create-pr
-```
-
-Creates a GitHub PR using `gh` CLI from the issue's branch.
-
-**Request Body:**
-```json
-{
-  "title": "Fix authentication bug",
-  "body": "Resolves issue #...",
-  "target_branch": "main"
-}
-```
-
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| title | No | Issue title | PR title. |
-| body | No | Auto-generated from issue | PR body. |
-| target_branch | No | Repo default branch | Target branch for the PR. |
-
-**Validation:** Issue must have status `ready`. Branch must exist.
-
-**Response:** `201 Created` — IssuePR object with GitHub PR details.
+**Response:** `200 OK` — The updated issue object. Idempotent if already `done`.
 
 **Side effects:**
-- Issue status changes to `pr_created`.
-- ActivityLog entry.
-- WebSocket event: `pr.created`.
+- WebSocket event: `issue.status_changed`.
+
+#### Reset Chain Depth
+
+```
+POST /projects/:projectId/issues/:issueId/reset-chain-depth
+```
+
+Resets the chain depth counter to 0 so @mentions can be processed again after the limit (20) was reached.
+
+**Response:** `200 OK` — The updated issue object.
 
 ---
 
@@ -628,7 +535,7 @@ POST /projects/:projectId/issues/:issueId/comments
 - WebSocket event: `comment.added`.
 - ActivityLog entry.
 
-**Note:** Agent and orchestrator comments are created internally by the system, not through this endpoint.
+**Note:** Agent and system comments are created internally (by agent processes and the MentionHandler), not through this endpoint.
 
 #### Edit Comment
 
@@ -645,7 +552,7 @@ PATCH /projects/:projectId/issues/:issueId/comments/:commentId
 
 **Response:** `200 OK` — The updated comment object.
 
-**Error:** `403 Forbidden` — Cannot edit agent or orchestrator comments (author_type ≠ `user`).
+**Error:** `403 Forbidden` — Cannot edit agent or system comments (author_type ≠ `user`).
 
 **Side effects:**
 - WebSocket event: `comment.updated`.
@@ -658,55 +565,10 @@ DELETE /projects/:projectId/issues/:issueId/comments/:commentId
 
 **Response:** `204 No Content`
 
-**Error:** `403 Forbidden` — Cannot delete agent or orchestrator comments (author_type ≠ `user`).
+**Error:** `403 Forbidden` — Cannot delete agent or system comments (author_type ≠ `user`).
 
 **Side effects:**
 - WebSocket event: `comment.deleted`.
-
----
-
-### Sessions
-
-#### List Active Sessions
-
-```
-GET /projects/:projectId/sessions
-```
-
-**Query Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| status | TEXT | Filter by status (`idle`, `running`, `completed`, `error`). |
-| session_type | TEXT | Filter by type (`captain`, `worker`, `reviewer`, `utility`). |
-
-**Response:** `200 OK` — Array of session objects.
-
-#### Get Session
-
-```
-GET /projects/:projectId/sessions/:sessionId
-```
-
-**Response:** `200 OK` — Session object including tmux session name and status.
-
-#### Get Session Output
-
-```
-GET /projects/:projectId/sessions/:sessionId/output
-```
-
-Returns the current tmux pane output for live terminal rendering.
-
-**Response:** `200 OK`
-```json
-{
-  "output": "...",
-  "is_active": true
-}
-```
-
-**Note:** For real-time streaming, use the WebSocket channel instead.
 
 ---
 
@@ -733,66 +595,9 @@ GET /projects/:projectId/activity
 
 ---
 
-### Captain Messages
-
-#### List Captain Messages
-
-```
-GET /projects/:projectId/captain/messages
-```
-
-Returns the captain's decision timeline for the project, ordered by `created_at` ascending.
-
-**Response:** `200 OK` — Array of CaptainMessage objects.
-
-```json
-[
-  {
-    "id": "uuid",
-    "project_id": "uuid",
-    "author_type": "captain",
-    "author_id": "uuid | null",
-    "content": "Assigned Alice to issue #12 based on her backend expertise.",
-    "context": { "action": "assign", "issue_id": "uuid", "agent_id": "uuid" },
-    "created_at": "ISO 8601"
-  }
-]
-```
-
-**Error:** `404 Not Found` — Project does not exist.
-
-#### Send Captain Message
-
-```
-POST /projects/:projectId/captain/messages
-```
-
-Send a user message to influence captain behavior. The orchestrator is resumed after the message is stored.
-
-**Request Body:**
-```json
-{
-  "content": "Please prioritize the authentication issues."
-}
-```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| content | Yes | Message content (max 10000 chars). |
-
-**Response:** `201 Created` — The created CaptainMessage object (author_type = `user`).
-
-**Side effects:**
-- WebSocket event emitted: `captain.message`.
-- Orchestrator session resumed.
-
-**Error:** `404 Not Found` — Project does not exist.
-
----
-
 ### Environment Variables
 
-Per-project environment variables that are automatically injected into agent sessions when work or review is assigned.
+Per-project environment variables that are automatically injected into agent processes at spawn time.
 
 **Note:** Secret values (`is_secret: true`) are masked as `••••••••` in all API responses. They are stored in plaintext server-side for agent injection only.
 
@@ -873,33 +678,9 @@ DELETE /projects/:projectId/environment/:envVarId
 
 ---
 
-### Internal API (Agent CLI)
+### Internal API
 
-These endpoints are used exclusively by the CrewDeck CLI running inside agent tmux sessions. They are not intended for frontend or external use. See [Agent CLI](agent-cli.md) for the full CLI specification.
-
-#### Signal Event
-
-```
-POST /internal/signal
-```
-
-Receives a signal from an agent (work complete, review complete, error, needs help).
-
-**Request Body:**
-```json
-{
-  "session_id": "uuid",
-  "agent_id": "uuid",
-  "issue_id": "uuid",
-  "project_id": "uuid",
-  "event": "work-complete",
-  "data": {}
-}
-```
-
-**Response:** `200 OK`
-
-**Side effects:** Emits event on the event bus. Triggers Orchestrator Manager, WebSocket broadcast, Activity Logger.
+These endpoints are used by agent processes (`claude -p` subprocesses) spawned by the MentionHandler. They are not intended for frontend or external use. See [Agent Orchestration](agent-cli.md) for details on how agents are spawned and use these endpoints.
 
 #### Post Comment (Internal)
 
@@ -912,54 +693,23 @@ Agent posts a comment on its current issue.
 **Request Body:**
 ```json
 {
-  "session_id": "uuid",
-  "agent_id": "uuid",
   "issue_id": "uuid",
   "project_id": "uuid",
-  "message": "Fixed the bug, added tests"
+  "agent_id": "uuid",
+  "content": "Fixed the bug, added tests"
 }
 ```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| issue_id | Yes | The issue to comment on. |
+| project_id | Yes | The owning project. |
+| agent_id | No | The agent's ID (for author attribution). |
+| content | Yes | Comment body. |
 
 **Response:** `201 Created`
 
-#### Update Status (Internal)
-
-```
-POST /internal/status
-```
-
-Agent updates its self-reported status. Persisted to `Agent.status`; `done`/`error` map to `idle`.
-
-**Request Body:**
-```json
-{
-  "session_id": "uuid",
-  "agent_id": "uuid",
-  "issue_id": "uuid (optional)",
-  "project_id": "uuid",
-  "state": "active | idle | done | error"
-}
-```
-
-**Response:** `200 OK`
-
-#### Report Files (Internal)
-
-```
-POST /internal/files
-```
-
-Agent reports which files were modified.
-
-**Request Body:**
-```json
-{
-  "session_id": "uuid",
-  "modified": ["src/auth/middleware.ts", "tests/auth.test.ts"]
-}
-```
-
-**Response:** `200 OK`
+**Side effects:** Emits `comment.added` on the event bus (which may trigger further @mention processing).
 
 #### Create Issue (Internal)
 
@@ -967,7 +717,7 @@ Agent reports which files were modified.
 POST /internal/issues/create
 ```
 
-Captain creates a new issue. The issue is created with `created_by: "orchestrator"`.
+Agent creates a new issue. The issue is created with `created_by: "agent"`.
 
 **Request Body:**
 ```json
@@ -990,64 +740,13 @@ Captain creates a new issue. The issue is created with `created_by: "orchestrato
 
 **Side effects:** Emits `issue.created` on the event bus.
 
-#### Start Session (Internal)
-
-```
-POST /internal/sessions/start
-```
-
-Captain spawns an agent's tmux session for a specific issue. Must be called after `crewdeck assign` to begin the agent's work.
-
-**Request Body:**
-```json
-{
-  "project_id": "uuid",
-  "agent_id": "uuid",
-  "issue_id": "uuid"
-}
-```
-
-**Response:** `200 OK`
-```json
-{ "ok": true }
-```
-
-**Side effects:** Emits `captain.session_start` on the event bus. The orchestrator creates the tmux session, builds the agent prompt, and starts the agent process.
-
----
-
-#### Stop Session (Internal)
-
-```
-POST /internal/sessions/stop
-```
-
-Captain stops a stuck or runaway agent session. Kills the tmux session and marks it as `completed`.
-
-**Request Body:**
-```json
-{
-  "project_id": "uuid",
-  "session_id": "uuid"
-}
-```
-
-**Response:** `200 OK`
-```json
-{ "ok": true }
-```
-
-**Error:** `404 Not Found` — Session does not exist or belongs to a different project.
-
-**Side effects:** Emits `session.stop_requested` on the event bus. The orchestrator kills the tmux session and updates session status to `completed`.
-
 #### Update Issue (Internal)
 
 ```
 POST /internal/issues/update
 ```
 
-Captain updates an issue's fields (e.g. priority).
+Agent updates an issue's priority.
 
 **Request Body:**
 ```json
@@ -1062,29 +761,6 @@ Captain updates an issue's fields (e.g. priority).
 
 **Side effects:** Emits `issue.updated` on the event bus.
 
-
-#### Close Issue (Internal)
-
-```
-POST /internal/issues/close
-```
-
-Captain closes/cancels an issue, transitioning it to `done` status. Any running sessions for the issue are also marked completed.
-
-**Request Body:**
-```json
-{
-  "project_id": "uuid",
-  "issue_id": "uuid"
-}
-```
-
-**Response:** `200 OK` — The updated issue object.
-
-**Side effects:** Emits `issue.status_changed` on the event bus. Marks any running sessions for the issue as completed.
-
-**Note:** Idempotent — if the issue is already `done`, returns the issue unchanged.
-
 ---
 
 ## Status Transition Rules
@@ -1093,43 +769,26 @@ Issue status changes are validated to ensure a valid lifecycle:
 
 | From | Allowed Transitions |
 |------|---------------------|
-| draft | open (via approve), deleted (via discard) |
-| open | in_progress |
-| in_progress | in_review |
-| in_review | feedback, ready |
-| feedback | in_progress |
-| in_progress (after feedback) | in_review |
-| ready | pr_created |
-| pr_created | done |
+| open | in_progress, done |
+| in_progress | pr_created, done |
+| pr_created | in_progress, done |
+| done | (terminal — no further transitions) |
 
-Any status can transition to `done` if manually closed by the user.
+Any status can transition to `done` via `POST /mark-done` (rejected if active agent processes are running).
+
+Mentioning an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress` before the agent is spawned.
 
 ---
 
 ## WebSocket API
 
-### Project Events Connection
+### Connection
 
 ```
 ws://localhost:<port>/ws?projectId=<uuid>
 ```
 
 Clients connect with a project ID to receive events scoped to that project.
-
-### Terminal PTY Connection
-
-```
-ws://localhost:<port>/terminal-ws?sessionId=<uuid>
-```
-
-Opens a bidirectional PTY connection to a session's tmux terminal via `node-pty`. Raw terminal data (ANSI escape sequences, cursor positioning, colors) flows from the PTY to the client, and terminal input flows from the client to the PTY.
-
-**Client → Server messages:**
-- Raw terminal input (keystrokes): sent as plain text
-- Resize: `{ "type": "resize", "cols": <number>, "rows": <number> }`
-
-**Server → Client messages:**
-- Raw PTY output (binary/text terminal data)
 
 ### Event Format
 
@@ -1150,10 +809,8 @@ All events follow this structure:
 | Event | Description | Data |
 |-------|-------------|------|
 | `issue.created` | New issue created | Full issue object |
-| `issue.updated` | Issue fields changed | Issue ID + changed fields |
-| `issue.approved` | Draft issue approved | Issue object with new status |
+| `issue.updated` | Issue fields changed | `{ issue_id, changes }` |
 | `issue.status_changed` | Status transition | `{ issue_id, from, to }` |
-| `issue.assigned` | Agent assigned to issue | `{ issue_id, agent_id, agent_name }` |
 
 #### Comment Events
 
@@ -1163,48 +820,27 @@ All events follow this structure:
 | `comment.updated` | User comment was edited | Full comment object |
 | `comment.deleted` | User comment was deleted | `{ comment_id, issue_id }` |
 
-#### Session Events
-
-| Event | Description | Data |
-|-------|-------------|------|
-| `session.started` | New tmux session created | `{ session_id, tmux_session_name, agent_id?, issue_id? }` — `agent_id` and `issue_id` are omitted for orchestrator sessions |
-| `session.ended` | Session completed or stopped | `{ session_id, status }` |
-
 #### Agent Events
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `agent.created` | New agent added to the crew | `{ agent_id, name }` |
-| `agent.finished` | Agent completed its task | `{ session_id, agent_id, issue_id, role }` |
-| `agent.status_changed` | Agent status updated | `{ agent_id, issue_id, state }` |
-| `agent.error` | Agent encountered an unrecoverable error | `{ session_id, agent_id, issue_id, message? }` |
-| `agent.needs_help` | Agent is requesting human assistance | `{ session_id, agent_id, issue_id, message? }` |
+| `agent.created` | New agent added to the project | `{ agent_id, name }` |
 
-#### Review Events
+#### Mention Events
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `review.completed` | Reviewer submitted a verdict | `{ session_id, issue_id, agent_id, verdict }` |
+| `mention.spawned` | Agent process started for an @mention | `{ issue_id, agent_id, pid }` |
+| `mention.completed` | Agent process finished | `{ issue_id, agent_id, exit_code }` |
+| `mention.error` | Agent process failed | `{ issue_id, agent_id, message }` |
+| `mention.chain_depth_reached` | Issue chain depth limit (20) reached | `{ issue_id }` |
 
 #### PR Events
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `pr.created` | PR created on GitHub | Full IssuePR object |
+| `pr.created` | PR recorded on an issue | Full IssuePR object |
 | `pr.status_changed` | PR status updated | `{ pr_id, from, to }` |
-
-#### Orchestrator Events
-
-| Event | Description | Data |
-|-------|-------------|------|
-| `orchestrator.decision` | Orchestrator made a decision | `{ action, details }` |
-| `orchestrator.draft_issue` | Orchestrator proposed a new issue | Full draft issue object |
-
-#### Captain Events
-
-| Event | Description | Data |
-|-------|-------------|------|
-| `captain.message` | New captain or user message in the project chat | Full CaptainMessage object |
 
 ---
 
@@ -1229,5 +865,5 @@ All error responses follow this structure:
 | NOT_FOUND | 404 | Resource does not exist. |
 | VALIDATION_ERROR | 400 | Request body fails validation. |
 | INVALID_TRANSITION | 400 | Invalid status transition. |
-| CONFLICT | 409 | Operation conflicts with current state (e.g., deleting active agent). |
+| CONFLICT | 409 | Operation conflicts with current state (e.g., marking done while agents are running). |
 | INTERNAL_ERROR | 500 | Unexpected server error. |
