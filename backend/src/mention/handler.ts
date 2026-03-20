@@ -13,6 +13,7 @@ import * as crew from "../agents/crew.js";
 import * as issueRepo from "../db/repositories/issues.js";
 import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
+import * as githubAccountRepo from "../db/repositories/github-accounts.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import type { Agent, Comment } from "../types/entities.js";
@@ -184,12 +185,21 @@ const spawnAgent = async (
   }
 
   const comments = commentRepo.listComments(issueId);
-  const prompt = agentPrompt.buildPrompt(
-    issueRepo.getIssue(issueId)!,
+
+  // Captain gets all open/in-progress issues for dependency-aware scheduling
+  const projectIssues =
+    agent.id === "captain"
+      ? issueRepo.listIssues(projectId, { status: ["open", "in_progress"] })
+      : undefined;
+
+  const prompt = agentPrompt.buildPrompt({
+    issue: issueRepo.getIssue(issueId)!,
     comments,
-    repo ?? null,
-    worktreePath ?? ".",
-  );
+    repo: repo ?? null,
+    worktreePath: worktreePath ?? ".",
+    agentId: agent.id,
+    projectIssues,
+  });
 
   const envVars = getEnvVars(projectId);
   const env: Record<string, string> = {
@@ -199,6 +209,12 @@ const spawnAgent = async (
     CREWDECK_AGENT_ID: agent.id,
     CREWDECK_ISSUE_ID: issueId,
   };
+
+  // Captain needs GH_TOKEN for gh pr create
+  if (agent.id === "captain" && project.github_account_id) {
+    const account = githubAccountRepo.getGitHubAccount(project.github_account_id);
+    if (account) env.GH_TOKEN = account.oauth_token;
+  }
 
   const result = await agentProcess.spawnClaude({
     prompt,

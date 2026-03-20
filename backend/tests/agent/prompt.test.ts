@@ -75,3 +75,148 @@ describe("buildPrompt", () => {
     expect(prompt).not.toContain("Comment History");
   });
 });
+
+describe("buildPrompt options form", () => {
+  const otherIssues: Issue[] = [
+    {
+      id: "issue-2",
+      project_id: "proj-1",
+      title: "Fix navbar",
+      description: "Navbar broken on mobile",
+      status: "open",
+      priority: 2,
+      created_by: "user",
+      chain_depth: 0,
+      branch_name: null,
+      worktree_path: null,
+      base_branch: null,
+      repo_id: "repo-1",
+      created_at: "2026-01-02",
+      updated_at: "2026-01-02",
+    },
+    {
+      id: "issue-3",
+      project_id: "proj-1",
+      title: "Add dark mode",
+      description: "Support dark theme",
+      status: "in_progress",
+      priority: 3,
+      created_by: "user",
+      chain_depth: 0,
+      branch_name: null,
+      worktree_path: null,
+      base_branch: null,
+      repo_id: "repo-1",
+      created_at: "2026-01-03",
+      updated_at: "2026-01-03",
+    },
+  ];
+
+  it("captain gets full API reference including internal endpoints", () => {
+    const prompt = buildPrompt({
+      issue,
+      comments: [],
+      repo,
+      worktreePath: "/tmp/work",
+      agentId: "captain",
+    });
+    expect(prompt).toContain("internal/comment");
+    expect(prompt).toContain("internal/issues/create");
+    expect(prompt).toContain("internal/issues/update");
+    expect(prompt).toContain("PATCH");
+    expect(prompt).toContain("/activity");
+  });
+
+  it("engineer gets no API access (stdout is the comment)", () => {
+    const prompt = buildPrompt({
+      issue,
+      comments: [],
+      repo,
+      worktreePath: "/tmp/work",
+      agentId: "engineer",
+    });
+    expect(prompt).toContain("stdout is automatically posted as a comment");
+    expect(prompt).not.toContain("internal/comment");
+    expect(prompt).not.toContain("internal/issues/create");
+    expect(prompt).not.toContain("PATCH");
+  });
+
+  it("security/architect/quality get no API access", () => {
+    for (const agentId of ["security", "architect", "quality"]) {
+      const prompt = buildPrompt({
+        issue,
+        comments: [],
+        repo,
+        worktreePath: "/tmp/work",
+        agentId,
+      });
+      expect(prompt).toContain("stdout is automatically posted as a comment");
+      expect(prompt).not.toContain("internal/issues/create");
+    }
+  });
+
+  it("captain gets all open/in-progress issues section", () => {
+    const prompt = buildPrompt({
+      issue,
+      comments: [],
+      repo,
+      worktreePath: "/tmp/work",
+      agentId: "captain",
+      projectIssues: [issue, ...otherIssues],
+    });
+    expect(prompt).toContain("All Open/In-Progress Issues");
+    expect(prompt).toContain("Fix navbar");
+    expect(prompt).toContain("Add dark mode");
+  });
+
+  it("captain's project issues list excludes the current issue", () => {
+    const prompt = buildPrompt({
+      issue,
+      comments: [],
+      repo,
+      worktreePath: "/tmp/work",
+      agentId: "captain",
+      projectIssues: [issue, ...otherIssues],
+    });
+    const issuesSection = prompt.split("## All Open/In-Progress Issues")[1]?.split("##")[0] ?? "";
+    expect(issuesSection).not.toContain("issue-1");
+    expect(issuesSection).toContain("issue-2");
+    expect(issuesSection).toContain("issue-3");
+  });
+
+  it("captain omits issues section when projectIssues is empty", () => {
+    const prompt = buildPrompt({
+      issue,
+      comments: [],
+      repo,
+      worktreePath: "/tmp/work",
+      agentId: "captain",
+      projectIssues: [],
+    });
+    expect(prompt).not.toContain("All Open/In-Progress Issues");
+  });
+
+  it("captain omits issues section when only the current issue is in the list", () => {
+    const prompt = buildPrompt({
+      issue,
+      comments: [],
+      repo,
+      worktreePath: "/tmp/work",
+      agentId: "captain",
+      projectIssues: [issue],
+    });
+    expect(prompt).not.toContain("All Open/In-Progress Issues");
+  });
+
+  it("non-captain agents do not get project issues even if passed", () => {
+    const prompt = buildPrompt({
+      issue,
+      comments: [],
+      repo,
+      worktreePath: "/tmp/work",
+      agentId: "engineer",
+      projectIssues: otherIssues,
+    });
+    expect(prompt).not.toContain("All Open/In-Progress Issues");
+  });
+});
