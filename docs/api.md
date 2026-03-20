@@ -729,7 +729,7 @@ GET /projects/:projectId/activity
 | limit | INTEGER | Max entries to return. Default: 50. Max: 500. |
 | offset | INTEGER | Pagination offset. Default: 0. |
 
-**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending.
+**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Entries where `actor_type` is `agent` include an additional `actor_name` field (string) with the agent's display name.
 
 ---
 
