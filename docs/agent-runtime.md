@@ -111,8 +111,11 @@ When an agent starts work on an issue that has no worktree, the backend creates 
 ```
 branchName = "crewdeck/" + issue.id-short + "-" + slugify(issue.title)
 worktreePath = tmpdir() + "/crewdeck-worktrees/" + branchName
-git -C <repoPath> worktree add -b <branchName> <worktreePath> <defaultBranch>
+git -C <repoPath> fetch origin                          # updates origin/<defaultBranch>
+git -C <repoPath> worktree add -b <branchName> <worktreePath> origin/<defaultBranch>
 ```
+
+If the fetch fails (e.g. network error), the worktree is created from the local branch instead and a warning is logged.
 
 The worktree path and branch name are recorded on the issue and reused for subsequent agent invocations.
 
