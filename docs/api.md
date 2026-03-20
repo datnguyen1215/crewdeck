@@ -312,7 +312,7 @@ GET /projects/:projectId/issues
 |-----------|------|-------------|
 | status | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
 | created_by | TEXT | Filter by creator (`user`, `agent`, or `system`). |
-| sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `priority`. |
+| sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `created_at`. |
 | order | TEXT | Sort order. `asc` or `desc`. Default: `desc`. |
 
 **Response:** `200 OK` — Array of issue objects (without full comment thread).
