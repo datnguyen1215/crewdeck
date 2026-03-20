@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { listIssueRuns, getRun, type AgentRun, type AgentRunWithEvents, type AgentRunEvent } from '$lib/api/http.js';
-	import { relTime } from '$lib/utils/time.js';
+	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 
 	let { projectId, issueId }: { projectId: string; issueId: string } = $props();
@@ -212,7 +212,7 @@
 					<span class="text-xs text-muted ml-auto">
 						{formatDuration(run.duration_ms)} | {formatCost(run.cost_usd)}
 					</span>
-					<span class="text-xs text-muted" title={new Date(run.created_at).toLocaleString()}>
+					<span class="text-xs text-muted" title={parseUTC(run.created_at).toLocaleString()}>
 						{relTime(run.created_at)}
 					</span>
 					<span class="text-muted">{expandedRun === run.id ? '\u25B2' : '\u25BC'}</span>

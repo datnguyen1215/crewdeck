@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { updateIssue, deleteIssue, type IssueWithDetails } from '$lib/api/http.js';
-	import { relTime } from '$lib/utils/time.js';
+	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let {
@@ -150,11 +150,11 @@
 		<!-- Timestamps -->
 		<div class="flex items-center gap-2">
 			<span class="text-muted w-20 shrink-0">Created</span>
-			<span class="text-secondary" title={new Date(issue.created_at).toLocaleString()}>{relTime(issue.created_at)}</span>
+			<span class="text-secondary" title={parseUTC(issue.created_at).toLocaleString()}>{relTime(issue.created_at)}</span>
 		</div>
 		<div class="flex items-center gap-2">
 			<span class="text-muted w-20 shrink-0">Updated</span>
-			<span class="text-secondary" title={new Date(issue.updated_at).toLocaleString()}>{relTime(issue.updated_at)}</span>
+			<span class="text-secondary" title={parseUTC(issue.updated_at).toLocaleString()}>{relTime(issue.updated_at)}</span>
 		</div>
 
 		<!-- Created by -->
