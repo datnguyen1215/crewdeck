@@ -42,7 +42,7 @@
 
 	// Load agents for autocomplete
 	$effect(() => {
-		listAgents(projectId).then(a => { agents = a; }).catch(() => {});
+		listAgents().then(a => { agents = a; }).catch(() => {});
 	});
 
 	function commentStyle(authorType: string, content: string): { border: string; textColor: string } {
