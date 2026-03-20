@@ -442,54 +442,14 @@ POST /projects/:projectId/issues
 PATCH /projects/:projectId/issues/:issueId
 ```
 
-**Request Body:** Any subset of issue fields (title, description, status, priority).
+**Request Body:** Any subset of issue fields (title, description, status, priority, chain_depth).
 
-**Response:** `200 OK` — The updated issue object.
+**Response:** `200 OK` — The updated issue object. If the request only sets a field to its current value (e.g. same status), the issue is returned unchanged.
 
 **Side effects:**
 - WebSocket event emitted: `issue.status_changed` (when status changes).
 
-**Note:** Status changes are validated against the transition rules (see Status Transitions below).
-
-#### Mark as PR Created
-
-```
-POST /projects/:projectId/issues/:issueId/mark-pr-created
-```
-
-Transitions an `in_progress` issue to `pr_created`. Used after a PR has been created externally (e.g., by an agent via `gh`).
-
-**Validation:** Issue must have status `in_progress`.
-
-**Response:** `200 OK` — The updated issue object.
-
-**Side effects:**
-- WebSocket event: `issue.status_changed`.
-
-#### Mark as Done
-
-```
-POST /projects/:projectId/issues/:issueId/mark-done
-```
-
-Transitions an issue to `done`.
-
-**Validation:** No active agent processes may be running on the issue.
-
-**Response:** `200 OK` — The updated issue object. Idempotent if already `done`.
-
-**Side effects:**
-- WebSocket event: `issue.status_changed`.
-
-#### Reset Chain Depth
-
-```
-POST /projects/:projectId/issues/:issueId/reset-chain-depth
-```
-
-Resets the chain depth counter to 0 so @mentions can be processed again after the limit (20) was reached.
-
-**Response:** `200 OK` — The updated issue object.
+**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue. Set `chain_depth: 0` to reset the @mention chain depth counter after the limit (20) is reached.
 
 ---
 
@@ -779,7 +739,7 @@ Issue status changes are validated to ensure a valid lifecycle. The system uses 
 | pr_created | in_progress, done |
 | done | (terminal — no further transitions) |
 
-Any status can transition to `done` via `POST /mark-done` (rejected if active agent processes are running).
+Any status can transition to `done` via `PATCH /issues/:issueId` (rejected if active agent processes are running).
 
 Mentioning an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress` before the agent is spawned.
 
