@@ -26,6 +26,10 @@ All persistent state is stored in a local SQLite database. This document defines
 ┌──────────────┐                      ┌──────────┐
 │   IssuePR    │                      │  Issue   │
 └──────────────┘                      └──────────┘
+
+┌──────────┐       ┌──────────────┐
+│  Issue   │1────N│  AgentRun    │
+└──────────┘       └──────────────┘
 ```
 
 ## Entities
@@ -147,6 +151,26 @@ A per-project environment variable injected into agent processes at spawn time.
 
 ---
 
+### AgentRun
+
+Tracks each agent process spawn for crash recovery and observability.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
+| issue_id | TEXT | NOT NULL, FOREIGN KEY → Issue.id | The issue the agent was working on. |
+| agent_id | TEXT | NOT NULL | The agent identifier (e.g., `captain`, `engineer`). |
+| pid | INTEGER | NOT NULL | OS process ID of the spawned `claude` process. |
+| status | TEXT | NOT NULL, DEFAULT 'running' | Current run status. One of: `running`, `completed`, `failed`, `timeout`. |
+| exit_code | INTEGER | NULLABLE | Exit code of the process. NULL if still running or timed out. |
+| started_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned. |
+| completed_at | DATETIME | NULLABLE | When the process finished. NULL if still running. |
+
+**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed` and posts system comments on affected issues.
+
+---
+
 ### ActivityLog
 
 Immutable audit trail of every action in the system.
@@ -176,6 +200,8 @@ Immutable audit trail of every action in the system.
 | Issue → Comment | One-to-Many | An issue has many comments. |
 | Issue → IssuePR | One-to-Many | An issue can have multiple PRs (across repos). |
 | Issue → ActivityLog | One-to-Many | An issue has many activity log entries. |
+| Issue → AgentRun | One-to-Many | An issue has many agent run records. |
+| Project → AgentRun | One-to-Many | A project has many agent run records. |
 
 ## Indexes
 
@@ -189,3 +215,6 @@ Immutable audit trail of every action in the system.
 - `idx_activity_issue` on ActivityLog(issue_id)
 - `idx_activity_created` on ActivityLog(project_id, created_at)
 - `idx_env_var_project` on EnvironmentVariable(project_id)
+- `idx_agent_run_project` on AgentRun(project_id)
+- `idx_agent_run_issue` on AgentRun(issue_id)
+- `idx_agent_run_status` on AgentRun(status)
