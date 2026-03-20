@@ -25,20 +25,14 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 
 - A name and description.
 - One or more linked GitHub repositories.
-- A roster of agents.
+- A shared roster of 5 fixed agents (defined globally, not per-project).
 - A concurrency limit (max simultaneous agent processes).
 
 ### Agent
 
-An agent is a specialized AI persona defined by a custom system prompt. Agents belong directly to a project and have:
+The crew is a fixed set of 5 immutable agents defined in code (Captain, Engineer, Security, Architect, Quality). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
-- A name and title (e.g., "Senior Software Engineer", "Security Expert").
-- An optional description providing additional context.
-- A system prompt generated through AI assistance from a short description.
-
-Agent names are used for @mention matching. Names must be unique within a project.
-
-Agent creation is AI-assisted: the user describes the role they want, and the system generates a detailed system prompt for that agent.
+Agent names are used for @mention matching.
 
 ### Orchestration via @Mentions
 
@@ -132,8 +126,8 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │Dashboard │ │  Board   │ │  (@mention UI)   │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │  Agent   │ │ Activity │ │  Notifications   │ │
-│  │ Manager  │ │   Log    │ │                  │ │
+│  │   Crew   │ │ Activity │ │  Notifications   │ │
+│  │  (view)  │ │   Log    │ │                  │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 └────────────────────┬────────────────────────────┘
                      │ WebSocket + REST
@@ -165,14 +159,14 @@ The frontend and backend are separate directories. Each has its own `package.jso
 ### Component Responsibilities
 
 **Frontend (Svelte)**
-- Renders project dashboard, issue board, agent management, activity log.
+- Renders project dashboard, issue board, crew (read-only), activity log.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
 - Provides @mention autocomplete in comment input.
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
 
 **Backend (Node.js + TypeScript)**
-- Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, agents, issues, comments.
+- Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, issues, comments; crew is read-only (fixed constants).
 - All request validation via Zod schemas.
 - Centralized error handling middleware (all errors formatted as `{ error: { code, message, details } }`).
 - Runs WebSocket server (`ws` library) to push real-time events to the frontend.
@@ -203,7 +197,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
 **SQLite Database**
-- Stores all persistent state: projects, agents, issues, comments, activity logs.
+- Stores all persistent state: projects, issues, comments, activity logs. (Agents are fixed constants in code, not persisted.)
 - Accessed via `better-sqlite3` with raw SQL (synchronous API).
 - Single `schema.sql` file executed on startup for migrations.
 - Single file, no external dependencies, suitable for local-first operation.

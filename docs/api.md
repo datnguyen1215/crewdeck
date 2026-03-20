@@ -66,7 +66,6 @@ With `?stats`:
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601",
     "repo_count": 2,
-    "agent_count": 4,
     "issues": {
       "open": 3,
       "in_progress": 1,
@@ -272,91 +271,18 @@ DELETE /projects/:projectId/repos/:repoId
 
 ### Agents
 
-Agents belong directly to a project. The canonical path is `/projects/:projectId/agents`; the legacy path `/projects/:projectId/crew/agents` is also accepted for backward compatibility.
+The crew is a fixed set of 5 immutable agents (Captain, Engineer, Security, Architect, Quality) defined in code — not stored in the database.
 
 #### List Agents
 
 ```
 GET /projects/:projectId/agents
+GET /projects/:projectId/crew
 ```
+
+Both paths return the same fixed 5-agent crew. The `/crew` path is canonical; `/agents` is kept for compatibility.
 
 **Response:** `200 OK` — Array of agent objects.
-
-#### Create Agent
-
-```
-POST /projects/:projectId/agents
-```
-
-**Request Body:**
-```json
-{
-  "name": "Alice",
-  "title": "Senior Software Engineer",
-  "description": "Focuses on backend services and API design.",
-  "system_prompt": "You are a senior software engineer..."
-}
-```
-
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| name | Yes | — | Agent name. Must be unique within the project — used for @mention matching. |
-| title | Yes | — | Professional title. |
-| description | No | null | Short description of the agent's focus. |
-| system_prompt | Yes | — | Full system prompt. |
-
-**Response:** `201 Created` — The created agent object.
-
-**Side effects:** Emits `agent.created` WebSocket event to connected clients.
-
-#### Generate Agent Configuration
-
-```
-POST /projects/:projectId/agents/generate
-```
-
-Calls Claude to generate an agent configuration from a short description.
-
-**Request Body:**
-```json
-{
-  "prompt": "A security expert focused on OWASP top 10 vulnerabilities and secure coding practices"
-}
-```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| prompt | Yes | Short description of the desired agent (max 2000 chars). |
-
-**Response:** `200 OK`
-```json
-{
-  "name": "Rex",
-  "title": "Security Analyst",
-  "description": "Specializes in OWASP top 10 vulnerabilities and secure coding practices.",
-  "system_prompt": "You are a security expert specializing in..."
-}
-```
-
-**Note:** This does not create the agent. The user reviews the generated values and then calls Create Agent.
-
-#### Update Agent
-
-```
-PATCH /projects/:projectId/agents/:agentId
-```
-
-**Request Body:** Any subset of agent fields (name, title, description, system_prompt).
-
-**Response:** `200 OK` — The updated agent object.
-
-#### Delete Agent
-
-```
-DELETE /projects/:projectId/agents/:agentId
-```
-
-**Response:** `204 No Content`
 
 ---
 
@@ -784,12 +710,6 @@ All events follow this structure:
 | `comment.added` | New comment on an issue | Full comment object |
 | `comment.updated` | User comment was edited | Full comment object |
 | `comment.deleted` | User comment was deleted | `{ comment_id, issue_id }` |
-
-#### Agent Events
-
-| Event | Description | Data |
-|-------|-------------|------|
-| `agent.created` | New agent added to the project | `{ agent_id, name }` |
 
 #### Mention Events
 
