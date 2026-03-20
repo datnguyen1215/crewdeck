@@ -16,11 +16,31 @@
 	const EVENT_TOASTS: Partial<Record<WsEvent, (data: Record<string, unknown>) => { msg: string; type: 'info' | 'success' | 'warning' | 'error' } | null>> = {
 		'issue.created': (d) => ({ msg: `Issue created: ${d.title ?? 'New issue'}`, type: 'info' }),
 		'issue.status_changed': (d) => ({ msg: `Issue status: ${String(d.from).replace(/_/g, ' ')} → ${String(d.to).replace(/_/g, ' ')}`, type: 'info' }),
-		'mention.spawned': () => ({ msg: 'Agent spawned', type: 'info' }),
-		'mention.completed': (d) => ({ msg: `Agent finished (exit ${d.exit_code})`, type: d.exit_code === 0 ? 'success' : 'error' }),
-		'mention.error': (d) => ({ msg: `Agent error: ${d.message ?? 'unknown'}`, type: 'error' }),
-		'mention.chain_depth_reached': () => ({ msg: 'Chain depth limit reached', type: 'warning' }),
-		'pr.created': () => ({ msg: 'Pull request created', type: 'success' }),
+		'mention.spawned': (d) => {
+			const agent = d.agent_name ?? 'Agent';
+			const issue = d.issue_title ? `: ${d.issue_title}` : '';
+			return { msg: `${agent} spawned on${issue}`, type: 'info' };
+		},
+		'mention.completed': (d) => {
+			const agent = d.agent_name ?? 'Agent';
+			const issue = d.issue_title ? `: ${d.issue_title}` : '';
+			const status = d.exit_code === 0 ? 'finished' : 'crashed';
+			return { msg: `${agent} ${status} on${issue}`, type: d.exit_code === 0 ? 'success' : 'error' };
+		},
+		'mention.error': (d) => {
+			const agent = d.agent_name ?? 'Agent';
+			const issue = d.issue_title ? `: ${d.issue_title}` : '';
+			return { msg: `${agent} crashed on${issue}`, type: 'error' };
+		},
+		'mention.chain_depth_reached': (d) => {
+			const issue = d.issue_title ? ` on: ${d.issue_title}` : '';
+			return { msg: `Chain depth limit reached${issue}`, type: 'warning' };
+		},
+		'pr.created': (d) => {
+			const prNum = d.pr_number ? `#${d.pr_number} ` : '';
+			const issue = d.issue_title ? `: ${d.issue_title}` : '';
+			return { msg: `PR ${prNum}created on${issue}`, type: 'success' };
+		},
 		'pr.status_changed': (d) => ({ msg: `PR status: ${d.from} → ${d.to}`, type: 'info' }),
 	};
 
