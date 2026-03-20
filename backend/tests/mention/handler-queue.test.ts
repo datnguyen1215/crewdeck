@@ -9,20 +9,26 @@ import * as dispatchQueue from "../../src/dispatch/queue.js";
 import type { EventMap } from "../../src/events/types.js";
 
 // Track mock processes globally so they persist across mock resets
-const mockExitResolvers = new Map<number, (value: { code: number; stdout: string }) => void>();
+const mockExitResolvers = new Map<number, (value: { code: number }) => void>();
 let nextPid = 1000;
 
 vi.mock("../../src/agent/adapters/process.js", () => ({
-  spawnClaude: vi.fn(async () => {
+  spawnClaudeStream: vi.fn(async () => {
     const pid = nextPid++;
-    let resolve: (value: { code: number; stdout: string }) => void;
-    const exitPromise = new Promise<{ code: number; stdout: string }>((r) => {
-      resolve = r;
+    let exitResolve: (value: { code: number }) => void;
+    const exitPromise = new Promise<{ code: number }>((r) => {
+      exitResolve = r;
       mockExitResolvers.set(pid, r);
     });
+    // Events stream stays open until exit — mirrors real readline behavior
+    async function* streamEvents() {
+      yield { type: "result", result: "done", cost_usd: 0.01 };
+      await exitPromise;
+    }
     return {
       pid,
       process: { kill: vi.fn(), killed: false },
+      events: streamEvents(),
       exitPromise,
     };
   }),
@@ -34,7 +40,7 @@ vi.mock("../../src/agent/worktree.js", () => ({
 
 // Import handler after mocks are set up
 import * as handler from "../../src/mention/handler.js";
-import { spawnClaude } from "../../src/agent/adapters/process.js";
+import { spawnClaudeStream } from "../../src/agent/adapters/process.js";
 
 // Initialize once
 handler.initMentionHandler();
@@ -71,7 +77,8 @@ describe("handler queue integration", () => {
 
     // Reset PID counter and mock call counts
     nextPid = 1000;
-    vi.mocked(spawnClaude).mockClear();
+    mockExitResolvers.clear();
+    vi.mocked(spawnClaudeStream).mockClear();
 
     // Event collectors
     spawnedEvents = [];
@@ -126,26 +133,26 @@ describe("handler queue integration", () => {
     // Complete ALL pending processes to clean up handler state
     const resolvers = [...mockExitResolvers.entries()];
     for (const [pid, resolve] of resolvers) {
-      resolve({ code: 0, stdout: "{}" });
+      resolve({ code: 0 });
       mockExitResolvers.delete(pid);
     }
 
     // Wait for all async handlers to settle
     await new Promise((r) => setTimeout(r, 200));
 
-    // Cleanup test data - use LIKE to catch both issue IDs
-    // Delete AgentRun first (FK references Issue)
-    db.prepare("DELETE FROM AgentRun WHERE issue_id LIKE ?").run(`test-issue-${testCounter}%`);
+    // Cleanup test data - delete in FK-safe order
+    db.prepare("DELETE FROM AgentRunEvent WHERE agent_run_id IN (SELECT id FROM AgentRun WHERE project_id = ?)").run(projectId);
+    db.prepare("DELETE FROM AgentRun WHERE project_id = ?").run(projectId);
     db.prepare("DELETE FROM Comment WHERE issue_id LIKE ?").run(`test-issue-${testCounter}%`);
     db.prepare("DELETE FROM Issue WHERE id LIKE ?").run(`test-issue-${testCounter}%`);
     db.prepare("DELETE FROM Project WHERE id = ?").run(projectId);
   });
 
   // Helper to complete a process by PID
-  const completeProcess = (pid: number, code = 0, stdout = "{}") => {
+  const completeProcess = (pid: number, code = 0) => {
     const resolve = mockExitResolvers.get(pid);
     if (resolve) {
-      resolve({ code, stdout });
+      resolve({ code });
       mockExitResolvers.delete(pid);
     }
   };

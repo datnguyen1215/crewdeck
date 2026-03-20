@@ -12,6 +12,7 @@ import activityRouter from "./routes/activity.js";
 import internalRouter from "./routes/internal.js";
 import githubAccountsRouter from "./routes/github-accounts.js";
 import environmentRouter from "./routes/environment.js";
+import runsRouter from "./routes/runs.js";
 
 export interface CreateAppOpts {
   corsOrigin?: string;
@@ -46,6 +47,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/agents`, agentsRouter);
   app.use(`${v1}/projects/:projectId/issues`, issuesRouter);
   app.use(`${v1}/projects/:projectId/issues/:issueId/comments`, commentsRouter);
+  app.use(`${v1}/projects/:projectId`, runsRouter);
   app.use(`${v1}/projects/:projectId/activity`, activityRouter);
   app.use(`${v1}/projects/:projectId/environment`, environmentRouter);
   app.use(`${v1}/internal`, internalRouter);

@@ -121,6 +121,18 @@ export function subscribeEvents(bus: EventBus): void {
       issue_title: issue?.title,
     });
   });
+
+  bus.on("run.started", ({ project_id, ...data }) =>
+    broadcast(project_id, "run.started", data),
+  );
+
+  bus.on("run.event", ({ project_id, ...data }) =>
+    broadcast(project_id, "run.event", data),
+  );
+
+  bus.on("run.completed", ({ project_id, ...data }) =>
+    broadcast(project_id, "run.completed", data),
+  );
 }
 
 interface ExtendedWebSocket extends WebSocket {

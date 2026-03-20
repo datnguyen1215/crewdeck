@@ -1,4 +1,4 @@
-import type { Issue, Comment, IssuePR } from "../types/entities.js";
+import type { Issue, Comment, IssuePR, AgentRunStatus } from "../types/entities.js";
 
 export interface EventMap {
   "issue.created": { issue: Issue };
@@ -67,5 +67,29 @@ export interface EventMap {
     project_id: string;
     issue_id: string;
     agent_id: string;
+  };
+  "run.started": {
+    agent_run_id: string;
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+    status: AgentRunStatus;
+    started_at: string | null;
+  };
+  "run.event": {
+    agent_run_id: string;
+    project_id: string;
+    type: string;
+    data: unknown;
+  };
+  "run.completed": {
+    agent_run_id: string;
+    project_id: string;
+    issue_id: string;
+    status: AgentRunStatus;
+    exit_code: number | null;
+    cost_usd: number | null;
+    duration_ms: number | null;
+    completed_at: string;
   };
 }

@@ -6,6 +6,8 @@
  * When a comment spawns multiple agents, they are grouped as a batch.
  * The system tracks batch completion and auto-spawns the originator
  * when all batch members finish.
+ *
+ * Agent runs are persisted to the database with streamed output for real-time progress.
  */
 import { type ChildProcess } from "node:child_process";
 import * as events from "../events/bus.js";
@@ -18,11 +20,11 @@ import * as issueRepo from "../db/repositories/issues.js";
 import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as githubAccountRepo from "../db/repositories/github-accounts.js";
-import * as database from "../db/index.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
+import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import * as dispatchQueue from "../dispatch/queue.js";
-import type { Agent, Comment } from "../types/entities.js";
+import type { Agent, AgentRunStatus } from "../types/entities.js";
 
 const MAX_CHAIN_DEPTH = 20;
 const PROCESS_TIMEOUT_MS = 10 * 60 * 1000;
@@ -398,17 +400,27 @@ const spawnAgent = async (
     if (account) env.GH_TOKEN = account.oauth_token;
   }
 
-  const result = await agentProcess.spawnClaude({
+  // Create AgentRun record
+  const agentRun = agentRunRepo.createAgentRun({
+    project_id: projectId,
+    issue_id: issueId,
+    agent_id: agent.id,
+    status: "running",
+  });
+
+  const result = await agentProcess.spawnClaudeStream({
     prompt,
     systemPrompt: agent.system_prompt,
     workdir: worktreePath ?? ".",
     env,
   });
 
-  // Persist agent run to database
-  const agentRun = agentRunRepo.createAgentRun(projectId, issueId, agent.id, result.pid);
+  // Update run with PID
+  agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
 
+  const timeoutState = { timedOut: false };
   const timer = setTimeout(() => {
+    timeoutState.timedOut = true;
     log.logger.warn(
       { pid: result.pid, agentId: agent.id, issueId },
       "Agent process timed out",
@@ -437,79 +449,165 @@ const spawnAgent = async (
     pid: result.pid,
   });
 
-  log.logger.info({ pid: result.pid, agent: agent.name, issueId }, "Agent spawned");
+  events.eventBus.emit("run.started", {
+    agent_run_id: agentRun.id,
+    project_id: projectId,
+    issue_id: issueId,
+    agent_id: agent.id,
+    status: agentRun.status,
+    started_at: agentRun.started_at,
+  });
 
-  result.exitPromise.then(({ code, stdout }) => {
-    clearTimeout(timer);
-    activeProcesses.delete(result.pid);
+  log.logger.info({ pid: result.pid, agent: agent.name, issueId, runId: agentRun.id }, "Agent spawned");
 
-    // Determine run status and persist completion
-    const isTimeout = code === null;
-    const runStatus = code === 0 ? "completed" : isTimeout ? "timeout" : "failed";
-    agentRunRepo.completeAgentRun(agentRun.id, runStatus, code);
+  // Process streamed events
+  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timeoutState)
+    .catch((err) => {
+      log.logger.error({ err, runId: agentRun.id }, "Error processing agent stream");
+    });
+};
 
-    if (code === 0) {
-      let resultText = "";
-      let cost: number | undefined;
-      let durationMs: number | undefined;
+/**
+ * Process streaming events from agent, persist to DB, and handle completion.
+ */
+async function processAgentStream(
+  result: Awaited<ReturnType<typeof agentProcess.spawnClaudeStream>>,
+  agentRunId: string,
+  projectId: string,
+  issueId: string,
+  agent: Agent,
+  timer: ReturnType<typeof setTimeout>,
+  timeoutState: { timedOut: boolean },
+): Promise<void> {
+  const startTime = Date.now();
+  let resultText = "";
+  let cost: number | undefined;
+  let hasEvents = false;
 
-      try {
-        const parsed = JSON.parse(stdout);
-        // Claude CLI with --output-format json returns a JSON array of events.
-        // The final element with type "result" contains the actual output.
-        const resultObj = Array.isArray(parsed)
-          ? parsed.findLast((e: any) => e.type === "result") ?? parsed
-          : parsed;
-        resultText = resultObj.result ?? stdout;
-        cost = resultObj.cost_usd ?? resultObj.total_cost_usd;
-        durationMs = resultObj.duration_ms;
-      } catch {
-        resultText = stdout;
-      }
+  // Stream events and persist
+  for await (const event of result.events) {
+    hasEvents = true;
+    const eventType = mapEventType(event.type);
 
-      if (resultText) {
-        const comment = commentRepo.createComment(issueId, {
-          content: resultText,
-          author_type: "agent",
-          author_id: agent.id,
-        });
-        events.eventBus.emit("comment.added", { comment, project_id: projectId });
-      }
+    // Persist event to DB
+    agentRunRepo.createAgentRunEvent(agentRunId, eventType, event);
 
-      postSystemComment(
-        issueId,
-        projectId,
-        `Agent ${agent.name} finished${cost ? ` (cost: $${cost.toFixed(4)})` : ""}${durationMs ? ` (${Math.round(durationMs / 1000)}s)` : ""}`,
-      );
+    // Broadcast via WebSocket
+    events.eventBus.emit("run.event", {
+      agent_run_id: agentRunId,
+      project_id: projectId,
+      type: eventType,
+      data: event,
+    });
 
-      log.logger.info(
-        { pid: result.pid, agent: agent.name, cost, durationMs },
-        "Agent finished",
-      );
-    } else {
-      const hasOutput = stdout.trim().length > 0;
-      postSystemComment(
-        issueId,
-        projectId,
-        `Agent ${agent.name} ${code === null ? "timed out (10 min limit" : `crashed (exit code ${code}`}${hasOutput ? "" : ", no output"})`,
-      );
-      log.logger.error(
-        { pid: result.pid, code, agent: agent.name },
-        "Agent process failed",
-      );
+    // Extract result info from final result event
+    if (event.type === "result") {
+      resultText = (event as any).result ?? "";
+      cost = (event as any).cost_usd ?? (event as any).total_cost_usd;
+    }
+  }
+
+  // Wait for process exit
+  const { code } = await result.exitPromise;
+
+  clearTimeout(timer);
+  activeProcesses.delete(result.pid);
+
+  const durationMs = Date.now() - startTime;
+  const completedAt = new Date().toISOString();
+
+  // Determine final status
+  let status: AgentRunStatus;
+  if (timeoutState.timedOut) {
+    status = "timeout";
+  } else if (code === 0) {
+    status = "completed";
+  } else {
+    status = "failed";
+  }
+
+  // Update run record
+  agentRunRepo.updateAgentRun(agentRunId, {
+    status,
+    exit_code: code,
+    cost_usd: cost,
+    duration_ms: durationMs,
+    completed_at: completedAt,
+  });
+
+  // Emit completion event
+  events.eventBus.emit("run.completed", {
+    agent_run_id: agentRunId,
+    project_id: projectId,
+    issue_id: issueId,
+    status,
+    exit_code: code,
+    cost_usd: cost ?? null,
+    duration_ms: durationMs,
+    completed_at: completedAt,
+  });
+
+  if (code === 0) {
+    if (resultText) {
+      const comment = commentRepo.createComment(issueId, {
+        content: resultText,
+        author_type: "agent",
+        author_id: agent.id,
+      });
+      events.eventBus.emit("comment.added", { comment, project_id: projectId });
     }
 
-    // Track batch completion
-    markAgentCompleted(agent.id, issueId);
+    postSystemComment(
+      issueId,
+      projectId,
+      `Agent ${agent.name} finished${cost ? ` (cost: $${cost.toFixed(4)})` : ""}${durationMs ? ` (${Math.round(durationMs / 1000)}s)` : ""}`,
+    );
 
-    events.eventBus.emit("mention.completed", {
-      project_id: projectId,
-      issue_id: issueId,
-      agent_id: agent.id,
-      exit_code: code,
-    });
+    log.logger.info(
+      { pid: result.pid, agent: agent.name, cost, durationMs, runId: agentRunId },
+      "Agent finished",
+    );
+  } else {
+    postSystemComment(
+      issueId,
+      projectId,
+      `Agent ${agent.name} ${timeoutState.timedOut ? "timed out (10 min limit" : `crashed (exit code ${code}`}${hasEvents ? "" : ", no output"})`,
+    );
+    log.logger.error(
+      { pid: result.pid, code, agent: agent.name, runId: agentRunId },
+      "Agent process failed",
+    );
+  }
+
+  // Track batch completion
+  markAgentCompleted(agent.id, issueId);
+
+  events.eventBus.emit("mention.completed", {
+    project_id: projectId,
+    issue_id: issueId,
+    agent_id: agent.id,
+    exit_code: code,
   });
-};
+}
+
+/**
+ * Map Claude CLI event types to our simplified types.
+ */
+function mapEventType(type: string): string {
+  switch (type) {
+    case "assistant":
+    case "text":
+      return "assistant";
+    case "tool_use":
+      return "tool_use";
+    case "tool_result":
+      return "tool_result";
+    case "result":
+      return "result";
+    default:
+      return "system";
+  }
+}
 
 /**
  * Process the dispatch queue for a project after an agent completes.
@@ -689,33 +787,37 @@ export const shutdownMentionHandler = (): void => {
 
 /**
  * Recover orphaned agent runs on startup.
- * Marks any runs still in "running" status as failed and posts system comments.
+ * Marks any "running" runs as "failed" and posts system comments.
  */
 export const recoverOnStartup = (): void => {
-  const orphans = agentRunRepo.markOrphanedRunsFailed();
-  if (orphans.length === 0) {
-    log.logger.info("MentionHandler startup recovery complete (no orphans)");
+  const orphanedRuns = agentRunRepo.listRunningAgentRuns();
+
+  if (orphanedRuns.length === 0) {
+    log.logger.info("MentionHandler startup recovery: no orphaned runs");
     return;
   }
 
-  log.logger.warn(
-    { count: orphans.length, pids: orphans.map((o) => o.pid) },
-    "Recovered orphaned agent runs from previous server instance",
+  log.logger.info(
+    { count: orphanedRuns.length },
+    "MentionHandler startup recovery: marking orphaned runs as failed",
   );
 
-  // Post system comments for each orphaned run
-  for (const run of orphans) {
+  for (const run of orphanedRuns) {
+    agentRunRepo.markRunFailed(run.id);
+
     const agent = crew.getCrewMember(run.agent_id);
     const agentName = agent?.name ?? run.agent_id;
     postSystemComment(
       run.issue_id,
       run.project_id,
-      `Agent ${agentName} was interrupted (server restart). Re-dispatch to continue.`,
+      `Agent run interrupted by server restart (${agentName})`,
+    );
+
+    log.logger.info(
+      { runId: run.id, agentId: run.agent_id, issueId: run.issue_id },
+      "Marked orphaned run as failed",
     );
   }
 
-  log.logger.info(
-    { recovered: orphans.length },
-    "MentionHandler startup recovery complete",
-  );
+  log.logger.info("MentionHandler startup recovery complete");
 };
