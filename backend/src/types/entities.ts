@@ -18,6 +18,7 @@ export interface Project {
   id: string;
   name: string;
   description: string | null;
+  memory: string | null;
   max_concurrency: number;
   github_account_id: string | null;
   created_at: string;
@@ -175,6 +176,7 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
+  memory?: string | null;
   max_concurrency?: number;
   github_account_id?: string | null;
 }

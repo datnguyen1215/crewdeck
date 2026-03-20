@@ -70,6 +70,8 @@ export interface BuildPromptOptions {
   agentId: string;
   /** All open/in-progress issues for the project (injected for captain). */
   projectIssues?: Issue[];
+  /** Project memory/context to inject into the prompt. */
+  projectMemory?: string | null;
 }
 
 export function buildPrompt(opts: BuildPromptOptions): string;
@@ -99,12 +101,17 @@ export function buildPrompt(
     opts = issueOrOpts as BuildPromptOptions;
   }
 
-  const { issue, comments: cmts, repo: r, worktreePath: wp, agentId, projectIssues } = opts;
+  const { issue, comments: cmts, repo: r, worktreePath: wp, agentId, projectIssues, projectMemory } = opts;
   const parts: string[] = [];
 
   parts.push(
     `## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`,
   );
+
+  // Inject project memory/context if present
+  if (projectMemory && projectMemory.trim()) {
+    parts.push(`## Project Context\n${projectMemory.trim()}`);
+  }
 
   if (r)
     parts.push(`## Repository\n${escapeXml("name" in r ? r.name : "repo")} at ${escapeXml(wp)}`);

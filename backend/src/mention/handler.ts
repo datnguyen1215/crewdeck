@@ -383,6 +383,7 @@ const spawnAgent = async (
     worktreePath: worktreePath ?? ".",
     agentId: agent.id,
     projectIssues,
+    projectMemory: project.memory,
   });
 
   const envVars = getEnvVars(projectId);

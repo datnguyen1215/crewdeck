@@ -32,6 +32,11 @@ export function createDb(path: string): Database.Database {
     db.exec("ALTER TABLE Issue ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0");
   }
 
+  // Migration: add memory column to Project if missing.
+  if (!projectCols.some((c) => c.name === "memory")) {
+    db.exec("ALTER TABLE Project ADD COLUMN memory TEXT");
+  }
+
   // Migration: drop Agent table — agents are now fixed constants in code.
   db.exec("DROP TABLE IF EXISTS Agent");
   db.exec("DROP INDEX IF EXISTS idx_agent_project");
