@@ -1,16 +1,14 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { listAgents, type Agent } from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let agents = $state<Agent[]>([]);
 	let loading = $state(true);
-	let projectId = $derived($page.params.projectId!);
 
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
-		listAgents(projectId)
+		listAgents()
 			.then((data) => { if (!cancelled) agents = data; })
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load agents', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
