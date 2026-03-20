@@ -26,8 +26,18 @@ export async function createWorktree(
   const repoPath = toContainerPath(repo.local_path);
   const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
 
+  // Try to fetch latest from origin
+  let fetchSucceeded = false;
+  try {
+    await execAsync(`git -C ${shellQuote(repoPath)} fetch origin`);
+    fetchSucceeded = true;
+  } catch (err) {
+    console.warn(`Failed to fetch from origin, using local branch: ${err}`);
+  }
+
+  const startPoint = fetchSucceeded ? `origin/${baseBranch}` : baseBranch;
   await execAsync(
-    `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(baseBranch)}`,
+    `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
   );
 
   updateIssue(issue.id, {
