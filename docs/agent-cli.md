@@ -20,12 +20,15 @@ There is no persistent captain session or CLI tool for agents to call. All orche
 4. The agent runs to completion and its output is posted back as a comment attributed to the agent.
 5. If the agent's output mentions another agent, that agent is spawned in turn (up to the chain depth limit).
 
+When a single comment mentions **multiple agents**, they are grouped as a batch. The mentioned agents (batch members) are spawned immediately, and the comment's author (the originator) is automatically re-spawned once all batch members have completed. This lets Captain, for example, delegate work to several specialists and be invoked again when all results are ready.
+
 ## @Mention Rules
 
 - One mention per line is processed.
 - Matching is case-insensitive and greedy (longest agent name matched first).
 - Mentions inside fenced code blocks or inline backticks are ignored.
 - Agents cannot mention themselves (self-mentions are skipped).
+- When multiple agents are mentioned in one comment, the comment's author is skipped in the initial spawn and is auto-spawned after all batch members finish.
 
 ## Limits
 
@@ -34,6 +37,7 @@ There is no persistent captain session or CLI tool for agents to call. All orche
 | Chain depth | 20 | System comment posted; "Reset chain depth" button appears on the issue |
 | Max concurrency | Project setting | System comment posted; mention is dropped |
 | Process timeout | 10 minutes | Process killed; system comment posted |
+| Batch timeout | 30 minutes | Stale batch is force-completed and originator is auto-spawned |
 
 Chain depth is tracked per-issue and increments each time an agent is spawned on that issue. It can be reset via the "Reset chain depth" button on the issue detail page.
 
