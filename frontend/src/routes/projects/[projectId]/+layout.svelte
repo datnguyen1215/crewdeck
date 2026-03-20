@@ -18,19 +18,19 @@
 		'issue.status_changed': (d) => ({ msg: `Issue status: ${String(d.from).replace(/_/g, ' ')} → ${String(d.to).replace(/_/g, ' ')}`, type: 'info' }),
 		'mention.spawned': (d) => {
 			const agent = d.agent_name ?? 'Agent';
-			const issue = d.issue_title ? `: ${d.issue_title}` : '';
-			return { msg: `${agent} spawned on${issue}`, type: 'info' };
+			const issue = d.issue_title ? ` on: ${d.issue_title}` : '';
+			return { msg: `${agent} spawned${issue}`, type: 'info' };
 		},
 		'mention.completed': (d) => {
 			const agent = d.agent_name ?? 'Agent';
-			const issue = d.issue_title ? `: ${d.issue_title}` : '';
+			const issue = d.issue_title ? ` on: ${d.issue_title}` : '';
 			const status = d.exit_code === 0 ? 'finished' : 'crashed';
-			return { msg: `${agent} ${status} on${issue}`, type: d.exit_code === 0 ? 'success' : 'error' };
+			return { msg: `${agent} ${status}${issue}`, type: d.exit_code === 0 ? 'success' : 'error' };
 		},
 		'mention.error': (d) => {
 			const agent = d.agent_name ?? 'Agent';
-			const issue = d.issue_title ? `: ${d.issue_title}` : '';
-			return { msg: `${agent} crashed on${issue}`, type: 'error' };
+			const issue = d.issue_title ? ` on: ${d.issue_title}` : '';
+			return { msg: `${agent} crashed${issue}`, type: 'error' };
 		},
 		'mention.chain_depth_reached': (d) => {
 			const issue = d.issue_title ? ` on: ${d.issue_title}` : '';
@@ -38,8 +38,8 @@
 		},
 		'pr.created': (d) => {
 			const prNum = d.pr_number ? `#${d.pr_number} ` : '';
-			const issue = d.issue_title ? `: ${d.issue_title}` : '';
-			return { msg: `PR ${prNum}created on${issue}`, type: 'success' };
+			const issue = d.issue_title ? ` on: ${d.issue_title}` : '';
+			return { msg: `PR ${prNum}created${issue}`, type: 'success' };
 		},
 		'pr.status_changed': (d) => ({ msg: `PR status: ${d.from} → ${d.to}`, type: 'info' }),
 	};
