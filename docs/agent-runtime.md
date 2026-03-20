@@ -65,7 +65,11 @@ comment.added event
     │
     ├── parse @mentions from comment.content
     │
+    ├── if multiple agents mentioned by an agent author:
+    │       └── create batch (originator = comment.author_id, members = mentioned agents)
+    │
     ├── for each mentioned agent:
+    │       ├── skip if agent is the batch originator (will be auto-spawned later)
     │       ├── check chain_depth < 20 (atomic DB increment)
     │       ├── check active process count < max_concurrency
     │       ├── regress issue status to in_progress if needed
@@ -78,8 +82,20 @@ comment.added event
     └── on process exit:
             ├── post agent output as comment (author_type: "agent")
             ├── post system comment with cost/duration
-            └── emit mention.completed
+            ├── emit mention.completed
+            └── if agent is a batch member: mark completed in batch
+                    └── if all batch members done: auto-spawn originator
 ```
+
+### Batch Tracking
+
+When a single comment spawns multiple agents (e.g. Captain mentioning @engineer, @security, @quality), the handler groups them into a **batch**:
+
+- The comment's author becomes the **originator**.
+- The mentioned agents become **batch members** and are spawned immediately; the originator is skipped until the batch completes.
+- When every batch member's process exits, the originator is auto-spawned so it can act on the combined results.
+- Batches time out after **30 minutes**. A cleanup interval (every 5 minutes) fires `handleBatchComplete` on any stale batch, preventing orphaned state.
+- Only one batch is tracked per issue at a time.
 
 ### Chain Depth
 
@@ -111,8 +127,11 @@ When an agent starts work on an issue that has no worktree, the backend creates 
 ```
 branchName = "crewdeck/" + issue.id-short + "-" + slugify(issue.title)
 worktreePath = tmpdir() + "/crewdeck-worktrees/" + branchName
-git -C <repoPath> worktree add -b <branchName> <worktreePath> <defaultBranch>
+git -C <repoPath> fetch origin                          # updates origin/<defaultBranch>
+git -C <repoPath> worktree add -b <branchName> <worktreePath> origin/<defaultBranch>
 ```
+
+If the fetch fails (e.g. network error), the worktree is created from the local branch instead and a warning is logged.
 
 The worktree path and branch name are recorded on the issue and reused for subsequent agent invocations.
 
@@ -142,4 +161,4 @@ Every invocation gets a complete, self-contained prompt from the database. The b
 
 **Startup:** `recoverOnStartup()` logs that any in-flight processes from before the crash are lost. In-memory state cannot be recovered.
 
-**Shutdown:** `shutdownMentionHandler()` sends SIGTERM to all active processes and clears the tracking map.
+**Shutdown:** `shutdownMentionHandler()` stops the batch cleanup interval, sends SIGTERM to all active processes, and clears the active-process and batch tracking maps.
