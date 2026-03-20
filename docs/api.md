@@ -269,20 +269,32 @@ DELETE /projects/:projectId/repos/:repoId
 
 ---
 
-### Agents
+### Crew / Agents
 
-The crew is a fixed set of 5 immutable agents (Captain, Engineer, Security, Architect, Quality) defined in code — not stored in the database.
+The crew is a fixed set of 5 global agents (captain, engineer, security, architect, quality). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data.
 
-#### List Agents
+#### List Crew
 
 ```
-GET /projects/:projectId/agents
-GET /projects/:projectId/crew
+GET /crew
+GET /agents
 ```
 
 Both paths return the same fixed 5-agent crew. The `/crew` path is canonical; `/agents` is kept for compatibility.
 
 **Response:** `200 OK` — Array of agent objects.
+
+```json
+[
+  {
+    "id": "captain",
+    "name": "Captain",
+    "title": "Project Manager",
+    "description": "Coordinates the crew and manages project execution.",
+    "system_prompt": "You are Captain, the project manager..."
+  }
+]
+```
 
 ---
 

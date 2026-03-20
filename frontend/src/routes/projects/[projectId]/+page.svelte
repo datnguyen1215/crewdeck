@@ -32,7 +32,7 @@
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
-		Promise.all([listIssues(projectId), listAgents(projectId), listRepos(projectId)])
+		Promise.all([listIssues(projectId), listAgents(), listRepos(projectId)])
 			.then(([i, a, r]) => {
 				if (cancelled) return; // discard stale response if projectId changed
 				issues = i;
@@ -52,7 +52,7 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
-			Promise.all([listIssues(projectId), listAgents(projectId), listRepos(projectId)])
+			Promise.all([listIssues(projectId), listAgents(), listRepos(projectId)])
 				.then(([i, a, r]) => { issues = i; agents = a; repos = r; })
 				.catch(() => {});
 		};

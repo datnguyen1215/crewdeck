@@ -51,7 +51,7 @@
 
 	$effect(() => {
 		let cancelled = false;
-		listAgents(projectId)
+		listAgents()
 			.then((a) => { if (!cancelled) agents = a; })
 			.catch(() => {});
 		return () => { cancelled = true; };

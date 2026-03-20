@@ -1,13 +1,9 @@
-import { Router, type Request } from "express";
-import { getProject } from "../db/repositories/projects.js";
-import { NotFoundError } from "../middleware/errors.js";
+import { Router } from "express";
 import { listCrew } from "../agents/crew.js";
 
-const router = Router({ mergeParams: true });
+const router = Router();
 
-router.get("/", (req: Request<{ projectId: string }>, res) => {
-  const { projectId } = req.params;
-  if (!getProject(projectId)) throw new NotFoundError("Project not found");
+router.get("/", (_req, res) => {
   res.json(listCrew());
 });
 
