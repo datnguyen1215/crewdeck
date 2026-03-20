@@ -168,30 +168,31 @@ describe("event bus bridge", () => {
     expect(msg.data).toEqual({ pr_id: "pr1", from: "open", to: "merged" });
   });
 
-  it("mention.spawned broadcasts { issue_id, agent_id, pid }", () => {
+  it("mention.spawned broadcasts { issue_id, agent_id, agent_name, issue_title, pid }", () => {
     const ws = mockWs();
     addSubscriber("p1", ws);
     bus.emit("mention.spawned", { project_id: "p1", issue_id: "i1", agent_id: "a1", pid: 1234 });
     const msg = lastMessage(ws);
     expect(msg.event).toBe("mention.spawned");
-    expect(msg.data).toEqual({ issue_id: "i1", agent_id: "a1", pid: 1234 });
+    // agent_name and issue_title are undefined when agent/issue not found (test doesn't set up DB)
+    expect(msg.data).toEqual({ issue_id: "i1", agent_id: "a1", agent_name: undefined, issue_title: undefined, pid: 1234 });
   });
 
-  it("mention.completed broadcasts { issue_id, agent_id, exit_code }", () => {
+  it("mention.completed broadcasts { issue_id, agent_id, agent_name, issue_title, exit_code }", () => {
     const ws = mockWs();
     addSubscriber("p1", ws);
     bus.emit("mention.completed", { project_id: "p1", issue_id: "i1", agent_id: "a1", exit_code: 0 });
     const msg = lastMessage(ws);
     expect(msg.event).toBe("mention.completed");
-    expect(msg.data).toEqual({ issue_id: "i1", agent_id: "a1", exit_code: 0 });
+    expect(msg.data).toEqual({ issue_id: "i1", agent_id: "a1", agent_name: undefined, issue_title: undefined, exit_code: 0 });
   });
 
-  it("mention.error broadcasts { issue_id, agent_id, message }", () => {
+  it("mention.error broadcasts { issue_id, agent_id, agent_name, issue_title, message }", () => {
     const ws = mockWs();
     addSubscriber("p1", ws);
     bus.emit("mention.error", { project_id: "p1", issue_id: "i1", agent_id: "a1", message: "boom" });
     const msg = lastMessage(ws);
     expect(msg.event).toBe("mention.error");
-    expect(msg.data).toEqual({ issue_id: "i1", agent_id: "a1", message: "boom" });
+    expect(msg.data).toEqual({ issue_id: "i1", agent_id: "a1", agent_name: undefined, issue_title: undefined, message: "boom" });
   });
 });

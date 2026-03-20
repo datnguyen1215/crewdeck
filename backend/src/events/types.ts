@@ -32,22 +32,29 @@ export interface EventMap {
     project_id: string;
     issue_id: string;
     agent_id: string;
+    agent_name?: string;
+    issue_title?: string;
     pid: number;
   };
   "mention.completed": {
     project_id: string;
     issue_id: string;
     agent_id: string;
+    agent_name?: string;
+    issue_title?: string;
     exit_code: number;
   };
   "mention.error": {
     project_id: string;
     issue_id: string;
     agent_id: string;
+    agent_name?: string;
+    issue_title?: string;
     message: string;
   };
   "mention.chain_depth_reached": {
     project_id: string;
     issue_id: string;
+    issue_title?: string;
   };
 }

@@ -3,6 +3,8 @@ import type { IncomingMessage } from "http";
 import type { Server } from "http";
 import type { EventBus } from "./events/bus.js";
 import { getProject } from "./db/repositories/projects.js";
+import { getIssue } from "./db/repositories/issues.js";
+import { getCrewMember } from "./agents/crew.js";
 import { logger } from "./logger.js";
 
 const PING_INTERVAL = 30_000;
@@ -64,29 +66,61 @@ export function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "comment.deleted", { comment_id, issue_id }),
   );
 
-  bus.on("pr.created", ({ issue_pr, project_id }) =>
-    broadcast(project_id, "pr.created", issue_pr),
-  );
+  bus.on("pr.created", ({ issue_pr, project_id }) => {
+    const issue = getIssue(issue_pr.issue_id);
+    broadcast(project_id, "pr.created", {
+      ...issue_pr,
+      issue_title: issue?.title,
+    });
+  });
 
   bus.on("pr.status_changed", ({ pr_id, project_id, from, to }) =>
     broadcast(project_id, "pr.status_changed", { pr_id, from, to }),
   );
 
-  bus.on("mention.spawned", ({ project_id, issue_id, agent_id, pid }) =>
-    broadcast(project_id, "mention.spawned", { issue_id, agent_id, pid }),
-  );
+  bus.on("mention.spawned", ({ project_id, issue_id, agent_id, pid }) => {
+    const agent = getCrewMember(agent_id);
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "mention.spawned", {
+      issue_id,
+      agent_id,
+      agent_name: agent?.name,
+      issue_title: issue?.title,
+      pid,
+    });
+  });
 
-  bus.on("mention.completed", ({ project_id, issue_id, agent_id, exit_code }) =>
-    broadcast(project_id, "mention.completed", { issue_id, agent_id, exit_code }),
-  );
+  bus.on("mention.completed", ({ project_id, issue_id, agent_id, exit_code }) => {
+    const agent = getCrewMember(agent_id);
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "mention.completed", {
+      issue_id,
+      agent_id,
+      agent_name: agent?.name,
+      issue_title: issue?.title,
+      exit_code,
+    });
+  });
 
-  bus.on("mention.error", ({ project_id, issue_id, agent_id, message }) =>
-    broadcast(project_id, "mention.error", { issue_id, agent_id, message }),
-  );
+  bus.on("mention.error", ({ project_id, issue_id, agent_id, message }) => {
+    const agent = getCrewMember(agent_id);
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "mention.error", {
+      issue_id,
+      agent_id,
+      agent_name: agent?.name,
+      issue_title: issue?.title,
+      message,
+    });
+  });
 
-  bus.on("mention.chain_depth_reached", ({ project_id, issue_id }) =>
-    broadcast(project_id, "mention.chain_depth_reached", { issue_id }),
-  );
+  bus.on("mention.chain_depth_reached", ({ project_id, issue_id }) => {
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "mention.chain_depth_reached", {
+      issue_id,
+      issue_title: issue?.title,
+    });
+  });
 }
 
 interface ExtendedWebSocket extends WebSocket {
