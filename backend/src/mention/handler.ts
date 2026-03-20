@@ -184,12 +184,21 @@ const spawnAgent = async (
   }
 
   const comments = commentRepo.listComments(issueId);
-  const prompt = agentPrompt.buildPrompt(
-    issueRepo.getIssue(issueId)!,
+
+  // Captain gets all open/in-progress issues for dependency-aware scheduling
+  const projectIssues =
+    agent.id === "captain"
+      ? issueRepo.listIssues(projectId, { status: ["open", "in_progress"] })
+      : undefined;
+
+  const prompt = agentPrompt.buildPrompt({
+    issue: issueRepo.getIssue(issueId)!,
     comments,
-    repo ?? null,
-    worktreePath ?? ".",
-  );
+    repo: repo ?? null,
+    worktreePath: worktreePath ?? ".",
+    agentId: agent.id,
+    projectIssues,
+  });
 
   const envVars = getEnvVars(projectId);
   const env: Record<string, string> = {
