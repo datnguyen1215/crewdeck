@@ -93,4 +93,24 @@ export function initActivityLogger(): void {
       details: { agent_id, exit_code },
     });
   });
+
+  eventBus.on("dispatch.queued", ({ project_id, issue_id, agent_id, position }) => {
+    log({
+      project_id,
+      issue_id,
+      actor_type: "system",
+      action: "agent.queued",
+      details: { agent_id, position },
+    });
+  });
+
+  eventBus.on("dispatch.dequeued", ({ project_id, issue_id, agent_id }) => {
+    log({
+      project_id,
+      issue_id,
+      actor_type: "system",
+      action: "agent.dequeued",
+      details: { agent_id },
+    });
+  });
 }

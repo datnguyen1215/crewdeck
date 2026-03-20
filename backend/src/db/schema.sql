@@ -100,3 +100,19 @@ CREATE INDEX IF NOT EXISTS idx_activity_project ON ActivityLog(project_id);
 CREATE INDEX IF NOT EXISTS idx_activity_issue ON ActivityLog(issue_id);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON ActivityLog(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_env_var_project ON EnvironmentVariable(project_id);
+
+CREATE TABLE IF NOT EXISTS AgentRun (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES Project(id),
+  issue_id TEXT NOT NULL REFERENCES Issue(id),
+  agent_id TEXT NOT NULL,
+  pid INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'running',
+  exit_code INTEGER,
+  started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_run_project ON AgentRun(project_id);
+CREATE INDEX IF NOT EXISTS idx_agent_run_issue ON AgentRun(issue_id);
+CREATE INDEX IF NOT EXISTS idx_agent_run_status ON AgentRun(status);
