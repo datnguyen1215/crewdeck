@@ -4,7 +4,7 @@ import type { Server } from "http";
 import type { EventBus } from "./events/bus.js";
 import { getProject } from "./db/repositories/projects.js";
 import { getIssue } from "./db/repositories/issues.js";
-import { getCrewMember } from "./agents/crew.js";
+import { getCrewMember } from "./orchestration/crew.js";
 import { logger } from "./logger.js";
 
 const PING_INTERVAL = 30_000;

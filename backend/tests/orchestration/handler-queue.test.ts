@@ -1,18 +1,18 @@
 /**
- * Integration tests for the dispatch queue behavior in mention/handler.ts.
+ * Integration tests for the dispatch queue behavior in orchestration/handler.ts.
  * Tests queue-on-limit, drain-on-complete, and skip-if-running behaviors.
  */
 import { describe, it, expect, beforeEach, afterEach, vi, afterAll } from "vitest";
 import { db } from "../../src/db/index.js";
 import { eventBus } from "../../src/events/bus.js";
-import * as dispatchQueue from "../../src/dispatch/queue.js";
+import * as dispatchQueue from "../../src/orchestration/queue.js";
 import type { EventMap } from "../../src/events/types.js";
 
 // Track mock processes globally so they persist across mock resets
 const mockExitResolvers = new Map<number, (value: { code: number }) => void>();
 let nextPid = 1000;
 
-vi.mock("../../src/agent/adapters/process.js", () => ({
+vi.mock("../../src/orchestration/process.js", () => ({
   spawnClaudeStream: vi.fn(async () => {
     const pid = nextPid++;
     let exitResolve: (value: { code: number }) => void;
@@ -34,13 +34,13 @@ vi.mock("../../src/agent/adapters/process.js", () => ({
   }),
 }));
 
-vi.mock("../../src/agent/worktree.js", () => ({
+vi.mock("../../src/orchestration/worktree.js", () => ({
   createWorktree: vi.fn(async () => ({ path: "/tmp/test-worktree" })),
 }));
 
 // Import handler after mocks are set up
-import * as handler from "../../src/mention/handler.js";
-import { spawnClaudeStream } from "../../src/agent/adapters/process.js";
+import * as handler from "../../src/orchestration/handler.js";
+import { spawnClaudeStream } from "../../src/orchestration/process.js";
 
 // Initialize once
 handler.initMentionHandler();

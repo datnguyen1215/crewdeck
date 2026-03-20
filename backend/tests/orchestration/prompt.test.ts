@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildPrompt } from "../../src/agent/prompt.js";
+import { buildPrompt } from "../../src/orchestration/prompt.js";
 import type { Issue, Repo, Comment } from "../../src/types/entities.js";
 
 const issue: Issue = {
