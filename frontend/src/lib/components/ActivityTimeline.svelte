@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ActivityLog } from '$lib/api/http.js';
 	import { ACTOR_CFG, HANDOFF_ACTIONS, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
-	import { relTime } from '$lib/utils/time.js';
+	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import ActivityDetails from './ActivityDetails.svelte';
 
 	let {
@@ -27,7 +27,7 @@
 	} = $props();
 
 	function isRecent(dateStr: string): boolean {
-		return Date.now() - new Date(dateStr).getTime() < 2 * 3_600_000;
+		return Date.now() - parseUTC(dateStr).getTime() < 2 * 3_600_000;
 	}
 
 	function shortIssueId(id: string): string {
@@ -63,7 +63,7 @@
 				<div class="flex-1 min-w-0 pt-0.5">
 					<div class="flex items-center gap-2 mb-0.5 flex-wrap">
 						<span class="text-xs font-semibold {cfg.color}">{actorName(entry)}</span>
-						<span class="text-muted text-xs font-mono" title={new Date(entry.created_at).toLocaleString()}>
+						<span class="text-muted text-xs font-mono" title={parseUTC(entry.created_at).toLocaleString()}>
 							{relTime(entry.created_at)}
 						</span>
 					</div>

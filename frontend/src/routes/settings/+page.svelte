@@ -6,6 +6,7 @@
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import GitHubConnect from '$lib/components/GitHubConnect.svelte';
+	import { parseUTC } from '$lib/utils/time.js';
 
 	let accounts = $state<GitHubAccount[]>([]);
 	let loading = $state(true);
@@ -48,7 +49,7 @@
 	}
 
 	function formatDate(iso: string) {
-		return new Date(iso).toLocaleDateString('en-US', {
+		return parseUTC(iso).toLocaleDateString('en-US', {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric'
