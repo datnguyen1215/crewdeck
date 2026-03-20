@@ -79,6 +79,12 @@
 		if (filterStatuses.length > 0) {
 			result = result.filter((i) => filterStatuses.includes(i.status));
 		}
+		// Filter by agent
+		if (filterAgent === '__unassigned__') {
+			result = result.filter((i) => !i.agent_id);
+		} else if (filterAgent) {
+			result = result.filter((i) => i.agent_id === filterAgent);
+		}
 		result.sort((a, b) => {
 			const av = sortField === 'priority' ? (a.priority ?? -1) : a[sortField];
 			const bv = sortField === 'priority' ? (b.priority ?? -1) : b[sortField];
@@ -336,7 +342,9 @@
 
 							<!-- Agent -->
 							<div class="px-3 py-3 self-center">
-								<span class="text-sm text-muted truncate block">—</span>
+								<span class="text-sm {issue.agent_id ? 'text-secondary' : 'text-muted'} truncate block">
+									{agentMap[issue.agent_id ?? ''] ?? '—'}
+								</span>
 							</div>
 
 							<!-- Repo -->

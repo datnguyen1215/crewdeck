@@ -57,6 +57,7 @@ export interface Issue {
   worktree_path: string | null;
   base_branch: string | null;
   repo_id: string | null;
+  agent_id: string | null;
   created_at: string;
   updated_at: string;
 }

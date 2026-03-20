@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS Issue (
   worktree_path TEXT,
   base_branch TEXT,
   repo_id TEXT REFERENCES Repo(id),
+  agent_id TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
