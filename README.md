@@ -44,5 +44,5 @@ npm run dev
 - [API Reference](docs/api.md)
 - [Data Model](docs/data-model.md)
 - [Agent Runtime](docs/agent-runtime.md)
-- [Agent CLI](docs/agent-cli.md)
+- [Agent Orchestration](docs/agent-cli.md)
 - [Design](docs/design.md)
