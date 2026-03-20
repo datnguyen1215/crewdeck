@@ -27,12 +27,13 @@
 	let deletingCommentId = $state<string | null>(null);
 	let commentWorking = $state(false);
 
-	// @mention autocomplete
+	// /dispatch autocomplete
 	let agents = $state<Agent[]>([]);
 	let showMentions = $state(false);
 	let mentionFilter = $state('');
 	let mentionIdx = $state(0);
 	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
+	const DISPATCH_PREFIX = '/dispatch ';
 
 	const filteredAgents = $derived(
 		mentionFilter
@@ -113,11 +114,11 @@
 		const val = ta.value;
 		const pos = ta.selectionStart ?? 0;
 
-		// Find @ before cursor
+		// Find /dispatch before cursor
 		const before = val.slice(0, pos);
-		const atIdx = before.lastIndexOf('@');
-		if (atIdx >= 0 && (atIdx === 0 || /\s/.test(before[atIdx - 1]))) {
-			const typed = before.slice(atIdx + 1);
+		const dispatchIdx = before.lastIndexOf(DISPATCH_PREFIX);
+		if (dispatchIdx >= 0 && (dispatchIdx === 0 || /\s/.test(before[dispatchIdx - 1]))) {
+			const typed = before.slice(dispatchIdx + DISPATCH_PREFIX.length);
 			if (!/\s/.test(typed)) {
 				mentionFilter = typed;
 				showMentions = true;
@@ -133,14 +134,14 @@
 		const val = textareaEl.value;
 		const pos = textareaEl.selectionStart ?? 0;
 		const before = val.slice(0, pos);
-		const atIdx = before.lastIndexOf('@');
+		const dispatchIdx = before.lastIndexOf(DISPATCH_PREFIX);
 
-		commentText = val.slice(0, atIdx) + '@' + agent.name + ' ' + val.slice(pos);
+		commentText = val.slice(0, dispatchIdx) + DISPATCH_PREFIX + agent.name + ' ' + val.slice(pos);
 		showMentions = false;
 
-		// Move cursor
+		// Move cursor after inserted text
 		requestAnimationFrame(() => {
-			const newPos = atIdx + agent.name.length + 2;
+			const newPos = dispatchIdx + DISPATCH_PREFIX.length + agent.name.length + 1;
 			textareaEl!.selectionStart = newPos;
 			textareaEl!.selectionEnd = newPos;
 			textareaEl!.focus();
@@ -223,7 +224,7 @@
 	<p class="text-muted text-sm mb-6">No comments yet.</p>
 {/if}
 
-<!-- Add comment form with @mention autocomplete -->
+<!-- Add comment form with /dispatch autocomplete -->
 <div class="border border-edge rounded p-4 relative">
 	<textarea
 		bind:this={textareaEl}
@@ -231,7 +232,7 @@
 		oninput={handleInput}
 		onkeydown={handleKeydown}
 		rows={3}
-		placeholder="Type @ to mention an agent..."
+		placeholder="Type /dispatch to spawn an agent..."
 		class="w-full bg-transparent text-secondary text-sm resize-none focus:outline-none placeholder:text-muted"
 	></textarea>
 
