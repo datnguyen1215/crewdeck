@@ -32,15 +32,15 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 
 The crew is a fixed set of 5 immutable agents defined in code (Captain, Engineer, Security, Architect, Quality). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
-Agent names are used for @mention matching.
+Agent names are used for `/dispatch` command matching.
 
-### Orchestration via @Mentions
+### Orchestration via /dispatch Commands
 
-Orchestration is driven by @mentions in issue comments. When a user or agent posts a comment containing `@agent-name`, the backend spawns that agent as a `claude -p` subprocess. The agent runs to completion and posts its output back as a comment. If the agent's output @mentions another agent, that agent is spawned in turn.
+Orchestration is driven by `/dispatch` commands in issue comments. When a user or agent posts a comment containing `/dispatch agent-name` at the start of a line, the backend spawns that agent as a `claude -p` subprocess. The agent runs to completion and posts its output back as a comment. If the agent's output includes a `/dispatch` command, that agent is spawned in turn.
 
-This creates a chain of agent invocations driven entirely through the comment thread — no persistent captain session or CLI tool is needed.
+`@mentions` are cosmetic references only — they do NOT trigger agent spawns. This prevents duplicate spawns when agents reference each other in summaries or feedback.
 
-When a single comment mentions **multiple agents**, they are grouped as a batch. The batch members are spawned immediately, and the comment's author (the originator) is automatically re-spawned once all batch members have completed. This allows Captain, for example, to delegate work to several specialists and be invoked again when all results are ready.
+A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch security architect quality`. When multiple agents are dispatched, they are grouped as a batch. The batch members are spawned immediately, and the comment's author (the originator) is automatically re-spawned once all batch members have completed. This allows Captain, for example, to delegate work to several specialists and be invoked again when all results are ready.
 
 The chain depth is tracked per issue (max 20) to prevent infinite loops. Concurrency is bounded by the project's `max_concurrency` setting.
 
@@ -62,7 +62,7 @@ Comments are the communication and orchestration layer. Agents post comments wit
 
 - Implementation progress and decisions.
 - Review feedback.
-- @mentions of other agents to trigger follow-up work.
+- `/dispatch` commands to trigger follow-up work from other agents.
 
 System comments are posted automatically for lifecycle events (agent started, finished, chain depth reached, etc.).
 
@@ -87,7 +87,7 @@ Open → In Progress → PR Created → Done
 | **PR Created** | A pull request has been created. Set via the "Mark as PR Created" button or automatically by the Captain agent after creating a PR with `gh pr create`. |
 | **Done** | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running). |
 
-Mentioning an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress`.
+Dispatching an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress`.
 
 ## Technology Decisions
 
@@ -163,7 +163,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 **Frontend (Svelte)**
 - Renders project dashboard, issue board, crew (read-only), activity log.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
-- Provides @mention autocomplete in comment input.
+- Provides autocomplete for `/dispatch` commands and `@mentions` in comment input.
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
 
@@ -180,8 +180,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 **MentionHandler**
 - Subscribes to `comment.added` events.
-- Parses @mentions from comment text via MentionParser.
+- Parses `/dispatch` commands from comment text via MentionParser.
 - Enforces chain depth and concurrency limits.
+- Performs per-agent-per-issue deduplication (skips if agent already running for issue).
 - Spawns `claude -p` processes via ProcessAdapter.
 - Posts agent output and system notifications back as comments.
 - See [Agent Runtime](agent-runtime.md) for the full specification.
@@ -231,7 +232,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 - Events are processed synchronously within the Node.js event loop.
 - Every event bus event maps to a corresponding WebSocket event for frontend notification.
 
-### Example Flow: User Posts a Comment with @mention
+### Example Flow: User Posts a Comment with /dispatch
 
 ```
 1. REST API: POST /api/v1/projects/:id/issues/:issueId/comments
@@ -239,7 +240,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 3. API handler emits: bus.emit("comment.added", { comment, project_id })
 4. Activity Logger receives event → writes ActivityLog entry
 5. WebSocket broadcaster receives event → sends to connected frontend clients
-6. MentionHandler receives event → parses @mentions → spawns agent processes
+6. MentionHandler receives event → parses /dispatch commands → spawns agent processes
 7. API handler returns 201 to the client
 ```
 
@@ -257,28 +258,30 @@ The frontend subscribes to events scoped by project.
 
 ### Agent Process Lifecycle
 
-Each @mention spawns a one-shot `claude -p` process:
+Each `/dispatch` command spawns a one-shot `claude -p` process:
 
 ```
 1. comment.added event fires
       ↓
-2. MentionHandler parses @mentions
+2. MentionHandler parses /dispatch commands
       ↓
-3. Chain depth checked (atomic DB increment, max 20)
+3. Per-agent-per-issue deduplication check (skip if already running)
       ↓
-4. Concurrency checked (active processes < max_concurrency)
+4. Chain depth checked (atomic DB increment, max 20)
       ↓
-5. Issue status regressed to in_progress if needed
+5. Concurrency checked (active processes < max_concurrency)
       ↓
-6. Worktree created if needed
+6. Issue status regressed to in_progress if needed
       ↓
-7. Prompt built from issue + comments
+7. Worktree created if needed
       ↓
-8. ProcessAdapter.spawnClaude() → child process starts
+8. Prompt built from issue + comments
       ↓
-9. Process runs (10-minute timeout)
+9. ProcessAdapter.spawnClaude() → child process starts
       ↓
-10. On exit: stdout parsed, posted as agent comment
+10. Process runs (10-minute timeout)
+      ↓
+11. On exit: stdout parsed, posted as agent comment
 ```
 
 ### Git Worktree Isolation

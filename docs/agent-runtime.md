@@ -63,13 +63,15 @@ The MentionHandler subscribes to `comment.added` events and drives agent spawnin
 ```
 comment.added event
     │
-    ├── parse @mentions from comment.content
+    ├── parse /dispatch commands from comment.content
+    │       (only /dispatch at start of line triggers spawns; @mentions are ignored)
     │
-    ├── if multiple agents mentioned by an agent author:
-    │       └── create batch (originator = comment.author_id, members = mentioned agents)
+    ├── if multiple agents dispatched by an agent author:
+    │       └── create batch (originator = comment.author_id, members = dispatched agents)
     │
-    ├── for each mentioned agent:
+    ├── for each dispatched agent:
     │       ├── skip if agent is the batch originator (will be auto-spawned later)
+    │       ├── skip if agent already has an active process for this issue (deduplication)
     │       ├── check chain_depth < 20 (atomic DB increment)
     │       ├── check active process count < max_concurrency
     │       ├── regress issue status to in_progress if needed
@@ -89,10 +91,10 @@ comment.added event
 
 ### Batch Tracking
 
-When a single comment spawns multiple agents (e.g. Captain mentioning @engineer, @security, @quality), the handler groups them into a **batch**:
+When a single comment dispatches multiple agents (e.g. Captain using `/dispatch engineer security quality`), the handler groups them into a **batch**:
 
 - The comment's author becomes the **originator**.
-- The mentioned agents become **batch members** and are spawned immediately; the originator is skipped until the batch completes.
+- The dispatched agents become **batch members** and are spawned immediately; the originator is skipped until the batch completes.
 - When every batch member's process exits, the originator is auto-spawned so it can act on the combined results.
 - Batches time out after **30 minutes**. A cleanup interval (every 5 minutes) fires `handleBatchComplete` on any stale batch, preventing orphaned state.
 - Only one batch is tracked per issue at a time.
@@ -113,12 +115,14 @@ Each process is given a 10-minute timeout. On timeout, SIGTERM is sent; if the p
 
 `backend/src/mention/parser.ts`
 
-Parses `@mentions` from comment text.
+Parses `/dispatch` commands from comment text.
 
-- Case-insensitive, greedy matching (longest agent name first).
-- One match per line.
-- Ignores mentions inside fenced code blocks or inline backticks.
-- Skips self-mentions (agent cannot mention itself).
+- `/dispatch agent1 agent2 ...` syntax (space-separated agents on one line).
+- Only `/dispatch` at the start of a line triggers spawning.
+- `@mentions` are ignored (cosmetic references only, do NOT trigger spawns).
+- Case-insensitive matching, greedy (longest agent name first).
+- Ignores dispatches inside fenced code blocks or inline backticks.
+- Skips self-dispatches (agent cannot dispatch itself).
 
 ## Git Worktree Management
 

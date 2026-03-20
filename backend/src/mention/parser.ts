@@ -1,15 +1,16 @@
 import type { Agent } from "../types/entities.js";
 
 /**
- * Parse @mentions from a comment. Returns matched agents.
+ * Parse /dispatch commands from a comment. Returns matched agents.
  * Rules:
- * - One mention per line
- * - Longest agent name matched first (greedy)
+ * - `/dispatch agent1 agent2 ...` syntax (space-separated)
+ * - Only `/dispatch` at the start of a line triggers spawning
+ * - @mentions are ignored (cosmetic references only)
  * - Case-insensitive matching
- * - Skips mentions inside fenced code blocks or inline backticks
- * - Skips self-mentions
+ * - Skips dispatches inside fenced code blocks or inline backticks
+ * - Skips self-dispatches
  */
-export function parseMentions(
+export function parseDispatches(
   text: string,
   agents: Agent[],
   selfAgentId?: string,
@@ -19,26 +20,31 @@ export function parseMentions(
   // Remove inline backticks
   const withoutCode = withoutFenced.replace(/`[^`]+`/g, "");
 
-  // Sort agents by name length descending for greedy matching
-  const sorted = [...agents].sort((a, b) => b.name.length - a.name.length);
+  const sorted = [...agents];
 
   const matched: Agent[] = [];
   const seenIds = new Set<string>();
 
   for (const line of withoutCode.split("\n")) {
-    // Find @mention in this line
-    const atIdx = line.indexOf("@");
-    if (atIdx === -1) continue;
+    // Look for /dispatch at start of line (ignoring leading whitespace)
+    const trimmedLine = line.trimStart();
+    if (!trimmedLine.toLowerCase().startsWith("/dispatch ")) continue;
 
-    const afterAt = line.slice(atIdx + 1);
-    for (const agent of sorted) {
-      if (afterAt.toLowerCase().startsWith(agent.name.toLowerCase())) {
-        if (agent.id === selfAgentId) break; // skip self
-        if (!seenIds.has(agent.id)) {
-          seenIds.add(agent.id);
-          matched.push(agent);
+    // Extract agent names after /dispatch
+    const afterDispatch = trimmedLine.slice("/dispatch ".length).trim();
+    const tokens = afterDispatch.split(/\s+/).filter((t) => t.length > 0);
+
+    for (const token of tokens) {
+      // Match token against agent names (case-insensitive)
+      for (const agent of sorted) {
+        if (token.toLowerCase() === agent.name.toLowerCase()) {
+          if (agent.id === selfAgentId) break; // skip self
+          if (!seenIds.has(agent.id)) {
+            seenIds.add(agent.id);
+            matched.push(agent);
+          }
+          break;
         }
-        break; // one mention per line
       }
     }
   }

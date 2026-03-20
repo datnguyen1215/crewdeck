@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseMentions } from "../../src/mention/parser.js";
+import { parseDispatches } from "../../src/mention/parser.js";
 import type { Agent } from "../../src/types/entities.js";
 
 function makeAgent(id: string, name: string): Agent {
@@ -16,74 +16,108 @@ const agents: Agent[] = [
   makeAgent("7", "qa_lead"),
 ];
 
-describe("parseMentions", () => {
-  it("extracts single mention", () => {
-    const result = parseMentions("Hello @engineer please help", agents);
+describe("parseDispatches", () => {
+  it("extracts single dispatch", () => {
+    const result = parseDispatches("/dispatch engineer", agents);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("engineer");
   });
 
-  it("extracts multiple mentions on separate lines", () => {
-    const result = parseMentions("@engineer please\n@security please review", agents);
+  it("extracts multiple agents from single dispatch", () => {
+    const result = parseDispatches("/dispatch security architect quality", agents);
+    expect(result).toHaveLength(3);
+    expect(result[0].name).toBe("security");
+    expect(result[1].name).toBe("architect");
+    expect(result[2].name).toBe("quality");
+  });
+
+  it("extracts agents from multiple dispatch lines", () => {
+    const result = parseDispatches("/dispatch engineer\n/dispatch security", agents);
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe("engineer");
     expect(result[1].name).toBe("security");
   });
 
-  it("deduplicates mentions", () => {
-    const result = parseMentions("@engineer do this\n@engineer do that", agents);
+  it("deduplicates dispatches", () => {
+    const result = parseDispatches("/dispatch engineer\n/dispatch engineer", agents);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("engineer");
   });
 
   it("matches case-insensitively", () => {
-    const result = parseMentions("@Engineer help\n@SECURITY check\n@Architect review", agents);
+    const result = parseDispatches("/dispatch Engineer SECURITY Architect", agents);
     expect(result).toHaveLength(3);
   });
 
-  it("skips self-mentions", () => {
-    const result = parseMentions("I am @captain\n@engineer please help", agents, "5");
+  it("skips self-dispatch", () => {
+    const result = parseDispatches("/dispatch captain engineer", agents, "5");
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("engineer");
   });
 
-  it("returns empty array for no mentions", () => {
-    const result = parseMentions("Just a normal comment", agents);
+  it("returns empty array for no dispatch", () => {
+    const result = parseDispatches("Just a normal comment", agents);
     expect(result).toEqual([]);
   });
 
-  it("skips mentions inside fenced code blocks", () => {
-    const text = "Check this:\n```\n@engineer code here\n```\n@security please review";
-    const result = parseMentions(text, agents);
+  it("ignores @mentions (no spawning)", () => {
+    const result = parseDispatches("Hello @engineer please help", agents);
+    expect(result).toEqual([]);
+  });
+
+  it("ignores @mentions mixed with text", () => {
+    const result = parseDispatches("@engineer and @security should review this", agents);
+    expect(result).toEqual([]);
+  });
+
+  it("skips dispatch inside fenced code blocks", () => {
+    const text = "Check this:\n```\n/dispatch engineer\n```\n/dispatch security";
+    const result = parseDispatches(text, agents);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("security");
   });
 
-  it("skips mentions inside inline backticks", () => {
-    const text = "Use `@engineer` for help\n@security please review";
-    const result = parseMentions(text, agents);
+  it("skips dispatch inside inline backticks", () => {
+    const text = "Use `/dispatch engineer` for help\n/dispatch security";
+    const result = parseDispatches(text, agents);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("security");
   });
 
-  it("handles mentions at start and end of lines", () => {
-    const result = parseMentions("@engineer please help\n@quality check", agents);
-    expect(result).toHaveLength(2);
+  it("handles dispatch at start of line with leading whitespace", () => {
+    const result = parseDispatches("  /dispatch engineer", agents);
+    expect(result).toHaveLength(1);
     expect(result[0].name).toBe("engineer");
-    expect(result[1].name).toBe("quality");
   });
 
-  it("handles multiline content", () => {
+  it("ignores dispatch in middle of line", () => {
+    const result = parseDispatches("Please /dispatch engineer", agents);
+    expect(result).toEqual([]);
+  });
+
+  it("handles multiline content with dispatch", () => {
     const content = `Please review:
-@engineer for implementation
-@security for vulnerabilities
-@quality for test coverage`;
-    const result = parseMentions(content, agents);
+/dispatch engineer security quality
+Some other text here`;
+    const result = parseDispatches(content, agents);
     expect(result).toHaveLength(3);
   });
 
-  it("one mention per line", () => {
-    const result = parseMentions("@engineer and @security on same line", agents);
+  it("ignores unknown agent names in dispatch", () => {
+    const result = parseDispatches("/dispatch engineer unknown-agent security", agents);
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe("engineer");
+    expect(result[1].name).toBe("security");
+  });
+
+  it("handles dispatch followed by text content", () => {
+    const content = `/dispatch engineer
+
+Please implement the feature described above.
+Focus on:
+- Adding the new route
+- Writing tests`;
+    const result = parseDispatches(content, agents);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("engineer");
   });

@@ -375,7 +375,7 @@ PATCH /projects/:projectId/issues/:issueId
 **Side effects:**
 - WebSocket event emitted: `issue.status_changed` (when status changes).
 
-**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue. Set `chain_depth: 0` to reset the @mention chain depth counter after the limit (20) is reached.
+**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue. Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the limit (20) is reached.
 
 ---
 
@@ -594,7 +594,7 @@ Agent posts a comment on an issue.
 
 **Response:** `201 Created`
 
-**Side effects:** Emits `comment.added` on the event bus (which may trigger further @mention processing).
+**Side effects:** Emits `comment.added` on the event bus (which may trigger further `/dispatch` processing).
 
 #### Create Issue (Internal)
 
@@ -656,7 +656,7 @@ Agent updates an issue's priority.
 
 ## Status Transition Rules
 
-Issue status changes are validated to ensure a valid lifecycle. The system uses a simplified 4-status model driven by @mention-based orchestration:
+Issue status changes are validated to ensure a valid lifecycle. The system uses a simplified 4-status model driven by `/dispatch`-based orchestration:
 
 | From | Allowed Transitions |
 |------|---------------------|
@@ -667,7 +667,7 @@ Issue status changes are validated to ensure a valid lifecycle. The system uses 
 
 Any status can transition to `done` via `PATCH /issues/:issueId` (rejected if active agent processes are running).
 
-Mentioning an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress` before the agent is spawned.
+Dispatching an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress` before the agent is spawned.
 
 ---
 
@@ -711,11 +711,11 @@ All events follow this structure:
 | `comment.updated` | User comment was edited | Full comment object |
 | `comment.deleted` | User comment was deleted | `{ comment_id, issue_id }` |
 
-#### Mention Events
+#### Dispatch Events
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `mention.spawned` | Agent process started for an @mention | `{ issue_id, agent_id, pid }` |
+| `mention.spawned` | Agent process started for a /dispatch command | `{ issue_id, agent_id, pid }` |
 | `mention.completed` | Agent process finished | `{ issue_id, agent_id, exit_code }` |
 | `mention.error` | Agent process failed | `{ issue_id, agent_id, message }` |
 | `mention.chain_depth_reached` | Issue chain depth limit (20) reached | `{ issue_id }` |

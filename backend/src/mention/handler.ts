@@ -1,6 +1,6 @@
 /**
- * Core orchestration for @mention-driven agent spawning.
- * Listens for comment.added events, parses mentions, spawns agents,
+ * Core orchestration for /dispatch-driven agent spawning.
+ * Listens for comment.added events, parses dispatch commands, spawns agents,
  * and posts results back as comments.
  *
  * When a comment spawns multiple agents, they are grouped as a batch.
@@ -76,6 +76,18 @@ export const getActiveProcessCount = (projectId: string): number => {
 export const hasActiveProcesses = (issueId: string): boolean => {
   for (const p of activeProcesses.values())
     if (p.issueId === issueId) return true;
+  return false;
+};
+
+/**
+ * Check if a specific agent already has an active process for an issue.
+ * @param {string} agentId - Agent to check
+ * @param {string} issueId - Issue to check
+ * @returns {boolean} True if the agent is already running for this issue
+ */
+export const hasActiveAgentProcess = (agentId: string, issueId: string): boolean => {
+  for (const p of activeProcesses.values())
+    if (p.agentId === agentId && p.issueId === issueId) return true;
   return false;
 };
 
@@ -471,7 +483,7 @@ export const initMentionHandler = (): void => {
     if (!issue) return;
 
     const agents = crew.listCrew();
-    const mentioned = mentionParser.parseMentions(
+    const mentioned = mentionParser.parseDispatches(
       comment.content,
       agents,
       comment.author_id ?? undefined,
@@ -504,6 +516,15 @@ export const initMentionHandler = (): void => {
           );
           continue;
         }
+      }
+
+      // Skip if agent already has an active process for this issue
+      if (hasActiveAgentProcess(agent.id, comment.issue_id)) {
+        log.logger.info(
+          { agentId: agent.id, issueId: comment.issue_id },
+          "Skipping spawn: agent already running for this issue",
+        );
+        continue;
       }
 
       spawnAgent(agent, comment.issue_id, project_id, comment.author_id ?? undefined).catch(
