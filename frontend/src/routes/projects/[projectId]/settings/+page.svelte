@@ -5,6 +5,7 @@
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
+	let pageTitle = $derived(project?.name ? `Settings - ${project.name} - CrewDeck` : 'Settings - CrewDeck');
 	let loading = $state(true);
 	let saving = $state(false);
 
@@ -67,6 +68,10 @@
 		maxConcurrency = project.max_concurrency;
 	}
 </script>
+
+<svelte:head>
+	<title>{pageTitle}</title>
+</svelte:head>
 
 <div class="p-8 h-full overflow-auto">
 	<div class="max-w-xl">

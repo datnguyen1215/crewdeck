@@ -56,6 +56,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Settings - CrewDeck</title>
+</svelte:head>
+
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="p-6 h-full overflow-auto">

@@ -67,6 +67,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Projects - CrewDeck</title>
+</svelte:head>
+
 <div class="p-8 h-full overflow-auto">
 	<!-- Header -->
 	<div class="flex items-center justify-between mb-10 fade-up">

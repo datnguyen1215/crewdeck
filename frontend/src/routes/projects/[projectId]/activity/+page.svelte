@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listActivity, listIssues, listAgents, type ActivityLog, type Issue, type Agent } from '$lib/api/http.js';
+	import { listActivity, listIssues, listAgents, getProject, type ActivityLog, type Issue, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { ACTOR_CFG, ACTION_DISPLAY } from '$lib/activity.js';
@@ -15,6 +15,8 @@
 	const PAGE_SIZE = 50;
 
 	let projectId = $derived($page.params.projectId!);
+	let project = $state<Project | null>(null);
+	let pageTitle = $derived(project?.name ? `Activity - ${project.name} - CrewDeck` : 'Activity - CrewDeck');
 	let allEntries = $state<ActivityEntry[]>([]);
 	let issues = $state<Issue[]>([]);
 	let agents = $state<Agent[]>([]);
@@ -51,8 +53,8 @@
 
 	$effect(() => {
 		let cancelled = false;
-		listAgents()
-			.then((a) => { if (!cancelled) agents = a; })
+		Promise.all([listAgents(), getProject(projectId)])
+			.then(([a, p]) => { if (!cancelled) { agents = a; project = p; } })
 			.catch(() => {});
 		return () => { cancelled = true; };
 	});
@@ -110,6 +112,10 @@
 
 
 </script>
+
+<svelte:head>
+	<title>{pageTitle}</title>
+</svelte:head>
 
 <div class="p-6 h-full overflow-auto">
 	<!-- Header -->
