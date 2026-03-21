@@ -59,9 +59,12 @@ export interface Issue {
 export interface IssuePR {
   id: string;
   issue_id: string;
+  repo_id: string;
   pr_number: number;
   pr_url: string;
   status: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface IssueWithDetails extends Issue {
