@@ -3,6 +3,7 @@
 	import { updateIssue, deleteIssue, type IssueWithDetails } from '$lib/api/http.js';
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import Modal from './Modal.svelte';
 
 	let {
 		issue,
@@ -18,7 +19,20 @@
 
 	let working = $state(false);
 	let copied = $state(false);
-	let confirmingDelete = $state(false);
+	let showDeleteModal = $state(false);
+
+	async function handleDeleteIssue() {
+		working = true;
+		try {
+			await deleteIssue(projectId, issue.id);
+			showDeleteModal = false;
+			goto(`/projects/${projectId}`);
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to delete issue', 'error');
+		} finally {
+			working = false;
+		}
+	}
 
 	const STATUS_CFG: Record<
 		string,
@@ -190,29 +204,7 @@
 
 			<button onclick={onEdit} class="w-full py-1.5 border border-edge text-secondary rounded hover:border-edge-hi hover:text-primary transition-colors text-left px-3">Edit Issue</button>
 
-			{#if confirmingDelete}
-				<div class="flex gap-2">
-					<button
-						onclick={async () => {
-							working = true;
-							try {
-								await deleteIssue(projectId, issue.id);
-								goto(`/projects/${projectId}`);
-							} catch (err) {
-								toastStore.add(err instanceof Error ? err.message : 'Failed to delete issue', 'error');
-								confirmingDelete = false;
-							} finally {
-								working = false;
-							}
-						}}
-						disabled={working}
-						class="flex-1 py-1.5 border border-red text-red rounded hover:bg-red/10 transition-colors px-3 disabled:opacity-50"
-					>Confirm</button>
-					<button onclick={() => confirmingDelete = false} class="flex-1 py-1.5 border border-edge text-muted rounded hover:text-secondary transition-colors px-3">Cancel</button>
-				</div>
-			{:else}
-				<button onclick={() => confirmingDelete = true} class="w-full py-1.5 border border-red/50 text-red/50 rounded hover:border-red hover:text-red transition-colors text-left px-3">Delete Issue</button>
-			{/if}
+			<button onclick={() => showDeleteModal = true} class="w-full py-1.5 border border-red/50 text-red/50 rounded hover:border-red hover:text-red transition-colors text-left px-3">Delete Issue</button>
 		</div>
 	</div>
 
@@ -233,3 +225,12 @@
 		{/if}
 	</div>
 </div>
+
+<Modal open={showDeleteModal} onClose={() => showDeleteModal = false} label="Delete issue" maxWidth="max-w-sm">
+	<h2 class="text-lg font-semibold text-primary mb-2">Delete this issue?</h2>
+	<p class="text-sm text-secondary mb-6">This action cannot be undone. The issue and all its data will be permanently deleted.</p>
+	<div class="flex gap-3 justify-end">
+		<button onclick={() => showDeleteModal = false} class="px-4 py-2 text-sm border border-edge text-secondary rounded hover:text-primary transition-colors">Cancel</button>
+		<button onclick={handleDeleteIssue} disabled={working} class="px-4 py-2 text-sm bg-red text-white rounded hover:bg-red/80 transition-colors disabled:opacity-50">Delete</button>
+	</div>
+</Modal>
