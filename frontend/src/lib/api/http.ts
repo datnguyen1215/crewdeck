@@ -149,8 +149,17 @@ export function listActivity(projectId: string, filters?: { issue_id?: string; a
 }
 
 // Environment Variables
+export function listEnvironmentVariables(projectId: string) {
+  return request<EnvironmentVariable[]>("GET", `/projects/${e(projectId)}/environment`);
+}
 export function createEnvironmentVariable(projectId: string, data: { key: string; value: string; is_secret?: boolean }) {
   return request<EnvironmentVariable>("POST", `/projects/${e(projectId)}/environment`, data);
+}
+export function updateEnvironmentVariable(projectId: string, envVarId: string, data: { key?: string; value?: string; is_secret?: boolean }) {
+  return request<EnvironmentVariable>("PATCH", `/projects/${e(projectId)}/environment/${e(envVarId)}`, data);
+}
+export function deleteEnvironmentVariable(projectId: string, envVarId: string) {
+  return request<void>("DELETE", `/projects/${e(projectId)}/environment/${e(envVarId)}`);
 }
 
 // Agent Runs
