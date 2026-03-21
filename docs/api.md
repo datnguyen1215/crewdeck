@@ -764,6 +764,31 @@ DELETE /projects/:projectId/knowledge/:knowledgeId
 
 **Error:** `404 Not Found` — Knowledge entry does not exist or belongs to a different project.
 
+#### Trigger Knowledge Scan
+
+```
+POST /projects/:projectId/knowledge/scan
+```
+
+Triggers a codebase scan by the librarian agent. Creates an issue titled "Scan codebase and update knowledge" and adds a `/dispatch librarian` comment to it.
+
+**Response:** `201 Created`
+
+```json
+{
+  "issue_id": "uuid"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| issue_id | TEXT (UUID) | The ID of the created issue. Use this to link to the issue detail page. |
+
+**Side effects:**
+- Creates a new issue with `created_by: "user"`.
+- Adds a `/dispatch librarian` comment to trigger the librarian agent.
+- Emits `issue.created` and `comment.added` events.
+
 ---
 
 ### Internal API
