@@ -43,7 +43,7 @@
 
 	// Load agents for autocomplete
 	$effect(() => {
-		listAgents().then(a => { agents = a; }).catch(() => {});
+		listAgents().then(a => { agents = a; }).catch(() => toastStore.add('Failed to load agents', 'error'));
 	});
 
 	function commentStyle(authorType: string, content: string): { border: string; textColor: string } {
