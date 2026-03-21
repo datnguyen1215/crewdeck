@@ -2,7 +2,6 @@ CREATE TABLE IF NOT EXISTS Project (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
-  memory TEXT,
   max_concurrency INTEGER NOT NULL DEFAULT 1,
   github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -133,3 +132,19 @@ CREATE INDEX IF NOT EXISTS idx_agent_run_status ON AgentRun(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_agent_run_created ON AgentRun(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_agent_run_event_run ON AgentRunEvent(agent_run_id);
 CREATE INDEX IF NOT EXISTS idx_agent_run_event_created ON AgentRunEvent(agent_run_id, created_at);
+
+-- Project knowledge entries
+CREATE TABLE IF NOT EXISTS ProjectKnowledge (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL,
+  content TEXT NOT NULL,
+  source TEXT,
+  agent_ids TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_knowledge_project ON ProjectKnowledge(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_knowledge_updated ON ProjectKnowledge(project_id, updated_at DESC, created_at DESC);

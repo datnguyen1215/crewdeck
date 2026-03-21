@@ -18,7 +18,6 @@ export interface Project {
   id: string;
   name: string;
   description: string | null;
-  memory: string | null;
   max_concurrency: number;
   github_account_id: string | null;
   created_at: string;
@@ -182,7 +181,6 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
-  memory?: string | null;
   max_concurrency?: number;
   github_account_id?: string | null;
 }
@@ -257,4 +255,32 @@ export interface ActivityFilters {
   since?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface ProjectKnowledge {
+  id: string;
+  project_id: string;
+  title: string;
+  category: string;
+  content: string;
+  source: string | null;
+  agent_ids: string[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateKnowledgeInput {
+  title: string;
+  category: string;
+  content: string;
+  source?: string;
+  agent_ids?: string[] | null;
+}
+
+export interface UpdateKnowledgeInput {
+  title?: string;
+  category?: string;
+  content?: string;
+  source?: string | null;
+  agent_ids?: string[] | null;
 }

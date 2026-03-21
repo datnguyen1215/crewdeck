@@ -334,7 +334,7 @@ export const spawnAgent = async (
     worktreePath: worktreePath ?? ".",
     agentId: agent.id,
     projectIssues,
-    projectMemory: project.memory,
+    projectMemory: null,
   });
 
   const envVars = getEnvVars(projectId);
