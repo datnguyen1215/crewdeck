@@ -122,6 +122,29 @@ export function subscribeEvents(bus: EventBus): void {
     });
   });
 
+  bus.on("dispatch.queued", ({ project_id, issue_id, agent_id, position }) => {
+    const agent = getCrewMember(agent_id);
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "dispatch.queued", {
+      issue_id,
+      agent_id,
+      agent_name: agent?.name,
+      issue_title: issue?.title,
+      position,
+    });
+  });
+
+  bus.on("dispatch.dequeued", ({ project_id, issue_id, agent_id }) => {
+    const agent = getCrewMember(agent_id);
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "dispatch.dequeued", {
+      issue_id,
+      agent_id,
+      agent_name: agent?.name,
+      issue_title: issue?.title,
+    });
+  });
+
   bus.on("run.started", ({ project_id, ...data }) =>
     broadcast(project_id, "run.started", data),
   );

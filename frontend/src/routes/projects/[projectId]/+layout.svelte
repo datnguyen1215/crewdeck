@@ -5,6 +5,7 @@
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { setContext } from 'svelte';
 	import type { WsEvent } from '$lib/api/ws.svelte.js';
+	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
 
 	let { children } = $props();
 
@@ -36,6 +37,15 @@
 			const issue = d.issue_title ? ` on: ${d.issue_title}` : '';
 			return { msg: `Chain depth limit reached${issue}`, type: 'warning' };
 		},
+		'dispatch.queued': (d) => {
+			const agent = d.agent_name ?? 'Agent';
+			const position = typeof d.position === 'number' ? d.position : 1;
+			return { msg: `${agent} queued — ${position} agent${position === 1 ? '' : 's'} ahead`, type: 'info' };
+		},
+		'dispatch.dequeued': (d) => {
+			const agent = d.agent_name ?? 'Agent';
+			return { msg: `${agent} dequeued — starting now`, type: 'success' };
+		},
 		'pr.created': (d) => {
 			const prNum = d.pr_number ? `#${d.pr_number} ` : '';
 			const issue = d.issue_title ? ` on: ${d.issue_title}` : '';
@@ -66,5 +76,9 @@
 		{ws.state === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
 	</div>
 {/if}
+
+<div class="fixed top-3 right-4 z-[200]">
+	<QueueMonitor />
+</div>
 
 {@render children()}
