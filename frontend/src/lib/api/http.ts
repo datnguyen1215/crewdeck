@@ -14,6 +14,7 @@ import type {
   EnvironmentVariable,
   AgentRun,
   AgentRunWithEvents,
+  ProjectKnowledge,
 } from './types.js';
 
 export type {
@@ -36,6 +37,7 @@ export type {
   AgentRunWithEvents,
   AgentRunStatus,
   AgentRunEventType,
+  ProjectKnowledge,
 } from './types.js';
 
 const BASE = "/api/v1";
@@ -173,4 +175,18 @@ export function getRun(projectId: string, runId: string) {
 }
 export function listProjectRuns(projectId: string, filters?: { limit?: number; offset?: number }) {
   return request<AgentRun[]>("GET", `/projects/${e(projectId)}/runs${qs(filters)}`);
+}
+
+// Knowledge
+export function listKnowledge(projectId: string) {
+  return request<ProjectKnowledge[]>("GET", `/projects/${e(projectId)}/knowledge`);
+}
+export function createKnowledge(projectId: string, data: { title: string; category: string; content: string; agents?: string[] }) {
+  return request<ProjectKnowledge>("POST", `/projects/${e(projectId)}/knowledge`, data);
+}
+export function updateKnowledge(projectId: string, knowledgeId: string, data: { title?: string; category?: string; content?: string; agents?: string[] }) {
+  return request<ProjectKnowledge>("PUT", `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`, data);
+}
+export function deleteKnowledge(projectId: string, knowledgeId: string) {
+  return request<void>("DELETE", `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`);
 }

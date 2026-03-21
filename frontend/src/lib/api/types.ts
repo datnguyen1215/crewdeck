@@ -166,3 +166,15 @@ export interface AgentRunEvent {
 export interface AgentRunWithEvents extends AgentRun {
   events: AgentRunEvent[];
 }
+
+export interface ProjectKnowledge {
+  id: string;
+  project_id: string;
+  title: string;
+  category: string;
+  content: string;
+  source: 'user' | 'librarian';
+  agents: string[];
+  created_at: string;
+  updated_at: string;
+}
