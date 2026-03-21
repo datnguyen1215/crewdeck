@@ -43,7 +43,6 @@ Represents a body of work tied to one or more GitHub repositories.
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
 | name | TEXT | NOT NULL | Human-readable project name. |
 | description | TEXT | | Optional project description. |
-| memory | TEXT | | Project context/conventions injected into agent prompts. |
 | max_concurrency | INTEGER | NOT NULL, DEFAULT 1 | Maximum number of agent processes running simultaneously. |
 | github_account_id | TEXT | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
@@ -188,6 +187,26 @@ A per-project environment variable injected into agent processes at spawn time.
 
 ---
 
+### ProjectKnowledge
+
+Structured knowledge entries that provide context to agents. Replaces the former `memory` field on Project.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project. |
+| title | TEXT | NOT NULL | Short title for the knowledge entry. |
+| category | TEXT | NOT NULL | Category for grouping (e.g., `architecture`, `conventions`, `gotchas`). |
+| content | TEXT | NOT NULL | The knowledge content. |
+| source | TEXT | NULLABLE | Optional source reference (e.g., file path, URL). |
+| agent_ids | TEXT | NULLABLE | JSON array of agent IDs this entry applies to. NULL means all agents. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+
+**Note:** `agent_ids` is stored as a JSON string and parsed to `string[] | null` at runtime. When null, the entry applies to all agents. When set, only agents whose ID is in the array receive this knowledge.
+
+---
+
 ### AgentRun
 
 Tracks each agent process spawn for crash recovery and observability.
@@ -234,6 +253,7 @@ Immutable audit trail of every action in the system.
 | Project → Issue | One-to-Many | A project has multiple issues. |
 | Project → ActivityLog | One-to-Many | A project has many activity log entries. |
 | Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes. |
+| Project → ProjectKnowledge | One-to-Many | A project has many knowledge entries for agent context. |
 | Issue → Comment | One-to-Many | An issue has many comments. |
 | Issue → IssuePR | One-to-Many | An issue can have multiple PRs (across repos). |
 | Issue → ActivityLog | One-to-Many | An issue has many activity log entries. |
@@ -253,6 +273,8 @@ Immutable audit trail of every action in the system.
 - `idx_activity_issue` on ActivityLog(issue_id)
 - `idx_activity_created` on ActivityLog(project_id, created_at)
 - `idx_env_var_project` on EnvironmentVariable(project_id)
+- `idx_project_knowledge_project` on ProjectKnowledge(project_id)
+- `idx_project_knowledge_updated` on ProjectKnowledge(project_id, updated_at DESC, created_at DESC)
 - `idx_agent_run_project` on AgentRun(project_id)
 - `idx_agent_run_issue` on AgentRun(issue_id)
 - `idx_agent_run_status` on AgentRun(project_id, status)

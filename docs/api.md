@@ -46,7 +46,6 @@ Without `?stats`:
     "id": "uuid",
     "name": "My Project",
     "description": "...",
-    "memory": "Project context for agents...",
     "max_concurrency": 3,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
@@ -62,7 +61,6 @@ With `?stats`:
     "id": "uuid",
     "name": "My Project",
     "description": "...",
-    "memory": "Project context for agents...",
     "max_concurrency": 3,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
@@ -109,7 +107,6 @@ POST /projects
 | github_url | Yes | — | GitHub URL of the repository to link to this project. |
 | name | No | Repo name from GitHub API | Project name. |
 | description | No | Repo description from GitHub API | Project description. |
-| memory | No | null | Project context/conventions injected into agent prompts. |
 | max_concurrency | No | — | Max concurrent agent processes. |
 | github_account_id | No | null | ID of a connected GitHubAccount to use for git operations in this project. |
 
@@ -125,7 +122,7 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, memory, max_concurrency, github_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, github_account_id).
 
 **Response:** `200 OK` — The updated project object.
 

@@ -24,7 +24,7 @@ CrewDeck solves these problems by providing a local-first issue management platf
 A project represents a body of work tied to one or more GitHub repositories. Each project has:
 
 - A name and description.
-- A memory field for project context (conventions, structure notes, gotchas) injected into agent prompts.
+- Knowledge entries for project context (conventions, structure notes, gotchas) injected into agent prompts.
 - One or more linked GitHub repositories.
 - A shared roster of 4 fixed agents (defined globally, not per-project).
 - A concurrency limit (max simultaneous agent processes).

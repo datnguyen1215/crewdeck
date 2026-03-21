@@ -67,7 +67,7 @@ In addition, any project-level environment variables configured via the [Environ
 Each agent receives a prompt built from:
 
 - The issue title and description
-- Project memory/context (if configured — conventions, structure notes, gotchas)
+- Project knowledge entries (conventions, structure notes, gotchas) — filtered by agent assignment
 - The repository name and worktree path
 - All previous comments on the issue (in order)
 - For Captain only: a summary of all other open/in-progress issues (for dependency-aware scheduling)
