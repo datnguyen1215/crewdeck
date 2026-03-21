@@ -65,7 +65,7 @@ export {
 } from "./batch.js";
 
 // Spawner
-export { spawnAgent, postSystemComment, mapEventType, processAgentStream } from "./spawner.js";
+export { spawnAgent, postSystemComment, processAgentStream } from "./spawner.js";
 
 // Recovery
 export { recoverOnStartup, isProcessAlive, killOrphanedProcess, dispatchCaptainsForRecovery } from "./recovery.js";
