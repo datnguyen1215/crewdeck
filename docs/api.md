@@ -545,7 +545,7 @@ GET /projects/:projectId/runs/:runId
 }
 ```
 
-Event `type` values: `system`, `assistant`, `tool_use`, `tool_result`, `result`.
+Event `type` values are raw strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`). Types are stored as-is without mapping.
 
 **Error:** `404 Not Found` — Run does not exist or belongs to a different project.
 
