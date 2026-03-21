@@ -162,7 +162,7 @@ A single streamed event from the Claude CLI (`--output-format stream-json`) capt
 |-------|------|-------------|-------------|
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
 | agent_run_id | TEXT | NOT NULL, FOREIGN KEY → AgentRun.id ON DELETE CASCADE | The run this event belongs to. |
-| type | TEXT | NOT NULL | Event type. One of: `system`, `assistant`, `tool_use`, `tool_result`, `result`. |
+| type | TEXT | NOT NULL | Raw event type from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`). Stored as-is without mapping. |
 | data | TEXT | NOT NULL | JSON-encoded event payload from the Claude CLI. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the event was recorded. |
 

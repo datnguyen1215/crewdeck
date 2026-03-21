@@ -46,6 +46,15 @@ export function createDb(path: string): Database.Database {
   db.exec("DROP TABLE IF EXISTS Agent");
   db.exec("DROP INDEX IF EXISTS idx_agent_project");
 
+  // Migration: fix agent run events where type was mapped to 'system' but data contains 'user' type.
+  // This restores the original event type from the stored data.
+  db.exec(`
+    UPDATE AgentRunEvent
+    SET type = json_extract(data, '$.type')
+    WHERE type = 'system'
+      AND json_extract(data, '$.type') = 'user'
+  `);
+
   return db;
 }
 

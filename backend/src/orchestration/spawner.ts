@@ -75,25 +75,6 @@ const getEnvVars = (projectId: string): Record<string, string> => {
 };
 
 /**
- * Map Claude CLI event types to our simplified types.
- */
-export function mapEventType(type: string): string {
-  switch (type) {
-    case "assistant":
-    case "text":
-      return "assistant";
-    case "tool_use":
-      return "tool_use";
-    case "tool_result":
-      return "tool_result";
-    case "result":
-      return "result";
-    default:
-      return "system";
-  }
-}
-
-/**
  * Process streaming events from agent, persist to DB, and handle completion.
  */
 export async function processAgentStream(
@@ -113,17 +94,16 @@ export async function processAgentStream(
   // Stream events and persist
   for await (const event of result.events) {
     hasEvents = true;
-    const eventType = mapEventType(event.type);
 
-    // Persist event to DB
-    const savedEvent = agentRunRepo.createAgentRunEvent(agentRunId, eventType, event);
+    // Persist event to DB using raw event type from Claude CLI
+    const savedEvent = agentRunRepo.createAgentRunEvent(agentRunId, event.type, event);
 
     // Broadcast via WebSocket
     events.eventBus.emit("run.event", {
       agent_run_id: agentRunId,
       project_id: projectId,
       event_id: savedEvent.id,
-      type: eventType,
+      type: event.type,
       data: event,
       created_at: savedEvent.created_at,
     });

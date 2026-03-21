@@ -171,6 +171,8 @@
 				return (data.result as string)?.slice(0, 100) ?? 'Finished';
 			case 'system':
 				return extractSystemInfo(data);
+			case 'user':
+				return extractUserContent(data);
 			default:
 				return event.type;
 		}
@@ -185,6 +187,9 @@
 		if (Array.isArray(data.content)) {
 			const textBlock = data.content.find((c: any) => c.type === 'text');
 			if (textBlock?.text) return textBlock.text.slice(0, 200);
+			// Fallback: show tool name if only tool_use blocks
+			const toolBlock = data.content.find((c: any) => c.type === 'tool_use');
+			if (toolBlock?.name) return `Using ${toolBlock.name}`;
 		}
 
 		// Nested format: data.message.content[]
@@ -192,6 +197,9 @@
 		if (message && Array.isArray(message.content)) {
 			const textBlock = message.content.find((c: any) => c.type === 'text');
 			if (textBlock?.text) return (textBlock.text as string).slice(0, 200);
+			// Fallback: show tool name if only tool_use blocks
+			const toolBlock = message.content.find((c: any) => c.type === 'tool_use');
+			if (toolBlock?.name) return `Using ${toolBlock.name}`;
 		}
 
 		return 'Text output';
@@ -278,6 +286,39 @@
 		}
 
 		return 'System';
+	}
+
+	function extractUserContent(data: Record<string, unknown>): string {
+		// User events contain tool results fed back to the model
+		// Format: data.message.content[] with type: "tool_result"
+		const message = data.message as Record<string, unknown> | undefined;
+		if (message && Array.isArray(message.content)) {
+			const toolResult = message.content.find((c: any) => c.type === 'tool_result');
+			if (toolResult) {
+				// Extract content from tool_result
+				const content = toolResult.content;
+				if (typeof content === 'string' && content.length > 0) {
+					return `Tool result: ${content.slice(0, 100)}`;
+				}
+				if (Array.isArray(content)) {
+					const textBlock = content.find((c: any) => c.type === 'text');
+					if (textBlock?.text) return `Tool result: ${(textBlock.text as string).slice(0, 100)}`;
+				}
+				return 'Tool result';
+			}
+		}
+
+		// Flat format fallback
+		if (Array.isArray(data.content)) {
+			const toolResult = data.content.find((c: any) => c.type === 'tool_result');
+			if (toolResult) {
+				const content = toolResult.content;
+				if (typeof content === 'string') return `Tool result: ${content.slice(0, 100)}`;
+				return 'Tool result';
+			}
+		}
+
+		return 'User input';
 	}
 </script>
 

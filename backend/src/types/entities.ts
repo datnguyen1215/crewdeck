@@ -114,7 +114,7 @@ export interface AgentRun {
   created_at: string;
 }
 
-export type AgentRunEventType = "system" | "assistant" | "tool_use" | "tool_result" | "result";
+export type AgentRunEventType = string;
 
 export interface AgentRunEvent {
   id: string;
