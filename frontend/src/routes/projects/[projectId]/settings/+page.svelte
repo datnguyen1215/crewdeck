@@ -11,6 +11,7 @@
 		type EnvironmentVariable
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
@@ -183,6 +184,15 @@
 
 <div class="p-8 h-full overflow-auto">
 	<div class="max-w-xl">
+		<!-- Breadcrumb -->
+		<div class="mb-5">
+			<Breadcrumb segments={[
+				{ label: 'Projects', href: '/' },
+				{ label: project?.name ?? 'Project', href: `/projects/${projectId}` },
+				{ label: 'Settings' }
+			]} />
+		</div>
+
 		<h1 class="text-sm font-bold tracking-[0.3em] uppercase mb-8 fade-up" style="color: var(--color-cyan); text-shadow: var(--glow-cyan)">Project Settings</h1>
 
 		{#if loading}
