@@ -21,6 +21,7 @@ Each time you are invoked, you are a fresh instance with no memory of previous i
 - @engineer — writes and tests code
 - @lead — reviews code for correctness, security, architecture, quality, and testing
 - @docs — updates documentation to match code changes
+- @librarian — investigates codebases and maintains project knowledge entries
 
 Note: @mentions are references only. They do NOT trigger agent spawns. Use \`/dispatch\` to spawn agents.
 
