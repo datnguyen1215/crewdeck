@@ -7,6 +7,7 @@
 		deleteKnowledge,
 		listAgents,
 		getProject,
+		triggerKnowledgeScan,
 		type ProjectKnowledge,
 		type Agent,
 		type Project
@@ -35,6 +36,10 @@
 	// Delete confirmation
 	let confirmingDeleteId = $state<string | null>(null);
 	let deletingId = $state<string | null>(null);
+
+	// Scan state
+	let scanning = $state(false);
+	let scanIssueId = $state<string | null>(null);
 
 	$effect(() => {
 		loading = true;
@@ -148,6 +153,20 @@
 		if (text.length <= maxLen) return text;
 		return text.slice(0, maxLen) + '...';
 	}
+
+	async function handleScan() {
+		scanning = true;
+		scanIssueId = null;
+		try {
+			const result = await triggerKnowledgeScan(projectId);
+			scanIssueId = result.issue_id;
+			toastStore.add('Scan triggered — librarian agent dispatched', 'success');
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to trigger scan', 'error');
+		} finally {
+			scanning = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -176,12 +195,29 @@
 				{/if}
 			</p>
 		</div>
-		<button
-			onclick={openCreate}
-			class="px-3 py-1.5 bg-surface border border-edge text-primary text-xs font-medium rounded hover:border-edge-hi hover:bg-surface-hi transition-colors uppercase tracking-wide"
-		>
-			+ Add Entry
-		</button>
+		<div class="flex items-center gap-2">
+			{#if scanIssueId}
+				<a
+					href="/projects/{projectId}/issues/{scanIssueId}"
+					class="px-3 py-1.5 bg-purple/10 border border-purple text-purple text-xs font-medium rounded hover:bg-purple/20 transition-colors uppercase tracking-wide"
+				>
+					View Scan Issue
+				</a>
+			{/if}
+			<button
+				onclick={handleScan}
+				disabled={scanning}
+				class="px-3 py-1.5 bg-purple/10 border border-purple text-purple text-xs font-medium rounded hover:bg-purple/20 transition-colors uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				{scanning ? 'Scanning...' : 'Scan Codebase'}
+			</button>
+			<button
+				onclick={openCreate}
+				class="px-3 py-1.5 bg-surface border border-edge text-primary text-xs font-medium rounded hover:border-edge-hi hover:bg-surface-hi transition-colors uppercase tracking-wide"
+			>
+				+ Add Entry
+			</button>
+		</div>
 	</div>
 
 	<!-- Content -->
