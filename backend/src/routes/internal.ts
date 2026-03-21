@@ -3,6 +3,14 @@ import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
 import { createIssue, getIssue, updateIssue } from "../db/repositories/issues.js";
+import {
+  listByProject as listKnowledge,
+  getById as getKnowledge,
+  create as createKnowledge,
+  update as updateKnowledge,
+  remove as removeKnowledge,
+} from "../db/repositories/knowledge.js";
+import { getProject } from "../db/repositories/projects.js";
 import { NotFoundError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
 
@@ -75,6 +83,83 @@ router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
     changes: { priority },
   });
   res.json(updated);
+});
+
+// Helper to verify project for internal routes
+function verifyProjectExists(projectId: string) {
+  const project = getProject(projectId);
+  if (!project) throw new NotFoundError("Project not found");
+  return project;
+}
+
+// GET /knowledge/list — list knowledge entries
+const KnowledgeListSchema = z.object({
+  project_id: z.string(),
+});
+
+router.get("/knowledge/list", validate(KnowledgeListSchema, "query"), (req, res) => {
+  const { project_id } = req.query as { project_id: string };
+  verifyProjectExists(project_id);
+  const entries = listKnowledge(project_id);
+  res.json(entries);
+});
+
+// POST /knowledge/create — create knowledge entry (force source to "librarian")
+const KnowledgeCreateSchema = z.object({
+  project_id: z.string(),
+  title: z.string().min(1),
+  category: z.string().min(1),
+  content: z.string().min(1),
+  agent_ids: z.array(z.string()).nullable().optional(),
+});
+
+router.post("/knowledge/create", validate(KnowledgeCreateSchema), (req, res) => {
+  const { project_id, ...input } = req.body;
+  verifyProjectExists(project_id);
+  const entry = createKnowledge(project_id, { ...input, source: "librarian" });
+  res.status(201).json(entry);
+});
+
+// POST /knowledge/update — update knowledge entry
+const KnowledgeUpdateSchema = z.object({
+  project_id: z.string(),
+  knowledge_id: z.string(),
+  title: z.string().min(1).optional(),
+  category: z.string().min(1).optional(),
+  content: z.string().min(1).optional(),
+  agent_ids: z.array(z.string()).nullable().optional(),
+});
+
+router.post("/knowledge/update", validate(KnowledgeUpdateSchema), (req, res) => {
+  const { project_id, knowledge_id, ...updates } = req.body;
+  verifyProjectExists(project_id);
+
+  const existing = getKnowledge(knowledge_id);
+  if (!existing || existing.project_id !== project_id) {
+    throw new NotFoundError("Knowledge entry not found");
+  }
+
+  const updated = updateKnowledge(knowledge_id, updates);
+  res.json(updated);
+});
+
+// POST /knowledge/delete — delete knowledge entry
+const KnowledgeDeleteSchema = z.object({
+  project_id: z.string(),
+  knowledge_id: z.string(),
+});
+
+router.post("/knowledge/delete", validate(KnowledgeDeleteSchema), (req, res) => {
+  const { project_id, knowledge_id } = req.body;
+  verifyProjectExists(project_id);
+
+  const existing = getKnowledge(knowledge_id);
+  if (!existing || existing.project_id !== project_id) {
+    throw new NotFoundError("Knowledge entry not found");
+  }
+
+  removeKnowledge(knowledge_id);
+  res.status(204).send();
 });
 
 export default router;
