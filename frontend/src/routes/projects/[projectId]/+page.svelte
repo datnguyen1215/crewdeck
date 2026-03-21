@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, listAgents, createIssue, addComment, type Issue, type Agent } from '$lib/api/http.js';
+	import { listIssues, listAgents, createIssue, addComment, getProject, type Issue, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
@@ -11,9 +11,11 @@
 
 	let issues = $state<Issue[]>([]);
 	let agents = $state<Agent[]>([]);
+	let project = $state<Project | null>(null);
 	let loading = $state(true);
 
 	let projectId = $derived($page.params.projectId!);
+	let pageTitle = $derived(project?.name ? `${project.name} - CrewDeck` : 'CrewDeck');
 
 	// Filter state
 	let filterStatuses = $state<string[]>([]);
@@ -33,11 +35,12 @@
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
-		Promise.all([listIssues(projectId), listAgents()])
-			.then(([i, a]) => {
+		Promise.all([listIssues(projectId), listAgents(), getProject(projectId)])
+			.then(([i, a, p]) => {
 				if (cancelled) return; // discard stale response if projectId changed
 				issues = i;
 				agents = a;
+				project = p;
 				loading = false;
 			})
 			.catch(() => {
@@ -167,6 +170,10 @@
 	}
 
 </script>
+
+<svelte:head>
+	<title>{pageTitle}</title>
+</svelte:head>
 
 <div class="p-6 h-full overflow-auto">
 	<!-- Header -->

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { getIssue, updateIssue, listActivity, type IssueWithDetails, type ActivityLog } from '$lib/api/http.js';
+	import { getIssue, updateIssue, listActivity, getProject, type IssueWithDetails, type ActivityLog, type Project } from '$lib/api/http.js';
 	import { relTime } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
@@ -16,9 +16,15 @@
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
 	let issue = $state<Issue | null>(null);
+	let project = $state<Project | null>(null);
 	let loading = $state(true);
 	let projectId = $derived($page.params.projectId!);
 	let issueId = $derived($page.params.issueId!);
+	let pageTitle = $derived.by(() => {
+		if (issue?.title && project?.name) return `${issue.title} - ${project.name} - CrewDeck`;
+		if (issue?.title) return `${issue.title} - CrewDeck`;
+		return 'CrewDeck';
+	});
 
 	let showEditForm = $state(false);
 	let working = $state(false);
@@ -34,8 +40,8 @@
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
-		getIssue(projectId, issueId)
-			.then((d) => { if (!cancelled) issue = d; })
+		Promise.all([getIssue(projectId, issueId), getProject(projectId)])
+			.then(([d, p]) => { if (!cancelled) { issue = d; project = p; } })
 			.catch(() => { if (!cancelled) issue = null; })
 			.finally(() => { if (!cancelled) loading = false; });
 		return () => { cancelled = true; };
@@ -107,6 +113,10 @@
 		activityExpanded = next;
 	}
 </script>
+
+<svelte:head>
+	<title>{pageTitle}</title>
+</svelte:head>
 
 {#if loading}
 	<div class="p-6 max-w-6xl fade-up">

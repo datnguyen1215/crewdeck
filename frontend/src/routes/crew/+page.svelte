@@ -16,6 +16,10 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Crew - CrewDeck</title>
+</svelte:head>
+
 <div class="p-6 h-full overflow-auto">
 	<div class="mb-8">
 		<h1 class="text-xl font-bold text-primary uppercase tracking-wide">Crew</h1>
