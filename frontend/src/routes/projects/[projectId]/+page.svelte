@@ -4,6 +4,7 @@
 	import { listIssues, listAgents, createIssue, addComment, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
+	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
 	import { parseUTC, relTimeDiff } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
@@ -293,6 +294,10 @@
 				/>
 				<span class="text-xs text-muted">Show completed</span>
 			</label>
+
+			<div class="ml-auto">
+				<QueueMonitor />
+			</div>
 		</div>
 	</div>
 

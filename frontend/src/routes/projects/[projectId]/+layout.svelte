@@ -5,7 +5,6 @@
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { setContext } from 'svelte';
 	import type { WsEvent } from '$lib/api/ws.svelte.js';
-	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
 
 	let { children } = $props();
 
@@ -76,9 +75,5 @@
 		{ws.state === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
 	</div>
 {/if}
-
-<div class="fixed top-3 right-4 z-[200]">
-	<QueueMonitor />
-</div>
 
 {@render children()}
