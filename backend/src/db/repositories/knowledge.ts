@@ -89,9 +89,9 @@ export function remove(id: string): void {
 }
 
 export function listForAgent(projectId: string, agentId: string): ProjectKnowledge[] {
-  // Validate agentId is a valid UUID to prevent any pattern injection
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(agentId)) {
+  // Validate agentId contains only safe characters (alphanumeric, hyphens, underscores)
+  const agentIdRegex = /^[a-z0-9_-]+$/i;
+  if (!agentIdRegex.test(agentId)) {
     return [];
   }
 
