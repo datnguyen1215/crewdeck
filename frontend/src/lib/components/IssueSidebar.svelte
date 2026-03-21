@@ -3,6 +3,7 @@
 	import { updateIssue, deleteIssue, type IssueWithDetails } from '$lib/api/http.js';
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { STATUS_CFG, PR_STATUS } from '$lib/config/status.js';
 	import Modal from './Modal.svelte';
 
 	let {
@@ -33,22 +34,6 @@
 			working = false;
 		}
 	}
-
-	const STATUS_CFG: Record<
-		string,
-		{ label: string; dot: string; text: string; border: string; glow?: string; pulse?: boolean }
-	> = {
-		open: { label: 'Open', dot: '\u25CB', text: 'text-blue', border: 'border-blue', glow: 'var(--glow-blue)' },
-		in_progress: { label: 'In Progress', dot: '\u25C9', text: 'text-green', border: 'border-green', glow: 'var(--glow-green)', pulse: true },
-		pr_created: { label: 'PR Created', dot: '\u25C9', text: 'text-purple', border: 'border-purple', glow: 'var(--glow-purple)' },
-		done: { label: 'Done', dot: '\u2713', text: 'text-secondary', border: 'border-secondary' }
-	};
-
-	const PR_STATUS: Record<string, string> = {
-		open: 'text-green border-green',
-		merged: 'text-purple border-purple',
-		closed: 'text-red border-red'
-	};
 
 	async function handleMarkPrCreated() {
 		working = true;
