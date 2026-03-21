@@ -45,7 +45,7 @@
 						<p class="text-cyan text-xs mt-0.5 truncate">{agent.title}</p>
 					</div>
 					{#if agent.description}
-						<p class="text-muted text-xs line-clamp-2">{agent.description}</p>
+						<p class="text-muted text-xs line-clamp-2" title={agent.description}>{agent.description}</p>
 					{/if}
 				</div>
 			{/each}
