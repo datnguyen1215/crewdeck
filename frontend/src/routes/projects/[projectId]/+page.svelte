@@ -21,6 +21,7 @@
 	let filterStatuses = $state<string[]>([]);
 	let filterAgent = $state('');
 	let showCompleted = $state(false);
+	let searchQuery = $state('');
 
 	// Sort state — newest first by default
 	let sortField = $state<'priority' | 'created_at' | 'updated_at'>('created_at');
@@ -74,6 +75,14 @@
 
 	let filtered = $derived.by(() => {
 		let result = [...issues];
+		// Text search filter
+		if (searchQuery.trim()) {
+			const q = searchQuery.toLowerCase();
+			result = result.filter((i) =>
+				i.title.toLowerCase().includes(q) ||
+				(i.description && i.description.toLowerCase().includes(q))
+			);
+		}
 		// Hide done issues unless showCompleted is enabled
 		if (!showCompleted && !filterStatuses.includes('done')) {
 			result = result.filter((i) => i.status !== 'done');
@@ -194,6 +203,25 @@
 
 	<!-- Filters -->
 	<div class="mb-5 space-y-2.5">
+		<!-- Search input -->
+		<div class="flex items-center gap-2">
+			<span class="text-xs text-muted uppercase tracking-widest">Search:</span>
+			<input
+				type="text"
+				bind:value={searchQuery}
+				placeholder="Filter by title or description…"
+				class="flex-1 max-w-sm bg-surface border border-edge text-secondary text-xs rounded px-2 py-1 hover:border-edge-hi focus:border-cyan transition-colors outline-none placeholder:text-muted"
+			/>
+			{#if searchQuery}
+				<button
+					onclick={() => (searchQuery = '')}
+					class="px-2 py-0.5 text-xs text-muted hover:text-secondary border border-transparent hover:border-edge rounded transition-colors"
+				>
+					Clear ×
+				</button>
+			{/if}
+		</div>
+
 		<!-- Status toggle pills -->
 		<div class="flex flex-wrap items-center gap-1.5">
 			<span class="text-xs text-muted uppercase tracking-widest mr-1">Status:</span>
