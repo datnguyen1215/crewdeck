@@ -33,9 +33,9 @@
 </script>
 
 <div
-	class="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none w-80 max-w-[calc(100vw-2rem)]"
+	class="fixed bottom-4 right-4 z-[200] flex flex-col-reverse gap-2 pointer-events-none w-80 max-w-[calc(100vw-2rem)]"
 >
-	<!-- Collapsed stack indicator -->
+	<!-- Collapsed stack indicator (rendered first, appears at bottom due to flex-col-reverse) -->
 	{#if showCollapsed}
 		<button
 			onclick={toggleExpand}
@@ -43,16 +43,28 @@
 			out:fly={{ x: 24, duration: 180, easing: cubicIn }}
 			class="pointer-events-auto relative h-10 w-full rounded border border-border bg-surface shadow-lg cursor-pointer hover:bg-surface-hover transition-colors"
 		>
-			<!-- Stacked card visual (peeking cards behind) -->
-			<div class="absolute inset-0 rounded border border-border bg-surface -translate-y-1 scale-[0.97] opacity-60"></div>
-			<div class="absolute inset-0 rounded border border-border bg-surface -translate-y-2 scale-[0.94] opacity-30"></div>
+			<!-- Stacked card visual (peeking cards below to indicate older toasts underneath) -->
+			<div class="absolute inset-0 rounded border border-border bg-surface translate-y-1 scale-[0.97] opacity-60"></div>
+			<div class="absolute inset-0 rounded border border-border bg-surface translate-y-2 scale-[0.94] opacity-30"></div>
 			<span class="relative z-10 flex items-center justify-center h-full text-sm text-muted font-mono">
 				+{collapsedCount} more
 			</span>
 		</button>
 	{/if}
 
-	<!-- Visible toasts -->
+	<!-- Collapse button when expanded (rendered second, appears just above collapsed indicator) -->
+	{#if expanded && toastStore.items.length > MAX_VISIBLE}
+		<button
+			onclick={toggleExpand}
+			in:fly={{ y: 10, duration: 200, easing: cubicOut }}
+			out:fly={{ y: 10, duration: 150, easing: cubicIn }}
+			class="pointer-events-auto text-xs text-muted hover:text-primary font-mono transition-colors self-end"
+		>
+			collapse ↓
+		</button>
+	{/if}
+
+	<!-- Visible toasts (rendered last, appear at top due to flex-col-reverse) -->
 	{#each visibleItems as toast (toast.id)}
 		{@const s = STYLES[toast.type]}
 		<div
@@ -72,16 +84,4 @@
 			>✕</button>
 		</div>
 	{/each}
-
-	<!-- Collapse button when expanded -->
-	{#if expanded && toastStore.items.length > MAX_VISIBLE}
-		<button
-			onclick={toggleExpand}
-			in:fly={{ y: -10, duration: 200, easing: cubicOut }}
-			out:fly={{ y: -10, duration: 150, easing: cubicIn }}
-			class="pointer-events-auto text-xs text-muted hover:text-primary font-mono transition-colors self-end"
-		>
-			collapse ↑
-		</button>
-	{/if}
 </div>
