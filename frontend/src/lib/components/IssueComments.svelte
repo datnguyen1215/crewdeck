@@ -3,6 +3,7 @@
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import Modal from './Modal.svelte';
 
 	let {
 		comments,
@@ -101,10 +102,10 @@
 		try {
 			await deleteComment(projectId, issueId, deletingCommentId);
 			onCommentDeleted(deletingCommentId);
-			deletingCommentId = null;
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to delete comment', 'error');
 		} finally {
+			deletingCommentId = null;
 			commentWorking = false;
 		}
 	}
@@ -184,19 +185,11 @@
 								class="text-xs text-muted hover:text-secondary transition-colors px-1"
 								title="Edit comment"
 							>edit</button>
-							{#if deletingCommentId === comment.id}
-								<span class="text-xs text-red">Delete?
-									<button onclick={confirmDeleteComment} disabled={commentWorking} class="hover:underline">yes</button>
-									/
-									<button onclick={() => deletingCommentId = null} class="hover:underline text-muted">no</button>
-								</span>
-							{:else}
-								<button
-									onclick={() => deletingCommentId = comment.id}
-									class="text-xs text-muted hover:text-red transition-colors px-1"
-									title="Delete comment"
-								>delete</button>
-							{/if}
+							<button
+								onclick={() => deletingCommentId = comment.id}
+								class="text-xs text-muted hover:text-red transition-colors px-1"
+								title="Delete comment"
+							>delete</button>
 						</div>
 					{/if}
 				</div>
@@ -260,3 +253,12 @@
 		</button>
 	</div>
 </div>
+
+<Modal open={deletingCommentId !== null} onClose={() => deletingCommentId = null} label="Delete comment" maxWidth="max-w-sm">
+	<h2 class="text-lg font-semibold text-primary mb-2">Delete this comment?</h2>
+	<p class="text-sm text-secondary mb-6">This action cannot be undone.</p>
+	<div class="flex gap-3 justify-end">
+		<button onclick={() => deletingCommentId = null} class="px-4 py-2 text-sm border border-edge text-secondary rounded hover:text-primary transition-colors">Cancel</button>
+		<button onclick={confirmDeleteComment} disabled={commentWorking} class="px-4 py-2 text-sm bg-red text-white rounded hover:bg-red/80 transition-colors disabled:opacity-50">Delete</button>
+	</div>
+</Modal>
