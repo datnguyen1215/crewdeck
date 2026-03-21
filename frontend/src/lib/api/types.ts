@@ -47,7 +47,7 @@ export interface Issue {
   chain_depth: number;
   branch_name: string | null;
   worktree_path: string | null;
-  base_branch: string;
+  base_branch: string | null;
   repo_id: string | null;
   agent_id: string | null;
   running_agent_id: string | null;
