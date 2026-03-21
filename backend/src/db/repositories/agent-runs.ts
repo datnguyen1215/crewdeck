@@ -110,9 +110,21 @@ export function listRunningAgentRuns(): AgentRun[] {
 }
 
 export function markRunFailed(id: string): AgentRun | null {
+  const run = getAgentRun(id);
+  const completedAt = new Date().toISOString();
+
+  // Calculate duration if we have a start time
+  let durationMs: number | undefined;
+  if (run?.started_at) {
+    durationMs = new Date(completedAt).getTime() - new Date(run.started_at).getTime();
+  }
+
   return updateAgentRun(id, {
     status: "failed",
-    completed_at: new Date().toISOString(),
+    exit_code: -1, // Indicates abnormal termination (e.g., server restart)
+    duration_ms: durationMs,
+    cost_usd: 0, // No cost data available for interrupted runs
+    completed_at: completedAt,
   });
 }
 

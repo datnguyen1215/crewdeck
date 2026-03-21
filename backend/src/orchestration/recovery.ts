@@ -2,16 +2,14 @@
  * Startup recovery for orphaned agent runs.
  * Cleans up runs that were interrupted by server restart and re-dispatches captains.
  */
-import * as events from "../events/bus.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as issueRepo from "../db/repositories/issues.js";
 import * as projectRepo from "../db/repositories/projects.js";
-import * as commentRepo from "../db/repositories/comments.js";
 import * as log from "../logger.js";
 import * as dispatchQueue from "./queue.js";
 import * as crew from "./crew.js";
 import { getActiveProcessCount } from "./processes.js";
-import { postSystemComment } from "./spawner.js";
+import { postSystemComment, spawnAgent } from "./spawner.js";
 
 /** Delay before recovery to ensure server is fully initialized */
 const RECOVERY_DELAY_MS = 2000;
@@ -93,6 +91,12 @@ export const dispatchCaptainsForRecovery = (issuesByProject: Map<string, Set<str
       dispatchIndex++;
 
       setTimeout(() => {
+        const captain = crew.getCrewMember("captain");
+        if (!captain) {
+          log.logger.error({ issueId, projectId }, "Recovery failed: captain agent not found");
+          return;
+        }
+
         // Check current concurrency before dispatching
         const activeCount = getActiveProcessCount(projectId);
         if (activeCount >= project.max_concurrency) {
@@ -115,12 +119,21 @@ export const dispatchCaptainsForRecovery = (issuesByProject: Map<string, Set<str
           return;
         }
 
-        // Post dispatch comment to trigger captain
-        const comment = commentRepo.createComment(issueId, {
-          content: "/dispatch captain\n\nRecovery: resuming work after server restart.",
-          author_type: "system",
+        // Spawn captain directly instead of posting a system comment
+        // (system comments are ignored by the dispatch handler to prevent loops)
+        postSystemComment(issueId, projectId, "Recovery: resuming work after server restart");
+
+        spawnAgent(captain, issueId, projectId).catch((err) => {
+          log.logger.error(
+            { err, issueId, projectId },
+            "Recovery captain spawn failed",
+          );
+          postSystemComment(
+            issueId,
+            projectId,
+            `Recovery failed: ${err instanceof Error ? err.message : "unknown error"}`,
+          );
         });
-        events.eventBus.emit("comment.added", { comment, project_id: projectId });
 
         log.logger.info({ issueId, projectId }, "Recovery captain dispatch triggered");
       }, delay);
