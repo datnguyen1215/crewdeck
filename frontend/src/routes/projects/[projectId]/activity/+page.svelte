@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listActivity, listIssues, listAgents, getProject, type ActivityLog, type Issue, type Agent, type Project } from '$lib/api/http.js';
+	import { listActivity, listIssues, listAgents, getProject, type ActivityLog, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { ACTOR_CFG, ACTION_DISPLAY } from '$lib/activity.js';
@@ -18,7 +18,7 @@
 	let project = $state<Project | null>(null);
 	let pageTitle = $derived(project?.name ? `Activity - ${project.name} - CrewDeck` : 'Activity - CrewDeck');
 	let allEntries = $state<ActivityEntry[]>([]);
-	let issues = $state<Issue[]>([]);
+	let issues = $state<IssueWithRunningAgent[]>([]);
 	let agents = $state<Agent[]>([]);
 	let loading = $state(true);
 	let visibleCount = $state(PAGE_SIZE);

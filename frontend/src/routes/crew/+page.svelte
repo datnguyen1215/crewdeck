@@ -23,7 +23,9 @@
 <div class="p-6 h-full overflow-auto">
 	<div class="mb-8">
 		<h1 class="text-xl font-bold text-primary uppercase tracking-wide">Crew</h1>
-		<p class="text-muted text-xs mt-1">{agents.length} member{agents.length !== 1 ? 's' : ''}</p>
+		<p class="text-muted text-xs mt-1">
+			{#if loading}Loading crew members…{:else}{agents.length} member{agents.length !== 1 ? 's' : ''}{/if}
+		</p>
 	</div>
 
 	{#if loading}
@@ -45,7 +47,7 @@
 						<p class="text-cyan text-xs mt-0.5 truncate">{agent.title}</p>
 					</div>
 					{#if agent.description}
-						<p class="text-muted text-xs line-clamp-2">{agent.description}</p>
+						<p class="text-muted text-xs line-clamp-2" title={agent.description}>{agent.description}</p>
 					{/if}
 				</div>
 			{/each}

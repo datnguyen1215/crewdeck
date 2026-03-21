@@ -4,6 +4,7 @@ import type {
   Repo,
   Agent,
   Issue,
+  IssueWithRunningAgent,
   IssueWithDetails,
   Comment,
   ActivityLog,
@@ -21,6 +22,7 @@ export type {
   Repo,
   Agent,
   Issue,
+  IssueWithRunningAgent,
   IssuePR,
   IssueWithDetails,
   Comment,
@@ -104,7 +106,7 @@ export function listAgents() {
 
 // Issues
 export function listIssues(projectId: string, filters?: { status?: string; created_by?: string; sort?: string; order?: string }) {
-  return request<Issue[]>("GET", `/projects/${e(projectId)}/issues${qs(filters)}`);
+  return request<IssueWithRunningAgent[]>("GET", `/projects/${e(projectId)}/issues${qs(filters)}`);
 }
 export function getIssue(projectId: string, issueId: string) {
   return request<IssueWithDetails>("GET", `/projects/${e(projectId)}/issues/${e(issueId)}`);
@@ -149,8 +151,17 @@ export function listActivity(projectId: string, filters?: { issue_id?: string; a
 }
 
 // Environment Variables
+export function listEnvironmentVariables(projectId: string) {
+  return request<EnvironmentVariable[]>("GET", `/projects/${e(projectId)}/environment`);
+}
 export function createEnvironmentVariable(projectId: string, data: { key: string; value: string; is_secret?: boolean }) {
   return request<EnvironmentVariable>("POST", `/projects/${e(projectId)}/environment`, data);
+}
+export function updateEnvironmentVariable(projectId: string, envVarId: string, data: { key?: string; value?: string; is_secret?: boolean }) {
+  return request<EnvironmentVariable>("PATCH", `/projects/${e(projectId)}/environment/${e(envVarId)}`, data);
+}
+export function deleteEnvironmentVariable(projectId: string, envVarId: string) {
+  return request<void>("DELETE", `/projects/${e(projectId)}/environment/${e(envVarId)}`);
 }
 
 // Agent Runs

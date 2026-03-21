@@ -143,7 +143,7 @@
 							{project.name}
 						</h2>
 						{#if project.description}
-							<p class="text-secondary text-xs mt-1 line-clamp-1">{project.description}</p>
+							<p class="text-secondary text-xs mt-1 line-clamp-1" title={project.description}>{project.description}</p>
 						{:else}
 							<p class="text-muted text-xs mt-1 italic">No description</p>
 						{/if}

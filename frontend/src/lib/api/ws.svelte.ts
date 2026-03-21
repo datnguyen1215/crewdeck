@@ -20,6 +20,8 @@ export type WsEvent =
   | "mention.completed"
   | "mention.error"
   | "mention.chain_depth_reached"
+  | "dispatch.queued"
+  | "dispatch.dequeued"
   | "run.started"
   | "run.event"
   | "run.completed";

@@ -1,6 +1,7 @@
 import { db } from "../index.js";
 import type {
   Issue,
+  IssueWithRunningAgent,
   IssueWithDetails,
   CreateIssueInput,
   UpdateIssueInput,
@@ -11,11 +12,6 @@ import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
 import { buildAndRunUpdate } from "./utils.js";
-
-export interface IssueWithRunningAgent extends Issue {
-  running_agent_id: string | null;
-  running_agent_status: string | null;
-}
 
 export function listIssues(projectId: string, filters: IssueFilters = {}): IssueWithRunningAgent[] {
   const conditions: string[] = ["i.project_id = ?"];
