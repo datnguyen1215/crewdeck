@@ -161,7 +161,7 @@ function buildPrompt(opts: BuildPromptOptions): string
 
 A backward-compatible 4-argument form (`issue, comments, repo, worktreePath`) is also accepted for callers that do not need the new fields.
 
-**Role-specific API access:** The prompt's API section varies by `agentId`. Captain receives the full API reference (issues CRUD, status transitions, activity log, internal comment/issue endpoints). All other agents receive a notice that their stdout is automatically posted as a comment — no direct API access.
+**Role-specific API access:** The prompt's API section varies by `agentId`. Captain receives the full API reference (issues CRUD, status transitions, activity log, internal comment/issue endpoints). Librarian receives access to the knowledge internal API (list, create, update, delete knowledge entries). All other agents receive a notice that their stdout is automatically posted as a comment — no direct API access.
 
 **Captain project issues:** When `agentId` is `"captain"`, the prompt includes a summary of all open and in-progress issues (excluding the current one) to support dependency-aware scheduling.
 

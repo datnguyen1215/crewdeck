@@ -26,12 +26,12 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - A name and description.
 - Knowledge entries for project context (conventions, structure notes, gotchas) injected into agent prompts.
 - One or more linked GitHub repositories.
-- A shared roster of 4 fixed agents (defined globally, not per-project).
+- A shared roster of 5 fixed agents (defined globally, not per-project).
 - A concurrency limit (max simultaneous agent processes).
 
 ### Agent
 
-The crew is a fixed set of 4 immutable agents defined in code (Captain, Engineer, Lead, Docs). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
+The crew is a fixed set of 5 immutable agents defined in code (Captain, Engineer, Lead, Docs, Librarian). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
 Agent names are used for `/dispatch` command matching.
 

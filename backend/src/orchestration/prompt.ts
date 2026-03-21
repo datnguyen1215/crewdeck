@@ -22,6 +22,11 @@ function formatIssueSummary(issue: Issue): string {
  */
 const FULL_ACCESS_AGENTS = new Set(["captain"]);
 
+/**
+ * Agents with knowledge API access (list, create, update, delete knowledge entries).
+ */
+const KNOWLEDGE_ACCESS_AGENTS = new Set(["librarian"]);
+
 function buildApiSection(agentId: string): string {
   const lines: string[] = [
     "## API Reference",
@@ -49,6 +54,15 @@ function buildApiSection(agentId: string): string {
       "- POST $CREWDECK_API_URL/api/v1/internal/comment — post a comment (body: { issue_id, project_id, agent_id, content })",
       "- POST $CREWDECK_API_URL/api/v1/internal/issues/create — create a new issue (body: { project_id, title, description, priority? })",
       "- POST $CREWDECK_API_URL/api/v1/internal/issues/update — update issue priority (body: { project_id, issue_id, priority })",
+    );
+  } else if (KNOWLEDGE_ACCESS_AGENTS.has(agentId)) {
+    lines.push(
+      "",
+      "Knowledge API (via curl):",
+      "- GET $CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID — list knowledge entries",
+      "- POST $CREWDECK_API_URL/api/v1/internal/knowledge/create — create entry (body: { project_id, title, category, content, agent_ids? })",
+      "- POST $CREWDECK_API_URL/api/v1/internal/knowledge/update — update entry (body: { project_id, knowledge_id, title?, category?, content?, agent_ids? })",
+      "- POST $CREWDECK_API_URL/api/v1/internal/knowledge/delete — delete entry (body: { project_id, knowledge_id })",
     );
   } else {
     // Non-captain agents don't need API access — their stdout is automatically
