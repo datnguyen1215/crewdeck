@@ -1,4 +1,4 @@
-import type { Issue, Comment, Repo } from "../types/entities.js";
+import type { Issue, Comment, Repo, ProjectKnowledge } from "../types/entities.js";
 import { escapeXml } from "../utils/xml.js";
 
 function formatComments(comments: Comment[]): string {
@@ -70,8 +70,8 @@ export interface BuildPromptOptions {
   agentId: string;
   /** All open/in-progress issues for the project (injected for captain). */
   projectIssues?: Issue[];
-  /** Project memory/context to inject into the prompt. */
-  projectMemory?: string | null;
+  /** Knowledge entries filtered for this agent. */
+  projectKnowledge?: ProjectKnowledge[];
 }
 
 export function buildPrompt(opts: BuildPromptOptions): string;
@@ -101,16 +101,19 @@ export function buildPrompt(
     opts = issueOrOpts as BuildPromptOptions;
   }
 
-  const { issue, comments: cmts, repo: r, worktreePath: wp, agentId, projectIssues, projectMemory } = opts;
+  const { issue, comments: cmts, repo: r, worktreePath: wp, agentId, projectIssues, projectKnowledge } = opts;
   const parts: string[] = [];
 
   parts.push(
     `## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`,
   );
 
-  // Inject project memory/context if present
-  if (projectMemory && projectMemory.trim()) {
-    parts.push(`## Project Context\n${projectMemory.trim()}`);
+  // Inject project knowledge entries if present
+  if (projectKnowledge && projectKnowledge.length > 0) {
+    const entries = projectKnowledge
+      .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
+      .join("\n\n");
+    parts.push(`## Project Knowledge\n${entries}`);
   }
 
   if (r)

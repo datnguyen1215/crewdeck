@@ -89,6 +89,13 @@ export function remove(id: string): void {
 }
 
 export function listForAgent(projectId: string, agentId: string): ProjectKnowledge[] {
+  // Validate agentId contains only safe characters (alphanumeric, hyphens, underscores)
+  const agentIdRegex = /^[a-z0-9_-]+$/i;
+  if (!agentIdRegex.test(agentId)) {
+    return [];
+  }
+
+  const pattern = `%"${agentId}"%`;
   const rows = db
     .prepare(
       `SELECT * FROM ProjectKnowledge
@@ -96,6 +103,6 @@ export function listForAgent(projectId: string, agentId: string): ProjectKnowled
          AND (agent_ids IS NULL OR agent_ids LIKE ?)
        ORDER BY updated_at DESC, created_at DESC`
     )
-    .all(projectId, `%"${agentId}"%`) as KnowledgeRow[];
+    .all(projectId, pattern) as KnowledgeRow[];
   return rows.map(fromRow);
 }

@@ -221,53 +221,65 @@ describe("buildPrompt options form", () => {
     expect(prompt).not.toContain("All Open/In-Progress Issues");
   });
 
-  it("includes project memory when provided", () => {
+  it("includes project knowledge when provided", () => {
     const prompt = buildPrompt({
       issue,
       comments: [],
       repo,
       worktreePath: "/tmp/work",
       agentId: "engineer",
-      projectMemory: "## Structure\nMonorepo with backend/ and frontend/\n\n## Gotchas\nRun npm install first",
+      projectKnowledge: [
+        {
+          id: "k1",
+          project_id: "p1",
+          title: "Structure",
+          category: "architecture",
+          content: "Monorepo with backend/ and frontend/",
+          source: null,
+          agent_ids: null,
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+        {
+          id: "k2",
+          project_id: "p1",
+          title: "Gotchas",
+          category: "setup",
+          content: "Run npm install first",
+          source: null,
+          agent_ids: null,
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+      ],
     });
-    expect(prompt).toContain("## Project Context");
+    expect(prompt).toContain("## Project Knowledge");
+    expect(prompt).toContain("### Structure (architecture)");
     expect(prompt).toContain("Monorepo with backend/ and frontend/");
+    expect(prompt).toContain("### Gotchas (setup)");
     expect(prompt).toContain("Run npm install first");
   });
 
-  it("omits project context section when memory is empty", () => {
+  it("omits project knowledge section when array is empty", () => {
     const prompt = buildPrompt({
       issue,
       comments: [],
       repo,
       worktreePath: "/tmp/work",
       agentId: "engineer",
-      projectMemory: "",
+      projectKnowledge: [],
     });
-    expect(prompt).not.toContain("## Project Context");
+    expect(prompt).not.toContain("## Project Knowledge");
   });
 
-  it("omits project context section when memory is null", () => {
+  it("omits project knowledge section when undefined", () => {
     const prompt = buildPrompt({
       issue,
       comments: [],
       repo,
       worktreePath: "/tmp/work",
       agentId: "engineer",
-      projectMemory: null,
     });
-    expect(prompt).not.toContain("## Project Context");
-  });
-
-  it("omits project context section when memory is only whitespace", () => {
-    const prompt = buildPrompt({
-      issue,
-      comments: [],
-      repo,
-      worktreePath: "/tmp/work",
-      agentId: "engineer",
-      projectMemory: "   \n\t  ",
-    });
-    expect(prompt).not.toContain("## Project Context");
+    expect(prompt).not.toContain("## Project Knowledge");
   });
 });

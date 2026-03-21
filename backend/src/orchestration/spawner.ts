@@ -12,6 +12,7 @@ import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as githubAccountRepo from "../db/repositories/github-accounts.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
+import * as knowledgeRepo from "../db/repositories/knowledge.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import * as dispatchQueue from "./queue.js";
@@ -327,6 +328,8 @@ export const spawnAgent = async (
       ? issueRepo.listIssues(projectId, { status: ["open", "in_progress"] })
       : undefined;
 
+  const projectKnowledge = knowledgeRepo.listForAgent(projectId, agent.id);
+
   const prompt = agentPrompt.buildPrompt({
     issue: issueRepo.getIssue(issueId)!,
     comments,
@@ -334,7 +337,7 @@ export const spawnAgent = async (
     worktreePath: worktreePath ?? ".",
     agentId: agent.id,
     projectIssues,
-    projectMemory: null,
+    projectKnowledge,
   });
 
   const envVars = getEnvVars(projectId);

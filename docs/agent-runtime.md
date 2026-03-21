@@ -165,6 +165,20 @@ A backward-compatible 4-argument form (`issue, comments, repo, worktreePath`) is
 
 **Captain project issues:** When `agentId` is `"captain"`, the prompt includes a summary of all open and in-progress issues (excluding the current one) to support dependency-aware scheduling.
 
+**Project knowledge:** Knowledge entries are injected as a `## Project Knowledge` section. Each entry is rendered as a level-3 heading with its title and category, followed by the content:
+
+```
+## Project Knowledge
+
+### Entry Title (category)
+Entry content here...
+
+### Another Entry (conventions)
+More content...
+```
+
+Entries are filtered by agent assignment (`agent_ids` field) and ordered by `updated_at DESC, created_at DESC`. An agent only receives entries where `agent_ids` is null (applies to all agents) or contains the agent's ID.
+
 Every invocation gets a complete, self-contained prompt from the database. The backend does not rely on Claude's session management.
 
 ## Startup and Shutdown
