@@ -109,7 +109,10 @@
 
 		<!-- Chain depth -->
 		<div class="flex items-center gap-2">
-			<span class="text-muted w-20 shrink-0">Chain</span>
+			<span class="text-muted w-20 shrink-0 flex items-center gap-1">
+				Chain
+				<span class="cursor-help" title="Chain depth tracks how many times an agent has been automatically re-dispatched on this issue. The limit prevents infinite loops.">ℹ</span>
+			</span>
 			<span class="text-secondary">{issue.chain_depth} / 20</span>
 		</div>
 
