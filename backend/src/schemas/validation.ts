@@ -24,8 +24,6 @@ export const CreateProjectSchema = CreateProjectBase;
 export const UpdateProjectSchema = CreateProjectBase.omit({
   github_url: true,
   default_branch: true,
-}).extend({
-  memory: z.string().nullable().optional(),
 }).partial();
 
 export const CreateRepoSchema = z.object({
@@ -99,4 +97,20 @@ export const InitDeviceFlowSchema = z.object({
 export const PollDeviceFlowSchema = z.object({
   device_code: z.string().min(1),
   client_id: z.string().min(1).optional(),
+});
+
+export const CreateKnowledgeSchema = z.object({
+  title: z.string().min(1),
+  category: z.string().min(1),
+  content: z.string().min(1),
+  source: z.string().optional(),
+  agent_ids: z.array(z.string()).nullable().optional(),
+});
+
+export const UpdateKnowledgeSchema = z.object({
+  title: z.string().min(1).optional(),
+  category: z.string().min(1).optional(),
+  content: z.string().min(1).optional(),
+  source: z.string().nullable().optional(),
+  agent_ids: z.array(z.string()).nullable().optional(),
 });

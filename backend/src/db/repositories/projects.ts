@@ -99,6 +99,7 @@ export function updateProject(id: string, input: UpdateProjectInput): Project {
 
 export function deleteProject(id: string): void {
   db.transaction(() => {
+    db.prepare("DELETE FROM ProjectKnowledge WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM EnvironmentVariable WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM ActivityLog WHERE project_id = ?").run(id);
     db.prepare(
