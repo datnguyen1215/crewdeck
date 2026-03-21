@@ -58,6 +58,8 @@ export interface Issue {
   base_branch: string | null;
   repo_id: string | null;
   agent_id: string | null;
+  running_agent_id: string | null;
+  running_agent_status: string | null;
   created_at: string;
   updated_at: string;
 }

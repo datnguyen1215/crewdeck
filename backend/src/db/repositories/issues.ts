@@ -12,12 +12,7 @@ import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
 import { buildAndRunUpdate } from "./utils.js";
 
-export interface IssueWithRunningAgent extends Issue {
-  running_agent_id: string | null;
-  running_agent_status: string | null;
-}
-
-export function listIssues(projectId: string, filters: IssueFilters = {}): IssueWithRunningAgent[] {
+export function listIssues(projectId: string, filters: IssueFilters = {}): Issue[] {
   const conditions: string[] = ["i.project_id = ?"];
   const values: unknown[] = [projectId];
 
@@ -56,7 +51,7 @@ export function listIssues(projectId: string, filters: IssueFilters = {}): Issue
     ORDER BY i.${sortCol} ${order}
   `;
 
-  return db.prepare(sql).all(...values) as IssueWithRunningAgent[];
+  return db.prepare(sql).all(...values) as Issue[];
 }
 
 export function getIssue(id: string): Issue | null {
