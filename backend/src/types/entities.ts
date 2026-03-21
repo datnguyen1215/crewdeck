@@ -62,6 +62,11 @@ export interface Issue {
   updated_at: string;
 }
 
+export interface IssueWithRunningAgent extends Issue {
+  running_agent_id: string | null;
+  running_agent_status: string | null;
+}
+
 export interface Comment {
   id: string;
   issue_id: string;
