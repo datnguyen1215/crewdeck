@@ -3,6 +3,7 @@
 	import { listIssueRuns, getRun, type AgentRun, type AgentRunWithEvents, type AgentRunEvent } from '$lib/api/http.js';
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let { projectId, issueId }: { projectId: string; issueId: string } = $props();
 
@@ -107,6 +108,7 @@
 			runs = await listIssueRuns(projectId, issueId);
 		} catch {
 			runs = [];
+			toastStore.add('Failed to load agent runs', 'error');
 		} finally {
 			loading = false;
 		}
@@ -136,6 +138,7 @@
 		} catch {
 			// Fallback to live events only if API fails
 			expandedEvents = liveEvents.get(runId) ?? [];
+			toastStore.add('Failed to load run events', 'error');
 		} finally {
 			loadingEvents = false;
 		}

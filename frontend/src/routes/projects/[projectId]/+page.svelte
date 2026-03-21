@@ -6,6 +6,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
 	import { parseUTC, relTimeDiff } from '$lib/utils/time.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -44,7 +45,10 @@
 				loading = false;
 			})
 			.catch(() => {
-				if (!cancelled) loading = false;
+				if (!cancelled) {
+					loading = false;
+					toastStore.add('Failed to load issues', 'error');
+				}
 			});
 		return () => {
 			cancelled = true;
@@ -57,7 +61,7 @@
 		const reload = () => {
 			Promise.all([listIssues(projectId), listAgents()])
 				.then(([i, a]) => { issues = i; agents = a; })
-				.catch(() => {});
+				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
 		};
 		const unsubs = [
 			ws.on('issue.created', reload),
