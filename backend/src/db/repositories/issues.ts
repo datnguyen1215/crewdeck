@@ -1,6 +1,7 @@
 import { db } from "../index.js";
 import type {
   Issue,
+  IssueWithRunningAgent,
   IssueWithDetails,
   CreateIssueInput,
   UpdateIssueInput,
@@ -12,7 +13,7 @@ import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
 import { buildAndRunUpdate } from "./utils.js";
 
-export function listIssues(projectId: string, filters: IssueFilters = {}): Issue[] {
+export function listIssues(projectId: string, filters: IssueFilters = {}): IssueWithRunningAgent[] {
   const conditions: string[] = ["i.project_id = ?"];
   const values: unknown[] = [projectId];
 
@@ -51,7 +52,7 @@ export function listIssues(projectId: string, filters: IssueFilters = {}): Issue
     ORDER BY i.${sortCol} ${order}
   `;
 
-  return db.prepare(sql).all(...values) as Issue[];
+  return db.prepare(sql).all(...values) as IssueWithRunningAgent[];
 }
 
 export function getIssue(id: string): Issue | null {

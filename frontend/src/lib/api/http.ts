@@ -4,6 +4,7 @@ import type {
   Repo,
   Agent,
   Issue,
+  IssueWithRunningAgent,
   IssueWithDetails,
   Comment,
   ActivityLog,
@@ -21,6 +22,7 @@ export type {
   Repo,
   Agent,
   Issue,
+  IssueWithRunningAgent,
   IssuePR,
   IssueWithDetails,
   Comment,
@@ -104,7 +106,7 @@ export function listAgents() {
 
 // Issues
 export function listIssues(projectId: string, filters?: { status?: string; created_by?: string; sort?: string; order?: string }) {
-  return request<Issue[]>("GET", `/projects/${e(projectId)}/issues${qs(filters)}`);
+  return request<IssueWithRunningAgent[]>("GET", `/projects/${e(projectId)}/issues${qs(filters)}`);
 }
 export function getIssue(projectId: string, issueId: string) {
   return request<IssueWithDetails>("GET", `/projects/${e(projectId)}/issues/${e(issueId)}`);

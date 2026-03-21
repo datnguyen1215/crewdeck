@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, listAgents, createIssue, addComment, getProject, type Issue, type Agent, type Project } from '$lib/api/http.js';
+	import { listIssues, listAgents, createIssue, addComment, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
@@ -9,7 +9,7 @@
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
-	let issues = $state<Issue[]>([]);
+	let issues = $state<IssueWithRunningAgent[]>([]);
 	let agents = $state<Agent[]>([]);
 	let project = $state<Project | null>(null);
 	let loading = $state(true);
@@ -127,11 +127,11 @@
 	// Track dispatching state per issue
 	let dispatchingIssues = $state<Set<string>>(new Set());
 
-	function hasActiveAgent(issue: Issue): boolean {
+	function hasActiveAgent(issue: IssueWithRunningAgent): boolean {
 		return issue.running_agent_status === 'running' || issue.running_agent_status === 'queued';
 	}
 
-	async function handleDispatch(e: Event, issue: Issue) {
+	async function handleDispatch(e: Event, issue: IssueWithRunningAgent) {
 		e.preventDefault();
 		e.stopPropagation();
 		if (hasActiveAgent(issue) || dispatchingIssues.has(issue.id)) return;
@@ -159,7 +159,8 @@
 				title: newTitle.trim(),
 				description: newDescription.trim()
 			});
-			issues = [...issues, issue];
+			// Newly created issue has no running agent
+			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null }];
 			showModal = false;
 			resetForm();
 		} catch (err) {
