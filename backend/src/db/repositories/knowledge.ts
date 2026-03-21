@@ -89,6 +89,13 @@ export function remove(id: string): void {
 }
 
 export function listForAgent(projectId: string, agentId: string): ProjectKnowledge[] {
+  // Validate agentId is a valid UUID to prevent any pattern injection
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(agentId)) {
+    return [];
+  }
+
+  const pattern = `%"${agentId}"%`;
   const rows = db
     .prepare(
       `SELECT * FROM ProjectKnowledge
@@ -96,6 +103,6 @@ export function listForAgent(projectId: string, agentId: string): ProjectKnowled
          AND (agent_ids IS NULL OR agent_ids LIKE ?)
        ORDER BY updated_at DESC, created_at DESC`
     )
-    .all(projectId, `%"${agentId}"%`) as KnowledgeRow[];
+    .all(projectId, pattern) as KnowledgeRow[];
   return rows.map(fromRow);
 }
