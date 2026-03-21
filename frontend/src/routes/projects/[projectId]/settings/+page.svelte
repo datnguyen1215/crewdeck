@@ -36,30 +36,44 @@
 	let editEnvIsSecret = $state(false);
 	let savingEnv = $state(false);
 	let deletingEnvId = $state<string | null>(null);
+	let confirmingDeleteEnvId = $state<string | null>(null);
 
 	$effect(() => {
 		loading = true;
+		envLoading = true;
+		let cancelled = false;
+
 		getProject(projectId)
 			.then((p) => {
+				if (cancelled) return;
 				project = p;
 				name = p.name;
 				description = p.description ?? '';
 				memory = p.memory ?? '';
 				maxConcurrency = p.max_concurrency;
 			})
-			.catch(() => { toastStore.add('Failed to load project', 'error'); })
-			.finally(() => { loading = false; });
-		loadEnvVars();
+			.catch(() => { if (!cancelled) toastStore.add('Failed to load project', 'error'); })
+			.finally(() => { if (!cancelled) loading = false; });
+
+		listEnvironmentVariables(projectId)
+			.then((vars) => { if (!cancelled) envVars = vars; })
+			.catch(() => { if (!cancelled) toastStore.add('Failed to load environment variables', 'error'); })
+			.finally(() => { if (!cancelled) envLoading = false; });
+
+		return () => { cancelled = true; };
 	});
 
-	async function loadEnvVars() {
-		envLoading = true;
+	async function confirmDeleteEnvVar(envVarId: string) {
+		deletingEnvId = envVarId;
 		try {
-			envVars = await listEnvironmentVariables(projectId);
-		} catch {
-			toastStore.add('Failed to load environment variables', 'error');
+			await deleteEnvironmentVariable(projectId, envVarId);
+			envVars = envVars.filter(v => v.id !== envVarId);
+			toastStore.add('Environment variable deleted', 'success');
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to delete variable', 'error');
 		} finally {
-			envLoading = false;
+			deletingEnvId = null;
+			confirmingDeleteEnvId = null;
 		}
 	}
 
@@ -121,18 +135,6 @@
 		}
 	}
 
-	async function deleteEnvVar(envVarId: string) {
-		deletingEnvId = envVarId;
-		try {
-			await deleteEnvironmentVariable(projectId, envVarId);
-			envVars = envVars.filter(v => v.id !== envVarId);
-			toastStore.add('Environment variable deleted', 'success');
-		} catch (err) {
-			toastStore.add(err instanceof Error ? err.message : 'Failed to delete variable', 'error');
-		} finally {
-			deletingEnvId = null;
-		}
-	}
 
 	let hasChanges = $derived(
 		project != null && (
@@ -257,9 +259,18 @@
 										<button onclick={() => startEditEnv(envVar)} class="opacity-0 group-hover:opacity-100 px-2 py-1 text-xs text-secondary hover:text-primary transition-all">
 											Edit
 										</button>
-										<button onclick={() => deleteEnvVar(envVar.id)} disabled={deletingEnvId === envVar.id} class="opacity-0 group-hover:opacity-100 px-2 py-1 text-xs text-red-400 hover:text-red-300 transition-all disabled:opacity-50">
-											{deletingEnvId === envVar.id ? '...' : 'Delete'}
-										</button>
+										{#if confirmingDeleteEnvId === envVar.id}
+											<button onclick={() => confirmDeleteEnvVar(envVar.id)} disabled={deletingEnvId === envVar.id} class="px-2 py-1 text-xs text-red-400 hover:text-red-300 transition-all disabled:opacity-50">
+												{deletingEnvId === envVar.id ? '...' : 'Confirm'}
+											</button>
+											<button onclick={() => confirmingDeleteEnvId = null} class="px-2 py-1 text-xs text-muted hover:text-secondary transition-all">
+												Cancel
+											</button>
+										{:else}
+											<button onclick={() => confirmingDeleteEnvId = envVar.id} class="opacity-0 group-hover:opacity-100 px-2 py-1 text-xs text-red-400 hover:text-red-300 transition-all">
+												Delete
+											</button>
+										{/if}
 									</div>
 								{/if}
 							{/each}
