@@ -80,23 +80,26 @@
 <svelte:window onclick={handleClickOutside} onkeydown={handleKeydown} />
 
 <div class="queue-monitor relative">
-	<button
-		onclick={() => open = !open}
-		class="flex items-center gap-1.5 px-2 py-1.5 rounded border transition-colors
-			{totalCount > 0
-				? 'border-cyan/50 text-cyan hover:border-cyan hover:bg-cyan/10'
-				: 'border-edge text-muted hover:border-edge-hi hover:text-secondary'}"
-		title="Queue monitor"
-	>
-		<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-			<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-			<line x1="3" y1="9" x2="21" y2="9"/>
-			<line x1="9" y1="21" x2="9" y2="9"/>
-		</svg>
-		{#if totalCount > 0}
-			<span class="text-xs font-medium tabular-nums">{totalCount}</span>
-		{/if}
-	</button>
+	{#if totalCount > 0}
+		<button
+			onclick={() => open = !open}
+			class="flex items-center gap-1.5 px-2 py-1 rounded border border-edge text-xs hover:border-edge-hi hover:bg-surface-hi transition-colors"
+			title="Queue monitor"
+		>
+			{#if runningCount > 0}
+				<span class="flex items-center gap-1 text-green">
+					<span class="w-1.5 h-1.5 rounded-full bg-green animate-pulse"></span>
+					{runningCount} running
+				</span>
+			{/if}
+			{#if runningCount > 0 && queuedCount > 0}
+				<span class="text-muted">·</span>
+			{/if}
+			{#if queuedCount > 0}
+				<span class="text-amber">{queuedCount} queued</span>
+			{/if}
+		</button>
+	{/if}
 
 	{#if open}
 		<div class="absolute right-0 top-full mt-2 w-80 bg-surface border border-edge rounded shadow-lg z-50 fade-up">
