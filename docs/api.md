@@ -673,6 +673,99 @@ DELETE /projects/:projectId/environment/:envVarId
 
 ---
 
+### Knowledge
+
+Project knowledge entries provide structured context to agents. See [Data Model](data-model.md#projectknowledge) for the full schema.
+
+#### List Knowledge Entries
+
+```
+GET /projects/:projectId/knowledge
+```
+
+**Response:** `200 OK` — Array of knowledge entry objects, ordered by updated_at descending.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "title": "API Conventions",
+    "category": "conventions",
+    "content": "All endpoints return JSON...",
+    "source": "librarian",
+    "agent_ids": ["engineer", "lead"],
+    "created_at": "ISO 8601",
+    "updated_at": "ISO 8601"
+  }
+]
+```
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Get Knowledge Entry
+
+```
+GET /projects/:projectId/knowledge/:knowledgeId
+```
+
+**Response:** `200 OK` — Single knowledge entry object.
+
+**Error:** `404 Not Found` — Knowledge entry does not exist or belongs to a different project.
+
+#### Create Knowledge Entry
+
+```
+POST /projects/:projectId/knowledge
+```
+
+**Request Body:**
+```json
+{
+  "title": "API Conventions",
+  "category": "conventions",
+  "content": "All endpoints return JSON...",
+  "source": "user",
+  "agent_ids": ["engineer", "lead"]
+}
+```
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| title | Yes | — | Short title for the entry. |
+| category | Yes | — | Category for grouping (e.g., `architecture`, `conventions`, `gotchas`). |
+| content | Yes | — | The knowledge content. |
+| source | No | null | Optional source reference (e.g., `user`, `librarian`, file path, URL). |
+| agent_ids | No | null | Array of agent IDs this entry applies to. NULL means all agents. |
+
+**Response:** `201 Created` — The created knowledge entry object.
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Update Knowledge Entry
+
+```
+PATCH /projects/:projectId/knowledge/:knowledgeId
+```
+
+**Request Body:** Any subset of fields (title, category, content, source, agent_ids).
+
+**Response:** `200 OK` — The updated knowledge entry object.
+
+**Error:** `404 Not Found` — Knowledge entry does not exist or belongs to a different project.
+
+#### Delete Knowledge Entry
+
+```
+DELETE /projects/:projectId/knowledge/:knowledgeId
+```
+
+**Response:** `204 No Content`
+
+**Error:** `404 Not Found` — Knowledge entry does not exist or belongs to a different project.
+
+---
+
 ### Internal API
 
 These endpoints are used by agent processes (`claude -p` subprocesses) spawned by the MentionHandler. They are not intended for frontend or external use. See [Agent Orchestration](agent-cli.md) for details on how agents are spawned and use these endpoints.
@@ -761,6 +854,109 @@ Agent updates an issue's priority.
 **Response:** `200 OK` — The updated issue object.
 
 **Side effects:** Emits `issue.updated` on the event bus.
+
+#### List Knowledge Entries (Internal)
+
+```
+GET /internal/knowledge/list?project_id=<uuid>
+```
+
+Agent lists all knowledge entries for a project.
+
+**Query Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| project_id | Yes | The project ID. |
+
+**Response:** `200 OK` — Array of knowledge entry objects.
+
+#### Create Knowledge Entry (Internal)
+
+```
+POST /internal/knowledge/create
+```
+
+Agent creates a knowledge entry. The `source` field is automatically set to `librarian`.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "title": "API Conventions",
+  "category": "conventions",
+  "content": "All endpoints return JSON...",
+  "agent_ids": ["engineer", "lead"]
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| project_id | Yes | The project to create the entry in. |
+| title | Yes | Short title (non-empty). |
+| category | Yes | Category for grouping (non-empty). |
+| content | Yes | The knowledge content (non-empty). |
+| agent_ids | No | Array of agent IDs this entry applies to. NULL means all agents. |
+
+**Response:** `201 Created` — The created knowledge entry object.
+
+**Note:** The `source` field is forced to `librarian` for all entries created via this endpoint.
+
+#### Update Knowledge Entry (Internal)
+
+```
+POST /internal/knowledge/update
+```
+
+Agent updates a knowledge entry.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "knowledge_id": "uuid",
+  "title": "Updated Title",
+  "content": "Updated content..."
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| project_id | Yes | Must match the entry's project. |
+| knowledge_id | Yes | The entry to update. |
+| title | No | Updated title. |
+| category | No | Updated category. |
+| content | No | Updated content. |
+| agent_ids | No | Updated agent assignments. |
+
+**Response:** `200 OK` — The updated knowledge entry object.
+
+**Error:** `404 Not Found` — Entry does not exist or belongs to a different project.
+
+#### Delete Knowledge Entry (Internal)
+
+```
+POST /internal/knowledge/delete
+```
+
+Agent deletes a knowledge entry.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "knowledge_id": "uuid"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| project_id | Yes | Must match the entry's project. |
+| knowledge_id | Yes | The entry to delete. |
+
+**Response:** `204 No Content`
+
+**Error:** `404 Not Found` — Entry does not exist or belongs to a different project.
 
 ---
 
