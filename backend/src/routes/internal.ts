@@ -4,6 +4,10 @@ import { validate } from "../middleware/validate.js";
 import { createComment } from "../db/repositories/comments.js";
 import { createIssue, getIssue, updateIssue } from "../db/repositories/issues.js";
 import {
+  createIssuePR,
+  getIssuePRByRepoAndNumber,
+} from "../db/repositories/issue-prs.js";
+import {
   listByProject as listKnowledge,
   getById as getKnowledge,
   create as createKnowledge,
@@ -11,8 +15,10 @@ import {
   remove as removeKnowledge,
 } from "../db/repositories/knowledge.js";
 import { getProject } from "../db/repositories/projects.js";
-import { NotFoundError } from "../middleware/errors.js";
+import { listRepos } from "../db/repositories/repos.js";
+import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
+import { parsePRUrls } from "../pr/detector.js";
 
 // Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
@@ -83,6 +89,60 @@ router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
     changes: { priority },
   });
   res.json(updated);
+});
+
+// POST /create-pr — agent registers a PR for tracking
+const CreatePRSchema = z.object({
+  project_id: z.string(),
+  issue_id: z.string(),
+  pr_url: z.string().min(1),
+});
+
+router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
+  const { project_id, issue_id, pr_url } = req.body;
+
+  // Verify issue exists and belongs to project
+  const issue = getIssue(issue_id);
+  if (!issue || issue.project_id !== project_id)
+    throw new NotFoundError("Issue not found");
+
+  // Parse PR URL to extract owner/repo/number
+  const parsed = parsePRUrls(pr_url);
+  if (parsed.length === 0)
+    throw new ValidationError("Invalid GitHub PR URL");
+
+  const pr = parsed[0];
+
+  // Find matching repo by owner/name
+  const repos = listRepos(project_id);
+  const repo = repos.find(
+    (r) =>
+      r.owner.toLowerCase() === pr.owner.toLowerCase() &&
+      r.name.toLowerCase() === pr.name.toLowerCase()
+  );
+
+  if (!repo)
+    throw new ValidationError("PR URL does not match any project repository");
+
+  // Check if already linked
+  const existing = getIssuePRByRepoAndNumber(repo.id, pr.prNumber);
+  if (existing) {
+    // Return existing record (idempotent)
+    res.status(200).json(existing);
+    return;
+  }
+
+  // Create IssuePR record
+  const issuePR = createIssuePR({
+    issue_id,
+    repo_id: repo.id,
+    pr_number: pr.prNumber,
+    pr_url: pr.url,
+    status: "open",
+  });
+
+  eventBus.emit("pr.created", { issue_pr: issuePR, project_id });
+  res.status(201).json(issuePR);
 });
 
 // Helper to verify project for internal routes
