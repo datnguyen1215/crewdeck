@@ -23,9 +23,11 @@ export interface Repo {
   id: string;
   project_id: string;
   github_url: string;
+  name: string;
+  owner: string;
+  local_path: string;
   default_branch: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface Agent {
