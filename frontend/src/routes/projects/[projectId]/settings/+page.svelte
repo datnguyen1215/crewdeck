@@ -11,7 +11,6 @@
 
 	let name = $state('');
 	let description = $state('');
-	let memory = $state('');
 	let maxConcurrency = $state(1);
 
 	$effect(() => {
@@ -21,7 +20,6 @@
 				project = p;
 				name = p.name;
 				description = p.description ?? '';
-				memory = p.memory ?? '';
 				maxConcurrency = p.max_concurrency;
 			})
 			.catch(() => { toastStore.add('Failed to load project', 'error'); })
@@ -32,7 +30,6 @@
 		project != null && (
 			name !== project.name ||
 			description !== (project.description ?? '') ||
-			memory !== (project.memory ?? '') ||
 			maxConcurrency !== project.max_concurrency
 		)
 	);
@@ -44,13 +41,11 @@
 			const updated = await updateProject(project.id, {
 				name: name.trim(),
 				description: description.trim() || null,
-				memory: memory.trim() || null,
 				max_concurrency: Number(maxConcurrency),
 			});
 			project = updated;
 			name = updated.name;
 			description = updated.description ?? '';
-			memory = updated.memory ?? '';
 			maxConcurrency = updated.max_concurrency;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
@@ -64,7 +59,6 @@
 		if (!project) return;
 		name = project.name;
 		description = project.description ?? '';
-		memory = project.memory ?? '';
 		maxConcurrency = project.max_concurrency;
 	}
 </script>
@@ -97,12 +91,6 @@
 					<label for="settings-concurrency" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Max Concurrency</label>
 					<input id="settings-concurrency" type="number" bind:value={maxConcurrency} min="1" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
 					<p class="text-muted text-xs mt-1">Maximum concurrent agent processes per project</p>
-				</div>
-
-				<div>
-					<label for="settings-memory" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Project Memory</label>
-					<textarea id="settings-memory" bind:value={memory} placeholder="Project conventions, structure notes, and gotchas that agents will see..." rows="8" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors resize-y font-mono"></textarea>
-					<p class="text-muted text-xs mt-1">Context injected into every agent prompt. Include structure, conventions, and common pitfalls.</p>
 				</div>
 
 				<div class="flex gap-3 mt-2">
