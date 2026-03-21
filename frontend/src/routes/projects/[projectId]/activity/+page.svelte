@@ -6,6 +6,7 @@
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { ACTOR_CFG, ACTION_DISPLAY } from '$lib/activity.js';
 	import ActivityTimeline from '$lib/components/ActivityTimeline.svelte';
+	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
 	type ActivityEntry = ActivityLog;
 
@@ -118,6 +119,15 @@
 </svelte:head>
 
 <div class="p-6 h-full overflow-auto">
+	<!-- Breadcrumb -->
+	<div class="mb-5">
+		<Breadcrumb segments={[
+			{ label: 'Projects', href: '/' },
+			{ label: project?.name ?? 'Project', href: `/projects/${projectId}` },
+			{ label: 'Activity' }
+		]} />
+	</div>
+
 	<!-- Header -->
 	<div class="flex items-center justify-between mb-5">
 		<div>

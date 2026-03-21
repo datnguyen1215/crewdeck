@@ -10,6 +10,7 @@
 	import IssueComments from '$lib/components/IssueComments.svelte';
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
 	import AgentRuns from '$lib/components/AgentRuns.svelte';
+	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
 	type Issue = IssueWithDetails;
 
@@ -146,7 +147,12 @@
 {:else}
 	<div class="p-6 max-w-6xl fade-up">
 		<div class="mb-6">
-			<a href="/projects/{projectId}" class="text-muted text-xs hover:text-secondary transition-colors">&larr; Back to Board</a>
+			<Breadcrumb segments={[
+				{ label: 'Projects', href: '/' },
+				{ label: project?.name ?? 'Project', href: `/projects/${projectId}` },
+				{ label: 'Issues', href: `/projects/${projectId}` },
+				{ label: issue.title }
+			]} />
 		</div>
 
 		<div class="grid lg:grid-cols-[1fr_288px] gap-5">
