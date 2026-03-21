@@ -832,6 +832,8 @@ All events follow this structure:
 | `mention.completed` | Agent process finished | `{ issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
 | `mention.error` | Agent process failed | `{ issue_id, agent_id, agent_name?, issue_title?, message }` |
 | `mention.chain_depth_reached` | Issue chain depth limit (20) reached | `{ issue_id, issue_title? }` |
+| `dispatch.queued` | Agent dispatch queued (concurrency limit reached) | `{ issue_id, agent_id, agent_name?, issue_title?, position }` |
+| `dispatch.dequeued` | Agent dispatch dequeued and starting | `{ issue_id, agent_id, agent_name?, issue_title? }` |
 
 #### Agent Run Events
 
