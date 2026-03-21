@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, listAgents, createIssue, type Issue, type Agent } from '$lib/api/http.js';
+	import { listIssues, listAgents, createIssue, addComment, type Issue, type Agent } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
@@ -121,6 +121,30 @@
 
 	let formError = $state('');
 
+	// Track dispatching state per issue
+	let dispatchingIssues = $state<Set<string>>(new Set());
+
+	function hasActiveAgent(issue: Issue): boolean {
+		return issue.running_agent_status === 'running' || issue.running_agent_status === 'queued';
+	}
+
+	async function handleDispatch(e: Event, issue: Issue) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (hasActiveAgent(issue) || dispatchingIssues.has(issue.id)) return;
+
+		dispatchingIssues = new Set([...dispatchingIssues, issue.id]);
+		try {
+			await addComment(projectId, issue.id, { content: '/dispatch Captain' });
+			// Update local state to show in_progress immediately
+			issues = issues.map(i => i.id === issue.id ? { ...i, status: 'in_progress' } : i);
+		} catch (err) {
+			// Silently fail - user can retry
+		} finally {
+			dispatchingIssues = new Set([...dispatchingIssues].filter(id => id !== issue.id));
+		}
+	}
+
 	async function handleCreate(e: SubmitEvent) {
 		e.preventDefault();
 		// Guard against whitespace-only inputs that pass HTML `required` without trimming.
@@ -236,18 +260,19 @@
 	{#if loading}
 		<!-- Skeleton table while issues load -->
 		<div class="overflow-x-auto fade-up">
-			<div class="min-w-[580px] border border-edge rounded overflow-hidden">
-				<div class="grid grid-cols-[52px_1fr_148px_96px_60px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+			<div class="min-w-[620px] border border-edge rounded overflow-hidden">
+				<div class="grid grid-cols-[52px_1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
 					<div class="px-3 py-2.5 text-center">Pri</div>
 					<div class="px-3 py-2.5">Title</div>
 					<div class="px-3 py-2.5">Status</div>
 					<div class="px-3 py-2.5">Agent</div>
 					<div class="px-3 py-2.5 text-right">Age</div>
+					<div class="px-2 py-2.5"></div>
 				</div>
 				{#each Array(8) as _, i}
 					{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 					<div
-						class="grid grid-cols-[52px_1fr_148px_96px_60px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						class="grid grid-cols-[52px_1fr_148px_96px_60px_44px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
 					style="animation-delay: {i * 30}ms"
 					>
 						<div class="px-3 py-3 flex justify-center items-center">
@@ -265,6 +290,7 @@
 						<div class="px-3 py-3 flex items-center justify-end">
 							<div class="skeleton h-3 w-8 rounded"></div>
 						</div>
+						<div class="px-2 py-3"></div>
 					</div>
 				{/each}
 			</div>
@@ -286,16 +312,17 @@
 		</div>
 	{:else}
 		<div class="overflow-x-auto">
-				<div class="min-w-[580px] border border-edge rounded overflow-hidden">
+				<div class="min-w-[620px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
 					<div
-						class="grid grid-cols-[52px_1fr_148px_96px_60px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
+						class="grid grid-cols-[52px_1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
 					>
 						<div class="px-3 py-2.5 text-center">Pri</div>
 						<div class="px-3 py-2.5">Title</div>
 						<div class="px-3 py-2.5">Status</div>
 						<div class="px-3 py-2.5">Agent</div>
 						<div class="px-3 py-2.5 text-right">Age</div>
+						<div class="px-2 py-2.5"></div>
 					</div>
 
 					<!-- Rows -->
@@ -303,9 +330,11 @@
 						{@const cfg = STATUS_CFG[issue.status] ?? STATUS_CFG.open}
 						{@const runningAgentName = issue.running_agent_id ? agentMap[issue.running_agent_id] : null}
 						{@const isQueued = issue.running_agent_status === 'queued'}
+						{@const isDispatching = dispatchingIssues.has(issue.id)}
+						{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
 						<a
 							href="/projects/{projectId}/issues/{issue.id}"
-							class="issue-row grid grid-cols-[52px_1fr_148px_96px_60px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''}"
+							class="issue-row grid grid-cols-[52px_1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''}"
 							style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 						>
 							<!-- Priority -->
@@ -355,6 +384,26 @@
 								>
 									{relTimeDiff(issue.created_at)}
 								</span>
+							</div>
+
+							<!-- Dispatch button -->
+							<div class="px-2 py-3 self-center">
+								<button
+									onclick={(e) => handleDispatch(e, issue)}
+									disabled={!canDispatch}
+									class="dispatch-btn w-7 h-7 flex items-center justify-center rounded border transition-colors {canDispatch ? 'border-edge text-muted hover:border-cyan hover:text-cyan hover:bg-cyan/10' : 'border-transparent text-muted/40 cursor-not-allowed'}"
+									title={hasActiveAgent(issue) ? 'Agent already running' : 'Dispatch Captain'}
+								>
+									{#if isDispatching}
+										<svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+											<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="12" />
+										</svg>
+									{:else}
+										<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+											<path d="M8 5v14l11-7z"/>
+										</svg>
+									{/if}
+								</button>
 							</div>
 						</a>
 					{/each}
