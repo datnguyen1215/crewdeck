@@ -6,7 +6,6 @@
 		onClose,
 		label,
 		maxWidth = 'max-w-lg',
-		cardClass = '',
 		escapeClose = true,
 		children
 	}: {
@@ -14,7 +13,6 @@
 		onClose: () => void;
 		label: string;
 		maxWidth?: string;
-		cardClass?: string;
 		escapeClose?: boolean;
 		children: Snippet;
 	} = $props();
@@ -35,7 +33,7 @@
 		aria-modal="true"
 		aria-label={label}
 	>
-		<div class="bg-surface border border-edge rounded w-full {maxWidth} mx-4 p-6 shadow-2xl {cardClass}">
+		<div class="bg-surface border border-edge rounded w-full {maxWidth} mx-4 p-6 shadow-2xl">
 			{@render children()}
 		</div>
 	</div>
