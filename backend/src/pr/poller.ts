@@ -2,7 +2,7 @@
  * PR status poller: Periodically checks GitHub for PR status updates.
  *
  * Polls all open PRs every 60 seconds and updates their status when merged or closed.
- * Auto-transitions issues from pr_created to done when PRs are merged.
+ * Also checks merge conflicts and CI status to transition issues appropriately.
  */
 import { eventBus } from "../events/bus.js";
 import { getGitHubAccount, getGitHubAccountByUsername } from "../db/repositories/github-accounts.js";
@@ -20,6 +20,56 @@ let pollInterval: ReturnType<typeof setInterval> | null = null;
 interface GitHubPRResponse {
   state: "open" | "closed";
   merged: boolean;
+  mergeable: boolean | null;
+  head: { sha: string };
+}
+
+interface GitHubCheckRun {
+  status: "queued" | "in_progress" | "completed";
+  conclusion: "success" | "failure" | "neutral" | "cancelled" | "skipped" | "timed_out" | "action_required" | null;
+}
+
+interface GitHubCheckRunsResponse {
+  total_count: number;
+  check_runs: GitHubCheckRun[];
+}
+
+interface GitHubStatusResponse {
+  state: "success" | "failure" | "pending";
+}
+
+const GITHUB_HEADERS = {
+  Accept: "application/vnd.github.v3+json",
+  "User-Agent": "crewdeck",
+};
+
+/** Generic GitHub API fetch with error handling. */
+async function githubFetch<T>(url: string, token: string, context: string): Promise<T | null> {
+  try {
+    const response = await fetch(url, {
+      headers: { ...GITHUB_HEADERS, Authorization: `Bearer ${token}` },
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      logger.warn({ url, status: response.status }, `${context}: token invalid or expired`);
+      return null;
+    }
+
+    if (response.status === 404) {
+      logger.warn({ url }, `${context}: not found`);
+      return null;
+    }
+
+    if (!response.ok) {
+      logger.warn({ url, status: response.status }, `${context}: API request failed`);
+      return null;
+    }
+
+    return (await response.json()) as T;
+  } catch (err) {
+    logger.error({ err, url }, `${context}: fetch failed`);
+    return null;
+  }
 }
 
 /** Fetch PR status from GitHub API. */
@@ -30,42 +80,29 @@ async function fetchPRStatus(
   token: string
 ): Promise<GitHubPRResponse | null> {
   const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
+  return githubFetch<GitHubPRResponse>(url, token, "PR status");
+}
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/vnd.github.v3+json",
-        Authorization: `Bearer ${token}`,
-        "User-Agent": "crewdeck",
-      },
-    });
+/** Fetch check runs for a commit (modern CI). */
+async function fetchCheckRuns(
+  owner: string,
+  repo: string,
+  ref: string,
+  token: string
+): Promise<GitHubCheckRunsResponse | null> {
+  const url = `https://api.github.com/repos/${owner}/${repo}/commits/${ref}/check-runs`;
+  return githubFetch<GitHubCheckRunsResponse>(url, token, "Check runs");
+}
 
-    if (response.status === 401 || response.status === 403) {
-      logger.warn(
-        { owner, repo, prNumber, status: response.status },
-        "GitHub token invalid or expired"
-      );
-      return null;
-    }
-
-    if (response.status === 404) {
-      logger.warn({ owner, repo, prNumber }, "PR not found on GitHub");
-      return null;
-    }
-
-    if (!response.ok) {
-      logger.warn(
-        { owner, repo, prNumber, status: response.status },
-        "GitHub API request failed"
-      );
-      return null;
-    }
-
-    return (await response.json()) as GitHubPRResponse;
-  } catch (err) {
-    logger.error({ err, owner, repo, prNumber }, "Failed to fetch PR status from GitHub");
-    return null;
-  }
+/** Fetch combined status for a commit (legacy CI). */
+async function fetchCommitStatus(
+  owner: string,
+  repo: string,
+  ref: string,
+  token: string
+): Promise<GitHubStatusResponse | null> {
+  const url = `https://api.github.com/repos/${owner}/${repo}/commits/${ref}/status`;
+  return githubFetch<GitHubStatusResponse>(url, token, "Commit status");
 }
 
 /** Map GitHub PR state to our internal status. */
@@ -75,8 +112,58 @@ function mapPRStatus(pr: GitHubPRResponse): "open" | "merged" | "closed" {
   return "open";
 }
 
+type CheckResult = "pass" | "fail" | "pending";
+
+/** Analyze check runs to determine overall status. */
+function analyzeCheckRuns(checkRuns: GitHubCheckRunsResponse): CheckResult {
+  if (checkRuns.total_count === 0) return "pass"; // No checks configured
+
+  const runs = checkRuns.check_runs;
+  const hasIncomplete = runs.some(r => r.status !== "completed");
+  if (hasIncomplete) return "pending";
+
+  const hasFailed = runs.some(r =>
+    r.conclusion === "failure" ||
+    r.conclusion === "cancelled" ||
+    r.conclusion === "timed_out"
+  );
+  return hasFailed ? "fail" : "pass";
+}
+
+/** Analyze legacy status to determine overall status. */
+function analyzeCommitStatus(status: GitHubStatusResponse): CheckResult {
+  if (status.state === "success") return "pass";
+  if (status.state === "failure") return "fail";
+  return "pending";
+}
+
+/** Combine check runs and legacy status results. */
+function combineCheckResults(checkRuns: CheckResult, legacy: CheckResult): CheckResult {
+  if (checkRuns === "fail" || legacy === "fail") return "fail";
+  if (checkRuns === "pending" || legacy === "pending") return "pending";
+  return "pass";
+}
+
+/** Determine issue status based on PR state, mergeability, and CI status. */
+function determineIssueStatus(
+  mergeable: boolean | null,
+  ciStatus: CheckResult
+): string {
+  // Merge conflict takes priority
+  if (mergeable === false) return "pr_conflict";
+
+  // CI failed
+  if (ciStatus === "fail") return "pr_failed_actions";
+
+  // All good - ready to merge
+  if (mergeable === true && ciStatus === "pass") return "pr_ready_to_merge";
+
+  // Still pending (mergeable null or checks pending) - regress to pr_created
+  return "pr_created";
+}
+
 /** Poll all open PRs and update their status. */
-async function pollPRs(): Promise<void> {
+export async function pollPRs(): Promise<void> {
   const openPRs = listOpenPRsWithContext();
   if (openPRs.length === 0) return;
 
@@ -118,26 +205,27 @@ async function pollPRs(): Promise<void> {
 
     if (!ghPR) continue;
 
-    const newStatus = mapPRStatus(ghPR);
-    if (newStatus === pr.status) continue;
+    const newPRStatus = mapPRStatus(ghPR);
 
-    // Update PR status
-    updateIssuePR(pr.id, { status: newStatus });
+    // Update PR status if changed
+    if (newPRStatus !== pr.status) {
+      updateIssuePR(pr.id, { status: newPRStatus });
 
-    logger.info(
-      { pr_id: pr.id, pr_number: pr.pr_number, from: pr.status, to: newStatus },
-      "PR status changed"
-    );
+      logger.info(
+        { pr_id: pr.id, pr_number: pr.pr_number, from: pr.status, to: newPRStatus },
+        "PR status changed"
+      );
 
-    eventBus.emit("pr.status_changed", {
-      pr_id: pr.id,
-      project_id: pr.project_id,
-      from: pr.status,
-      to: newStatus,
-    });
+      eventBus.emit("pr.status_changed", {
+        pr_id: pr.id,
+        project_id: pr.project_id,
+        from: pr.status,
+        to: newPRStatus,
+      });
+    }
 
     // Auto-transition issue to done if PR is merged and issue is in a PR-related status
-    if (newStatus === "merged") {
+    if (newPRStatus === "merged") {
       const issue = getIssue(pr.issue_id);
       if (issue?.status.startsWith("pr_")) {
         updateIssue(pr.issue_id, { status: "done" });
@@ -152,6 +240,48 @@ async function pollPRs(): Promise<void> {
           project_id: pr.project_id,
           from: issue.status,
           to: "done",
+        });
+      }
+      continue; // No need to check CI for merged PRs
+    }
+
+    // For open PRs, check CI status and mergeability
+    if (newPRStatus === "open") {
+      const issue = getIssue(pr.issue_id);
+      if (!issue?.status.startsWith("pr_")) continue;
+
+      // Fetch CI status (both modern check runs and legacy status)
+      const [checkRuns, commitStatus] = await Promise.all([
+        fetchCheckRuns(pr.repo_owner, pr.repo_name, ghPR.head.sha, token),
+        fetchCommitStatus(pr.repo_owner, pr.repo_name, ghPR.head.sha, token),
+      ]);
+
+      const checkRunsResult = checkRuns ? analyzeCheckRuns(checkRuns) : "pending";
+      const legacyResult = commitStatus ? analyzeCommitStatus(commitStatus) : "pending";
+      const ciStatus = combineCheckResults(checkRunsResult, legacyResult);
+
+      const newIssueStatus = determineIssueStatus(ghPR.mergeable, ciStatus);
+
+      if (newIssueStatus !== issue.status) {
+        updateIssue(pr.issue_id, { status: newIssueStatus });
+
+        logger.info(
+          {
+            issue_id: pr.issue_id,
+            pr_number: pr.pr_number,
+            from: issue.status,
+            to: newIssueStatus,
+            mergeable: ghPR.mergeable,
+            ciStatus,
+          },
+          "Issue status updated based on PR checks"
+        );
+
+        eventBus.emit("issue.status_changed", {
+          issue_id: pr.issue_id,
+          project_id: pr.project_id,
+          from: issue.status,
+          to: newIssueStatus,
         });
       }
     }
