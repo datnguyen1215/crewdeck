@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { getContext } from 'svelte';
 	import {
 		listKnowledge,
 		createKnowledge,
@@ -8,13 +9,16 @@
 		listAgents,
 		getProject,
 		triggerKnowledgeScan,
+		getLibrarianStatus,
 		type ProjectKnowledge,
 		type Agent,
-		type Project
+		type Project,
+		type LibrarianStatus
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
@@ -40,17 +44,49 @@
 	// Scan state
 	let scanning = $state(false);
 	let scanIssueId = $state<string | null>(null);
+	let librarianStatus = $state<LibrarianStatus | null>(null);
+
+	// WebSocket for auto-refresh
+	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+
+	// Computed: is a scan currently running?
+	let scanRunning = $derived(librarianStatus?.status === 'running' || librarianStatus?.status === 'queued');
+
+	// Relative time formatter
+	function formatRelativeTime(isoDate: string): string {
+		const now = Date.now();
+		const then = new Date(isoDate).getTime();
+		const diffMs = now - then;
+		const diffMin = Math.floor(diffMs / 60000);
+		const diffHour = Math.floor(diffMs / 3600000);
+		const diffDay = Math.floor(diffMs / 86400000);
+
+		if (diffMin < 1) return 'just now';
+		if (diffMin < 60) return `${diffMin} min ago`;
+		if (diffHour < 24) return `${diffHour} hour${diffHour === 1 ? '' : 's'} ago`;
+		return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+	}
+
+	async function refreshData() {
+		const [k, status] = await Promise.all([
+			listKnowledge(projectId),
+			getLibrarianStatus(projectId)
+		]);
+		knowledge = k;
+		librarianStatus = status;
+	}
 
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
 
-		Promise.all([listKnowledge(projectId), listAgents(), getProject(projectId)])
-			.then(([k, a, p]) => {
+		Promise.all([listKnowledge(projectId), listAgents(), getProject(projectId), getLibrarianStatus(projectId)])
+			.then(([k, a, p, status]) => {
 				if (cancelled) return;
 				knowledge = k;
 				agents = a;
 				project = p;
+				librarianStatus = status;
 			})
 			.catch(() => {
 				if (!cancelled) toastStore.add('Failed to load knowledge', 'error');
@@ -60,6 +96,21 @@
 			});
 
 		return () => { cancelled = true; };
+	});
+
+	// Subscribe to WebSocket for run completion events
+	$effect(() => {
+		const ws = getWs?.();
+		if (!ws) return;
+
+		const unsub = ws.on('run.completed', (data) => {
+			// Refresh when any librarian run completes
+			if (data.agent_id === 'librarian') {
+				refreshData();
+			}
+		});
+
+		return unsub;
 	});
 
 	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
@@ -160,6 +211,8 @@
 		try {
 			const result = await triggerKnowledgeScan(projectId);
 			scanIssueId = result.issue_id;
+			// Refresh status to show the new running scan
+			librarianStatus = await getLibrarianStatus(projectId);
 			toastStore.add('Scan triggered — librarian agent dispatched', 'success');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to trigger scan', 'error');
@@ -182,6 +235,30 @@
 			{ label: 'Knowledge' }
 		]} />
 	</div>
+
+	<!-- Scan Status Banner -->
+	{#if librarianStatus?.status}
+		<div class="mb-4 px-4 py-2.5 rounded border {scanRunning ? 'bg-purple/10 border-purple/30' : librarianStatus.status === 'completed' ? 'bg-green/10 border-green/30' : 'bg-red/10 border-red/30'}">
+			<div class="flex items-center gap-2 text-sm">
+				{#if scanRunning}
+					<span class="inline-block w-2 h-2 rounded-full bg-purple animate-pulse"></span>
+					<span class="text-purple">
+						Scanning... started {librarianStatus.started_at ? formatRelativeTime(librarianStatus.started_at) : ''}
+					</span>
+				{:else if librarianStatus.status === 'completed'}
+					<span class="inline-block w-2 h-2 rounded-full bg-green"></span>
+					<span class="text-green">
+						Last scan completed {librarianStatus.completed_at ? formatRelativeTime(librarianStatus.completed_at) : ''}
+					</span>
+				{:else}
+					<span class="inline-block w-2 h-2 rounded-full bg-red"></span>
+					<span class="text-red">
+						Last scan {librarianStatus.status} {librarianStatus.completed_at ? formatRelativeTime(librarianStatus.completed_at) : ''}
+					</span>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 	<!-- Header -->
 	<div class="flex items-center justify-between mb-5">
@@ -206,10 +283,14 @@
 			{/if}
 			<button
 				onclick={handleScan}
-				disabled={scanning}
+				disabled={scanning || scanRunning}
 				class="px-3 py-1.5 bg-purple/10 border border-purple text-purple text-xs font-medium rounded hover:bg-purple/20 transition-colors uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
 			>
-				{scanning ? 'Scanning...' : 'Scan Codebase'}
+				{#if scanning || scanRunning}
+					Scanning...
+				{:else}
+					Scan Codebase
+				{/if}
 			</button>
 			<button
 				onclick={openCreate}

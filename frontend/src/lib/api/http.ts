@@ -15,6 +15,7 @@ import type {
   AgentRun,
   AgentRunWithEvents,
   ProjectKnowledge,
+  LibrarianStatus,
 } from './types.js';
 
 export type {
@@ -38,6 +39,7 @@ export type {
   AgentRunStatus,
   AgentRunEventType,
   ProjectKnowledge,
+  LibrarianStatus,
 } from './types.js';
 
 const BASE = "/api/v1";
@@ -192,4 +194,8 @@ export function deleteKnowledge(projectId: string, knowledgeId: string) {
 }
 export function triggerKnowledgeScan(projectId: string) {
   return request<{ issue_id: string }>("POST", `/projects/${e(projectId)}/knowledge/scan`);
+}
+
+export function getLibrarianStatus(projectId: string) {
+  return request<LibrarianStatus>("GET", `/projects/${e(projectId)}/librarian-status`);
 }

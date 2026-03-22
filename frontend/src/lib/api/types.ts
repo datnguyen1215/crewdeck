@@ -178,3 +178,9 @@ export interface ProjectKnowledge {
   created_at: string;
   updated_at: string;
 }
+
+export interface LibrarianStatus {
+  status: AgentRunStatus | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
