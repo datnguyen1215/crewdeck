@@ -12,7 +12,7 @@ vi.mock("../../src/db/repositories/issues.js", () => ({
 
 import { exec } from "node:child_process";
 import { updateIssue } from "../../src/db/repositories/issues.js";
-import { mockExec as mockExecSuccess, mockExecFail } from "../helpers/exec.js";
+import { mockExec as mockExecSuccess } from "../helpers/exec.js";
 
 const repo: Repo = {
   id: "repo-1",
@@ -45,7 +45,19 @@ const issue: Issue = {
 describe("createWorktree", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockExecSuccess();
+    // Default: all calls succeed except rev-parse (branch doesn't exist yet)
+    vi.mocked(exec).mockImplementation((cmd: unknown, callback: unknown) => {
+      const cmdStr = cmd as string;
+      if (cmdStr.includes("rev-parse --verify")) {
+        (callback as (err: Error) => void)(new Error("branch not found"));
+      } else {
+        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
+          null,
+          { stdout: "", stderr: "" }
+        );
+      }
+      return {} as ReturnType<typeof exec>;
+    });
   });
 
   it("fetches from origin before creating worktree", async () => {
@@ -67,12 +79,14 @@ describe("createWorktree", () => {
   it("falls back to local branch when fetch fails", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const mockedExec = vi.mocked(exec);
-    let callCount = 0;
     mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
-      callCount++;
-      // First call (fetch) fails; second call (worktree add) succeeds
-      if (callCount === 1) {
+      const cmdStr = cmd as string;
+      if (cmdStr.includes("fetch origin")) {
+        // fetch fails
         (callback as (err: Error) => void)(new Error("network error"));
+      } else if (cmdStr.includes("rev-parse --verify")) {
+        // branch doesn't exist
+        (callback as (err: Error) => void)(new Error("branch not found"));
       } else {
         (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
           null,
