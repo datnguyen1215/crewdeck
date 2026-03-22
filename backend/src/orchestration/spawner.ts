@@ -17,7 +17,7 @@ import * as knowledgeRepo from "../db/repositories/knowledge.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import * as dispatchQueue from "./queue.js";
-import { activeProcesses, getActiveProcessCount, type ActiveProcess } from "./processes.js";
+import { activeProcesses, getActiveProcessCount, hasActiveAgentProcess, type ActiveProcess } from "./processes.js";
 import { markAgentCompleted } from "./batch.js";
 import type { Agent, AgentRunStatus } from "../types/entities.js";
 
@@ -168,19 +168,38 @@ export async function processAgentStream(
       events.eventBus.emit("comment.added", { comment, project_id: projectId });
     } else if (options?.batchTriggered && agent.id === "captain" && !options?.isRetry) {
       // Captain ended with tool call (empty result) after batch completion — retry once
+      // Check if captain is already running (shouldn't happen, but be consistent with normal spawn flow)
+      if (hasActiveAgentProcess(agent.id, issueId)) {
+        log.logger.info(
+          { agentId: agent.id, issueId },
+          "Skipping retry: captain already running for this issue",
+        );
+      } else {
+        log.logger.warn(
+          { pid: result.pid, agent: agent.name, runId: agentRunId },
+          "Batch-triggered captain completed with empty result, retrying once",
+        );
+        postSystemComment(
+          issueId,
+          projectId,
+          "Captain completed with no output (tool call was last action). Retrying...",
+        );
+        // Retry spawn with isRetry flag to prevent infinite loops
+        spawnAgent(agent, issueId, projectId, undefined, { batchTriggered: true, isRetry: true }).catch((err) => {
+          log.logger.error({ err, issueId }, "Failed to retry batch-triggered captain");
+        });
+      }
+    } else if (options?.isRetry && !resultText) {
+      // Retry also produced no output — inform user
       log.logger.warn(
         { pid: result.pid, agent: agent.name, runId: agentRunId },
-        "Batch-triggered captain completed with empty result, retrying once",
+        "Captain retry also produced no output",
       );
       postSystemComment(
         issueId,
         projectId,
-        "Captain completed with no output (tool call was last action). Retrying...",
+        "Captain retry also produced no output — manual intervention may be required.",
       );
-      // Retry spawn with isRetry flag to prevent infinite loops
-      spawnAgent(agent, issueId, projectId, undefined, { batchTriggered: true, isRetry: true }).catch((err) => {
-        log.logger.error({ err, issueId }, "Failed to retry batch-triggered captain");
-      });
     }
 
     // No system comment for successful completion — this info is in the activity log (run.completed event)
