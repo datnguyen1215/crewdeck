@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { fly } from 'svelte/transition';
+	import { fly, scale } from 'svelte/transition';
 	import { cubicOut, cubicIn } from 'svelte/easing';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
@@ -10,78 +10,61 @@
 		error: { border: 'border-red', text: 'text-red', bg: 'bg-red/5', label: 'ERR' }
 	} as const;
 
-	const MAX_VISIBLE = 3;
-
-	let expanded = $state(false);
+	const MAX_STACK_LAYERS = 3;
 
 	// Reversed so newest is first (displayed on top)
 	const reversedItems = $derived([...toastStore.items].reverse());
-	const visibleItems = $derived(expanded ? reversedItems : reversedItems.slice(0, MAX_VISIBLE));
-	const collapsedCount = $derived(Math.max(0, toastStore.items.length - MAX_VISIBLE));
-	const showCollapsed = $derived(!expanded && collapsedCount > 0);
-
-	function toggleExpand() {
-		expanded = !expanded;
-	}
-
-	// Auto-collapse when items reduce to MAX_VISIBLE or fewer
-	$effect(() => {
-		if (toastStore.items.length <= MAX_VISIBLE) {
-			expanded = false;
-		}
-	});
+	const totalCount = $derived(toastStore.items.length);
 </script>
 
 <div
-	class="fixed bottom-4 right-4 z-[200] flex flex-col-reverse gap-2 pointer-events-none w-80 max-w-[calc(100vw-2rem)]"
+	class="fixed bottom-4 right-4 z-[200] pointer-events-none w-80 max-w-[calc(100vw-2rem)]"
 >
-	<!-- Collapsed stack indicator (rendered first, appears at bottom due to flex-col-reverse) -->
-	{#if showCollapsed}
-		<button
-			onclick={toggleExpand}
-			in:fly={{ x: 24, duration: 250, easing: cubicOut }}
-			out:fly={{ x: 24, duration: 180, easing: cubicIn }}
-			class="pointer-events-auto relative h-10 w-full rounded border border-border bg-surface shadow-lg cursor-pointer hover:bg-surface-hover transition-colors"
-		>
-			<!-- Stacked card visual (peeking cards below to indicate older toasts underneath) -->
-			<div class="absolute inset-0 rounded border border-border bg-surface translate-y-1 scale-[0.97] opacity-60"></div>
-			<div class="absolute inset-0 rounded border border-border bg-surface translate-y-2 scale-[0.94] opacity-30"></div>
-			<span class="relative z-10 flex items-center justify-center h-full text-sm text-muted font-mono">
-				+{collapsedCount} more
-			</span>
-		</button>
-	{/if}
+	{#if reversedItems.length > 0}
+		{@const frontToast = reversedItems[0]}
+		{@const s = STYLES[frontToast.type]}
 
-	<!-- Collapse button when expanded (rendered second, appears just above collapsed indicator) -->
-	{#if expanded && toastStore.items.length > MAX_VISIBLE}
-		<button
-			onclick={toggleExpand}
-			in:fly={{ y: 10, duration: 200, easing: cubicOut }}
-			out:fly={{ y: 10, duration: 150, easing: cubicIn }}
-			class="pointer-events-auto text-xs text-muted hover:text-primary font-mono transition-colors self-end"
-		>
-			collapse ↓
-		</button>
-	{/if}
+		<!-- Stack container with relative positioning -->
+		<div class="relative">
+			<!-- Stacked card edges behind the front toast (oldest to newest, bottom to top) -->
+			{#each reversedItems.slice(1, MAX_STACK_LAYERS + 1).reverse() as stackedToast, reverseIndex (stackedToast.id)}
+				{@const stackIndex = Math.min(reversedItems.length - 1, MAX_STACK_LAYERS) - reverseIndex}
+				{@const stackStyle = STYLES[stackedToast.type]}
+				<div
+					class="absolute inset-x-0 top-0 h-14 rounded border {stackStyle.border} bg-surface shadow-md pointer-events-none"
+					style="
+						transform: translateY({stackIndex * 8}px) scale({1 - stackIndex * 0.03});
+						opacity: {1 - stackIndex * 0.2};
+						z-index: {-stackIndex};
+					"
+				></div>
+			{/each}
 
-	<!-- Visible toasts (rendered last, appear at top due to flex-col-reverse) -->
-	{#each visibleItems as toast (toast.id)}
-		{@const s = STYLES[toast.type]}
-		<div
-			in:fly={{ x: 24, duration: 250, easing: cubicOut }}
-			out:fly={{ x: 24, duration: 180, easing: cubicIn }}
-			class="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded border {s.border} {s.bg} bg-surface shadow-lg"
-			role="status"
-		>
-			<span class="text-xs font-bold font-mono {s.text} flex-shrink-0 mt-0.5 tracking-wider"
-				>[{s.label}]</span
+			<!-- Front toast (newest) - fully visible with content -->
+			<div
+				in:fly={{ x: 24, duration: 250, easing: cubicOut }}
+				out:scale={{ duration: 150, start: 0.95, easing: cubicIn }}
+				class="pointer-events-auto relative z-10 flex items-start gap-3 px-4 py-3 rounded border {s.border} {s.bg} bg-surface shadow-lg"
+				role="status"
 			>
-			<span class="text-sm text-secondary flex-1 leading-snug">{toast.message}</span>
-			<button
-				onclick={(e) => { e.stopPropagation(); toastStore.remove(toast.id); }}
-				class="text-muted hover:text-primary transition-colors flex-shrink-0 leading-none ml-1"
-				aria-label="Dismiss notification"
-			>✕</button>
+				<span class="text-xs font-bold font-mono {s.text} flex-shrink-0 mt-0.5 tracking-wider"
+					>[{s.label}]</span
+				>
+				<span class="text-sm text-secondary flex-1 leading-snug">{frontToast.message}</span>
+
+				<!-- Position counter -->
+				{#if totalCount > 1}
+					<span class="text-xs text-muted font-mono flex-shrink-0 mt-0.5">
+						1 of {totalCount}
+					</span>
+				{/if}
+
+				<button
+					onclick={(e) => { e.stopPropagation(); toastStore.remove(frontToast.id); }}
+					class="text-muted hover:text-primary transition-colors flex-shrink-0 leading-none ml-1"
+					aria-label="Dismiss notification"
+				>✕</button>
+			</div>
 		</div>
-	{/each}
+	{/if}
 </div>
