@@ -190,15 +190,20 @@ function getOpenUnassignedIssues(): { issue: Issue; project: Project }[] {
 /**
  * Priority 1: Merge PRs that are ready.
  * Merges one at a time, polling for status updates after each merge.
+ * Re-fetches the ready-to-merge list after each poll to avoid stale data.
  */
 async function handleMergeManager(): Promise<boolean> {
-  const prsToMerge = getPRsReadyToMerge();
+  let prsToMerge = getPRsReadyToMerge();
   if (prsToMerge.length === 0) return false;
 
   logger.info({ count: prsToMerge.length }, "Admiral: PRs ready to merge");
 
-  // Merge one PR at a time
-  for (const pr of prsToMerge) {
+  let mergedAny = false;
+
+  // Merge one PR at a time, re-fetching after each poll
+  while (prsToMerge.length > 0) {
+    const pr = prsToMerge[0];
+
     logger.info(
       {
         issueId: pr.issue.id,
@@ -216,6 +221,8 @@ async function handleMergeManager(): Promise<boolean> {
     );
 
     if (result.success) {
+      mergedAny = true;
+
       // Update PR status to merged
       updateIssuePR(pr.issuePR.id, { status: "merged" });
 
@@ -262,13 +269,17 @@ async function handleMergeManager(): Promise<boolean> {
 
     // Poll PR statuses after each merge to update any affected PRs
     await pollPRs();
+
+    // Re-fetch the list after polling to get fresh data
+    prsToMerge = getPRsReadyToMerge();
   }
 
-  return true;
+  return mergedAny;
 }
 
 /**
  * Priority 2: Dispatch Captain to fix issues with conflicts or failed actions.
+ * Returns true only if at least one captain spawn was initiated.
  */
 async function handleFixMode(): Promise<boolean> {
   const issuesNeedingFix = getIssuesNeedingFix();
@@ -284,6 +295,8 @@ async function handleFixMode(): Promise<boolean> {
     logger.error("Admiral: Captain agent not found");
     return false;
   }
+
+  let spawnedAny = false;
 
   for (const { issue, project } of issuesNeedingFix) {
     // Skip if captain is already running for this issue
@@ -313,6 +326,7 @@ async function handleFixMode(): Promise<boolean> {
     // Spawn captain directly (comments with author_type "system" are ignored by mention handler)
     try {
       await spawnAgent(captain, issue.id, project.id);
+      spawnedAny = true;
     } catch (err) {
       logger.error({ err, issueId: issue.id }, "Admiral: Failed to spawn captain for fix");
       postSystemComment(
@@ -323,7 +337,7 @@ async function handleFixMode(): Promise<boolean> {
     }
   }
 
-  return true;
+  return spawnedAny;
 }
 
 /**
