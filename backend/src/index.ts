@@ -9,6 +9,7 @@ import { recoverOnStartup } from "./orchestration/recovery.js";
 import { createApp } from "./app.js";
 import { initPRDetector } from "./pr/detector.js";
 import { startPRPoller, stopPRPoller } from "./pr/poller.js";
+import { initAdmiral, shutdownAdmiral } from "./orchestration/admiral.js";
 
 const app = createApp({ corsOrigin: config.corsOrigin });
 
@@ -20,6 +21,9 @@ async function main(): Promise<void> {
   // Initialize PR auto-detection from comments and polling
   initPRDetector();
   startPRPoller();
+
+  // Initialize Admiral auto-pilot orchestrator
+  initAdmiral();
 
   const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const s = app.listen(config.port, config.host, () => {
@@ -44,6 +48,7 @@ async function main(): Promise<void> {
   async function shutdown() {
     shutdownWebSocket(wss);
     shutdownMentionHandler();
+    shutdownAdmiral();
     stopPRPoller();
     db.close();
     process.exit(0);
