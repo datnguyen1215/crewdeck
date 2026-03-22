@@ -147,9 +147,8 @@ function combineCheckResults(checkRuns: CheckResult, legacy: CheckResult): Check
 /** Determine issue status based on PR state, mergeability, and CI status. */
 function determineIssueStatus(
   mergeable: boolean | null,
-  ciStatus: CheckResult,
-  currentStatus: string
-): string | null {
+  ciStatus: CheckResult
+): string {
   // Merge conflict takes priority
   if (mergeable === false) return "pr_conflict";
 
@@ -159,8 +158,8 @@ function determineIssueStatus(
   // All good - ready to merge
   if (mergeable === true && ciStatus === "pass") return "pr_ready_to_merge";
 
-  // Still pending (mergeable null or checks pending) - no change
-  return null;
+  // Still pending (mergeable null or checks pending) - regress to pr_created
+  return "pr_created";
 }
 
 /** Poll all open PRs and update their status. */
@@ -257,13 +256,13 @@ export async function pollPRs(): Promise<void> {
         fetchCommitStatus(pr.repo_owner, pr.repo_name, ghPR.head.sha, token),
       ]);
 
-      const checkRunsResult = checkRuns ? analyzeCheckRuns(checkRuns) : "pass";
-      const legacyResult = commitStatus ? analyzeCommitStatus(commitStatus) : "pass";
+      const checkRunsResult = checkRuns ? analyzeCheckRuns(checkRuns) : "pending";
+      const legacyResult = commitStatus ? analyzeCommitStatus(commitStatus) : "pending";
       const ciStatus = combineCheckResults(checkRunsResult, legacyResult);
 
-      const newIssueStatus = determineIssueStatus(ghPR.mergeable, ciStatus, issue.status);
+      const newIssueStatus = determineIssueStatus(ghPR.mergeable, ciStatus);
 
-      if (newIssueStatus && newIssueStatus !== issue.status) {
+      if (newIssueStatus !== issue.status) {
         updateIssue(pr.issue_id, { status: newIssueStatus });
 
         logger.info(
