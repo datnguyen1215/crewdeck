@@ -6,15 +6,13 @@ import {
   update,
   remove,
 } from "../db/repositories/knowledge.js";
-import { createIssue } from "../db/repositories/issues.js";
-import { createComment } from "../db/repositories/comments.js";
 import { validate } from "../middleware/validate.js";
 import { verifyProject, createOwnershipVerifier } from "../middleware/ownership.js";
 import {
   CreateKnowledgeSchema,
   UpdateKnowledgeSchema,
 } from "../schemas/validation.js";
-import { eventBus } from "../events/bus.js";
+import { spawnScan } from "../orchestration/spawner.js";
 
 const router = Router({ mergeParams: true });
 
@@ -68,25 +66,13 @@ router.delete(
 router.post(
   "/scan",
   verifyProject,
-  (req: Request<{ projectId: string }>, res) => {
-    const { projectId } = req.params;
-
-    // Create issue for the scan task
-    const issue = createIssue(projectId, {
-      title: "Scan codebase and update knowledge",
-      description: "Automated scan triggered from the Knowledge page.",
-      created_by: "user",
-    });
-    eventBus.emit("issue.created", { issue });
-
-    // Add dispatch comment to trigger librarian agent
-    const comment = createComment(issue.id, {
-      author_type: "user",
-      content: "/dispatch librarian",
-    });
-    eventBus.emit("comment.added", { comment, project_id: projectId });
-
-    res.status(201).json({ issue_id: issue.id });
+  async (req: Request<{ projectId: string }>, res, next) => {
+    try {
+      const agentRunId = await spawnScan(req.params.projectId);
+      res.status(201).json({ agent_run_id: agentRunId });
+    } catch (err) {
+      next(err);
+    }
   }
 );
 

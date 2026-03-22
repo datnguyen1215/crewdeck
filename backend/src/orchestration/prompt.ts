@@ -89,6 +89,13 @@ export interface BuildPromptOptions {
   projectKnowledge?: ProjectKnowledge[];
 }
 
+export interface BuildScanPromptOptions {
+  projectId: string;
+  repo: Repo | { local_path: string; name: string } | null;
+  repoPath: string;
+  projectKnowledge?: ProjectKnowledge[];
+}
+
 export function buildPrompt(opts: BuildPromptOptions): string {
   const { issue, comments, repo, worktreePath, agentId, projectIssues, projectKnowledge } = opts;
   const parts: string[] = [];
@@ -139,6 +146,51 @@ To trigger another agent after you're done, use \`/dispatch agent-name\` at the 
 For example: "/dispatch captain" followed by your summary of completed work.
 
 Note: @mentions are cosmetic references only — they do NOT trigger agent spawns.
+
+Do your best work.`);
+
+  return parts.join("\n\n");
+}
+
+/**
+ * Build a prompt for librarian scan (no issue context).
+ */
+export function buildScanPrompt(opts: BuildScanPromptOptions): string {
+  const { projectId, repo, repoPath, projectKnowledge } = opts;
+  const parts: string[] = [];
+
+  parts.push("## Task\nScan the codebase and update knowledge entries for this project.");
+
+  if (projectKnowledge && projectKnowledge.length > 0) {
+    const entries = projectKnowledge
+      .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
+      .join("\n\n");
+    parts.push(`## Existing Knowledge\n${entries}`);
+  }
+
+  if (repo)
+    parts.push(`## Repository\n${escapeXml("name" in repo ? repo.name : "repo")} at ${escapeXml(repoPath)}`);
+
+  // Librarian-specific API section
+  parts.push(`## API Reference
+The following environment variables are available:
+- CREWDECK_API_URL — base URL of the backend API
+- CREWDECK_PROJECT_ID — current project ID
+- CREWDECK_AGENT_ID — your agent ID
+
+Knowledge API (via curl):
+- GET $CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID — list knowledge entries
+- POST $CREWDECK_API_URL/api/v1/internal/knowledge/create — create entry (body: { project_id, title, category, content, agent_ids? })
+- POST $CREWDECK_API_URL/api/v1/internal/knowledge/update — update entry (body: { project_id, knowledge_id, title?, category?, content?, agent_ids? })
+- POST $CREWDECK_API_URL/api/v1/internal/knowledge/delete — delete entry (body: { project_id, knowledge_id })`);
+
+  parts.push(`## Instructions
+Explore the codebase and create or update knowledge entries. Focus on:
+- Project structure and architecture
+- Key patterns and conventions
+- Important modules and their responsibilities
+- Build and test commands
+- Configuration and environment setup
 
 Do your best work.`);
 

@@ -6,6 +6,7 @@ import fs from "node:fs";
 import * as events from "../events/bus.js";
 import * as agentProcess from "./process.js";
 import * as agentPrompt from "./prompt.js";
+import { toContainerPath } from "../utils/paths.js";
 import * as agentWorktree from "./worktree.js";
 import * as crew from "./crew.js";
 import * as issueRepo from "../db/repositories/issues.js";
@@ -82,7 +83,7 @@ export async function processAgentStream(
   result: Awaited<ReturnType<typeof agentProcess.spawnClaudeStream>>,
   agentRunId: string,
   projectId: string,
-  issueId: string,
+  issueId: string | null,
   agent: Agent,
   timer: ReturnType<typeof setTimeout>,
   timeoutState: { timedOut: boolean },
@@ -157,7 +158,8 @@ export async function processAgentStream(
   });
 
   if (code === 0) {
-    if (resultText) {
+    // Only post comment if there's an issue
+    if (resultText && issueId) {
       const comment = commentRepo.createComment(issueId, {
         content: resultText,
         author_type: "agent",
@@ -173,19 +175,23 @@ export async function processAgentStream(
       "Agent finished",
     );
   } else {
-    postSystemComment(
-      issueId,
-      projectId,
-      `Agent ${agent.name} ${timeoutState.timedOut ? "timed out (10 min limit" : `crashed (exit code ${code}`}${hasEvents ? "" : ", no output"})`,
-    );
+    if (issueId) {
+      postSystemComment(
+        issueId,
+        projectId,
+        `Agent ${agent.name} ${timeoutState.timedOut ? "timed out (10 min limit" : `crashed (exit code ${code}`}${hasEvents ? "" : ", no output"})`,
+      );
+    }
     log.logger.error(
       { pid: result.pid, code, agent: agent.name, runId: agentRunId },
       "Agent process failed",
     );
   }
 
-  // Track batch completion
-  markAgentCompleted(agent.id, issueId);
+  // Track batch completion (only for issue-bound runs)
+  if (issueId) {
+    markAgentCompleted(agent.id, issueId);
+  }
 
   events.eventBus.emit("mention.completed", {
     project_id: projectId,
@@ -406,4 +412,96 @@ export const spawnAgent = async (
     .catch((err) => {
       log.logger.error({ err, runId: agentRun.id }, "Error processing agent stream");
     });
+};
+
+/**
+ * Spawn a librarian scan without an issue.
+ * Runs against the main repo, not a worktree.
+ * @param {string} projectId - Project to scan
+ * @returns {Promise<string>} The agent run ID
+ */
+export const spawnScan = async (projectId: string): Promise<string> => {
+  const project = projectRepo.getProject(projectId);
+  if (!project) throw new Error("Project not found");
+
+  const agent = crew.getCrewMember("librarian");
+  if (!agent) throw new Error("Librarian agent not found");
+
+  const repo = getFirstRepo(projectId);
+  const repoPath = repo ? toContainerPath(repo.local_path) : ".";
+
+  const projectKnowledge = knowledgeRepo.listForAgent(projectId, agent.id);
+
+  const prompt = agentPrompt.buildScanPrompt({
+    projectId,
+    repo: repo ?? null,
+    repoPath,
+    projectKnowledge,
+  });
+
+  const envVars = getEnvVars(projectId);
+  const env: Record<string, string> = {
+    ...envVars,
+    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
+    CREWDECK_PROJECT_ID: projectId,
+    CREWDECK_AGENT_ID: agent.id,
+  };
+
+  // Create AgentRun record (no issue_id for scans)
+  const agentRun = agentRunRepo.createAgentRun({
+    project_id: projectId,
+    issue_id: null,
+    agent_id: agent.id,
+    status: "running",
+  });
+
+  const result = await agentProcess.spawnClaudeStream({
+    prompt,
+    systemPrompt: agent.system_prompt,
+    workdir: repoPath,
+    env,
+  });
+
+  // Update run with PID
+  agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
+
+  const timeoutState = { timedOut: false };
+  const timer = setTimeout(() => {
+    timeoutState.timedOut = true;
+    log.logger.warn({ pid: result.pid, agentId: agent.id }, "Scan process timed out");
+    result.process.kill("SIGTERM");
+    setTimeout(() => {
+      if (!result.process.killed) result.process.kill("SIGKILL");
+    }, 5000);
+  }, PROCESS_TIMEOUT_MS);
+
+  const entry: ActiveProcess = {
+    pid: result.pid,
+    process: result.process,
+    projectId,
+    issueId: null,
+    agentId: agent.id,
+    agentRunId: agentRun.id,
+    timer,
+  };
+  activeProcesses.set(result.pid, entry);
+
+  events.eventBus.emit("run.started", {
+    agent_run_id: agentRun.id,
+    project_id: projectId,
+    issue_id: null,
+    agent_id: agent.id,
+    status: agentRun.status,
+    started_at: agentRun.started_at,
+  });
+
+  log.logger.info({ pid: result.pid, agent: agent.name, runId: agentRun.id }, "Scan spawned");
+
+  // Process streamed events
+  processAgentStream(result, agentRun.id, projectId, null, agent, timer, timeoutState)
+    .catch((err) => {
+      log.logger.error({ err, runId: agentRun.id }, "Error processing scan stream");
+    });
+
+  return agentRun.id;
 };

@@ -38,7 +38,7 @@ export interface EventMap {
   };
   "mention.completed": {
     project_id: string;
-    issue_id: string;
+    issue_id: string | null;
     agent_id: string;
     agent_name?: string;
     issue_title?: string;
@@ -71,7 +71,7 @@ export interface EventMap {
   "run.started": {
     agent_run_id: string;
     project_id: string;
-    issue_id: string;
+    issue_id: string | null;
     agent_id: string;
     status: AgentRunStatus;
     started_at: string | null;
@@ -87,7 +87,7 @@ export interface EventMap {
   "run.completed": {
     agent_run_id: string;
     project_id: string;
-    issue_id: string;
+    issue_id: string | null;
     status: AgentRunStatus;
     exit_code: number | null;
     cost_usd: number | null;

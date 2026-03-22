@@ -102,7 +102,7 @@ export type AgentRunStatus = "queued" | "running" | "completed" | "failed" | "ti
 export interface AgentRun {
   id: string;
   project_id: string;
-  issue_id: string;
+  issue_id: string | null;
   agent_id: string;
   pid: number | null;
   status: AgentRunStatus;
