@@ -17,7 +17,6 @@ import { getProject, listProjects } from "../db/repositories/projects.js";
 import { listIssues, updateIssue } from "../db/repositories/issues.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
 import { listIssuePRs, updateIssuePR } from "../db/repositories/issue-prs.js";
-import { createComment } from "../db/repositories/comments.js";
 import { pollPRs } from "../pr/poller.js";
 import { getCrewMember } from "./crew.js";
 import { spawnAgent, postSystemComment } from "./spawner.js";
@@ -191,6 +190,7 @@ function getOpenUnassignedIssues(): { issue: Issue; project: Project }[] {
  * Priority 1: Merge PRs that are ready.
  * Merges one at a time, polling for status updates after each merge.
  * Re-fetches the ready-to-merge list after each poll to avoid stale data.
+ * Tracks failed PRs to avoid infinite retry loops.
  */
 async function handleMergeManager(): Promise<boolean> {
   let prsToMerge = getPRsReadyToMerge();
@@ -199,10 +199,13 @@ async function handleMergeManager(): Promise<boolean> {
   logger.info({ count: prsToMerge.length }, "Admiral: PRs ready to merge");
 
   let mergedAny = false;
+  const failedPRIds = new Set<string>();
 
   // Merge one PR at a time, re-fetching after each poll
   while (prsToMerge.length > 0) {
-    const pr = prsToMerge[0];
+    // Find the first PR that hasn't failed
+    const pr = prsToMerge.find((p) => !failedPRIds.has(p.issuePR.id));
+    if (!pr) break; // All remaining PRs have failed
 
     logger.info(
       {
@@ -230,14 +233,11 @@ async function handleMergeManager(): Promise<boolean> {
       updateIssue(pr.issue.id, { status: "done" });
 
       // Post comment
-      const comment = createComment(pr.issue.id, {
-        content: `PR #${pr.issuePR.pr_number} merged by Admiral.`,
-        author_type: "system",
-      });
-      eventBus.emit("comment.added", {
-        comment,
-        project_id: pr.issue.project_id,
-      });
+      postSystemComment(
+        pr.issue.id,
+        pr.issue.project_id,
+        `PR #${pr.issuePR.pr_number} merged by Admiral.`
+      );
 
       eventBus.emit("issue.status_changed", {
         issue_id: pr.issue.id,
@@ -251,6 +251,9 @@ async function handleMergeManager(): Promise<boolean> {
         "Admiral: PR merged successfully"
       );
     } else {
+      // Track this PR as failed to avoid infinite retry
+      failedPRIds.add(pr.issuePR.id);
+
       logger.warn(
         {
           issueId: pr.issue.id,
