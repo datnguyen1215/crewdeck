@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
+import { createOwnershipVerifier } from "../middleware/ownership.js";
 import { createComment } from "../db/repositories/comments.js";
 import { createIssue, getIssue, updateIssue } from "../db/repositories/issues.js";
 import {
@@ -17,6 +18,15 @@ import { eventBus } from "../events/bus.js";
 // Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
 
+const verifyIssueOwner = createOwnershipVerifier(getIssue, "Issue", "project_id");
+const verifyKnowledgeOwner = createOwnershipVerifier(getKnowledge, "Knowledge entry", "project_id");
+
+function verifyProjectExists(projectId: string) {
+  const project = getProject(projectId);
+  if (!project) throw new NotFoundError("Project not found");
+  return project;
+}
+
 const CommentSchema = z.object({
   issue_id: z.string(),
   project_id: z.string(),
@@ -28,9 +38,7 @@ const CommentSchema = z.object({
 router.post("/comment", validate(CommentSchema), (req, res) => {
   const { issue_id, project_id, agent_id, content } = req.body;
 
-  const issue = getIssue(issue_id);
-  if (!issue || issue.project_id !== project_id)
-    throw new NotFoundError("Issue not found");
+  verifyIssueOwner(issue_id, project_id);
 
   const comment = createComment(issue_id, {
     content,
@@ -72,9 +80,7 @@ const IssueUpdateSchema = z.object({
 router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
   const { project_id, issue_id, priority } = req.body;
 
-  const issue = getIssue(issue_id);
-  if (!issue || issue.project_id !== project_id)
-    throw new NotFoundError("Issue not found");
+  verifyIssueOwner(issue_id, project_id);
 
   const updated = updateIssue(issue_id, { priority });
   eventBus.emit("issue.updated", {
@@ -84,13 +90,6 @@ router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
   });
   res.json(updated);
 });
-
-// Helper to verify project for internal routes
-function verifyProjectExists(projectId: string) {
-  const project = getProject(projectId);
-  if (!project) throw new NotFoundError("Project not found");
-  return project;
-}
 
 // GET /knowledge/list — list knowledge entries
 const KnowledgeListSchema = z.object({
@@ -133,12 +132,7 @@ const KnowledgeUpdateSchema = z.object({
 router.post("/knowledge/update", validate(KnowledgeUpdateSchema), (req, res) => {
   const { project_id, knowledge_id, ...updates } = req.body;
   verifyProjectExists(project_id);
-
-  const existing = getKnowledge(knowledge_id);
-  if (!existing || existing.project_id !== project_id) {
-    throw new NotFoundError("Knowledge entry not found");
-  }
-
+  verifyKnowledgeOwner(knowledge_id, project_id);
   const updated = updateKnowledge(knowledge_id, updates);
   res.json(updated);
 });
@@ -152,12 +146,7 @@ const KnowledgeDeleteSchema = z.object({
 router.post("/knowledge/delete", validate(KnowledgeDeleteSchema), (req, res) => {
   const { project_id, knowledge_id } = req.body;
   verifyProjectExists(project_id);
-
-  const existing = getKnowledge(knowledge_id);
-  if (!existing || existing.project_id !== project_id) {
-    throw new NotFoundError("Knowledge entry not found");
-  }
-
+  verifyKnowledgeOwner(knowledge_id, project_id);
   removeKnowledge(knowledge_id);
   res.status(204).send();
 });
