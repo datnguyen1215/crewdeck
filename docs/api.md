@@ -770,24 +770,26 @@ DELETE /projects/:projectId/knowledge/:knowledgeId
 POST /projects/:projectId/knowledge/scan
 ```
 
-Triggers a codebase scan by the librarian agent. Creates an issue titled "Scan codebase and update knowledge" and adds a `/dispatch librarian` comment to it.
+Triggers a codebase scan by spawning the librarian agent directly. The agent run is tracked in the `AgentRun` table without an associated issue.
 
 **Response:** `201 Created`
 
 ```json
 {
-  "issue_id": "uuid"
+  "agent_run_id": "uuid"
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| issue_id | TEXT (UUID) | The ID of the created issue. Use this to link to the issue detail page. |
+| agent_run_id | TEXT (UUID) | The ID of the spawned agent run. |
+
+**Error:** `500 Internal Server Error` — If the project's concurrency limit is reached (scans cannot be queued).
 
 **Side effects:**
-- Creates a new issue with `created_by: "user"`.
-- Adds a `/dispatch librarian` comment to trigger the librarian agent.
-- Emits `issue.created` and `comment.added` events.
+- Creates an `AgentRun` record with `issue_id: null`.
+- Spawns the librarian agent process.
+- Emits `run.started` event.
 
 ---
 
