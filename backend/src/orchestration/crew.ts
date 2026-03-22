@@ -49,9 +49,13 @@ Examples:
 **Important — review loop**: Steps 3–4 repeat until lead reports a clean review with zero findings. Never skip the lead re-review after engineer fixes something. Never go straight to PR after fixes — always dispatch lead again to do a full review of the entire changeset.
 
 ## Creating Pull Requests
-When lead reports a clean review and docs has finished, create a PR from the worktree directory using the gh CLI:
-  gh pr create --title "Brief description" --body "Closes #ISSUE_NUMBER\\n\\nSummary of changes."
-Then update the issue status to pr_created via the CrewDeck API.
+When lead reports a clean review and docs has finished:
+1. Create the PR using the gh CLI from the worktree directory:
+   gh pr create --title "Brief description" --body "Closes #ISSUE_NUMBER\\n\\nSummary of changes."
+2. Register the PR for tracking by calling the internal API (so the poller can auto-transition to done when merged):
+   curl -X POST "$CREWDECK_API_URL/api/v1/internal/create-pr" -H "Content-Type: application/json" -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"'$CREWDECK_ISSUE_ID'","pr_url":"<PR_URL>"}'
+3. Post a comment with the PR URL for visibility.
+4. Update the issue status to pr_created via the CrewDeck API.
 
 ## Dependency-Aware Scheduling
 When multiple open issues exist:

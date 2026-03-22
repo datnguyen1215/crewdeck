@@ -54,6 +54,7 @@ function buildApiSection(agentId: string): string {
       "- POST $CREWDECK_API_URL/api/v1/internal/comment — post a comment (body: { issue_id, project_id, agent_id, content })",
       "- POST $CREWDECK_API_URL/api/v1/internal/issues/create — create a new issue (body: { project_id, title, description, priority? })",
       "- POST $CREWDECK_API_URL/api/v1/internal/issues/update — update issue priority (body: { project_id, issue_id, priority })",
+      "- POST $CREWDECK_API_URL/api/v1/internal/create-pr — register a PR for tracking (body: { project_id, issue_id, pr_url })",
     );
   } else if (KNOWLEDGE_ACCESS_AGENTS.has(agentId)) {
     lines.push(

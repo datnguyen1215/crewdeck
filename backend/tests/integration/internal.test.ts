@@ -109,3 +109,62 @@ describe("POST /api/v1/internal/issues/update", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("POST /api/v1/internal/create-pr", () => {
+  it("creates IssuePR record and returns 201", async () => {
+    const prUrl = "https://github.com/test/repo/pull/42";
+    const res = await request(app).post(`${BASE}/create-pr`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      pr_url: prUrl,
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.pr_number).toBe(42);
+    expect(res.body.pr_url).toBe(prUrl);
+    expect(res.body.status).toBe("open");
+    expect(res.body.issue_id).toBe(issueId);
+  });
+
+  it("returns existing record on duplicate (idempotent)", async () => {
+    const prUrl = "https://github.com/test/repo/pull/42";
+    const res = await request(app).post(`${BASE}/create-pr`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      pr_url: prUrl,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.pr_number).toBe(42);
+  });
+
+  it("returns 404 for non-existent issue", async () => {
+    const res = await request(app).post(`${BASE}/create-pr`).send({
+      project_id: projectId,
+      issue_id: FAKE_ID,
+      pr_url: "https://github.com/test/repo/pull/99",
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 for invalid PR URL", async () => {
+    const res = await request(app).post(`${BASE}/create-pr`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      pr_url: "not-a-valid-url",
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for PR URL not matching project repo", async () => {
+    const res = await request(app).post(`${BASE}/create-pr`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      pr_url: "https://github.com/other/nonexistent/pull/1",
+    });
+
+    expect(res.status).toBe(400);
+  });
+});
