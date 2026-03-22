@@ -88,34 +88,8 @@ export interface BuildPromptOptions {
   projectKnowledge?: ProjectKnowledge[];
 }
 
-export function buildPrompt(opts: BuildPromptOptions): string;
-export function buildPrompt(
-  issue: Issue,
-  comments: Comment[],
-  repo: Repo | { local_path: string; default_branch: string; name: string } | null,
-  worktreePath: string,
-): string;
-export function buildPrompt(
-  issueOrOpts: Issue | BuildPromptOptions,
-  comments?: Comment[],
-  repo?: Repo | { local_path: string; default_branch: string; name: string } | null,
-  worktreePath?: string,
-): string {
-  // Normalize to options object
-  let opts: BuildPromptOptions;
-  if (comments !== undefined) {
-    opts = {
-      issue: issueOrOpts as Issue,
-      comments: comments!,
-      repo: repo ?? null,
-      worktreePath: worktreePath!,
-      agentId: "",
-    };
-  } else {
-    opts = issueOrOpts as BuildPromptOptions;
-  }
-
-  const { issue, comments: cmts, repo: r, worktreePath: wp, agentId, projectIssues, projectKnowledge } = opts;
+export function buildPrompt(opts: BuildPromptOptions): string {
+  const { issue, comments, repo, worktreePath, agentId, projectIssues, projectKnowledge } = opts;
   const parts: string[] = [];
 
   parts.push(
@@ -130,8 +104,8 @@ export function buildPrompt(
     parts.push(`## Project Knowledge\n${entries}`);
   }
 
-  if (r)
-    parts.push(`## Repository\n${escapeXml("name" in r ? r.name : "repo")} at ${escapeXml(wp)}`);
+  if (repo)
+    parts.push(`## Repository\n${escapeXml("name" in repo ? repo.name : "repo")} at ${escapeXml(worktreePath)}`);
 
   // Captain gets all open/in-progress issues for dependency-aware scheduling
   if (agentId === "captain" && projectIssues && projectIssues.length > 0) {
@@ -143,15 +117,15 @@ export function buildPrompt(
     }
   }
 
-  if (cmts.length > 0)
-    parts.push(`## Comment History\n<comments>\n${formatComments(cmts)}\n</comments>`);
+  if (comments.length > 0)
+    parts.push(`## Comment History\n<comments>\n${formatComments(comments)}\n</comments>`);
 
   // Diff instructions
   const safeBranch = /^[a-zA-Z0-9._/-]+$/.test(issue.base_branch ?? "")
     ? issue.base_branch!
     : "main";
 
-  const diffInstruction = r
+  const diffInstruction = repo
     ? `\n\nTo see what changed, run:\n  git diff $(git merge-base HEAD origin/${safeBranch}) HEAD`
     : "";
 
