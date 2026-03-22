@@ -70,6 +70,9 @@ With `?stats`:
       "open": 3,
       "in_progress": 1,
       "pr_created": 0,
+      "pr_conflict": 0,
+      "pr_failed_actions": 0,
+      "pr_ready_to_merge": 0,
       "done": 12
     }
   }
@@ -1034,18 +1037,21 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 
 ## Status Transition Rules
 
-Issue status changes are validated to ensure a valid lifecycle. The system uses a simplified 4-status model driven by `/dispatch`-based orchestration:
+Issue status changes are validated to ensure a valid lifecycle:
 
 | From | Allowed Transitions |
 |------|---------------------|
 | open | in_progress, done |
 | in_progress | pr_created, done |
-| pr_created | in_progress, done |
+| pr_created | in_progress, done, pr_conflict, pr_failed_actions, pr_ready_to_merge |
+| pr_conflict | pr_created, in_progress |
+| pr_failed_actions | pr_created, in_progress |
+| pr_ready_to_merge | done, pr_conflict, in_progress |
 | done | (terminal — no further transitions) |
 
 Any status can transition to `done` via `PATCH /issues/:issueId` (rejected if active agent processes are running).
 
-Dispatching an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress` before the agent is spawned.
+Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) or `done` issue automatically regresses it to `in_progress` before the agent is spawned.
 
 ---
 

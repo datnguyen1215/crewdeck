@@ -76,7 +76,7 @@ comment.added event
     │       ├── check active process count < max_concurrency
     │       │       └── if limit reached: enqueue dispatch, post "Agent X queued (N ahead)"
     │       │               system comment, emit dispatch.queued — skip remaining steps
-    │       ├── regress issue status to in_progress if needed
+    │       ├── regress issue status to in_progress if needed (from any PR-related status or done)
     │       ├── create worktree if needed
     │       ├── build prompt from issue + comments + agentId
     │       │       (captain also receives all open/in-progress issues)

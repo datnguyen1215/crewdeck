@@ -40,11 +40,11 @@ Chain depth is tracked per-issue and increments each time an agent is spawned on
 
 ## Issue Status
 
-Dispatching an agent on an issue automatically regresses its status to `in_progress` if it was `open`, `pr_created`, or `done`. Status transitions are:
+Dispatching an agent on an issue automatically regresses its status to `in_progress` if it was `open`, any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`), or `done`. Status transitions are:
 
 | Trigger | Status change |
 |---------|--------------|
-| Agent spawned on open/done/pr_created issue | → `in_progress` |
+| Agent spawned on open/done/PR-related issue | → `in_progress` |
 | User clicks "Mark as PR Created", or Captain runs `gh pr create` | → `pr_created` |
 | User clicks "Mark as Done" (no active processes) | → `done` |
 
