@@ -197,7 +197,7 @@ export async function createKnowledge(projectId: string, data: { title: string; 
 }
 export async function updateKnowledge(projectId: string, knowledgeId: string, data: { title?: string; category?: string; content?: string; agents?: string[] }) {
   const { agents, ...rest } = data;
-  const result = await request<BackendKnowledge>("PUT", `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`, { ...rest, agent_ids: agents?.length ? agents : null });
+  const result = await request<BackendKnowledge>("PATCH", `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`, { ...rest, agent_ids: agents?.length ? agents : null });
   return mapKnowledge(result);
 }
 export function deleteKnowledge(projectId: string, knowledgeId: string) {
