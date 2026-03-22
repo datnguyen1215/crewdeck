@@ -191,5 +191,5 @@ export function deleteKnowledge(projectId: string, knowledgeId: string) {
   return request<void>("DELETE", `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`);
 }
 export function triggerKnowledgeScan(projectId: string) {
-  return request<{ issue_id: string }>("POST", `/projects/${e(projectId)}/knowledge/scan`);
+  return request<{ agent_run_id: string }>("POST", `/projects/${e(projectId)}/knowledge/scan`);
 }

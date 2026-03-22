@@ -427,6 +427,12 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   const agent = crew.getCrewMember("librarian");
   if (!agent) throw new Error("Librarian agent not found");
 
+  // Check concurrency limit (scans can't be queued since they have no issue)
+  const activeCount = getActiveProcessCount(projectId);
+  if (activeCount >= project.max_concurrency) {
+    throw new Error(`Concurrency limit reached (${project.max_concurrency} agents running). Try again later.`);
+  }
+
   const repo = getFirstRepo(projectId);
   const repoPath = repo ? toContainerPath(repo.local_path) : ".";
 
