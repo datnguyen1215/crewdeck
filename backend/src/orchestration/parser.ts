@@ -39,6 +39,7 @@ export function parseDispatches(
       for (const agent of sorted) {
         if (token.toLowerCase() === agent.name.toLowerCase()) {
           if (agent.id === selfAgentId) break; // skip self
+          if (agent.dispatchable === false) break; // skip non-dispatchable agents (background services)
           if (!seenIds.has(agent.id)) {
             seenIds.add(agent.id);
             matched.push(agent);

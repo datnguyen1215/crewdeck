@@ -31,9 +31,9 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 
 ### Agent
 
-The crew is a fixed set of 5 immutable agents defined in code (Captain, Engineer, Lead, Docs, Librarian). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
+The crew is a fixed set of 6 immutable agents defined in code (Captain, Engineer, Lead, Docs, Librarian, Admiral). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
-Agent names are used for `/dispatch` command matching.
+Agent names are used for `/dispatch` command matching. Admiral is a background service and is not dispatchable via `/dispatch`.
 
 ### Orchestration via /dispatch Commands
 
@@ -224,6 +224,19 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
 - Exports `pollPRs()` for external callers (e.g., Admiral) to trigger immediate polling.
 
+**Admiral**
+- Auto-pilot orchestrator that manages the project automatically.
+- Only acts on projects with `admiral_enabled = true`.
+- Background service that is not dispatchable via `/dispatch` (unlike other agents).
+- Two triggers:
+  - **Reactive** — subscribes to `issue.status_changed` events for transitions to `done`, `pr_ready_to_merge`, `pr_conflict`, `pr_failed_actions`.
+  - **Proactive** — polls every 60 seconds as a safety net.
+- Responsibilities (in priority order):
+  1. **Merge manager** — merges PRs in `pr_ready_to_merge` status via GitHub API, one at a time, calling `pollPRs()` after each merge.
+  2. **Fix mode** — dispatches Captain to fix issues in `pr_conflict` or `pr_failed_actions` status.
+  3. **Work starter** — starts work on open unassigned issues when project capacity allows.
+- Uses `GH_TOKEN` from the project's linked GitHub account for merging.
+
 **Event Bus**
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than calling each other directly.
@@ -344,9 +357,10 @@ On startup, the backend:
 4. Initializes the MentionHandler (subscribes to `comment.added`).
 5. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 6. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
-7. Starts the Express HTTP server.
-8. Starts the WebSocket server.
-9. Logs startup complete via pino.
+7. Initializes Admiral (subscribes to `issue.status_changed`, starts 60-second polling loop).
+8. Starts the Express HTTP server.
+9. Starts the WebSocket server.
+10. Logs startup complete via pino.
 
 Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery).
 
@@ -356,9 +370,10 @@ On SIGTERM or SIGINT, the backend:
 
 1. Stops accepting new HTTP connections.
 2. Sends SIGTERM to all active agent processes (via `shutdownMentionHandler()`).
-3. Stops the PR poller.
-4. Closes the SQLite database connection.
-5. Exits the process.
+3. Shuts down Admiral (stops polling, unsubscribes from events).
+4. Stops the PR poller.
+5. Closes the SQLite database connection.
+6. Exits the process.
 
 ## Security and Access
 
