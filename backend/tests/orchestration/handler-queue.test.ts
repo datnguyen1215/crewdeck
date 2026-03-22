@@ -40,6 +40,7 @@ vi.mock("../../src/orchestration/worktree.js", () => ({
 
 // Import handler after mocks are set up
 import * as handler from "../../src/orchestration/handler.js";
+import { getActiveProcessCount } from "../../src/orchestration/processes.js";
 import { spawnClaudeStream } from "../../src/orchestration/process.js";
 
 // Initialize once
@@ -180,7 +181,7 @@ describe("handler queue integration", () => {
 
       // Both should spawn - check via events
       expect(spawnedEvents.length).toBe(2);
-      expect(handler.getActiveProcessCount(projectId)).toBe(2);
+      expect(getActiveProcessCount(projectId)).toBe(2);
 
       // Now try to spawn a third agent - should be queued
       await dispatchAgent("docs");
@@ -262,7 +263,7 @@ describe("handler queue integration", () => {
       await dispatchAgent("lead");
 
       expect(spawnedEvents.length).toBe(2);
-      expect(handler.getActiveProcessCount(projectId)).toBe(2);
+      expect(getActiveProcessCount(projectId)).toBe(2);
 
       // Queue an agent
       await dispatchAgent("docs");

@@ -211,6 +211,3 @@ export const shutdownMentionHandler = (): void => {
   clearBatches();
 };
 
-// Re-export process tracking functions for external use
-export { getActiveProcessCount, hasActiveProcesses, hasActiveAgentProcess } from "./processes.js";
-export { recoverOnStartup } from "./recovery.js";

@@ -12,11 +12,9 @@
 	import AgentRuns from '$lib/components/AgentRuns.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
-	type Issue = IssueWithDetails;
-
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
-	let issue = $state<Issue | null>(null);
+	let issue = $state<IssueWithDetails | null>(null);
 	let project = $state<Project | null>(null);
 	let loading = $state(true);
 	let projectId = $derived($page.params.projectId!);
