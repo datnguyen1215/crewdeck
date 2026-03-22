@@ -1,9 +1,38 @@
 import pino from "pino";
+import fs from "fs";
+import path from "path";
 import { config } from "./config.js";
+
+// Ensure log directory exists
+const logDir = path.dirname(config.logFilePath);
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
+const targets: pino.TransportTargetOptions[] = [
+  // File transport with rotation (JSON format)
+  {
+    target: "pino-roll",
+    options: {
+      file: config.logFilePath,
+      frequency: "daily",
+      limit: { count: 5 },
+      size: "10m",
+    },
+    level: config.logLevel,
+  },
+];
+
+// Add pretty console output in development
+if (config.nodeEnv === "development") {
+  targets.push({
+    target: "pino-pretty",
+    options: { colorize: true },
+    level: config.logLevel,
+  });
+}
 
 export const logger = pino(
   { level: config.logLevel },
-  config.nodeEnv === "development"
-    ? pino.transport({ target: "pino-pretty", options: { colorize: true } })
-    : undefined
+  pino.transport({ targets }),
 );
