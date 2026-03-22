@@ -217,7 +217,12 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Fetches current PR state from the GitHub API using the project's OAuth token.
 - Updates `IssuePR.status` when a PR is merged or closed.
 - Auto-transitions the linked issue from any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) → `done` when a PR is merged.
+- For open PRs, also checks:
+  - **Merge conflicts** — via the `mergeable` field. If `false`, transitions issue to `pr_conflict`.
+  - **CI status** — via both GitHub check-runs API (modern) and commit status API (legacy). If any check failed, transitions issue to `pr_failed_actions`. If all checks pass and mergeable, transitions to `pr_ready_to_merge`.
+- Issues in intermediate states (`pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) are transitioned back to `pr_created` when conditions become pending (e.g., new commits pushed).
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
+- Exports `pollPRs()` for external callers (e.g., Admiral) to trigger immediate polling.
 
 **Event Bus**
 - In-process typed EventEmitter singleton.
