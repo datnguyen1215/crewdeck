@@ -2,6 +2,7 @@
  * Agent spawning logic.
  * Handles process spawning, streaming output, and completion tracking.
  */
+import fs from "node:fs";
 import * as events from "../events/bus.js";
 import * as agentProcess from "./process.js";
 import * as agentPrompt from "./prompt.js";
@@ -286,9 +287,14 @@ export const spawnAgent = async (
     });
   }
 
-  // Create worktree if needed
+  // Create worktree if needed, or re-create if it was cleaned up (e.g. /tmp cleared on reboot)
   const repo = getFirstRepo(projectId);
   let worktreePath = issue.worktree_path;
+
+  if (worktreePath && !fs.existsSync(worktreePath)) {
+    log.logger.info({ worktreePath, issueId }, "Worktree path missing, will re-create");
+    worktreePath = null;
+  }
 
   if (!worktreePath && repo) {
     const freshIssue = issueRepo.getIssue(issueId)!;

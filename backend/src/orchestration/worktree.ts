@@ -36,9 +36,28 @@ export async function createWorktree(
   }
 
   const startPoint = fetchSucceeded ? `origin/${baseBranch}` : baseBranch;
-  await execAsync(
-    `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
-  );
+
+  // Prune stale worktree entries (e.g. after /tmp was cleaned on reboot)
+  await execAsync(`git -C ${shellQuote(repoPath)} worktree prune`);
+
+  // If the branch already exists (from a previous run), reuse it instead of -b
+  let branchExists = false;
+  try {
+    await execAsync(`git -C ${shellQuote(repoPath)} rev-parse --verify ${shellQuote(branchName)}`);
+    branchExists = true;
+  } catch {
+    // Branch doesn't exist
+  }
+
+  if (branchExists) {
+    await execAsync(
+      `git -C ${shellQuote(repoPath)} worktree add ${shellQuote(worktreePath)} ${shellQuote(branchName)}`,
+    );
+  } else {
+    await execAsync(
+      `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
+    );
+  }
 
   updateIssue(issue.id, {
     branch_name: branchName,
