@@ -31,11 +31,13 @@ export const getActiveProcessCount = (projectId: string): number => {
 /**
  * Check if an issue has any active processes.
  * @param {string} issueId - Issue to check
+ * @param {string} [excludeAgentId] - Agent ID to exclude from the check
  * @returns {boolean} True if processes are running
  */
-export const hasActiveProcesses = (issueId: string): boolean => {
-  for (const p of activeProcesses.values())
-    if (p.issueId === issueId) return true;
+export const hasActiveProcesses = (issueId: string, excludeAgentId?: string): boolean => {
+  for (const p of activeProcesses.values()) {
+    if (p.issueId === issueId && p.agentId !== excludeAgentId) return true;
+  }
   return false;
 };
 

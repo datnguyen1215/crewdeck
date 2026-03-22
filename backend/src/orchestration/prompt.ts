@@ -46,6 +46,7 @@ function buildApiSection(agentId: string): string {
       // Spec (#321) listed mark-pr-created/mark-done/reset-chain-depth as separate endpoints;
       // actual API uses PATCH status transitions.
       "- PATCH $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID — update issue fields",
+      "  Include header X-Agent-ID: $CREWDECK_AGENT_ID when marking status=done so you're excluded from the active process check.",
       "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID/comments — list comments",
       "- GET $CREWDECK_API_URL/api/v1/crew — list available agents",
       "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity — view activity log",

@@ -23,7 +23,10 @@ import type { IssueFilters } from "../types/entities.js";
 const TRANSITIONS: Record<string, string[]> = {
   open: ["in_progress", "done"],
   in_progress: ["pr_created", "done"],
-  pr_created: ["in_progress", "done"],
+  pr_created: ["in_progress", "done", "pr_conflict", "pr_failed_actions", "pr_ready_to_merge"],
+  pr_conflict: ["pr_created", "in_progress"],
+  pr_failed_actions: ["pr_created", "in_progress"],
+  pr_ready_to_merge: ["done", "pr_conflict", "in_progress"],
 };
 
 function assertTransition(from: string, to: string): void {
@@ -71,11 +74,12 @@ router.patch(
   validate(UpdateIssueSchema),
   (req, res) => {
     const existing = req.issue!;
+    const excludeAgentId = req.headers["x-agent-id"] as string | undefined;
 
     if (req.body.status && req.body.status !== existing.status) {
       assertTransition(existing.status, req.body.status);
       if (req.body.status === "done") {
-        if (hasActiveProcesses(existing.id)) {
+        if (hasActiveProcesses(existing.id, excludeAgentId)) {
           throw new ConflictError(
             "Cannot mark as done — agents are still running on this issue",
           );

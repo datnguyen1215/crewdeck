@@ -14,6 +14,9 @@ export interface ProjectWithStats extends Project {
     open: number;
     in_progress: number;
     pr_created: number;
+    pr_conflict: number;
+    pr_failed_actions: number;
+    pr_ready_to_merge: number;
     done: number;
   };
 }
@@ -173,8 +176,14 @@ export interface ProjectKnowledge {
   title: string;
   category: string;
   content: string;
-  source: 'user' | 'librarian';
+  source: string | null;
   agents: string[];
   created_at: string;
   updated_at: string;
+}
+
+export interface LibrarianStatus {
+  status: AgentRunStatus | null;
+  started_at: string | null;
+  completed_at: string | null;
 }

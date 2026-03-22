@@ -81,6 +81,10 @@ Pull requests are tracked in the `IssuePR` table. They can be linked to an issue
 
 ```
 Open → In Progress → PR Created → Done
+                          │
+                          ├─→ PR Conflict
+                          ├─→ PR Failed Actions
+                          └─→ PR Ready to Merge → Done
 ```
 
 ### States
@@ -90,9 +94,12 @@ Open → In Progress → PR Created → Done
 | **Open** | Issue is in the queue, ready to be worked on. |
 | **In Progress** | An agent is actively working (or has worked) on the issue. Set automatically when an agent is spawned. |
 | **PR Created** | A pull request has been created. Set via the "Mark as PR Created" button, automatically by the Captain agent after creating a PR with `gh pr create`, or auto-detected when a PR URL is posted in a comment. |
+| **PR Conflict** | The PR has merge conflicts detected by GitHub. Transitions back to `pr_created` after conflicts are resolved. |
+| **PR Failed Actions** | The PR has failing CI checks. Transitions back to `pr_created` after checks pass. |
+| **PR Ready to Merge** | The PR passes all checks and has no conflicts. Ready to be merged. |
 | **Done** | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running), or automatically when a linked PR is merged. |
 
-Dispatching an agent on a `pr_created` or `done` issue automatically regresses it to `in_progress`.
+Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) or `done` issue automatically regresses it to `in_progress`.
 
 ## Technology Decisions
 
@@ -209,7 +216,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Queries all open `IssuePR` records with their project/repo context.
 - Fetches current PR state from the GitHub API using the project's OAuth token.
 - Updates `IssuePR.status` when a PR is merged or closed.
-- Auto-transitions the linked issue from `pr_created` → `done` when a PR is merged.
+- Auto-transitions the linked issue from any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) → `done` when a PR is merged.
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
 
 **Event Bus**

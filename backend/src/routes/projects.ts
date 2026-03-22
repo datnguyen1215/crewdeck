@@ -9,6 +9,7 @@ import {
 } from "../db/repositories/projects.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
 import { parseGithubUrl } from "../db/repositories/repos.js";
+import { getLatestLibrarianRun } from "../db/repositories/agent-runs.js";
 import { fetchRepoMetadata } from "../github/repo-metadata.js";
 import { validate } from "../middleware/validate.js";
 import { NotFoundError } from "../middleware/errors.js";
@@ -80,6 +81,21 @@ router.delete("/:id", (req, res) => {
   if (!existing) throw new NotFoundError("Project not found");
   deleteProject(req.params.id);
   res.status(204).send();
+});
+
+router.get("/:id/librarian-status", (req, res) => {
+  const existing = getProject(req.params.id);
+  if (!existing) throw new NotFoundError("Project not found");
+  const run = getLatestLibrarianRun(req.params.id);
+  if (!run) {
+    res.json({ status: null, started_at: null, completed_at: null });
+    return;
+  }
+  res.json({
+    status: run.status,
+    started_at: run.started_at,
+    completed_at: run.completed_at,
+  });
 });
 
 export default router;
