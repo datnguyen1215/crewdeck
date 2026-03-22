@@ -9,14 +9,22 @@ import { ensureCloned, insertRepo } from "./repos.js";
 import { getGitHubAccount } from "./github-accounts.js";
 import { buildAndRunUpdate } from "./utils.js";
 
+function fromRow(row: Record<string, unknown>): Project {
+  return {
+    ...(row as Omit<Project, "admiral_enabled">),
+    admiral_enabled: Boolean(row.admiral_enabled),
+  };
+}
+
 export function listProjects(): Project[] {
-  return db
+  const rows = db
     .prepare("SELECT * FROM Project ORDER BY created_at DESC")
-    .all() as Project[];
+    .all() as Record<string, unknown>[];
+  return rows.map(fromRow);
 }
 
 export function listProjectsWithStats(): ProjectWithStats[] {
-  type StatsRow = Project & {
+  type StatsRow = Record<string, unknown> & {
     repo_count: number;
     issue_open: number | null;
     issue_in_progress: number | null;
@@ -42,7 +50,8 @@ export function listProjectsWithStats(): ProjectWithStats[] {
     .all() as StatsRow[];
 
   return rows.map((row) => ({
-    ...row,
+    ...fromRow(row),
+    repo_count: row.repo_count,
     issues: {
       open: row.issue_open ?? 0,
       in_progress: row.issue_in_progress ?? 0,
@@ -53,10 +62,10 @@ export function listProjectsWithStats(): ProjectWithStats[] {
 }
 
 export function getProject(id: string): Project | null {
-  return (
-    (db.prepare("SELECT * FROM Project WHERE id = ?").get(id) as Project) ??
-    null
-  );
+  const row = db
+    .prepare("SELECT * FROM Project WHERE id = ?")
+    .get(id) as Record<string, unknown> | undefined;
+  return row ? fromRow(row) : null;
 }
 
 export function createProject(input: CreateProjectInput): Project {
@@ -93,7 +102,11 @@ export function createProject(input: CreateProjectInput): Project {
 }
 
 export function updateProject(id: string, input: UpdateProjectInput): Project {
-  buildAndRunUpdate("Project", id, input);
+  const overrides: Record<string, unknown> = {};
+  if (input.admiral_enabled !== undefined) {
+    overrides.admiral_enabled = input.admiral_enabled ? 1 : 0;
+  }
+  buildAndRunUpdate("Project", id, input, overrides);
   return getProject(id)!;
 }
 
