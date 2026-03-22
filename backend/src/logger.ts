@@ -23,11 +23,19 @@ const targets: pino.TransportTargetOptions[] = [
   },
 ];
 
-// Add pretty console output in development
+// Add console output
 if (config.nodeEnv === "development") {
+  // Pretty output in development
   targets.push({
     target: "pino-pretty",
     options: { colorize: true },
+    level: config.logLevel,
+  });
+} else {
+  // Plain stdout in production
+  targets.push({
+    target: "pino/file",
+    options: { destination: 1 },
     level: config.logLevel,
   });
 }
