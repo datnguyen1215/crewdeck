@@ -88,6 +88,7 @@ export interface EventMap {
     agent_run_id: string;
     project_id: string;
     issue_id: string;
+    agent_id: string;
     status: AgentRunStatus;
     exit_code: number | null;
     cost_usd: number | null;

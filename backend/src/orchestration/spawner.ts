@@ -149,6 +149,7 @@ export async function processAgentStream(
     agent_run_id: agentRunId,
     project_id: projectId,
     issue_id: issueId,
+    agent_id: agent.id,
     status,
     exit_code: code,
     cost_usd: cost ?? null,

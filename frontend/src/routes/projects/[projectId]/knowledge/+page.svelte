@@ -106,7 +106,9 @@
 		const unsub = ws.on('run.completed', (data) => {
 			// Refresh when any librarian run completes
 			if (data.agent_id === 'librarian') {
-				refreshData();
+				refreshData().catch(() => {
+					toastStore.add('Failed to refresh data', 'error');
+				});
 			}
 		});
 
