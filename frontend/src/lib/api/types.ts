@@ -14,6 +14,9 @@ export interface ProjectWithStats extends Project {
     open: number;
     in_progress: number;
     pr_created: number;
+    pr_conflict: number;
+    pr_failed_actions: number;
+    pr_ready_to_merge: number;
     done: number;
   };
 }

@@ -182,7 +182,7 @@
 				<button onclick={handleResetChainDepth} disabled={working} class="w-full py-1.5 border border-amber text-amber rounded hover:bg-amber/10 transition-colors text-left px-3 disabled:opacity-50">Reset Chain Depth ({issue.chain_depth})</button>
 			{/if}
 
-			{#if issue.status === 'pr_created' && issue.issue_prs?.length}
+			{#if issue.status.startsWith('pr_') && issue.issue_prs?.length}
 				{@const pr = issue.issue_prs[0]}
 				<a href={pr.pr_url} target="_blank" rel="noopener" class="w-full py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 block">View PR #{pr.pr_number}</a>
 			{/if}

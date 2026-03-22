@@ -23,7 +23,10 @@ import type { IssueFilters } from "../types/entities.js";
 const TRANSITIONS: Record<string, string[]> = {
   open: ["in_progress", "done"],
   in_progress: ["pr_created", "done"],
-  pr_created: ["in_progress", "done"],
+  pr_created: ["in_progress", "done", "pr_conflict", "pr_failed_actions", "pr_ready_to_merge"],
+  pr_conflict: ["pr_created", "in_progress"],
+  pr_failed_actions: ["pr_created", "in_progress"],
+  pr_ready_to_merge: ["done", "pr_conflict", "in_progress"],
 };
 
 function assertTransition(from: string, to: string): void {

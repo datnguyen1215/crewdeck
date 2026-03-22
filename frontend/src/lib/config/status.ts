@@ -24,6 +24,27 @@ export const STATUS_CFG: Record<string, StatusConfig> = {
 		border: 'border-purple',
 		glow: 'var(--glow-purple)'
 	},
+	pr_conflict: {
+		label: 'Conflict',
+		dot: '⚠',
+		text: 'text-amber',
+		border: 'border-amber',
+		glow: 'var(--glow-amber)'
+	},
+	pr_failed_actions: {
+		label: 'CI Failed',
+		dot: '✕',
+		text: 'text-red',
+		border: 'border-red',
+		glow: 'var(--glow-red)'
+	},
+	pr_ready_to_merge: {
+		label: 'Ready to Merge',
+		dot: '✓',
+		text: 'text-green',
+		border: 'border-green',
+		glow: 'var(--glow-green)'
+	},
 	done: { label: 'Done', dot: '✓', text: 'text-secondary', border: 'border-secondary' }
 };
 

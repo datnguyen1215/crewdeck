@@ -276,8 +276,8 @@ export const spawnAgent = async (
   // Regress status to in_progress when work restarts
   if (
     issue.status === "done" ||
-    issue.status === "pr_created" ||
-    issue.status === "open"
+    issue.status === "open" ||
+    issue.status.startsWith("pr_")
   ) {
     issueRepo.updateIssue(issueId, { status: "in_progress" });
     events.eventBus.emit("issue.status_changed", {

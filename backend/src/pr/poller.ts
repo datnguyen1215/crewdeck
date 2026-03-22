@@ -136,10 +136,10 @@ async function pollPRs(): Promise<void> {
       to: newStatus,
     });
 
-    // Auto-transition issue to done if PR is merged and issue is in pr_created status
+    // Auto-transition issue to done if PR is merged and issue is in a PR-related status
     if (newStatus === "merged") {
       const issue = getIssue(pr.issue_id);
-      if (issue?.status === "pr_created") {
+      if (issue?.status.startsWith("pr_")) {
         updateIssue(pr.issue_id, { status: "done" });
 
         logger.info(
@@ -150,7 +150,7 @@ async function pollPRs(): Promise<void> {
         eventBus.emit("issue.status_changed", {
           issue_id: pr.issue_id,
           project_id: pr.project_id,
-          from: "pr_created",
+          from: issue.status,
           to: "done",
         });
       }
