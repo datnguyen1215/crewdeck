@@ -173,7 +173,7 @@ export interface ProjectKnowledge {
   title: string;
   category: string;
   content: string;
-  source: 'user' | 'librarian';
+  source: string | null;
   agents: string[];
   created_at: string;
   updated_at: string;
