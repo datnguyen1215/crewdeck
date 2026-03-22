@@ -47,6 +47,7 @@ Without `?stats`:
     "name": "My Project",
     "description": "...",
     "max_concurrency": 3,
+    "admiral_enabled": true,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
@@ -62,6 +63,7 @@ With `?stats`:
     "name": "My Project",
     "description": "...",
     "max_concurrency": 3,
+    "admiral_enabled": true,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601",
@@ -122,7 +124,7 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, github_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, admiral_enabled, github_account_id).
 
 **Response:** `200 OK` — The updated project object.
 
