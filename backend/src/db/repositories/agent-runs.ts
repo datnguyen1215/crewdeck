@@ -109,6 +109,14 @@ export function listRunningAgentRuns(): AgentRun[] {
   return db.prepare("SELECT * FROM AgentRun WHERE status = 'running'").all() as AgentRun[];
 }
 
+export function getLatestLibrarianRun(projectId: string): AgentRun | null {
+  return (db.prepare(
+    `SELECT * FROM AgentRun
+     WHERE project_id = ? AND agent_id = 'librarian'
+     ORDER BY created_at DESC LIMIT 1`
+  ).get(projectId) as AgentRun) ?? null;
+}
+
 export function markRunFailed(id: string): AgentRun | null {
   const run = getAgentRun(id);
   const completedAt = new Date().toISOString();

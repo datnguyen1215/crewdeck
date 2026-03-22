@@ -136,6 +136,32 @@ DELETE /projects/:id
 
 **Side effects:** Kills any active agent processes, cleans up worktrees, deletes all related data (cascading).
 
+#### Get Librarian Status
+
+```
+GET /projects/:id/librarian-status
+```
+
+Returns the status of the most recent librarian (knowledge scan) run for the project.
+
+**Response:** `200 OK`
+
+```json
+{
+  "status": "completed | running | queued | failed | timeout | null",
+  "started_at": "ISO 8601 | null",
+  "completed_at": "ISO 8601 | null"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| status | TEXT | Status of the latest librarian run. NULL if no librarian has ever run on this project. |
+| started_at | DATETIME | When the librarian run started. NULL if no run exists. |
+| completed_at | DATETIME | When the librarian run completed. NULL if still running or no run exists. |
+
+**Error:** `404 Not Found` — Project does not exist.
+
 ---
 
 ### GitHub Accounts
@@ -1106,7 +1132,7 @@ All events follow this structure:
 |-------|-------------|------|
 | `run.started` | Agent run started (process spawned) | `{ agent_run_id, project_id, issue_id, agent_id, status, started_at }` |
 | `run.event` | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }` |
-| `run.completed` | Agent run finished | `{ agent_run_id, project_id, issue_id, status, exit_code, cost_usd, duration_ms, completed_at }` |
+| `run.completed` | Agent run finished | `{ agent_run_id, project_id, issue_id, agent_id, status, exit_code, cost_usd, duration_ms, completed_at }` |
 
 #### PR Events
 
