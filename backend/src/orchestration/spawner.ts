@@ -439,7 +439,6 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   const projectKnowledge = knowledgeRepo.listForAgent(projectId, agent.id);
 
   const prompt = agentPrompt.buildScanPrompt({
-    projectId,
     repo: repo ?? null,
     repoPath,
     projectKnowledge,

@@ -90,7 +90,6 @@ export interface BuildPromptOptions {
 }
 
 export interface BuildScanPromptOptions {
-  projectId: string;
   repo: Repo | { local_path: string; name: string } | null;
   repoPath: string;
   projectKnowledge?: ProjectKnowledge[];
@@ -156,7 +155,7 @@ Do your best work.`);
  * Build a prompt for librarian scan (no issue context).
  */
 export function buildScanPrompt(opts: BuildScanPromptOptions): string {
-  const { projectId, repo, repoPath, projectKnowledge } = opts;
+  const { repo, repoPath, projectKnowledge } = opts;
   const parts: string[] = [];
 
   parts.push("## Task\nScan the codebase and update knowledge entries for this project.");
