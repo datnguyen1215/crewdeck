@@ -35,7 +35,7 @@
 			{
 				...project,
 				repo_count: 1,
-				issues: { open: 0, in_progress: 0, pr_created: 0, done: 0 }
+				issues: { open: 0, in_progress: 0, pr_created: 0, pr_conflict: 0, pr_failed_actions: 0, pr_ready_to_merge: 0, done: 0 }
 			}
 		];
 		closeModal();
@@ -49,6 +49,9 @@
 		{ key: 'open', label: 'Op', color: 'bg-blue' },
 		{ key: 'in_progress', label: 'IP', color: 'bg-amber' },
 		{ key: 'pr_created', label: 'PR', color: 'bg-purple' },
+		{ key: 'pr_conflict', label: 'Cf', color: 'bg-amber' },
+		{ key: 'pr_failed_actions', label: 'Fa', color: 'bg-red' },
+		{ key: 'pr_ready_to_merge', label: 'Rdy', color: 'bg-green' },
 		{ key: 'done', label: 'Dn', color: 'bg-secondary' }
 	] as const;
 

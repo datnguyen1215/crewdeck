@@ -21,6 +21,9 @@ export function listProjectsWithStats(): ProjectWithStats[] {
     issue_open: number | null;
     issue_in_progress: number | null;
     issue_pr_created: number | null;
+    issue_pr_conflict: number | null;
+    issue_pr_failed_actions: number | null;
+    issue_pr_ready_to_merge: number | null;
     issue_done: number | null;
   };
 
@@ -29,10 +32,13 @@ export function listProjectsWithStats(): ProjectWithStats[] {
       `SELECT
         p.*,
         COUNT(DISTINCT r.id) AS repo_count,
-        SUM(i.status = 'open')        AS issue_open,
-        SUM(i.status = 'in_progress') AS issue_in_progress,
-        SUM(i.status = 'pr_created')  AS issue_pr_created,
-        SUM(i.status = 'done')        AS issue_done
+        SUM(i.status = 'open')              AS issue_open,
+        SUM(i.status = 'in_progress')       AS issue_in_progress,
+        SUM(i.status = 'pr_created')        AS issue_pr_created,
+        SUM(i.status = 'pr_conflict')       AS issue_pr_conflict,
+        SUM(i.status = 'pr_failed_actions') AS issue_pr_failed_actions,
+        SUM(i.status = 'pr_ready_to_merge') AS issue_pr_ready_to_merge,
+        SUM(i.status = 'done')              AS issue_done
       FROM Project p
       LEFT JOIN Repo  r ON r.project_id = p.id
       LEFT JOIN Issue i ON i.project_id = p.id
@@ -47,6 +53,9 @@ export function listProjectsWithStats(): ProjectWithStats[] {
       open: row.issue_open ?? 0,
       in_progress: row.issue_in_progress ?? 0,
       pr_created: row.issue_pr_created ?? 0,
+      pr_conflict: row.issue_pr_conflict ?? 0,
+      pr_failed_actions: row.issue_pr_failed_actions ?? 0,
+      pr_ready_to_merge: row.issue_pr_ready_to_merge ?? 0,
       done: row.issue_done ?? 0,
     },
   }));
