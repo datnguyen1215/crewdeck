@@ -7,8 +7,8 @@ import {
   deleteEnvironmentVariable,
 } from "../db/repositories/environment-variables.js";
 import { validate } from "../middleware/validate.js";
-import { verifyProject } from "../middleware/ownership.js";
-import { NotFoundError, ConflictError } from "../middleware/errors.js";
+import { verifyProject, createOwnershipVerifier } from "../middleware/ownership.js";
+import { ConflictError } from "../middleware/errors.js";
 import {
   CreateEnvironmentVariableSchema,
   UpdateEnvironmentVariableSchema,
@@ -16,6 +16,12 @@ import {
 import type { EnvironmentVariable } from "../types/entities.js";
 
 const router = Router({ mergeParams: true });
+
+const verifyEnvVarOwner = createOwnershipVerifier(
+  getEnvironmentVariable,
+  "Environment variable",
+  "project_id"
+);
 
 /** Mask secret values in the response */
 function maskSecrets(envVar: EnvironmentVariable): EnvironmentVariable {
@@ -57,10 +63,7 @@ router.patch(
   verifyProject,
   validate(UpdateEnvironmentVariableSchema),
   (req: Request<{ projectId: string; envVarId: string }>, res) => {
-    const existing = getEnvironmentVariable(req.params.envVarId);
-    if (!existing || existing.project_id !== req.params.projectId) {
-      throw new NotFoundError("Environment variable not found");
-    }
+    const existing = verifyEnvVarOwner(req.params.envVarId, req.params.projectId);
     try {
       const updated = updateEnvironmentVariable(existing.id, req.body);
       res.json(maskSecrets(updated));
@@ -82,10 +85,7 @@ router.delete(
   "/:envVarId",
   verifyProject,
   (req: Request<{ projectId: string; envVarId: string }>, res) => {
-    const existing = getEnvironmentVariable(req.params.envVarId);
-    if (!existing || existing.project_id !== req.params.projectId) {
-      throw new NotFoundError("Environment variable not found");
-    }
+    const existing = verifyEnvVarOwner(req.params.envVarId, req.params.projectId);
     deleteEnvironmentVariable(existing.id);
     res.status(204).send();
   },

@@ -9,8 +9,7 @@ import {
 import { createIssue } from "../db/repositories/issues.js";
 import { createComment } from "../db/repositories/comments.js";
 import { validate } from "../middleware/validate.js";
-import { verifyProject } from "../middleware/ownership.js";
-import { NotFoundError } from "../middleware/errors.js";
+import { verifyProject, createOwnershipVerifier } from "../middleware/ownership.js";
 import {
   CreateKnowledgeSchema,
   UpdateKnowledgeSchema,
@@ -18,6 +17,8 @@ import {
 import { eventBus } from "../events/bus.js";
 
 const router = Router({ mergeParams: true });
+
+const verifyKnowledgeOwner = createOwnershipVerifier(getById, "Knowledge entry", "project_id");
 
 router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   const entries = listByProject(req.params.projectId);
@@ -28,10 +29,7 @@ router.get(
   "/:knowledgeId",
   verifyProject,
   (req: Request<{ projectId: string; knowledgeId: string }>, res) => {
-    const entry = getById(req.params.knowledgeId);
-    if (!entry || entry.project_id !== req.params.projectId) {
-      throw new NotFoundError("Knowledge entry not found");
-    }
+    const entry = verifyKnowledgeOwner(req.params.knowledgeId, req.params.projectId);
     res.json(entry);
   }
 );
@@ -51,10 +49,7 @@ router.patch(
   verifyProject,
   validate(UpdateKnowledgeSchema),
   (req: Request<{ projectId: string; knowledgeId: string }>, res) => {
-    const existing = getById(req.params.knowledgeId);
-    if (!existing || existing.project_id !== req.params.projectId) {
-      throw new NotFoundError("Knowledge entry not found");
-    }
+    const existing = verifyKnowledgeOwner(req.params.knowledgeId, req.params.projectId);
     const updated = update(existing.id, req.body);
     res.json(updated);
   }
@@ -64,10 +59,7 @@ router.delete(
   "/:knowledgeId",
   verifyProject,
   (req: Request<{ projectId: string; knowledgeId: string }>, res) => {
-    const existing = getById(req.params.knowledgeId);
-    if (!existing || existing.project_id !== req.params.projectId) {
-      throw new NotFoundError("Knowledge entry not found");
-    }
+    const existing = verifyKnowledgeOwner(req.params.knowledgeId, req.params.projectId);
     remove(existing.id);
     res.status(204).send();
   }

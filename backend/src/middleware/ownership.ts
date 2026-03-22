@@ -17,6 +17,34 @@ declare global {
   }
 }
 
+type EntityWithOwner<K extends string> = { [key in K]: string } | null;
+
+/**
+ * Creates a verification function that checks if an entity exists and belongs to an owner.
+ * @param getter Function to fetch the entity by ID
+ * @param entityName Name for error messages (e.g., "Issue", "Repo")
+ * @param ownerKey The property on the entity that links to the owner (e.g., "project_id")
+ */
+export function createOwnershipVerifier<T extends EntityWithOwner<K>, K extends string>(
+  getter: (id: string) => T,
+  entityName: string,
+  ownerKey: K
+): (entityId: string, ownerId: string) => NonNullable<T> {
+  return (entityId: string, ownerId: string): NonNullable<T> => {
+    const entity = getter(entityId);
+    if (!entity || entity[ownerKey] !== ownerId) {
+      throw new NotFoundError(`${entityName} not found`);
+    }
+    return entity as NonNullable<T>;
+  };
+}
+
+// Pre-built verifiers for common entities
+export const verifyIssueOwner = createOwnershipVerifier(getIssue, "Issue", "project_id");
+export const verifyRepoOwner = createOwnershipVerifier(getRepo, "Repo", "project_id");
+export const verifyCommentOwner = createOwnershipVerifier(getComment, "Comment", "issue_id");
+
+// Middleware versions
 export function verifyProject(req: Request, _res: Response, next: NextFunction): void {
   const project = getProject(req.params.projectId);
   if (!project) throw new NotFoundError("Project not found");
@@ -25,11 +53,7 @@ export function verifyProject(req: Request, _res: Response, next: NextFunction):
 }
 
 export function verifyIssueOwnership(req: Request, _res: Response, next: NextFunction): void {
-  const issue = getIssue(req.params.issueId);
-  if (!issue || issue.project_id !== req.params.projectId) {
-    throw new NotFoundError("Issue not found");
-  }
-  req.issue = issue;
+  req.issue = verifyIssueOwner(req.params.issueId, req.params.projectId);
   next();
 }
 
@@ -43,19 +67,11 @@ export function verifyIssueWithDetails(req: Request, _res: Response, next: NextF
 }
 
 export function verifyRepoOwnership(req: Request, _res: Response, next: NextFunction): void {
-  const repo = getRepo(req.params.repoId);
-  if (!repo || repo.project_id !== req.params.projectId) {
-    throw new NotFoundError("Repo not found");
-  }
-  req.repo = repo;
+  req.repo = verifyRepoOwner(req.params.repoId, req.params.projectId);
   next();
 }
 
 export function verifyCommentOwnership(req: Request, _res: Response, next: NextFunction): void {
-  const comment = getComment(req.params.commentId);
-  if (!comment || comment.issue_id !== req.params.issueId) {
-    throw new NotFoundError("Comment not found");
-  }
-  req.comment = comment;
+  req.comment = verifyCommentOwner(req.params.commentId, req.params.issueId);
   next();
 }
