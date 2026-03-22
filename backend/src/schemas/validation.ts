@@ -24,7 +24,9 @@ export const CreateProjectSchema = CreateProjectBase;
 export const UpdateProjectSchema = CreateProjectBase.omit({
   github_url: true,
   default_branch: true,
-}).partial();
+}).partial().extend({
+  admiral_enabled: z.boolean().optional(),
+});
 
 export const CreateRepoSchema = z.object({
   github_url: githubUrl,
