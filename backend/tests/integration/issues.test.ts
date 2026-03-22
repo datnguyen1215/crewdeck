@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { getApp } from "./setup.js";
 import { createIssue as createIssueInDb } from "../../src/db/repositories/issues.js";
+import { activeProcesses } from "../../src/orchestration/processes.js";
 
 /** Transition an issue through a sequence of statuses via PATCH. */
 const transitionTo = async (
@@ -310,6 +311,79 @@ describe("Issues API", () => {
         .send({ chain_depth: 0 });
       expect(res.status).toBe(200);
       expect(res.body.chain_depth).toBe(0);
+    });
+  });
+
+  describe("PATCH status=done with active processes", () => {
+    afterEach(() => {
+      for (const entry of activeProcesses.values()) {
+        clearTimeout(entry.timer);
+      }
+      activeProcesses.clear();
+    });
+
+    it("blocks done when other agents are running", async () => {
+      const issue = await createIssue(app, projectId);
+      // Simulate an active process for a different agent
+      activeProcesses.set(999, {
+        pid: 999,
+        process: {} as any,
+        projectId,
+        issueId: issue.id,
+        agentId: "other-agent",
+        agentRunId: "run-1",
+        timer: setTimeout(() => {}, 0),
+      });
+
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .set("X-Agent-ID", "captain")
+        .send({ status: "done" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toContain("agents are still running");
+    });
+
+    it("allows done when requesting agent is the only active process", async () => {
+      const issue = await createIssue(app, projectId);
+      // Simulate an active process for the requesting agent (captain)
+      activeProcesses.set(999, {
+        pid: 999,
+        process: {} as any,
+        projectId,
+        issueId: issue.id,
+        agentId: "captain",
+        agentRunId: "run-1",
+        timer: setTimeout(() => {}, 0),
+      });
+
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .set("X-Agent-ID", "captain")
+        .send({ status: "done" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("done");
+    });
+
+    it("blocks done when no X-Agent-ID header and processes are running", async () => {
+      const issue = await createIssue(app, projectId);
+      activeProcesses.set(999, {
+        pid: 999,
+        process: {} as any,
+        projectId,
+        issueId: issue.id,
+        agentId: "captain",
+        agentRunId: "run-1",
+        timer: setTimeout(() => {}, 0),
+      });
+
+      const res = await request(app)
+        .patch(`${base(projectId)}/${issue.id}`)
+        .send({ status: "done" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toContain("agents are still running");
     });
   });
 });

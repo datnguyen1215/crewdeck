@@ -430,12 +430,18 @@ PATCH /projects/:projectId/issues/:issueId
 
 **Request Body:** Any subset of issue fields (title, description, status, priority, chain_depth, agent_id).
 
+**Headers:**
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| X-Agent-ID | No | Agent ID to exclude from the active process check when transitioning to `done`. Allows an agent to mark an issue as done without being blocked by its own running process. |
+
 **Response:** `200 OK` — The updated issue object. If the request only sets a field to its current value (e.g. same status), the issue is returned unchanged.
 
 **Side effects:**
 - WebSocket event emitted: `issue.status_changed` (when status changes).
 
-**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue. Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the limit (20) is reached.
+**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue (excluding the agent specified in `X-Agent-ID`). Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the limit (20) is reached.
 
 ---
 

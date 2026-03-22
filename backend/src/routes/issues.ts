@@ -74,11 +74,12 @@ router.patch(
   validate(UpdateIssueSchema),
   (req, res) => {
     const existing = req.issue!;
+    const excludeAgentId = req.headers["x-agent-id"] as string | undefined;
 
     if (req.body.status && req.body.status !== existing.status) {
       assertTransition(existing.status, req.body.status);
       if (req.body.status === "done") {
-        if (hasActiveProcesses(existing.id)) {
+        if (hasActiveProcesses(existing.id, excludeAgentId)) {
           throw new ConflictError(
             "Cannot mark as done — agents are still running on this issue",
           );
