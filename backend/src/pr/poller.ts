@@ -224,10 +224,10 @@ export async function pollPRs(): Promise<void> {
       });
     }
 
-    // Auto-transition issue to done if PR is merged and issue is in a PR-related status
+    // Auto-transition issue to done if PR is merged (unless already done)
     if (newPRStatus === "merged") {
       const issue = getIssue(pr.issue_id);
-      if (issue?.status.startsWith("pr_")) {
+      if (issue && issue.status !== "done") {
         updateIssue(pr.issue_id, { status: "done" });
 
         logger.info(
