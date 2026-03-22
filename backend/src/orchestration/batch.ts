@@ -81,8 +81,8 @@ export const handleBatchComplete = (batch: AgentBatch): void => {
     `All batch members have completed. Auto-invoking ${originator.name} for follow-up.`,
   );
 
-  // Spawn the originator
-  spawnAgent(originator, batch.issueId, batch.projectId).catch((err) => {
+  // Spawn the originator with batchTriggered flag for empty-result retry logic
+  spawnAgent(originator, batch.issueId, batch.projectId, undefined, { batchTriggered: true }).catch((err) => {
     log.logger.error(
       { err, agent: originator.name, issueId: batch.issueId },
       "Failed to auto-spawn batch originator",
