@@ -316,6 +316,9 @@ describe("Issues API", () => {
 
   describe("PATCH status=done with active processes", () => {
     afterEach(() => {
+      for (const entry of activeProcesses.values()) {
+        clearTimeout(entry.timer);
+      }
       activeProcesses.clear();
     });
 
