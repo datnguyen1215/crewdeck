@@ -103,6 +103,7 @@ When a single comment dispatches multiple agents (e.g. Captain using `/dispatch 
 - When every batch member's process exits, the originator is auto-spawned so it can act on the combined results.
 - Batches time out after **30 minutes**. A cleanup interval (every 5 minutes) fires `handleBatchComplete` on any stale batch, preventing orphaned state.
 - Only one batch is tracked per issue at a time.
+- When a batch completes and the originator (captain) is auto-spawned, the spawn is marked as `batchTriggered`. If the captain's output is empty (e.g., it ended with a tool call instead of text), the system automatically retries once. If the retry also produces no output, a system comment is posted indicating manual intervention may be required.
 
 ### Chain Depth
 
