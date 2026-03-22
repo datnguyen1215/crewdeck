@@ -86,6 +86,7 @@ export async function processAgentStream(
   agent: Agent,
   timer: ReturnType<typeof setTimeout>,
   timeoutState: { timedOut: boolean },
+  options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> {
   const startTime = Date.now();
   let resultText = "";
@@ -165,6 +166,21 @@ export async function processAgentStream(
         author_id: agent.id,
       });
       events.eventBus.emit("comment.added", { comment, project_id: projectId });
+    } else if (options?.batchTriggered && agent.id === "captain" && !options?.isRetry) {
+      // Captain ended with tool call (empty result) after batch completion — retry once
+      log.logger.warn(
+        { pid: result.pid, agent: agent.name, runId: agentRunId },
+        "Batch-triggered captain completed with empty result, retrying once",
+      );
+      postSystemComment(
+        issueId,
+        projectId,
+        "Captain completed with no output (tool call was last action). Retrying...",
+      );
+      // Retry spawn with isRetry flag to prevent infinite loops
+      spawnAgent(agent, issueId, projectId, undefined, { batchTriggered: true, isRetry: true }).catch((err) => {
+        log.logger.error({ err, issueId }, "Failed to retry batch-triggered captain");
+      });
     }
 
     // No system comment for successful completion — this info is in the activity log (run.completed event)
@@ -203,12 +219,16 @@ export async function processAgentStream(
  * @param {string} issueId - Target issue
  * @param {string} projectId - Parent project
  * @param {string} [commentAuthorAgentId] - Author of the triggering comment
+ * @param {object} [options] - Optional spawn options
+ * @param {boolean} [options.batchTriggered] - Whether this spawn was triggered by batch completion
+ * @param {boolean} [options.isRetry] - Whether this is a retry spawn (prevents infinite loops)
  */
 export const spawnAgent = async (
   agent: Agent,
   issueId: string,
   projectId: string,
   commentAuthorAgentId?: string,
+  options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> => {
   const issue = issueRepo.getIssue(issueId);
   if (!issue) return;
@@ -403,7 +423,7 @@ export const spawnAgent = async (
   log.logger.info({ pid: result.pid, agent: agent.name, issueId, runId: agentRun.id }, "Agent spawned");
 
   // Process streamed events
-  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timeoutState)
+  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timeoutState, options)
     .catch((err) => {
       log.logger.error({ err, runId: agentRun.id }, "Error processing agent stream");
     });

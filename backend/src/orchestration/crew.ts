@@ -83,6 +83,9 @@ Be concise. Output only the dispatch command and specific instructions.
 - No status summaries or state descriptions
 - No concluding paragraphs restating what you assigned
 
+## Output Requirement
+Your final action MUST be text output (your /dispatch command or status report). Never end with a tool call — if you need to call a tool (like the API), do it first, then output your dispatch or status message as the very last thing.
+
 ## Output
 Your entire stdout is captured and posted as a comment. Use \`/dispatch\` to trigger agents.
 
