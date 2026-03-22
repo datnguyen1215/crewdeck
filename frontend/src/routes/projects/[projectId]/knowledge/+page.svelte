@@ -43,7 +43,6 @@
 
 	// Scan state
 	let scanning = $state(false);
-	let scanIssueId = $state<string | null>(null);
 	let librarianStatus = $state<LibrarianStatus | null>(null);
 
 	// WebSocket for auto-refresh
@@ -209,10 +208,8 @@
 
 	async function handleScan() {
 		scanning = true;
-		scanIssueId = null;
 		try {
-			const result = await triggerKnowledgeScan(projectId);
-			scanIssueId = result.issue_id;
+			await triggerKnowledgeScan(projectId);
 			// Refresh status to show the new running scan
 			librarianStatus = await getLibrarianStatus(projectId);
 			toastStore.add('Scan triggered — librarian agent dispatched', 'success');
@@ -275,14 +272,6 @@
 			</p>
 		</div>
 		<div class="flex items-center gap-2">
-			{#if scanIssueId}
-				<a
-					href="/projects/{projectId}/issues/{scanIssueId}"
-					class="px-3 py-1.5 bg-purple/10 border border-purple text-purple text-xs font-medium rounded hover:bg-purple/20 transition-colors uppercase tracking-wide"
-				>
-					View Scan Issue
-				</a>
-			{/if}
 			<button
 				onclick={handleScan}
 				disabled={scanning || scanRunning}

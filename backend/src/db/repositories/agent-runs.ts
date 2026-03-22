@@ -8,7 +8,7 @@ import type {
 
 export interface CreateAgentRunInput {
   project_id: string;
-  issue_id: string;
+  issue_id?: string | null;
   agent_id: string;
   pid?: number;
   status?: AgentRunStatus;
@@ -32,7 +32,7 @@ export function createAgentRun(input: CreateAgentRunInput): AgentRun {
   db.prepare(
     `INSERT INTO AgentRun (id, project_id, issue_id, agent_id, pid, status, started_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, input.project_id, input.issue_id, input.agent_id, input.pid ?? null, status, startedAt);
+  ).run(id, input.project_id, input.issue_id ?? null, input.agent_id, input.pid ?? null, status, startedAt);
 
   return getAgentRun(id)!;
 }

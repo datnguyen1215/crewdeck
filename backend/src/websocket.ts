@@ -92,7 +92,7 @@ function subscribeEvents(bus: EventBus): void {
 
   bus.on("mention.completed", ({ project_id, issue_id, agent_id, exit_code }) => {
     const agent = getCrewMember(agent_id);
-    const issue = getIssue(issue_id);
+    const issue = issue_id ? getIssue(issue_id) : null;
     broadcast(project_id, "mention.completed", {
       issue_id,
       agent_id,

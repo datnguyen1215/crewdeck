@@ -106,7 +106,7 @@ CREATE INDEX IF NOT EXISTS idx_env_var_project ON EnvironmentVariable(project_id
 CREATE TABLE IF NOT EXISTS AgentRun (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES Project(id),
-  issue_id TEXT NOT NULL REFERENCES Issue(id),
+  issue_id TEXT REFERENCES Issue(id),
   agent_id TEXT NOT NULL,
   pid INTEGER,
   status TEXT NOT NULL DEFAULT 'queued',

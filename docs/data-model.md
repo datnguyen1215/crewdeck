@@ -137,13 +137,13 @@ Links an issue to a GitHub pull request.
 
 ### AgentRun
 
-Records a single execution of an agent on an issue.
+Records a single execution of an agent. Can be associated with an issue (for `/dispatch` spawns) or run standalone (for scans).
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
 | project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| issue_id | TEXT | NOT NULL, FOREIGN KEY → Issue.id | The issue this run was triggered by. |
+| issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue this run was triggered by. NULL for standalone runs (e.g., scans). |
 | agent_id | TEXT | NOT NULL | The agent that was spawned (e.g., `captain`). |
 | pid | INTEGER | NULLABLE | OS process ID. NULL until the process is spawned. |
 | status | TEXT | NOT NULL, DEFAULT 'queued' | Current status. One of: `queued`, `running`, `completed`, `failed`, `timeout`. |
@@ -207,7 +207,9 @@ Structured knowledge entries that provide context to agents. Replaces the former
 
 ---
 
-### AgentRun
+### AgentRun (legacy duplicate)
+
+> **Note:** This section duplicates the AgentRun definition above. See the earlier definition for the canonical schema.
 
 Tracks each agent process spawn for crash recovery and observability.
 
@@ -215,7 +217,7 @@ Tracks each agent process spawn for crash recovery and observability.
 |-------|------|-------------|-------------|
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
 | project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| issue_id | TEXT | NOT NULL, FOREIGN KEY → Issue.id | The issue the agent was working on. |
+| issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue the agent was working on. NULL for standalone runs (e.g., scans). |
 | agent_id | TEXT | NOT NULL | The agent identifier (e.g., `captain`, `engineer`). |
 | pid | INTEGER | NOT NULL | OS process ID of the spawned `claude` process. |
 | status | TEXT | NOT NULL, DEFAULT 'running' | Current run status. One of: `running`, `completed`, `failed`, `timeout`. |
@@ -223,7 +225,7 @@ Tracks each agent process spawn for crash recovery and observability.
 | started_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned. |
 | completed_at | DATETIME | NULLABLE | When the process finished. NULL if still running. |
 
-**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed` and posts system comments on affected issues.
+**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed` and posts system comments on affected issues (if associated with an issue).
 
 ---
 
@@ -257,7 +259,7 @@ Immutable audit trail of every action in the system.
 | Issue → Comment | One-to-Many | An issue has many comments. |
 | Issue → IssuePR | One-to-Many | An issue can have multiple PRs (across repos). |
 | Issue → ActivityLog | One-to-Many | An issue has many activity log entries. |
-| Issue → AgentRun | One-to-Many | An issue has many agent run records. |
+| Issue → AgentRun | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
 | AgentRun → AgentRunEvent | One-to-Many | A run has many streamed events (ordered by created_at). |
 | Project → AgentRun | One-to-Many | A project has many agent run records. |
 

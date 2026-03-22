@@ -173,22 +173,26 @@ export const recoverOnStartup = (): void => {
 
     const agent = crew.getCrewMember(run.agent_id);
     const agentName = agent?.name ?? run.agent_id;
-    postSystemComment(
-      run.issue_id,
-      run.project_id,
-      `Agent run interrupted by server restart (${agentName})`,
-    );
+
+    // Only post comment and track for captain re-dispatch if there's an issue
+    if (run.issue_id) {
+      postSystemComment(
+        run.issue_id,
+        run.project_id,
+        `Agent run interrupted by server restart (${agentName})`,
+      );
+
+      // Track issue for captain re-dispatch
+      if (!issuesByProject.has(run.project_id)) {
+        issuesByProject.set(run.project_id, new Set());
+      }
+      issuesByProject.get(run.project_id)!.add(run.issue_id);
+    }
 
     log.logger.info(
       { runId: run.id, agentId: run.agent_id, issueId: run.issue_id, pid: run.pid },
       "Marked orphaned run as failed",
     );
-
-    // Track issue for captain re-dispatch
-    if (!issuesByProject.has(run.project_id)) {
-      issuesByProject.set(run.project_id, new Set());
-    }
-    issuesByProject.get(run.project_id)!.add(run.issue_id);
   }
 
   // Schedule captain re-dispatch after server is fully initialized

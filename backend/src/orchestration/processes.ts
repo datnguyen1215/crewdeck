@@ -8,7 +8,7 @@ export interface ActiveProcess {
   pid: number;
   process: ChildProcess;
   projectId: string;
-  issueId: string;
+  issueId: string | null;
   agentId: string;
   agentRunId: string;
   timer: ReturnType<typeof setTimeout>;
