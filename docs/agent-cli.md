@@ -27,6 +27,7 @@ Agents are triggered by **`/dispatch` commands** in issue comments. When a user 
 - Matching is case-insensitive.
 - Dispatches inside fenced code blocks or inline backticks are ignored.
 - Agents cannot dispatch themselves (self-dispatches are skipped).
+- Background services (e.g., Admiral) cannot be dispatched — they have `dispatchable: false` and are ignored by the parser.
 
 ## Limits
 

@@ -302,7 +302,7 @@ DELETE /projects/:projectId/repos/:repoId
 
 ### Crew / Agents
 
-The crew is a fixed set of 5 global agents (captain, engineer, lead, docs, librarian). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data.
+The crew is a fixed set of 6 global agents (captain, engineer, lead, docs, librarian, admiral). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, excluding non-dispatchable agents like Admiral.
 
 #### List Crew
 
@@ -311,7 +311,7 @@ GET /crew
 GET /agents
 ```
 
-Both paths return the same fixed 5-agent crew. The `/crew` path is canonical; `/agents` is kept for compatibility.
+Both paths return the dispatchable agents (5 agents). Admiral is excluded because it is a background service, not a dispatchable agent. The `/crew` path is canonical; `/agents` is kept for compatibility.
 
 **Response:** `200 OK` — Array of agent objects.
 
@@ -322,10 +322,20 @@ Both paths return the same fixed 5-agent crew. The `/crew` path is canonical; `/
     "name": "Captain",
     "title": "Project Manager",
     "description": "Coordinates the crew and manages project execution.",
-    "system_prompt": "You are Captain, the project manager..."
+    "system_prompt": "You are Captain, the project manager...",
+    "dispatchable": true
   }
 ]
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | TEXT | Agent identifier. |
+| name | TEXT | Display name. |
+| title | TEXT | Agent role title. |
+| description | TEXT | Brief description of the agent's purpose. |
+| system_prompt | TEXT | System prompt injected into agent processes. |
+| dispatchable | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. Background services (e.g., Admiral) have this set to false and are excluded from the list.
 
 ---
 
