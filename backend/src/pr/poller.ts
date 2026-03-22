@@ -36,6 +36,7 @@ interface GitHubCheckRunsResponse {
 
 interface GitHubStatusResponse {
   state: "success" | "failure" | "pending";
+  total_count: number;
 }
 
 const GITHUB_HEADERS = {
@@ -134,6 +135,8 @@ function analyzeCheckRuns(checkRuns: GitHubCheckRunsResponse): CheckResult {
 function analyzeCommitStatus(status: GitHubStatusResponse): CheckResult {
   if (status.state === "success") return "pass";
   if (status.state === "failure") return "fail";
+  // No legacy statuses configured — nothing is blocking
+  if (status.state === "pending" && status.total_count === 0) return "pass";
   return "pending";
 }
 
