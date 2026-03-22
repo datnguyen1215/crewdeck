@@ -128,10 +128,10 @@
 				{:else}
 					{#each activeRuns as run, i (run.id)}
 						{@const agent = agentMap[run.agent_id]}
-						{@const issue = issueMap[run.issue_id]}
+						{@const issue = run.issue_id ? issueMap[run.issue_id] : null}
 						{@const isRunning = run.status === 'running'}
 						{@const queuePosition = !isRunning ? activeRuns.filter(r => r.status === 'queued').indexOf(run) + 1 : 0}
-						{@const isLibrarianScan = !run.issue_id && agent?.name === 'librarian'}
+						{@const isLibrarianScan = !run.issue_id && agent?.id === 'librarian'}
 						<a
 							href={isLibrarianScan ? `/projects/${projectId}/knowledge` : `/projects/${projectId}/issues/${run.issue_id}`}
 							onclick={() => open = false}
