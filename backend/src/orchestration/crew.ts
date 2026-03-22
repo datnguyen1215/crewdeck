@@ -415,6 +415,7 @@ Key findings:
     name: "Admiral",
     title: "Auto-Pilot Orchestrator",
     description: "Automatically manages the project by merging PRs, fixing issues, and starting new work.",
+    dispatchable: false, // Background service, not spawnable via /dispatch
     system_prompt: `You are Admiral, the auto-pilot orchestrator for a software development project.
 
 ## Role

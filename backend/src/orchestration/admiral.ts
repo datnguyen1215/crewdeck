@@ -14,7 +14,7 @@ import { eventBus } from "../events/bus.js";
 import { logger } from "../logger.js";
 import { db } from "../db/index.js";
 import { getProject, listProjects } from "../db/repositories/projects.js";
-import { listIssues, getIssue, updateIssue } from "../db/repositories/issues.js";
+import { listIssues, updateIssue } from "../db/repositories/issues.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
 import { listIssuePRs, updateIssuePR } from "../db/repositories/issue-prs.js";
 import { createComment } from "../db/repositories/comments.js";
@@ -27,6 +27,7 @@ import type { Issue, Project, IssuePR } from "../types/entities.js";
 const POLL_INTERVAL = 60_000; // 60 seconds
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
+let cycleInProgress = false;
 
 const GITHUB_HEADERS = {
   Accept: "application/vnd.github.v3+json",
@@ -303,12 +304,23 @@ async function handleFixMode(): Promise<boolean> {
     );
 
     // Post a comment explaining what Admiral is doing
-    const comment = createComment(issue.id, {
-      content: `/dispatch captain\n\nAdmiral: Fix ${fixType} on this PR. Push fixes to the existing branch.`,
-      author_type: "system",
-      author_id: "admiral",
-    });
-    eventBus.emit("comment.added", { comment, project_id: project.id });
+    postSystemComment(
+      issue.id,
+      project.id,
+      `Admiral: Dispatching Captain to fix ${fixType} on this PR.`
+    );
+
+    // Spawn captain directly (comments with author_type "system" are ignored by mention handler)
+    try {
+      await spawnAgent(captain, issue.id, project.id);
+    } catch (err) {
+      logger.error({ err, issueId: issue.id }, "Admiral: Failed to spawn captain for fix");
+      postSystemComment(
+        issue.id,
+        project.id,
+        `Admiral: Failed to spawn Captain: ${err instanceof Error ? err.message : "unknown error"}`
+      );
+    }
   }
 
   return true;
@@ -349,13 +361,24 @@ async function handleWorkStarter(): Promise<boolean> {
       "Admiral: Starting work on issue"
     );
 
-    // Post a comment to trigger captain dispatch
-    const comment = createComment(issue.id, {
-      content: `/dispatch captain\n\nAdmiral: Start work on this issue.`,
-      author_type: "system",
-      author_id: "admiral",
-    });
-    eventBus.emit("comment.added", { comment, project_id: project.id });
+    // Post a comment explaining what Admiral is doing
+    postSystemComment(
+      issue.id,
+      project.id,
+      `Admiral: Starting work on this issue.`
+    );
+
+    // Spawn captain directly (comments with author_type "system" are ignored by mention handler)
+    try {
+      await spawnAgent(captain, issue.id, project.id);
+    } catch (err) {
+      logger.error({ err, issueId: issue.id }, "Admiral: Failed to spawn captain for work");
+      postSystemComment(
+        issue.id,
+        project.id,
+        `Admiral: Failed to spawn Captain: ${err instanceof Error ? err.message : "unknown error"}`
+      );
+    }
 
     // Only start one issue per cycle to avoid overwhelming the system
     return true;
@@ -366,8 +389,16 @@ async function handleWorkStarter(): Promise<boolean> {
 
 /**
  * Main Admiral cycle - runs through all responsibilities in priority order.
+ * Uses a guard to prevent concurrent cycles from overlapping.
  */
 async function runAdmiralCycle(): Promise<void> {
+  // Skip if another cycle is already in progress
+  if (cycleInProgress) {
+    logger.debug("Admiral: Skipping cycle, another cycle in progress");
+    return;
+  }
+
+  cycleInProgress = true;
   try {
     // Priority 1: Merge ready PRs
     const merged = await handleMergeManager();
@@ -381,6 +412,8 @@ async function runAdmiralCycle(): Promise<void> {
     await handleWorkStarter();
   } catch (err) {
     logger.error({ err }, "Admiral cycle failed");
+  } finally {
+    cycleInProgress = false;
   }
 }
 
