@@ -10,23 +10,23 @@ import { logger } from "./logger.js";
 const PING_INTERVAL = 30_000;
 const PONG_TIMEOUT = 10_000;
 
-export const subscribers = new Map<string, Set<WebSocket>>();
+const subscribers = new Map<string, Set<WebSocket>>();
 
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-export function addSubscriber(projectId: string, ws: WebSocket): void {
+function addSubscriber(projectId: string, ws: WebSocket): void {
   if (!subscribers.has(projectId)) subscribers.set(projectId, new Set());
   subscribers.get(projectId)!.add(ws);
 }
 
-export function removeSubscriber(projectId: string, ws: WebSocket): void {
+function removeSubscriber(projectId: string, ws: WebSocket): void {
   const clients = subscribers.get(projectId);
   if (!clients) return;
   clients.delete(ws);
   if (clients.size === 0) subscribers.delete(projectId);
 }
 
-export function broadcast(projectId: string, event: string, data: unknown): void {
+function broadcast(projectId: string, event: string, data: unknown): void {
   const clients = subscribers.get(projectId);
   if (!clients?.size) return;
   const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
@@ -41,7 +41,7 @@ export function broadcast(projectId: string, event: string, data: unknown): void
   }
 }
 
-export function subscribeEvents(bus: EventBus): void {
+function subscribeEvents(bus: EventBus): void {
   bus.on("issue.created", ({ issue }) =>
     broadcast(issue.project_id, "issue.created", issue),
   );
