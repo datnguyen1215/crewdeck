@@ -19,6 +19,13 @@ import { getProject } from "../db/repositories/projects.js";
 import { listRepos } from "../db/repositories/repos.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
+import {
+  CreateCommentSchema,
+  CreateIssueSchema as BaseCreateIssueSchema,
+  UpdateIssueSchema,
+  CreateKnowledgeSchema,
+  UpdateKnowledgeSchema,
+} from "../schemas/validation.js";
 import { parsePRUrls } from "../pr/detector.js";
 
 // Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
@@ -33,15 +40,15 @@ function verifyProjectExists(projectId: string) {
   return project;
 }
 
-const CommentSchema = z.object({
+// Reuse base schemas with internal route requirements (project_id, issue_id, etc.)
+const InternalCommentSchema = CreateCommentSchema.pick({ content: true }).extend({
   issue_id: z.string(),
   project_id: z.string(),
   agent_id: z.string().optional(),
-  content: z.string().min(1),
 });
 
 // POST /comment — agent posts a comment on an issue
-router.post("/comment", validate(CommentSchema), (req, res) => {
+router.post("/comment", validate(InternalCommentSchema), (req, res) => {
   const { issue_id, project_id, agent_id, content } = req.body;
 
   verifyIssueOwner(issue_id, project_id);
@@ -57,14 +64,11 @@ router.post("/comment", validate(CommentSchema), (req, res) => {
 });
 
 // POST /issues/create — agent creates a new issue
-const CreateIssueSchema = z.object({
+const InternalCreateIssueSchema = BaseCreateIssueSchema.omit({ created_by: true }).extend({
   project_id: z.string(),
-  title: z.string().min(1),
-  description: z.string().min(1),
-  priority: z.number().int().optional(),
 });
 
-router.post("/issues/create", validate(CreateIssueSchema), (req, res) => {
+router.post("/issues/create", validate(InternalCreateIssueSchema), (req, res) => {
   const { project_id, title, description, priority } = req.body;
   const issue = createIssue(project_id, {
     title,
@@ -77,13 +81,12 @@ router.post("/issues/create", validate(CreateIssueSchema), (req, res) => {
 });
 
 // POST /issues/update — update issue fields
-const IssueUpdateSchema = z.object({
+const InternalIssueUpdateSchema = UpdateIssueSchema.pick({ priority: true }).required().extend({
   project_id: z.string(),
   issue_id: z.string(),
-  priority: z.number().int(),
 });
 
-router.post("/issues/update", validate(IssueUpdateSchema), (req, res) => {
+router.post("/issues/update", validate(InternalIssueUpdateSchema), (req, res) => {
   const { project_id, issue_id, priority } = req.body;
 
   verifyIssueOwner(issue_id, project_id);
@@ -150,11 +153,11 @@ router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
 
 
 // GET /knowledge/list — list knowledge entries
-const KnowledgeListSchema = z.object({
+const InternalKnowledgeListSchema = z.object({
   project_id: z.string(),
 });
 
-router.get("/knowledge/list", validate(KnowledgeListSchema, "query"), (req, res) => {
+router.get("/knowledge/list", validate(InternalKnowledgeListSchema, "query"), (req, res) => {
   const { project_id } = req.query as { project_id: string };
   verifyProjectExists(project_id);
   const entries = listKnowledge(project_id);
@@ -162,15 +165,11 @@ router.get("/knowledge/list", validate(KnowledgeListSchema, "query"), (req, res)
 });
 
 // POST /knowledge/create — create knowledge entry (force source to "librarian")
-const KnowledgeCreateSchema = z.object({
+const InternalKnowledgeCreateSchema = CreateKnowledgeSchema.omit({ source: true }).extend({
   project_id: z.string(),
-  title: z.string().min(1),
-  category: z.string().min(1),
-  content: z.string().min(1),
-  agent_ids: z.array(z.string()).nullable().optional(),
 });
 
-router.post("/knowledge/create", validate(KnowledgeCreateSchema), (req, res) => {
+router.post("/knowledge/create", validate(InternalKnowledgeCreateSchema), (req, res) => {
   const { project_id, ...input } = req.body;
   verifyProjectExists(project_id);
   const entry = createKnowledge(project_id, { ...input, source: "librarian" });
@@ -178,16 +177,12 @@ router.post("/knowledge/create", validate(KnowledgeCreateSchema), (req, res) => 
 });
 
 // POST /knowledge/update — update knowledge entry
-const KnowledgeUpdateSchema = z.object({
+const InternalKnowledgeUpdateSchema = UpdateKnowledgeSchema.omit({ source: true }).extend({
   project_id: z.string(),
   knowledge_id: z.string(),
-  title: z.string().min(1).optional(),
-  category: z.string().min(1).optional(),
-  content: z.string().min(1).optional(),
-  agent_ids: z.array(z.string()).nullable().optional(),
 });
 
-router.post("/knowledge/update", validate(KnowledgeUpdateSchema), (req, res) => {
+router.post("/knowledge/update", validate(InternalKnowledgeUpdateSchema), (req, res) => {
   const { project_id, knowledge_id, ...updates } = req.body;
   verifyProjectExists(project_id);
   verifyKnowledgeOwner(knowledge_id, project_id);
@@ -196,12 +191,12 @@ router.post("/knowledge/update", validate(KnowledgeUpdateSchema), (req, res) => 
 });
 
 // POST /knowledge/delete — delete knowledge entry
-const KnowledgeDeleteSchema = z.object({
+const InternalKnowledgeDeleteSchema = z.object({
   project_id: z.string(),
   knowledge_id: z.string(),
 });
 
-router.post("/knowledge/delete", validate(KnowledgeDeleteSchema), (req, res) => {
+router.post("/knowledge/delete", validate(InternalKnowledgeDeleteSchema), (req, res) => {
   const { project_id, knowledge_id } = req.body;
   verifyProjectExists(project_id);
   verifyKnowledgeOwner(knowledge_id, project_id);
