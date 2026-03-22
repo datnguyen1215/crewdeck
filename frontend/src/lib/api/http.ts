@@ -178,14 +178,27 @@ export function listProjectRuns(projectId: string, filters?: { limit?: number; o
 }
 
 // Knowledge
-export function listKnowledge(projectId: string) {
-  return request<ProjectKnowledge[]>("GET", `/projects/${e(projectId)}/knowledge`);
+// Backend uses agent_ids but frontend uses agents for cleaner naming
+type BackendKnowledge = Omit<ProjectKnowledge, 'agents'> & { agent_ids: string[] | null };
+
+function mapKnowledge(k: BackendKnowledge): ProjectKnowledge {
+  const { agent_ids, ...rest } = k;
+  return { ...rest, agents: agent_ids ?? [] };
 }
-export function createKnowledge(projectId: string, data: { title: string; category: string; content: string; agents?: string[] }) {
-  return request<ProjectKnowledge>("POST", `/projects/${e(projectId)}/knowledge`, data);
+
+export async function listKnowledge(projectId: string) {
+  const data = await request<BackendKnowledge[]>("GET", `/projects/${e(projectId)}/knowledge`);
+  return data.map(mapKnowledge);
 }
-export function updateKnowledge(projectId: string, knowledgeId: string, data: { title?: string; category?: string; content?: string; agents?: string[] }) {
-  return request<ProjectKnowledge>("PUT", `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`, data);
+export async function createKnowledge(projectId: string, data: { title: string; category: string; content: string; agents?: string[] }) {
+  const { agents, ...rest } = data;
+  const result = await request<BackendKnowledge>("POST", `/projects/${e(projectId)}/knowledge`, { ...rest, agent_ids: agents?.length ? agents : null });
+  return mapKnowledge(result);
+}
+export async function updateKnowledge(projectId: string, knowledgeId: string, data: { title?: string; category?: string; content?: string; agents?: string[] }) {
+  const { agents, ...rest } = data;
+  const result = await request<BackendKnowledge>("PUT", `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`, { ...rest, agent_ids: agents?.length ? agents : null });
+  return mapKnowledge(result);
 }
 export function deleteKnowledge(projectId: string, knowledgeId: string) {
   return request<void>("DELETE", `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`);
