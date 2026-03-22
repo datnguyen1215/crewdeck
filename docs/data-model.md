@@ -44,6 +44,7 @@ Represents a body of work tied to one or more GitHub repositories.
 | name | TEXT | NOT NULL | Human-readable project name. |
 | description | TEXT | | Optional project description. |
 | max_concurrency | INTEGER | NOT NULL, DEFAULT 1 | Maximum number of agent processes running simultaneously. |
+| admiral_enabled | INTEGER | NOT NULL, DEFAULT 1 | Whether Admiral auto-pilot is enabled. Stored as 0/1; exposed as boolean. |
 | github_account_id | TEXT | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |

@@ -22,6 +22,7 @@
 	let name = $state('');
 	let description = $state('');
 	let maxConcurrency = $state(1);
+	let admiralEnabled = $state(true);
 
 	// Environment variables state
 	let envVars = $state<EnvironmentVariable[]>([]);
@@ -50,6 +51,7 @@
 				name = p.name;
 				description = p.description ?? '';
 				maxConcurrency = p.max_concurrency;
+				admiralEnabled = p.admiral_enabled;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load project', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -139,7 +141,8 @@
 		project != null && (
 			name !== project.name ||
 			description !== (project.description ?? '') ||
-			maxConcurrency !== project.max_concurrency
+			maxConcurrency !== project.max_concurrency ||
+			admiralEnabled !== project.admiral_enabled
 		)
 	);
 
@@ -151,11 +154,13 @@
 				name: name.trim(),
 				description: description.trim() || null,
 				max_concurrency: Number(maxConcurrency),
+				admiral_enabled: admiralEnabled,
 			});
 			project = updated;
 			name = updated.name;
 			description = updated.description ?? '';
 			maxConcurrency = updated.max_concurrency;
+			admiralEnabled = updated.admiral_enabled;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -169,6 +174,7 @@
 		name = project.name;
 		description = project.description ?? '';
 		maxConcurrency = project.max_concurrency;
+		admiralEnabled = project.admiral_enabled;
 	}
 </script>
 
@@ -209,6 +215,14 @@
 					<label for="settings-concurrency" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Max Concurrency</label>
 					<input id="settings-concurrency" type="number" bind:value={maxConcurrency} min="1" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
 					<p class="text-muted text-xs mt-1">Maximum concurrent agent processes per project</p>
+				</div>
+
+				<div>
+					<label class="flex items-center gap-3 cursor-pointer">
+						<input type="checkbox" bind:checked={admiralEnabled} class="accent-cyan w-4 h-4" />
+						<span class="text-sm text-primary">Enable Admiral (auto-pilot)</span>
+					</label>
+					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Admiral automatically coordinates agents to work on issues</p>
 				</div>
 
 				<div class="flex gap-3 mt-2">

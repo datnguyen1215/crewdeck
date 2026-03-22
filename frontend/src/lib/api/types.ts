@@ -3,6 +3,7 @@ export interface Project {
   name: string;
   description: string | null;
   max_concurrency: number;
+  admiral_enabled: boolean;
   github_account_id: string | null;
   created_at: string;
   updated_at: string;
