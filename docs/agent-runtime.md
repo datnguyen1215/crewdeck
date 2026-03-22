@@ -159,7 +159,7 @@ function buildPrompt(opts: BuildPromptOptions): string
   opts.projectKnowledge — project knowledge entries (filtered by agent assignment)
 ```
 
-A backward-compatible 4-argument form (`issue, comments, repo, worktreePath`) is also accepted for callers that do not need the new fields.
+The function accepts a single options object containing all required and optional fields.
 
 **Role-specific API access:** The prompt's API section varies by `agentId`. Captain receives the full API reference (issues CRUD, status transitions, activity log, internal comment/issue endpoints). Librarian receives access to the knowledge internal API (list, create, update, delete knowledge entries). All other agents receive a notice that their stdout is automatically posted as a comment — no direct API access.
 

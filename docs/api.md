@@ -983,6 +983,53 @@ Agent deletes a knowledge entry.
 
 **Error:** `404 Not Found` — Entry does not exist or belongs to a different project.
 
+#### Register PR (Internal)
+
+```
+POST /internal/create-pr
+```
+
+Agent registers a PR for tracking. This creates an `IssuePR` record linking the PR to the issue, enabling the PR poller to auto-transition the issue to `done` when the PR is merged.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid",
+  "pr_url": "https://github.com/owner/repo/pull/123"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| project_id | Yes | The project the issue belongs to. |
+| issue_id | Yes | The issue to link the PR to. |
+| pr_url | Yes | Full GitHub PR URL. |
+
+**Response:**
+
+`201 Created` — New IssuePR record created:
+```json
+{
+  "id": "uuid",
+  "issue_id": "uuid",
+  "repo_id": "uuid",
+  "pr_number": 123,
+  "pr_url": "https://github.com/owner/repo/pull/123",
+  "status": "open",
+  "created_at": "ISO 8601",
+  "updated_at": "ISO 8601"
+}
+```
+
+`200 OK` — PR already linked (idempotent). Returns existing record.
+
+**Error:** `404 Not Found` — Issue does not exist or does not belong to the project.
+
+**Error:** `400 VALIDATION_ERROR` — Invalid PR URL format or PR URL does not match any repository linked to the project.
+
+**Side effects:** Emits `pr.created` on the event bus.
+
 ---
 
 ## Status Transition Rules

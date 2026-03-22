@@ -32,25 +32,25 @@ const repo: Repo = {
 
 describe("buildPrompt", () => {
   it("includes issue title and description", () => {
-    const prompt = buildPrompt(issue, [], repo, "/tmp/work");
+    const prompt = buildPrompt({ issue, comments: [], repo, worktreePath: "/tmp/work", agentId: "" });
     expect(prompt).toContain("Add login feature");
     expect(prompt).toContain("Implement OAuth2 login flow");
   });
 
   it("includes repo name and worktree path", () => {
-    const prompt = buildPrompt(issue, [], repo, "/tmp/worktrees/branch");
+    const prompt = buildPrompt({ issue, comments: [], repo, worktreePath: "/tmp/worktrees/branch", agentId: "" });
     expect(prompt).toContain("myrepo");
     expect(prompt).toContain("/tmp/worktrees/branch");
   });
 
   it("includes API reference with environment variables", () => {
-    const prompt = buildPrompt(issue, [], repo, "/tmp/work");
+    const prompt = buildPrompt({ issue, comments: [], repo, worktreePath: "/tmp/work", agentId: "" });
     expect(prompt).toContain("CREWDECK_API_URL");
     expect(prompt).toContain("CREWDECK_ISSUE_ID");
   });
 
   it("includes dispatch-based trigger instructions", () => {
-    const prompt = buildPrompt(issue, [], repo, "/tmp/work");
+    const prompt = buildPrompt({ issue, comments: [], repo, worktreePath: "/tmp/work", agentId: "" });
     expect(prompt).toContain("/dispatch agent-name");
     expect(prompt).toContain("@mentions are cosmetic references only");
   });
@@ -66,13 +66,13 @@ describe("buildPrompt", () => {
         created_at: "2026-01-01",
       },
     ];
-    const prompt = buildPrompt(issue, comments, repo, "/tmp/work");
+    const prompt = buildPrompt({ issue, comments, repo, worktreePath: "/tmp/work", agentId: "" });
     expect(prompt).toContain("Comment History");
     expect(prompt).toContain("Please fix the redirect");
   });
 
   it("omits comment section when no comments provided", () => {
-    const prompt = buildPrompt(issue, [], repo, "/tmp/work");
+    const prompt = buildPrompt({ issue, comments: [], repo, worktreePath: "/tmp/work", agentId: "" });
     expect(prompt).not.toContain("Comment History");
   });
 });

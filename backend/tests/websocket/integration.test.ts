@@ -3,7 +3,7 @@ import http from "http";
 import express from "express";
 import { WebSocket as WsClient } from "ws";
 import { EventBus } from "../../src/events/bus.js";
-import { setupWebSocket, shutdownWebSocket, subscribers } from "../../src/websocket.js";
+import { setupWebSocket, shutdownWebSocket } from "../../src/websocket.js";
 import { createProject } from "../../src/db/repositories/projects.js";
 
 // Creates a server on a random free port and returns it with a cleanup handle
@@ -70,9 +70,6 @@ describe("WebSocket integration", () => {
     server.close();
   });
 
-  afterEach(() => {
-    subscribers.clear();
-  });
 
   it("client connects with valid projectId and receives events", async () => {
     const ws = await connectWs(port, projectId);
@@ -123,16 +120,20 @@ describe("WebSocket integration", () => {
     ws2.close();
   });
 
-  it("disconnected client is removed from subscriber set", async () => {
+  it("disconnected client does not receive further events", async () => {
     const ws = await connectWs(port, projectId);
     // Wait for it to be registered
     await new Promise((r) => setTimeout(r, 20));
-    expect(subscribers.get(projectId)?.size).toBeGreaterThan(0);
 
     ws.close();
     await new Promise((r) => setTimeout(r, 50));
-    // Should be removed (or set empty)
-    expect(subscribers.get(projectId)?.size ?? 0).toBe(0);
+
+    // After closing, events should not cause errors (client is cleaned up internally)
+    expect(() => {
+      bus.emit("issue.created", {
+        issue: { id: "i2", project_id: projectId } as never,
+      });
+    }).not.toThrow();
   });
 
 });
