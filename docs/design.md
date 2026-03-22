@@ -71,10 +71,11 @@ Humans can post comments to provide direction, ask questions, or trigger agents.
 
 ### Pull Request
 
-Pull requests are tracked in the `IssuePR` table. They can be linked to an issue in two ways:
+Pull requests are tracked in the `IssuePR` table. They can be linked to an issue in three ways:
 
 - **Manual**: the user clicks "Mark as PR Created", which transitions the issue to `pr_created` and records the PR.
 - **Auto-link**: when a comment is posted containing a GitHub PR URL (e.g. `https://github.com/owner/repo/pull/123`), the PR detector automatically creates an `IssuePR` record linking it to the issue (deduped by repo + PR number).
+- **Agent registration**: agents (primarily Captain) can call `POST /internal/create-pr` after running `gh pr create` to explicitly register the PR for tracking. This ensures the PR poller can auto-transition the issue to `done` when the PR is merged.
 
 ## Issue Lifecycle
 
