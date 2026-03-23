@@ -3,7 +3,7 @@ import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { createOwnershipVerifier } from "../middleware/ownership.js";
 import { createComment } from "../db/repositories/comments.js";
-import { createIssue, getIssue, updateIssue } from "../db/repositories/issues.js";
+import { createIssue, getIssue } from "../db/repositories/issues.js";
 import {
   createIssuePR,
   getIssuePRByRepoAndNumber,
@@ -22,7 +22,6 @@ import { eventBus } from "../events/bus.js";
 import {
   CreateCommentSchema,
   CreateIssueSchema as BaseCreateIssueSchema,
-  UpdateIssueSchema,
   CreateKnowledgeSchema,
   UpdateKnowledgeSchema,
 } from "../schemas/validation.js";
@@ -69,35 +68,14 @@ const InternalCreateIssueSchema = BaseCreateIssueSchema.omit({ created_by: true 
 });
 
 router.post("/issues/create", validate(InternalCreateIssueSchema), (req, res) => {
-  const { project_id, title, description, priority } = req.body;
+  const { project_id, title, description } = req.body;
   const issue = createIssue(project_id, {
     title,
     description,
-    priority,
     created_by: "agent",
   });
   eventBus.emit("issue.created", { issue });
   res.status(201).json(issue);
-});
-
-// POST /issues/update — update issue fields
-const InternalIssueUpdateSchema = UpdateIssueSchema.pick({ priority: true }).required().extend({
-  project_id: z.string(),
-  issue_id: z.string(),
-});
-
-router.post("/issues/update", validate(InternalIssueUpdateSchema), (req, res) => {
-  const { project_id, issue_id, priority } = req.body;
-
-  verifyIssueOwner(issue_id, project_id);
-
-  const updated = updateIssue(issue_id, { priority });
-  eventBus.emit("issue.updated", {
-    issue_id,
-    project_id,
-    changes: { priority },
-  });
-  res.json(updated);
 });
 
 // POST /create-pr — agent registers a PR for tracking

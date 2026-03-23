@@ -48,7 +48,6 @@ export interface Issue {
   title: string;
   description: string | null;
   status: string;
-  priority: number;
   created_by: string;
   chain_depth: number;
   branch_name: string | null;

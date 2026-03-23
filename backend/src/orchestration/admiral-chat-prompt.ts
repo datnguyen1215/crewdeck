@@ -23,14 +23,7 @@ Create an issue:
 \`\`\`bash
 curl -X POST "$CREWDECK_API_URL/api/v1/internal/issues/create" \\
   -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","title":"Issue title","description":"Description","priority":5}'
-\`\`\`
-
-Update issue priority:
-\`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/issues/update" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>","priority":8}'
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","title":"Issue title","description":"Description"}'
 \`\`\`
 
 ### Knowledge Management
@@ -61,8 +54,7 @@ curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/delete" \\
 \`\`\`
 
 ## What You Can Help With
-- Create new issues with appropriate titles, descriptions, and priorities
-- Reprioritize existing issues
+- Create new issues with appropriate titles and descriptions
 - Explain project status and what's currently in progress
 - Answer questions about the project
 - Help manage knowledge entries

@@ -26,7 +26,7 @@
 	let searchQuery = $state('');
 
 	// Sort state — newest first by default
-	let sortField = $state<'priority' | 'created_at' | 'updated_at'>('created_at');
+	let sortField = $state<'created_at' | 'updated_at'>('created_at');
 	let sortDesc = $state(true);
 
 	// Modal state
@@ -102,8 +102,8 @@
 			result = result.filter((i) => i.agent_id === filterAgent);
 		}
 		result.sort((a, b) => {
-			const av = sortField === 'priority' ? (a.priority ?? -1) : a[sortField];
-			const bv = sortField === 'priority' ? (b.priority ?? -1) : b[sortField];
+			const av = a[sortField];
+			const bv = b[sortField];
 			const cmp = av > bv ? 1 : av < bv ? -1 : 0;
 			return sortDesc ? -cmp : cmp;
 		});
@@ -114,14 +114,6 @@
 		filterStatuses = filterStatuses.includes(status)
 			? filterStatuses.filter((s) => s !== status)
 			: [...filterStatuses, status];
-	}
-
-
-	function priorityColor(priority: number): string {
-		if (!priority) return 'text-muted';
-		if (priority >= 8) return 'text-amber';
-		if (priority >= 5) return 'text-blue';
-		return 'text-secondary';
 	}
 
 	function resetForm() {
@@ -273,7 +265,6 @@
 					bind:value={sortField}
 					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none"
 				>
-					<option value="priority">Priority</option>
 					<option value="created_at">Created</option>
 					<option value="updated_at">Updated</option>
 				</select>
@@ -305,9 +296,8 @@
 	{#if loading}
 		<!-- Skeleton table while issues load -->
 		<div class="overflow-x-auto fade-up">
-			<div class="min-w-[620px] border border-edge rounded overflow-hidden">
-				<div class="grid grid-cols-[52px_1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
-					<div class="px-3 py-2.5 text-center">Pri</div>
+			<div class="min-w-[560px] border border-edge rounded overflow-hidden">
+				<div class="grid grid-cols-[1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
 					<div class="px-3 py-2.5">Title</div>
 					<div class="px-3 py-2.5">Status</div>
 					<div class="px-3 py-2.5">Agent</div>
@@ -317,12 +307,9 @@
 				{#each Array(8) as _, i}
 					{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 					<div
-						class="grid grid-cols-[52px_1fr_148px_96px_60px_44px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						class="grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
 					style="animation-delay: {i * 30}ms"
 					>
-						<div class="px-3 py-3 flex justify-center items-center">
-							<div class="skeleton h-4 w-6 rounded"></div>
-						</div>
 						<div class="px-3 py-3 flex items-center gap-2">
 							<div class="skeleton h-4 rounded" style="width: {skeletonWidths[i]}%"></div>
 						</div>
@@ -357,12 +344,11 @@
 		</div>
 	{:else}
 		<div class="overflow-x-auto">
-				<div class="min-w-[620px] border border-edge rounded overflow-hidden">
+				<div class="min-w-[560px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
 					<div
-						class="grid grid-cols-[52px_1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
+						class="grid grid-cols-[1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
 					>
-						<div class="px-3 py-2.5 text-center">Pri</div>
 						<div class="px-3 py-2.5">Title</div>
 						<div class="px-3 py-2.5">Status</div>
 						<div class="px-3 py-2.5">Agent</div>
@@ -379,16 +365,9 @@
 						{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
 						<a
 							href="/projects/{projectId}/issues/{issue.id}"
-							class="issue-row grid grid-cols-[52px_1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''}"
+							class="issue-row grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''}"
 							style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 						>
-							<!-- Priority -->
-							<div
-								class="px-3 py-3 text-center self-center text-sm font-mono {priorityColor(issue.priority)}"
-							>
-								{issue.priority || '—'}
-							</div>
-
 							<!-- Title -->
 							<div class="px-3 py-3 self-center min-w-0">
 								<p class="text-primary text-sm truncate group-hover:text-cyan transition-colors">

@@ -32,7 +32,6 @@ describe("createIssue", () => {
     expect(issue.id).toBeTruthy();
     expect(issue.title).toBe("Bug");
     expect(issue.status).toBe("open");
-    expect(issue.priority).toBe(0);
     expect(issue.created_by).toBe("user");
   });
 });
@@ -69,25 +68,26 @@ describe("listIssues", () => {
     expect(listIssues(p.id, { created_by: "agent" }).length).toBe(1);
   });
 
-  it("sorts by priority ascending", () => {
+  it("sorts by created_at ascending", () => {
     const p = createProject({ name: "P" });
-    createIssue(p.id, { title: "Low", description: "D", priority: 1 });
-    createIssue(p.id, { title: "High", description: "D", priority: 10 });
-    createIssue(p.id, { title: "Mid", description: "D", priority: 5 });
+    createIssue(p.id, { title: "First", description: "D" });
+    createIssue(p.id, { title: "Second", description: "D" });
+    createIssue(p.id, { title: "Third", description: "D" });
 
-    const sorted = listIssues(p.id, { sort: "priority", order: "asc" });
-    expect(sorted[0].priority).toBe(1);
-    expect(sorted[1].priority).toBe(5);
-    expect(sorted[2].priority).toBe(10);
+    const sorted = listIssues(p.id, { sort: "created_at", order: "asc" });
+    expect(sorted[0].title).toBe("First");
+    expect(sorted[2].title).toBe("Third");
   });
 
-  it("sorts by priority descending", () => {
+  it("sorts by updated_at descending", () => {
     const p = createProject({ name: "P" });
-    createIssue(p.id, { title: "Low", description: "D", priority: 1 });
-    createIssue(p.id, { title: "High", description: "D", priority: 10 });
+    const first = createIssue(p.id, { title: "First", description: "D" });
+    createIssue(p.id, { title: "Second", description: "D" });
+    // Update the first issue so it has a newer updated_at
+    updateIssue(first.id, { title: "First Updated" });
 
-    const sorted = listIssues(p.id, { sort: "priority", order: "desc" });
-    expect(sorted[0].priority).toBe(10);
+    const sorted = listIssues(p.id, { sort: "updated_at", order: "desc" });
+    expect(sorted[0].title).toBe("First Updated");
   });
 });
 

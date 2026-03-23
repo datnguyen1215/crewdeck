@@ -98,14 +98,6 @@
 			</div>
 		{/if}
 
-		<!-- Priority -->
-		<div class="flex items-center gap-2">
-			<span class="text-muted w-20 shrink-0">Priority</span>
-			<span class="font-bold {issue.priority >= 8 ? 'text-amber' : issue.priority >= 5 ? 'text-blue' : 'text-secondary'}">
-				{issue.priority}
-			</span>
-		</div>
-
 		<!-- Chain depth -->
 		<div class="flex items-center gap-2">
 			<span class="text-muted w-20 shrink-0 flex items-center gap-1">

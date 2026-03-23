@@ -28,7 +28,6 @@ CREATE TABLE IF NOT EXISTS Issue (
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open',
-  priority INTEGER NOT NULL DEFAULT 0,
   created_by TEXT NOT NULL DEFAULT 'user',
   chain_depth INTEGER NOT NULL DEFAULT 0,
   branch_name TEXT,
