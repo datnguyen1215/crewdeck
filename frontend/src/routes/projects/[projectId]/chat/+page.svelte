@@ -269,7 +269,7 @@
 						{:else if entry.type === 'tool_result'}
 							<span class="text-cyan flex-shrink-0">[admiral]</span>
 							<span class="text-muted/50 flex-shrink-0">-></span>
-							<span class="{entry.success ? 'text-green' : 'text-red'} flex-shrink-0">
+							<span class="{entry.success ? 'text-green' : 'text-red'} min-w-0">
 								{entry.success ? 'ok' : 'err'}:
 							</span>
 							<span class="text-muted break-words min-w-0">{entry.content}</span>
