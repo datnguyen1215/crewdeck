@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS ChatMessage (
   project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content TEXT NOT NULL,
+  message_type TEXT NOT NULL DEFAULT 'chat' CHECK (message_type IN ('chat', 'event')),
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

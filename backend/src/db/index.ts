@@ -66,6 +66,17 @@ export function createDb(path: string): Database.Database {
   db.exec("DROP TABLE IF EXISTS Agent");
   db.exec("DROP INDEX IF EXISTS idx_agent_project");
 
+  // Migration: add message_type column to ChatMessage if missing (for older DBs without the column).
+  // Only runs if ChatMessage table exists and lacks the column.
+  try {
+    const chatCols = db.pragma("table_info(ChatMessage)") as { name: string }[];
+    if (chatCols.length > 0 && !chatCols.some((c) => c.name === "message_type")) {
+      db.exec("ALTER TABLE ChatMessage ADD COLUMN message_type TEXT NOT NULL DEFAULT 'chat'");
+    }
+  } catch {
+    // Table may not exist yet in fresh DBs - schema.sql will create it
+  }
+
   // Migration: fix agent run events where type was mapped to 'system' but data contains 'user' type.
   // This restores the original event type from the stored data.
   db.exec(`

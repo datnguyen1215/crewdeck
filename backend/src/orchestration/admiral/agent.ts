@@ -146,9 +146,10 @@ function formatEvents(events: AdmiralEvent[]): string {
 
 /**
  * Get conversation history from DB.
+ * Only loads chat messages, not event-batch messages.
  */
 function getConversationHistory(projectId: string): Anthropic.MessageParam[] {
-  const messages = chatRepo.getByProject(projectId, MAX_CONTEXT_MESSAGES).reverse();
+  const messages = chatRepo.getChatOnly(projectId, MAX_CONTEXT_MESSAGES).reverse();
 
   return messages.map((m) => ({
     role: m.role as "user" | "assistant",
@@ -188,8 +189,18 @@ export async function processWithLLM(
     { role: "user", content: userContent },
   ];
 
-  // Save user message to DB
-  chatRepo.create(projectId, "user", userContent);
+  // Save event message to DB (as 'event' type so it's not loaded in history)
+  chatRepo.create(projectId, "user", userContent, "event");
+
+  // Emit admiral.event_received for each event so frontend can show them
+  for (const event of events) {
+    const description = formatEvents([event]).replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, "");
+    eventBus.emit("admiral.event_received", {
+      project_id: projectId,
+      event_type: event.type,
+      description,
+    });
+  }
 
   // Emit that Admiral is thinking
   eventBus.emit("admiral.thinking", { project_id: projectId });
@@ -221,12 +232,8 @@ export async function processWithLLM(
         }
       }
 
-      // Emit text response
+      // Accumulate text but don't emit yet (emit once at the end)
       if (textContent) {
-        eventBus.emit("admiral.message", {
-          project_id: projectId,
-          content: textContent,
-        });
         finalResponse += textContent;
       }
 
@@ -288,9 +295,19 @@ export async function processWithLLM(
     }
   }
 
-  // Save final response to DB
+  // Warn if we hit the iteration limit
+  if (iterations >= MAX_TOOL_ITERATIONS) {
+    logger.warn({ projectId, iterations: MAX_TOOL_ITERATIONS }, "Admiral hit max tool iterations");
+  }
+
+  // Emit final message once (not per iteration)
   if (finalResponse) {
-    chatRepo.create(projectId, "assistant", finalResponse);
+    eventBus.emit("admiral.message", {
+      project_id: projectId,
+      content: finalResponse,
+    });
+    // Save final response to DB as chat message
+    chatRepo.create(projectId, "assistant", finalResponse, "chat");
   }
 
   // Emit completion

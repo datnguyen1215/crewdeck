@@ -297,11 +297,13 @@ export interface UpdateKnowledgeInput {
 
 // Chat message types
 export type ChatMessageRole = "user" | "assistant";
+export type ChatMessageType = "chat" | "event";
 
 export interface ChatMessage {
   id: string;
   project_id: string;
   role: ChatMessageRole;
   content: string;
+  message_type: ChatMessageType;
   created_at: string;
 }
