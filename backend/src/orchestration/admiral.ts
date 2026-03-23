@@ -96,6 +96,31 @@ async function mergePR(
 }
 
 /**
+ * Delete a branch on GitHub after merge.
+ */
+async function deleteBranch(
+  owner: string,
+  repo: string,
+  branch: string,
+  token: string
+): Promise<void> {
+  const url = `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`;
+  try {
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { ...GITHUB_HEADERS, Authorization: `Bearer ${token}` },
+    });
+    if (response.ok || response.status === 422) {
+      logger.info({ owner, repo, branch }, "Admiral: Deleted branch");
+    } else {
+      logger.warn({ owner, repo, branch, status: response.status }, "Admiral: Failed to delete branch");
+    }
+  } catch (err) {
+    logger.warn({ err, owner, repo, branch }, "Admiral: Branch deletion failed");
+  }
+}
+
+/**
  * Get all PRs ready to merge for admiral-enabled projects.
  */
 function getPRsReadyToMerge(): PRWithContext[] {
@@ -231,6 +256,11 @@ async function handleMergeManager(): Promise<boolean> {
 
       // Update issue status to done
       updateIssue(pr.issue.id, { status: "done" });
+
+      // Delete the branch on origin
+      if (pr.issue.branch_name) {
+        await deleteBranch(pr.repoOwner, pr.repoName, pr.issue.branch_name, pr.token);
+      }
 
       // Post comment
       postSystemComment(
