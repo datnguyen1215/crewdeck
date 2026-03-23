@@ -104,7 +104,17 @@ export interface EventMap {
     project_id: string;
     message_id: string | null;
   };
+  // User chat message (triggers Admiral processing)
+  "chat.message": {
+    project_id: string;
+    content: string;
+  };
   // Admiral LLM agent events
+  "admiral.event_received": {
+    project_id: string;
+    event_type: string;
+    description: string;
+  };
   "admiral.thinking": {
     project_id: string;
   };

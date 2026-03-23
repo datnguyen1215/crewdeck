@@ -80,6 +80,9 @@ router.post(
     // Save user message
     const userMessage = createChatMessage(projectId, "user", message);
 
+    // Emit chat.message event for Admiral queue
+    eventBus.emit("chat.message", { project_id: projectId, content: message });
+
     // Build prompt with context
     const prompt = buildAdmiralChatPrompt({
       project,

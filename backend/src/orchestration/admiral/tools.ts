@@ -76,7 +76,7 @@ export const ADMIRAL_TOOLS: Anthropic.Tool[] = [
         },
         status: {
           type: "string",
-          description: "New status (open, in_progress, done)",
+          description: "New status (open, in_progress, pr_created, pr_conflict, pr_failed_actions, pr_ready_to_merge, done)",
         },
       },
       required: ["issue_id"],

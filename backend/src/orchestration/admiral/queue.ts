@@ -49,12 +49,17 @@ export function enqueue(event: AdmiralEvent): void {
 }
 
 /**
- * Try to acquire the processing lock.
+ * Try to acquire the processing lock atomically.
  * Returns true if lock acquired, false if already processing.
+ * Uses a synchronous check-and-set to prevent race conditions.
  */
 export function tryAcquire(projectId: string): boolean {
   const queue = getQueue(projectId);
-  if (queue.processing) return false;
+  // Atomic check-and-set: read and write in single synchronous operation
+  // In Node.js single-threaded event loop, this is safe as long as we don't
+  // yield between check and set (no await, no callbacks)
+  const wasProcessing = queue.processing;
+  if (wasProcessing) return false;
   queue.processing = true;
   return true;
 }
