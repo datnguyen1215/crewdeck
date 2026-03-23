@@ -39,7 +39,6 @@ const baseIssue = {
   title: "Test Issue",
   description: "desc",
   status: "open",
-  priority: 0,
   created_by: "user",
   chain_depth: 0,
   branch_name: null,

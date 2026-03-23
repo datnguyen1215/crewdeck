@@ -117,7 +117,7 @@ export function listIssues(projectId: string, filters?: { status?: string; creat
 export function getIssue(projectId: string, issueId: string) {
   return request<IssueWithDetails>("GET", `/projects/${e(projectId)}/issues/${e(issueId)}`);
 }
-export function createIssue(projectId: string, data: { title: string; description: string; priority?: number }) {
+export function createIssue(projectId: string, data: { title: string; description: string }) {
   return request<Issue>("POST", `/projects/${e(projectId)}/issues`, data);
 }
 export function updateIssue(projectId: string, issueId: string, data: Partial<Issue>) {

@@ -31,7 +31,6 @@ const issue: Issue = {
   title: "Fix the login bug",
   description: "Details here",
   status: "open",
-  priority: 0,
   created_by: "user",
   chain_depth: 0,
   branch_name: null,
