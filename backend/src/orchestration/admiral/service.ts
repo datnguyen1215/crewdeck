@@ -180,13 +180,15 @@ function createProjectHandlers(projectId: string): () => void {
   };
 
   // Handler for chat messages
-  const handleChatMessage = (data: { project_id: string; content: string }) => {
+  const handleChatMessage = (data: { project_id: string; content: string; images?: Array<{ data: string; mediaType: string }> }) => {
     if (data.project_id !== projectId) return;
     const event: AdmiralEvent = {
       type: "chat.message",
       projectId,
       timestamp: new Date(),
       data,
+      // Pass images through to the agent
+      images: data.images,
     };
     queueAndProcess(event).catch((err) => {
       logger.error({ err, projectId }, "Admiral: Failed to queue chat.message");

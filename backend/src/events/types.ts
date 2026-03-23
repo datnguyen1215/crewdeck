@@ -108,6 +108,7 @@ export interface EventMap {
   "chat.message": {
     project_id: string;
     content: string;
+    images?: Array<{ data: string; mediaType: string }>;
   };
   // Admiral LLM agent events
   "admiral.event_received": {

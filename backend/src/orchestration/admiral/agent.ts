@@ -10,10 +10,10 @@ import { getProject } from "../../db/repositories/projects.js";
 import { listIssues } from "../../db/repositories/issues.js";
 import { listByProject as listKnowledge } from "../../db/repositories/knowledge.js";
 import { getActiveProcessCount } from "../processes.js";
-import { spawnClaude } from "../process.js";
+import { spawnClaude, spawnClaudeMultimodal } from "../process.js";
 
 import * as chatRepo from "../../db/repositories/chat-messages.js";
-import type { AdmiralEvent } from "./queue.js";
+import type { AdmiralEvent, ChatImage } from "./queue.js";
 
 const MAX_CONTEXT_MESSAGES = 100;
 
@@ -216,18 +216,36 @@ const formatEvents = (events: AdmiralEvent[]): string => {
 
 /**
  * Get conversation history from DB as text for the prompt.
+ * Past images are replaced with [image attached] to save tokens.
  */
 const getConversationHistory = (projectId: string): string => {
   const messages = chatRepo.getChatOnly(projectId, MAX_CONTEXT_MESSAGES).reverse();
   if (messages.length === 0) return "";
 
   return messages
-    .map((m) =>
-      m.role === "user"
-        ? `User:\n<user_message>\n${m.content}\n</user_message>`
-        : `Admiral: ${m.content}`
-    )
+    .map((m) => {
+      if (m.role === "user") {
+        const imageNote = m.images && m.images.length > 0
+          ? `\n[${m.images.length} image${m.images.length > 1 ? "s" : ""} attached]`
+          : "";
+        return `User:\n<user_message>\n${m.content}${imageNote}\n</user_message>`;
+      }
+      return `Admiral: ${m.content}`;
+    })
     .join("\n\n");
+};
+
+/**
+ * Collect images from events (only chat.message events have images).
+ */
+const collectImages = (events: AdmiralEvent[]): ChatImage[] => {
+  const images: ChatImage[] = [];
+  for (const event of events) {
+    if (event.type === "chat.message" && event.images) {
+      images.push(...event.images);
+    }
+  }
+  return images;
 };
 
 /**
@@ -252,6 +270,9 @@ export const processWithLLM = async (
   if (history) sections.push(`## Conversation History\n${history}`);
   sections.push(eventSection);
   const userPrompt = sections.join("\n\n");
+
+  // Collect images from events
+  const images = collectImages(events);
 
   // Save event message to DB (as 'event' type so it's not loaded in history)
   chatRepo.create(projectId, "user", eventSection, "event");
@@ -286,15 +307,35 @@ export const processWithLLM = async (
   let finalResponse = "";
 
   try {
-    const result = await spawnClaude({
-      prompt: userPrompt,
-      systemPrompt,
-      // Admiral doesn't need repo access — it operates via API calls
-      workdir: ".",
-      env,
-    });
+    let code: number;
+    let stdout: string;
 
-    const { code, stdout } = await result.exitPromise;
+    if (images.length > 0) {
+      // Use multimodal spawner when images are present
+      const result = await spawnClaudeMultimodal({
+        text: eventSection,
+        images,
+        history: history || undefined,
+        systemPrompt,
+        workdir: ".",
+        env,
+      });
+      const exitResult = await result.exitPromise;
+      code = exitResult.code;
+      stdout = exitResult.stdout;
+    } else {
+      // Use standard spawner for text-only messages
+      const result = await spawnClaude({
+        prompt: userPrompt,
+        systemPrompt,
+        workdir: ".",
+        env,
+      });
+      const exitResult = await result.exitPromise;
+      code = exitResult.code;
+      stdout = exitResult.stdout;
+    }
+
     if (code !== 0) {
       logger.warn({ projectId, code }, "Admiral claude -p exited non-zero");
     }

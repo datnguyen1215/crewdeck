@@ -219,8 +219,8 @@ export function getLibrarianStatus(projectId: string) {
 export function getChatHistory(projectId: string) {
   return request<ChatMessage[]>("GET", `/projects/${e(projectId)}/chat`);
 }
-export function sendChatMessage(projectId: string, message: string) {
-  return request<{ user_message: ChatMessage; status: string }>("POST", `/projects/${e(projectId)}/chat`, { message });
+export function sendChatMessage(projectId: string, message: string, images?: Array<{ data: string; mediaType: string }>) {
+  return request<{ user_message: ChatMessage; status: string }>("POST", `/projects/${e(projectId)}/chat`, { message, images });
 }
 export function clearChatHistory(projectId: string) {
   return request<void>("DELETE", `/projects/${e(projectId)}/chat`);

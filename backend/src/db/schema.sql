@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS ChatMessage (
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content TEXT NOT NULL,
   message_type TEXT NOT NULL DEFAULT 'chat' CHECK (message_type IN ('chat', 'event')),
+  images TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

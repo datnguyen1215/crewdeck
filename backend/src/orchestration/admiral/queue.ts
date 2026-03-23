@@ -14,11 +14,19 @@ export type AdmiralEventType =
   | "chat.message"
   | "idle.check";
 
+/** Image content passed with chat messages */
+export interface ChatImage {
+  data: string;
+  mediaType: string;
+}
+
 export interface AdmiralEvent {
   type: AdmiralEventType;
   projectId: string;
   timestamp: Date;
   data: unknown;
+  /** Images attached to chat.message events */
+  images?: ChatImage[];
 }
 
 interface ProjectQueue {
