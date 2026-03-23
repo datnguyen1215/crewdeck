@@ -467,9 +467,9 @@ export function handleUpdateKnowledge(
   }
 
   const updates: { title?: string; category?: string; content?: string } = {};
-  if (input.title) updates.title = input.title;
-  if (input.category) updates.category = input.category;
-  if (input.content) updates.content = input.content;
+  if (input.title !== undefined) updates.title = input.title;
+  if (input.category !== undefined) updates.category = input.category;
+  if (input.content !== undefined) updates.content = input.content;
 
   if (Object.keys(updates).length === 0) {
     return { success: false, message: "No updates provided" };
