@@ -23,7 +23,7 @@ import { markAgentCompleted } from "./batch.js";
 import type { Agent, AgentRunStatus } from "../types/entities.js";
 
 const DEFAULT_MAX_CHAIN_DEPTH = 20;
-const PROCESS_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_AGENT_TIMEOUT_MINUTES = 10;
 
 /**
  * Post a system comment and emit comment.added.
@@ -407,6 +407,7 @@ export const spawnAgent = async (
   // Update run with PID
   agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
 
+  const timeoutMs = (project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES) * 60 * 1000;
   const timeoutState = { timedOut: false };
   const timer = setTimeout(() => {
     timeoutState.timedOut = true;
@@ -418,7 +419,7 @@ export const spawnAgent = async (
     setTimeout(() => {
       if (!result.process.killed) result.process.kill("SIGKILL");
     }, 5000);
-  }, PROCESS_TIMEOUT_MS);
+  }, timeoutMs);
 
   const entry: ActiveProcess = {
     pid: result.pid,
@@ -512,6 +513,7 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   // Update run with PID
   agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
 
+  const timeoutMs = (project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES) * 60 * 1000;
   const timeoutState = { timedOut: false };
   const timer = setTimeout(() => {
     timeoutState.timedOut = true;
@@ -520,7 +522,7 @@ export const spawnScan = async (projectId: string): Promise<string> => {
     setTimeout(() => {
       if (!result.process.killed) result.process.kill("SIGKILL");
     }, 5000);
-  }, PROCESS_TIMEOUT_MS);
+  }, timeoutMs);
 
   const entry: ActiveProcess = {
     pid: result.pid,

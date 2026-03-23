@@ -23,6 +23,7 @@
 	let description = $state('');
 	let maxConcurrency = $state(1);
 	let maxChainDepth = $state(20);
+	let agentTimeoutMinutes = $state(10);
 	let admiralEnabled = $state(true);
 
 	// Environment variables state
@@ -53,6 +54,7 @@
 				description = p.description ?? '';
 				maxConcurrency = p.max_concurrency;
 				maxChainDepth = p.max_chain_depth;
+				agentTimeoutMinutes = p.agent_timeout_minutes;
 				admiralEnabled = p.admiral_enabled;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load project', 'error'); })
@@ -145,6 +147,7 @@
 			description !== (project.description ?? '') ||
 			maxConcurrency !== project.max_concurrency ||
 			maxChainDepth !== project.max_chain_depth ||
+			agentTimeoutMinutes !== project.agent_timeout_minutes ||
 			admiralEnabled !== project.admiral_enabled
 		)
 	);
@@ -158,6 +161,7 @@
 				description: description.trim() || null,
 				max_concurrency: Number(maxConcurrency),
 				max_chain_depth: Number(maxChainDepth),
+				agent_timeout_minutes: Number(agentTimeoutMinutes),
 				admiral_enabled: admiralEnabled,
 			});
 			project = updated;
@@ -165,6 +169,7 @@
 			description = updated.description ?? '';
 			maxConcurrency = updated.max_concurrency;
 			maxChainDepth = updated.max_chain_depth;
+			agentTimeoutMinutes = updated.agent_timeout_minutes;
 			admiralEnabled = updated.admiral_enabled;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
@@ -180,6 +185,7 @@
 		description = project.description ?? '';
 		maxConcurrency = project.max_concurrency;
 		maxChainDepth = project.max_chain_depth;
+		agentTimeoutMinutes = project.agent_timeout_minutes;
 		admiralEnabled = project.admiral_enabled;
 	}
 </script>
@@ -227,6 +233,12 @@
 					<label for="settings-chain-depth" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Max Chain Depth</label>
 					<input id="settings-chain-depth" type="number" bind:value={maxChainDepth} min="1" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
 					<p class="text-muted text-xs mt-1">Maximum agent dispatches per issue before requiring manual reset</p>
+				</div>
+
+				<div>
+					<label for="settings-agent-timeout" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Agent Timeout (minutes)</label>
+					<input id="settings-agent-timeout" type="number" bind:value={agentTimeoutMinutes} min="1" max="60" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
+					<p class="text-muted text-xs mt-1">Maximum time an agent can run before being terminated (1-60 minutes)</p>
 				</div>
 
 				<div>
