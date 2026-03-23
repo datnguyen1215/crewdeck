@@ -110,9 +110,14 @@ export function buildAdmiralChatPrompt(
     .join("\n");
 
   // Get conversation history (most recent first from DB, reverse for chronological order)
+  // Wrap user content in XML tags to prevent prompt injection
   const chatMessages = getChatMessages(project.id, 20).reverse();
   const conversationHistory = chatMessages
-    .map((m) => `${m.role === "user" ? "User" : "Admiral"}: ${m.content}`)
+    .map((m) =>
+      m.role === "user"
+        ? `User:\n<user_message>\n${m.content}\n</user_message>`
+        : `Admiral: ${m.content}`
+    )
     .join("\n\n");
 
   const sections = [

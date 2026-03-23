@@ -159,8 +159,12 @@ async function processAdmiralStream(
       }
     }
 
-    // Wait for process exit
-    const { code } = await result.exitPromise;
+    // Wait for process exit with timeout (10 minutes max)
+    const CHAT_TIMEOUT_MS = 10 * 60 * 1000;
+    const timeoutPromise = new Promise<{ code: number | null }>((_, reject) =>
+      setTimeout(() => reject(new Error("Chat process timed out")), CHAT_TIMEOUT_MS)
+    );
+    const { code } = await Promise.race([result.exitPromise, timeoutPromise]);
 
     if (code !== 0) {
       logger.error({ code, projectId }, "Admiral chat process failed");
