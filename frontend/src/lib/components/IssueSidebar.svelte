@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { updateIssue, deleteIssue, type IssueWithDetails } from '$lib/api/http.js';
+	import { updateIssue, deleteIssue, type IssueWithDetails, type Project } from '$lib/api/http.js';
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { STATUS_CFG, PR_STATUS } from '$lib/config/status.js';
@@ -8,11 +8,13 @@
 
 	let {
 		issue,
+		project,
 		projectId,
 		onStatusChange,
 		onEdit
 	}: {
 		issue: IssueWithDetails;
+		project: Project | null;
 		projectId: string;
 		onStatusChange: () => void;
 		onEdit: () => void;
@@ -104,7 +106,7 @@
 				Chain
 				<span class="cursor-help" title="Chain depth tracks how many times an agent has been automatically re-dispatched on this issue. The limit prevents infinite loops.">ℹ</span>
 			</span>
-			<span class="text-secondary">{issue.chain_depth} / 20</span>
+			<span class="text-secondary">{issue.chain_depth} / {project?.max_chain_depth ?? 20}</span>
 		</div>
 
 		<!-- Branch -->

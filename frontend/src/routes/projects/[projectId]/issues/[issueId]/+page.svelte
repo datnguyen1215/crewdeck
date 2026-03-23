@@ -221,6 +221,7 @@
 
 			<IssueSidebar
 				{issue}
+				{project}
 				{projectId}
 				onStatusChange={() => { getIssue(projectId, issueId).then(d => { issue = d; }).catch(() => {}); }}
 				onEdit={openEdit}
