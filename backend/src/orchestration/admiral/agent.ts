@@ -1,33 +1,29 @@
 /**
  * Admiral LLM Agent
  *
- * Uses Claude API with tool calling to make intelligent project management decisions.
+ * Uses `claude -p` CLI to make project management decisions.
  * Maintains a persistent conversation per project.
  */
-import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "../../logger.js";
 import { eventBus } from "../../events/bus.js";
 import { getProject } from "../../db/repositories/projects.js";
 import { listIssues } from "../../db/repositories/issues.js";
 import { listByProject as listKnowledge } from "../../db/repositories/knowledge.js";
 import { getActiveProcessCount } from "../processes.js";
-import { ADMIRAL_TOOLS } from "./tools.js";
-import { executeTool } from "./tool-handlers.js";
+import { spawnClaude } from "../process.js";
+import { getCrewMember } from "../crew.js";
 import * as chatRepo from "../../db/repositories/chat-messages.js";
 import type { AdmiralEvent } from "./queue.js";
 
-const MODEL = "claude-sonnet-4-20250514";
 const MAX_CONTEXT_MESSAGES = 100;
-const MAX_TOOL_ITERATIONS = 10;
 
 /**
- * Build the system prompt for Admiral.
+ * Build the system prompt for Admiral, including tool docs as curl commands.
  */
-function buildSystemPrompt(projectId: string): string {
+const buildSystemPrompt = (projectId: string): string => {
   const project = getProject(projectId);
   if (!project) return "";
 
-  // Get current project state
   const issues = listIssues(projectId);
   const openIssues = issues.filter((i) => i.status === "open");
   const inProgressIssues = issues.filter((i) => i.status === "in_progress");
@@ -35,7 +31,6 @@ function buildSystemPrompt(projectId: string): string {
   const doneIssues = issues.filter((i) => i.status === "done").slice(0, 20);
   const runningAgents = getActiveProcessCount(projectId);
 
-  // Get knowledge entries
   const knowledge = listKnowledge(projectId);
   const knowledgeSummary = knowledge
     .slice(0, 10)
@@ -71,6 +66,82 @@ ${prIssues.map((i) => `- [${i.id.slice(0, 8)}] ${i.title} (${i.status})`).join("
 ## Knowledge Entries
 ${knowledgeSummary || "None"}
 
+## Available Actions
+Use curl to call the CrewDeck internal API. Environment variables $CREWDECK_API_URL and $CREWDECK_PROJECT_ID are set.
+
+### Merge a PR
+\`\`\`bash
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/merge-pr" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>"}'
+\`\`\`
+
+### Dispatch Captain to work on an issue
+\`\`\`bash
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/dispatch-captain" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>","instructions":"optional instructions"}'
+\`\`\`
+
+### Create an issue
+\`\`\`bash
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/issues/create" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","title":"Issue title","description":"Description"}'
+\`\`\`
+
+### Update an issue
+\`\`\`bash
+curl -X PATCH "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"status":"<new_status>","title":"optional new title"}'
+\`\`\`
+
+### Get issue details
+\`\`\`bash
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
+\`\`\`
+
+### List issues
+\`\`\`bash
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues"
+\`\`\`
+
+### Add a comment
+\`\`\`bash
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/comment" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>","agent_id":"admiral","content":"Comment text"}'
+\`\`\`
+
+### Scan codebase (Librarian)
+\`\`\`bash
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/scan-codebase" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'"}'
+\`\`\`
+
+### Knowledge Management
+\`\`\`bash
+# List
+curl "$CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID"
+
+# Create
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/create" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","title":"Title","category":"architecture","content":"Content"}'
+
+# Update
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/update" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","knowledge_id":"<ID>","content":"Updated content"}'
+
+# Delete
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/delete" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","knowledge_id":"<ID>"}'
+\`\`\`
+
 ## Decision Guidelines
 
 ### Priority Order
@@ -100,14 +171,14 @@ ${knowledgeSummary || "None"}
 
 ## Constraints
 - You can only manage this project
-- Use the provided tools for all actions
+- Use curl to call the API for all actions
 - Don't make assumptions about external systems`;
-}
+};
 
 /**
  * Format events for the LLM.
  */
-function formatEvents(events: AdmiralEvent[]): string {
+const formatEvents = (events: AdmiralEvent[]): string => {
   if (events.length === 0) return "";
 
   return events
@@ -134,63 +205,56 @@ function formatEvents(events: AdmiralEvent[]): string {
           const data = e.data as { content: string };
           return `[${ts}] User message: ${data.content}`;
         }
-        case "idle.check": {
+        case "idle.check":
           return `[${ts}] Idle check: checking for stuck issues`;
-        }
         default:
           return `[${ts}] Event: ${e.type}`;
       }
     })
     .join("\n");
-}
+};
 
 /**
- * Get conversation history from DB.
- * Only loads chat messages, not event-batch messages.
+ * Get conversation history from DB as text for the prompt.
  */
-function getConversationHistory(projectId: string): Anthropic.MessageParam[] {
+const getConversationHistory = (projectId: string): string => {
   const messages = chatRepo.getChatOnly(projectId, MAX_CONTEXT_MESSAGES).reverse();
+  if (messages.length === 0) return "";
 
-  return messages.map((m) => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
-}
+  return messages
+    .map((m) =>
+      m.role === "user"
+        ? `User:\n<user_message>\n${m.content}\n</user_message>`
+        : `Admiral: ${m.content}`
+    )
+    .join("\n\n");
+};
 
 /**
- * Process events with the Admiral LLM.
- * Returns the assistant's final text response.
+ * Process events with the Admiral LLM via claude -p.
+ * Returns the assistant's text response.
  */
-export async function processWithLLM(
+export const processWithLLM = async (
   projectId: string,
   events: AdmiralEvent[]
-): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    logger.error("ANTHROPIC_API_KEY not set");
-    return "Error: ANTHROPIC_API_KEY not configured";
-  }
-
-  const client = new Anthropic({ apiKey });
+): Promise<string> => {
   const systemPrompt = buildSystemPrompt(projectId);
+  if (!systemPrompt) return "Error: Project not found";
 
-  // Build the user message from events
+  // Build user prompt from events and history
   const eventText = formatEvents(events);
-  const userContent = eventText
+  const eventSection = eventText
     ? `## Events\n${eventText}\n\nProcess these events and take appropriate actions.`
     : "Check current project state and take any needed actions.";
 
-  // Get conversation history
   const history = getConversationHistory(projectId);
-
-  // Add the new user message
-  const messages: Anthropic.MessageParam[] = [
-    ...history,
-    { role: "user", content: userContent },
-  ];
+  const sections = [];
+  if (history) sections.push(`## Conversation History\n${history}`);
+  sections.push(eventSection);
+  const userPrompt = sections.join("\n\n");
 
   // Save event message to DB (as 'event' type so it's not loaded in history)
-  chatRepo.create(projectId, "user", userContent, "event");
+  chatRepo.create(projectId, "user", eventSection, "event");
 
   // Emit admiral.event_received for each event so frontend can show them
   for (const event of events) {
@@ -205,108 +269,51 @@ export async function processWithLLM(
   // Emit that Admiral is thinking
   eventBus.emit("admiral.thinking", { project_id: projectId });
 
-  let iterations = 0;
+  const project = getProject(projectId);
+  const env: Record<string, string> = {
+    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
+    CREWDECK_PROJECT_ID: projectId,
+    CREWDECK_AGENT_ID: "admiral",
+  };
+
+  // Admiral needs GH_TOKEN for merge operations done via the API
+  if (project?.github_account_id) {
+    const { getGitHubAccount } = await import("../../db/repositories/github-accounts.js");
+    const account = getGitHubAccount(project.github_account_id);
+    if (account) env.GH_TOKEN = account.oauth_token;
+  }
+
   let finalResponse = "";
 
-  while (iterations < MAX_TOOL_ITERATIONS) {
-    iterations++;
+  try {
+    const result = await spawnClaude({
+      prompt: userPrompt,
+      systemPrompt,
+      workdir: ".",
+      env,
+    });
 
+    const { stdout } = await result.exitPromise;
+
+    // Parse the JSON output from claude -p --output-format json
     try {
-      const response = await client.messages.create({
-        model: MODEL,
-        max_tokens: 4096,
-        system: systemPrompt,
-        tools: ADMIRAL_TOOLS,
-        messages,
-      });
-
-      // Extract text content
-      let textContent = "";
-      const toolUses: Anthropic.ToolUseBlock[] = [];
-
-      for (const block of response.content) {
-        if (block.type === "text") {
-          textContent += block.text;
-        } else if (block.type === "tool_use") {
-          toolUses.push(block);
-        }
-      }
-
-      // Accumulate text but don't emit yet (emit once at the end)
-      if (textContent) {
-        finalResponse += textContent;
-      }
-
-      // If no tool calls, we're done
-      if (toolUses.length === 0) {
-        break;
-      }
-
-      // Add assistant response to messages
-      messages.push({
-        role: "assistant",
-        content: response.content,
-      });
-
-      // Execute tools and collect results
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-      for (const toolUse of toolUses) {
-        // Emit tool call event
-        eventBus.emit("admiral.tool_call", {
-          project_id: projectId,
-          tool_name: toolUse.name,
-          tool_input: toolUse.input,
-        });
-
-        logger.info({ tool: toolUse.name, input: toolUse.input }, "Admiral executing tool");
-
-        const result = await executeTool(
-          toolUse.name,
-          projectId,
-          toolUse.input as Record<string, unknown>
-        );
-
-        // Emit tool result
-        eventBus.emit("admiral.tool_result", {
-          project_id: projectId,
-          tool_name: toolUse.name,
-          result,
-        });
-
-        toolResults.push({
-          type: "tool_result",
-          tool_use_id: toolUse.id,
-          content: JSON.stringify(result),
-        });
-      }
-
-      // Add tool results to messages
-      messages.push({
-        role: "user",
-        content: toolResults,
-      });
-
-      // Continue loop to let LLM process tool results
-    } catch (err) {
-      logger.error({ err }, "Admiral LLM call failed");
-      finalResponse += finalResponse ? "\n\nError: Failed to process events" : "Error: Failed to process events";
-      break;
+      const parsed = JSON.parse(stdout);
+      finalResponse = parsed.result ?? stdout;
+    } catch {
+      // If not valid JSON, use raw output
+      finalResponse = stdout;
     }
+  } catch (err) {
+    logger.error({ err }, "Admiral claude -p call failed");
+    finalResponse = "Error: Failed to process events";
   }
 
-  // Warn if we hit the iteration limit
-  if (iterations >= MAX_TOOL_ITERATIONS) {
-    logger.warn({ projectId, iterations: MAX_TOOL_ITERATIONS }, "Admiral hit max tool iterations");
-  }
-
-  // Emit final message once (not per iteration)
+  // Emit final message
   if (finalResponse) {
     eventBus.emit("admiral.message", {
       project_id: projectId,
       content: finalResponse,
     });
-    // Save final response to DB as chat message
     chatRepo.create(projectId, "assistant", finalResponse, "chat");
   }
 
@@ -317,4 +324,4 @@ export async function processWithLLM(
   });
 
   return finalResponse;
-}
+};
