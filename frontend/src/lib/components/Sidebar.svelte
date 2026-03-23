@@ -125,7 +125,7 @@
 				<!-- Project sub-pages -->
 				{#if isExpanded}
 					<div class="ml-5 flex flex-col gap-0.5">
-						{@render projectNavItem(`/projects/${project.id}`, 'Issues', 'issues', isActive(`/projects/${project.id}`) && !pathname.includes('/chat') && !pathname.includes('/activity') && !pathname.includes('/knowledge') && !pathname.includes('/settings'))}
+						{@render projectNavItem(`/projects/${project.id}`, 'Issues', 'issues', pathname === `/projects/${project.id}` || pathname.startsWith(`/projects/${project.id}/issues`))}
 						{@render projectNavItem(`/projects/${project.id}/chat`, 'Chat', 'terminal', isActive(`/projects/${project.id}/chat`))}
 						{@render projectNavItem(`/projects/${project.id}/knowledge`, 'Knowledge', 'knowledge', isActive(`/projects/${project.id}/knowledge`))}
 						{@render projectNavItem(`/projects/${project.id}/activity`, 'Activity', 'activity', isActive(`/projects/${project.id}/activity`))}
