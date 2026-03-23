@@ -102,6 +102,6 @@ export interface EventMap {
   };
   "chat.complete": {
     project_id: string;
-    message_id: string;
+    message_id: string | null;
   };
 }

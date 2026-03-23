@@ -14,6 +14,7 @@ import {
   getByProject as getChatMessages,
   deleteByProject as deleteChatMessages,
 } from "../db/repositories/chat-messages.js";
+import { listRepos } from "../db/repositories/repos.js";
 import {
   ADMIRAL_CHAT_SYSTEM_PROMPT,
   buildAdmiralChatPrompt,
@@ -67,12 +68,16 @@ router.post(
       CREWDECK_PROJECT_ID: projectId,
     };
 
+    // Get project repo path for filesystem access
+    const repos = listRepos(projectId);
+    const workdir = repos.length > 0 ? repos[0].local_path : ".";
+
     // Spawn Claude process (does NOT count against concurrency)
     try {
       const result = await spawnClaudeStream({
         prompt,
         systemPrompt: ADMIRAL_CHAT_SYSTEM_PROMPT,
-        workdir: ".",
+        workdir,
         env,
       });
 
@@ -87,6 +92,8 @@ router.post(
       // Process stream in background
       processAdmiralStream(result, projectId).catch((err) => {
         logger.error({ err, projectId }, "Error processing admiral chat stream");
+        // Emit error completion so frontend doesn't stay stuck
+        eventBus.emit("chat.complete", { project_id: projectId, message_id: null });
       });
     } catch (err) {
       logger.error({ err, projectId }, "Failed to spawn admiral chat");
@@ -140,7 +147,13 @@ async function processAdmiralStream(
     fullResponse = fullResponse || "I encountered an error processing your request. Please try again.";
   }
 
-  // Save assistant response
+  // Save assistant response (skip if empty)
+  if (!fullResponse.trim()) {
+    logger.warn({ projectId }, "Admiral returned empty response, skipping save");
+    eventBus.emit("chat.complete", { project_id: projectId, message_id: null });
+    return;
+  }
+
   const assistantMessage = createChatMessage(projectId, "assistant", fullResponse);
 
   // Emit completion event
