@@ -61,6 +61,7 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 | `CREWDECK_REPOS_DIR`   | `/app/data/repos`       | Where repos are cloned                      |
 | `GITHUB_CLIENT_ID`     | *(your OAuth App)*      | GitHub OAuth App client ID (Device Flow)    |
 | `GITHUB_CLIENT_SECRET` | *(your OAuth App)*      | GitHub OAuth App client secret (token revocation) |
+| `ANTHROPIC_API_KEY`    | *(your API key)*        | Anthropic API key (required for Admiral LLM agent) |
 
 **Frontend**:
 

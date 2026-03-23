@@ -226,17 +226,30 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Exports `pollPRs()` for external callers (e.g., Admiral) to trigger immediate polling.
 
 **Admiral**
-- Auto-pilot orchestrator that manages the project automatically.
+- LLM-powered auto-pilot orchestrator that manages the project automatically.
 - Only acts on projects with `admiral_enabled = true`.
 - Background service that is not dispatchable via `/dispatch` (unlike other agents).
-- Two triggers:
-  - **Reactive** — subscribes to `issue.status_changed` events for transitions to `done`, `pr_ready_to_merge`, `pr_conflict`, `pr_failed_actions`.
-  - **Proactive** — polls every 60 seconds as a safety net.
-- Responsibilities (in priority order):
-  1. **Merge manager** — merges PRs in `pr_ready_to_merge` status via GitHub API, one at a time, calling `pollPRs()` after each merge.
-  2. **Fix mode** — dispatches Captain to fix issues in `pr_conflict` or `pr_failed_actions` status.
-  3. **Work starter** — starts work on open unassigned issues when project capacity allows.
-- Uses `GH_TOKEN` from the project's linked GitHub account for merging.
+- Event-driven architecture — no polling. Wakes only when events occur:
+  - `issue.created`, `issue.updated`, `issue.status_changed`
+  - `run.completed` (agent finished)
+  - `pr.status_changed` (from PR poller)
+  - `chat.message` (user message from Admiral Terminal)
+  - `idle.check` (configurable per-project idle timeout)
+- Event batching: accumulates events while processing, drains all pending events at once.
+- Persistent conversation per project (last 100 messages stored in ChatMessage table).
+- Uses Claude API with tool calling for intelligent decision-making.
+- Available tools:
+  - `merge_pr(issue_id)` — merge PR and delete branch
+  - `dispatch_captain(issue_id, instructions?)` — start/resume work
+  - `create_issue(title, description)`, `update_issue(issue_id, fields)`, `list_issues(filters?)`, `get_issue(issue_id)`
+  - `add_comment(issue_id, content)`
+  - `scan_codebase()` — trigger librarian
+  - `list_knowledge()`, `create_knowledge()`, `update_knowledge()`, `delete_knowledge()`
+- Decision priorities (encoded in system prompt):
+  1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status
+  2. **Fix broken PRs** — dispatch Captain for `pr_conflict` or `pr_failed_actions`
+  3. **Start new work** — dispatch Captain on open issues when capacity allows
+- Uses OAuth token from the project's linked GitHub account for merging.
 
 **Event Bus**
 - In-process typed EventEmitter singleton.
@@ -299,6 +312,7 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued.
 - **PR events** — PR created, status updated.
+- **Admiral events** — event received, thinking, message, tool call, tool result, complete.
 
 The frontend subscribes to events scoped by project.
 
@@ -358,7 +372,7 @@ On startup, the backend:
 4. Initializes the MentionHandler (subscribes to `comment.added`).
 5. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 6. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
-7. Initializes Admiral (subscribes to `issue.status_changed`, starts 60-second polling loop).
+7. Initializes Admiral service (subscribes to event bus for all admiral-enabled projects).
 8. Starts the Express HTTP server.
 9. Starts the WebSocket server.
 10. Logs startup complete via pino.
@@ -371,7 +385,7 @@ On SIGTERM or SIGINT, the backend:
 
 1. Stops accepting new HTTP connections.
 2. Sends SIGTERM to all active agent processes (via `shutdownMentionHandler()`).
-3. Shuts down Admiral (stops polling, unsubscribes from events).
+3. Shuts down Admiral service (unsubscribes from events, clears idle timeouts).
 4. Stops the PR poller.
 5. Closes the SQLite database connection.
 6. Exits the process.

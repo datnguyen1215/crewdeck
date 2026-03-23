@@ -1136,6 +1136,17 @@ All events follow this structure:
 | `pr.created` | PR recorded on an issue | Full IssuePR object + `issue_title?` |
 | `pr.status_changed` | PR status updated | `{ pr_id, from, to }` |
 
+#### Admiral Events
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `admiral.event_received` | Admiral received a system event to process | `{ project_id, event_type, description }` |
+| `admiral.thinking` | Admiral is processing events | `{ project_id }` |
+| `admiral.message` | Admiral text response | `{ project_id, content }` |
+| `admiral.tool_call` | Admiral invoked a tool | `{ project_id, tool_name, tool_input }` |
+| `admiral.tool_result` | Tool execution completed | `{ project_id, tool_name, result }` |
+| `admiral.complete` | Admiral finished processing | `{ project_id, response }` |
+
 ---
 
 ## Error Format
