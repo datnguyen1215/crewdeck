@@ -23,7 +23,7 @@ import { markAgentCompleted } from "./batch.js";
 import type { Agent, AgentRunStatus } from "../types/entities.js";
 
 const DEFAULT_MAX_CHAIN_DEPTH = 20;
-const PROCESS_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_AGENT_TIMEOUT_MINUTES = 10;
 
 /**
  * Post a system comment and emit comment.added.
@@ -87,6 +87,7 @@ export async function processAgentStream(
   agent: Agent,
   timer: ReturnType<typeof setTimeout>,
   timeoutState: { timedOut: boolean },
+  timeoutMinutes: number,
   options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> {
   const startTime = Date.now();
@@ -215,7 +216,7 @@ export async function processAgentStream(
       postSystemComment(
         issueId,
         projectId,
-        `Agent ${agent.name} ${timeoutState.timedOut ? "timed out (10 min limit" : `crashed (exit code ${code}`}${hasEvents ? "" : ", no output"})`,
+        `Agent ${agent.name} ${timeoutState.timedOut ? `timed out (${timeoutMinutes} min limit` : `crashed (exit code ${code}`}${hasEvents ? "" : ", no output"})`,
       );
     }
     log.logger.error(
@@ -407,6 +408,7 @@ export const spawnAgent = async (
   // Update run with PID
   agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
 
+  const timeoutMs = (project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES) * 60 * 1000;
   const timeoutState = { timedOut: false };
   const timer = setTimeout(() => {
     timeoutState.timedOut = true;
@@ -418,7 +420,7 @@ export const spawnAgent = async (
     setTimeout(() => {
       if (!result.process.killed) result.process.kill("SIGKILL");
     }, 5000);
-  }, PROCESS_TIMEOUT_MS);
+  }, timeoutMs);
 
   const entry: ActiveProcess = {
     pid: result.pid,
@@ -450,7 +452,8 @@ export const spawnAgent = async (
   log.logger.info({ pid: result.pid, agent: agent.name, issueId, runId: agentRun.id }, "Agent spawned");
 
   // Process streamed events
-  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timeoutState, options)
+  const agentTimeoutMinutes = project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timeoutState, agentTimeoutMinutes, options)
     .catch((err) => {
       log.logger.error({ err, runId: agentRun.id }, "Error processing agent stream");
     });
@@ -512,6 +515,7 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   // Update run with PID
   agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
 
+  const timeoutMs = (project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES) * 60 * 1000;
   const timeoutState = { timedOut: false };
   const timer = setTimeout(() => {
     timeoutState.timedOut = true;
@@ -520,7 +524,7 @@ export const spawnScan = async (projectId: string): Promise<string> => {
     setTimeout(() => {
       if (!result.process.killed) result.process.kill("SIGKILL");
     }, 5000);
-  }, PROCESS_TIMEOUT_MS);
+  }, timeoutMs);
 
   const entry: ActiveProcess = {
     pid: result.pid,
@@ -545,7 +549,8 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   log.logger.info({ pid: result.pid, agent: agent.name, runId: agentRun.id }, "Scan spawned");
 
   // Process streamed events
-  processAgentStream(result, agentRun.id, projectId, null, agent, timer, timeoutState)
+  const scanTimeoutMinutes = project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  processAgentStream(result, agentRun.id, projectId, null, agent, timer, timeoutState, scanTimeoutMinutes)
     .catch((err) => {
       log.logger.error({ err, runId: agentRun.id }, "Error processing scan stream");
     });

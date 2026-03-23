@@ -20,6 +20,7 @@ export interface Project {
   description: string | null;
   max_concurrency: number;
   max_chain_depth: number;
+  agent_timeout_minutes: number;
   admiral_enabled: boolean;
   github_account_id: string | null;
   created_at: string;
@@ -189,6 +190,7 @@ export interface UpdateProjectInput {
   description?: string;
   max_concurrency?: number;
   max_chain_depth?: number;
+  agent_timeout_minutes?: number;
   admiral_enabled?: boolean;
   github_account_id?: string | null;
 }
