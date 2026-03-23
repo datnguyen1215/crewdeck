@@ -104,4 +104,26 @@ export interface EventMap {
     project_id: string;
     message_id: string | null;
   };
+  // Admiral LLM agent events
+  "admiral.thinking": {
+    project_id: string;
+  };
+  "admiral.message": {
+    project_id: string;
+    content: string;
+  };
+  "admiral.tool_call": {
+    project_id: string;
+    tool_name: string;
+    tool_input: unknown;
+  };
+  "admiral.tool_result": {
+    project_id: string;
+    tool_name: string;
+    result: unknown;
+  };
+  "admiral.complete": {
+    project_id: string;
+    response: string;
+  };
 }

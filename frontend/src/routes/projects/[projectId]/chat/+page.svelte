@@ -11,17 +11,28 @@
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
-	let pageTitle = $derived(project?.name ? `Chat - ${project.name} - CrewDeck` : 'Chat - CrewDeck');
+	let pageTitle = $derived(project?.name ? `Admiral Terminal - ${project.name} - CrewDeck` : 'Admiral Terminal - CrewDeck');
 
-	let messages = $state<ChatMessage[]>([]);
+	// Terminal entries: events, messages, tool calls
+	interface TerminalEntry {
+		id: string;
+		type: 'system' | 'admiral' | 'user' | 'tool_call' | 'tool_result';
+		content: string;
+		timestamp: Date;
+		toolName?: string;
+		toolInput?: unknown;
+		success?: boolean;
+	}
+
+	let entries = $state<TerminalEntry[]>([]);
 	let loading = $state(true);
 	let sending = $state(false);
 	let inputValue = $state('');
-	let streamingContent = $state('');
+	let isThinking = $state(false);
 	let messagesContainer: HTMLDivElement | undefined;
 	let inputElement: HTMLInputElement | undefined;
 
-	// Load initial data
+	// Load initial chat history
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
@@ -29,7 +40,13 @@
 		Promise.all([getChatHistory(projectId), getProject(projectId)])
 			.then(([hist, proj]) => {
 				if (cancelled) return;
-				messages = hist;
+				// Convert chat messages to terminal entries
+				entries = hist.map((m: ChatMessage) => ({
+					id: m.id,
+					type: m.role === 'user' ? 'user' : 'admiral',
+					content: m.content,
+					timestamp: new Date(m.created_at),
+				}));
 				project = proj;
 				loading = false;
 				scrollToBottom();
@@ -37,41 +54,92 @@
 			.catch(() => {
 				if (!cancelled) {
 					loading = false;
-					toastStore.add('Failed to load chat history', 'error');
+					toastStore.add('Failed to load terminal history', 'error');
 				}
 			});
 
 		return () => { cancelled = true; };
 	});
 
-	// WebSocket handlers for streaming
+	// WebSocket handlers for Admiral terminal events
 	$effect(() => {
 		const ws = getWs();
 		if (!ws) return;
 
-		const handleStream = (data: Record<string, unknown>) => {
-			const token = data.token as string;
-			if (token) {
-				streamingContent += token;
-				scrollToBottom();
-			}
+		// System event received
+		const handleEventReceived = (data: Record<string, unknown>) => {
+			const entry: TerminalEntry = {
+				id: crypto.randomUUID(),
+				type: 'system',
+				content: `Event: ${data.event_type} - ${data.description}`,
+				timestamp: new Date(),
+			};
+			entries = [...entries, entry];
+			scrollToBottom();
 		};
 
+		// Admiral is thinking
+		const handleThinking = () => {
+			isThinking = true;
+		};
+
+		// Admiral message
+		const handleMessage = (data: Record<string, unknown>) => {
+			isThinking = false;
+			const entry: TerminalEntry = {
+				id: crypto.randomUUID(),
+				type: 'admiral',
+				content: data.content as string,
+				timestamp: new Date(),
+			};
+			entries = [...entries, entry];
+			scrollToBottom();
+		};
+
+		// Admiral tool call
+		const handleToolCall = (data: Record<string, unknown>) => {
+			const entry: TerminalEntry = {
+				id: crypto.randomUUID(),
+				type: 'tool_call',
+				content: `${data.tool_name}`,
+				toolName: data.tool_name as string,
+				toolInput: data.tool_input,
+				timestamp: new Date(),
+			};
+			entries = [...entries, entry];
+			scrollToBottom();
+		};
+
+		// Admiral tool result
+		const handleToolResult = (data: Record<string, unknown>) => {
+			const result = data.result as { success: boolean; message: string; data?: unknown };
+			const entry: TerminalEntry = {
+				id: crypto.randomUUID(),
+				type: 'tool_result',
+				content: result.message,
+				toolName: data.tool_name as string,
+				success: result.success,
+				timestamp: new Date(),
+			};
+			entries = [...entries, entry];
+			scrollToBottom();
+		};
+
+		// Admiral complete
 		const handleComplete = () => {
-			// Only act if we're currently waiting for a response
-			if (!sending) return;
-			// Refetch to get the saved message
-			getChatHistory(projectId).then((hist) => {
-				messages = hist;
-				streamingContent = '';
-				sending = false;
-				// scrollToBottom() calls tick() internally, then focus after scroll completes
-				scrollToBottom().then(() => inputElement?.focus());
-			});
+			isThinking = false;
+			sending = false;
+			inputElement?.focus();
 		};
 
 		const unsubs = [
-			ws.on('chat.stream', handleStream),
+			ws.on('admiral.event_received', handleEventReceived),
+			ws.on('admiral.thinking', handleThinking),
+			ws.on('admiral.message', handleMessage),
+			ws.on('admiral.tool_call', handleToolCall),
+			ws.on('admiral.tool_result', handleToolResult),
+			ws.on('admiral.complete', handleComplete),
+			// Legacy fallback for streaming
 			ws.on('chat.complete', handleComplete),
 		];
 
@@ -92,37 +160,41 @@
 
 		inputValue = '';
 		sending = true;
-		streamingContent = '';
 
-		// Optimistically add user message
-		const tempMessage: ChatMessage = {
+		// Add user message to terminal
+		const userEntry: TerminalEntry = {
 			id: crypto.randomUUID(),
-			project_id: projectId,
-			role: 'user',
+			type: 'user',
 			content: message,
-			created_at: new Date().toISOString(),
+			timestamp: new Date(),
 		};
-		messages = [...messages, tempMessage];
+		entries = [...entries, userEntry];
 		scrollToBottom();
 
 		try {
-			const result = await sendChatMessage(projectId, message);
-			// Update with real message ID
-			messages = messages.map((m) =>
-				m.id === tempMessage.id ? result.user_message : m
-			);
+			await sendChatMessage(projectId, message);
+			// Response will come via WebSocket
 		} catch (err) {
 			toastStore.add('Failed to send message', 'error');
-			// Remove optimistic message
-			messages = messages.filter((m) => m.id !== tempMessage.id);
+			// Remove the user entry on failure
+			entries = entries.filter((e) => e.id !== userEntry.id);
 			sending = false;
 			inputElement?.focus();
 		}
 	}
 
-	function formatTime(iso: string): string {
-		const date = new Date(iso);
-		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	function formatTime(date: Date): string {
+		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+	}
+
+	function formatToolInput(input: unknown): string {
+		if (!input) return '';
+		if (typeof input === 'object') {
+			return Object.entries(input as Record<string, unknown>)
+				.map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+				.join(', ');
+		}
+		return String(input);
 	}
 </script>
 
@@ -136,25 +208,28 @@
 		<Breadcrumb segments={[
 			{ label: 'Projects', href: '/' },
 			{ label: project?.name ?? 'Project', href: `/projects/${projectId}` },
-			{ label: 'Chat' }
+			{ label: 'Admiral Terminal' }
 		]} />
 		<div class="mt-3 flex items-center gap-3">
 			<div class="w-8 h-8 rounded-full bg-cyan/20 flex items-center justify-center">
 				<svg class="w-4 h-4 text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+					<rect x="3" y="3" width="18" height="18" rx="2"/>
+					<path d="M7 8h4"/>
+					<path d="M7 12h10"/>
+					<path d="M7 16h6"/>
 				</svg>
 			</div>
 			<div>
-				<h1 class="text-lg font-bold text-primary">Admiral Chat</h1>
-				<p class="text-xs text-muted">Project management assistant</p>
+				<h1 class="text-lg font-bold text-primary">Admiral Terminal</h1>
+				<p class="text-xs text-muted">Event-driven project orchestrator</p>
 			</div>
 		</div>
 	</div>
 
-	<!-- Messages -->
+	<!-- Terminal output -->
 	<div
 		bind:this={messagesContainer}
-		class="flex-1 overflow-y-auto p-4 space-y-4"
+		class="flex-1 overflow-y-auto p-4 font-mono text-sm bg-black/20"
 	>
 		{#if loading}
 			<div class="flex justify-center py-8">
@@ -162,143 +237,92 @@
 					<svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
 						<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="12" />
 					</svg>
-					<span class="text-sm">Loading chat history...</span>
+					<span>Loading terminal history...</span>
 				</div>
 			</div>
-		{:else if messages.length === 0 && !streamingContent}
-			<div class="flex flex-col items-center justify-center py-16 text-center">
-				<div class="w-16 h-16 rounded-full bg-surface border border-edge flex items-center justify-center mb-4">
-					<svg class="w-8 h-8 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-						<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-					</svg>
-				</div>
-				<p class="text-primary font-medium mb-1">Start a conversation</p>
-				<p class="text-muted text-sm max-w-sm">
-					Ask Admiral to create issues, check project status, manage knowledge entries, or help with project organization.
-				</p>
+		{:else if entries.length === 0}
+			<div class="text-muted py-8 text-center">
+				<p class="mb-2">Admiral Terminal ready.</p>
+				<p class="text-xs">System events and your messages appear here.</p>
 			</div>
 		{:else}
-			{#each messages as message (message.id)}
-				<div class="flex gap-3 {message.role === 'user' ? 'flex-row-reverse' : ''}">
-					<!-- Avatar -->
-					<div class="flex-shrink-0">
-						{#if message.role === 'user'}
-							<div class="w-8 h-8 rounded-full bg-surface border border-edge flex items-center justify-center">
-								<svg class="w-4 h-4 text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-									<circle cx="12" cy="7" r="4"/>
-								</svg>
-							</div>
-						{:else}
-							<div class="w-8 h-8 rounded-full bg-cyan/20 flex items-center justify-center">
-								<svg class="w-4 h-4 text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M12 2L2 7l10 5 10-5-10-5z"/>
-									<path d="M2 17l10 5 10-5"/>
-									<path d="M2 12l10 5 10-5"/>
-								</svg>
-							</div>
+			<div class="space-y-2">
+				{#each entries as entry (entry.id)}
+					<div class="flex gap-2">
+						<span class="text-muted/50 flex-shrink-0">[{formatTime(entry.timestamp)}]</span>
+						{#if entry.type === 'system'}
+							<span class="text-yellow/80">[system]</span>
+							<span class="text-muted">{entry.content}</span>
+						{:else if entry.type === 'user'}
+							<span class="text-green">[you]</span>
+							<span class="text-primary">{entry.content}</span>
+						{:else if entry.type === 'admiral'}
+							<span class="text-cyan">[admiral]</span>
+							<span class="text-primary prose prose-sm prose-invert max-w-none inline">
+								{@html md(entry.content)}
+							</span>
+						{:else if entry.type === 'tool_call'}
+							<span class="text-cyan">[admiral]</span>
+							<span class="text-purple">
+								<span class="text-muted/50">-></span> {entry.toolName}({formatToolInput(entry.toolInput)})
+							</span>
+						{:else if entry.type === 'tool_result'}
+							<span class="text-cyan">[admiral]</span>
+							<span class="text-muted/50">-></span>
+							<span class="{entry.success ? 'text-green' : 'text-red'}">
+								{entry.success ? 'ok' : 'err'}:
+							</span>
+							<span class="text-muted">{entry.content}</span>
 						{/if}
 					</div>
+				{/each}
+			</div>
+		{/if}
 
-					<!-- Message content -->
-					<div class="max-w-[80%] {message.role === 'user' ? 'text-right' : ''}">
-						<div class="flex items-center gap-2 mb-1 {message.role === 'user' ? 'flex-row-reverse' : ''}">
-							<span class="text-xs font-medium {message.role === 'user' ? 'text-secondary' : 'text-cyan'}">
-								{message.role === 'user' ? 'You' : 'Admiral'}
-							</span>
-							<span class="text-xs text-muted">{formatTime(message.created_at)}</span>
-						</div>
-						<div class="rounded-lg px-4 py-3 {message.role === 'user'
-							? 'bg-surface border border-edge text-primary'
-							: 'bg-cyan/10 border border-cyan/20 text-primary'}"
-						>
-							{#if message.role === 'assistant'}
-								<div class="text-sm prose prose-sm prose-invert max-w-none">
-									{@html md(message.content)}
-								</div>
-							{:else}
-								<p class="text-sm whitespace-pre-wrap">{message.content}</p>
-							{/if}
-						</div>
-					</div>
-				</div>
-			{/each}
+		<!-- Thinking indicator -->
+		{#if isThinking}
+			<div class="flex gap-2 mt-2">
+				<span class="text-muted/50">[{formatTime(new Date())}]</span>
+				<span class="text-cyan">[admiral]</span>
+				<span class="text-muted animate-pulse">thinking...</span>
+			</div>
+		{/if}
 
-			<!-- Streaming message -->
-			{#if streamingContent}
-				<div class="flex gap-3">
-					<div class="flex-shrink-0">
-						<div class="w-8 h-8 rounded-full bg-cyan/20 flex items-center justify-center">
-							<svg class="w-4 h-4 text-cyan animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M12 2L2 7l10 5 10-5-10-5z"/>
-								<path d="M2 17l10 5 10-5"/>
-								<path d="M2 12l10 5 10-5"/>
-							</svg>
-						</div>
-					</div>
-					<div class="max-w-[80%]">
-						<div class="flex items-center gap-2 mb-1">
-							<span class="text-xs font-medium text-cyan">Admiral</span>
-							<span class="text-xs text-muted">typing...</span>
-						</div>
-						<div class="rounded-lg px-4 py-3 bg-cyan/10 border border-cyan/20">
-							<div class="text-sm prose prose-sm prose-invert max-w-none">
-								{@html md(streamingContent)}
-							</div>
-						</div>
-					</div>
-				</div>
-			{/if}
-
-			<!-- Typing indicator when waiting for stream to start -->
-			{#if sending && !streamingContent}
-				<div class="flex gap-3">
-					<div class="flex-shrink-0">
-						<div class="w-8 h-8 rounded-full bg-cyan/20 flex items-center justify-center">
-							<svg class="w-4 h-4 text-cyan animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M12 2L2 7l10 5 10-5-10-5z"/>
-								<path d="M2 17l10 5 10-5"/>
-								<path d="M2 12l10 5 10-5"/>
-							</svg>
-						</div>
-					</div>
-					<div class="rounded-lg px-4 py-3 bg-cyan/10 border border-cyan/20">
-						<div class="flex items-center gap-1">
-							<span class="w-2 h-2 bg-cyan/60 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
-							<span class="w-2 h-2 bg-cyan/60 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
-							<span class="w-2 h-2 bg-cyan/60 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
-						</div>
-					</div>
-				</div>
-			{/if}
+		<!-- Sending indicator -->
+		{#if sending && !isThinking}
+			<div class="flex gap-2 mt-2">
+				<span class="text-muted/50">[{formatTime(new Date())}]</span>
+				<span class="text-cyan">[admiral]</span>
+				<span class="text-muted animate-pulse">processing...</span>
+			</div>
 		{/if}
 	</div>
 
 	<!-- Input -->
-	<div class="p-4 border-t border-edge flex-shrink-0">
+	<div class="p-4 border-t border-edge flex-shrink-0 bg-surface/50">
 		<form onsubmit={handleSubmit} class="flex gap-3">
-			<input
-				type="text"
-				bind:this={inputElement}
-				bind:value={inputValue}
-				placeholder="Ask Admiral anything about your project..."
-				disabled={sending}
-				class="flex-1 bg-surface border border-edge rounded-lg px-4 py-3 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors disabled:opacity-50"
-			/>
+			<div class="flex-1 flex items-center gap-2 bg-black/30 border border-edge rounded-lg px-4 py-3">
+				<span class="text-green font-mono">$</span>
+				<input
+					type="text"
+					bind:this={inputElement}
+					bind:value={inputValue}
+					placeholder="Send a message to Admiral..."
+					disabled={sending}
+					class="flex-1 bg-transparent text-sm text-primary font-mono placeholder:text-muted outline-none disabled:opacity-50"
+				/>
+			</div>
 			<button
 				type="submit"
 				disabled={sending || !inputValue.trim()}
-				class="px-4 py-3 bg-cyan/10 border border-cyan text-cyan rounded-lg hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+				class="px-4 py-3 bg-cyan/10 border border-cyan text-cyan rounded-lg hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm"
 			>
 				{#if sending}
 					<svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
 						<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="12" />
 					</svg>
 				{:else}
-					<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="22" y1="2" x2="11" y2="13"/>
-						<polygon points="22 2 15 22 11 13 2 9 22 2"/>
-					</svg>
+					Send
 				{/if}
 			</button>
 		</form>

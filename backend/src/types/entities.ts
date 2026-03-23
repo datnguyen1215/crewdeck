@@ -22,6 +22,7 @@ export interface Project {
   max_chain_depth: number;
   agent_timeout_minutes: number;
   admiral_enabled: boolean;
+  admiral_idle_timeout_ms: number | null;
   github_account_id: string | null;
   created_at: string;
   updated_at: string;
@@ -192,6 +193,7 @@ export interface UpdateProjectInput {
   max_chain_depth?: number;
   agent_timeout_minutes?: number;
   admiral_enabled?: boolean;
+  admiral_idle_timeout_ms?: number | null;
   github_account_id?: string | null;
 }
 

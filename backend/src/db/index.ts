@@ -52,6 +52,11 @@ export function createDb(path: string): Database.Database {
     db.exec("ALTER TABLE Project ADD COLUMN agent_timeout_minutes INTEGER NOT NULL DEFAULT 10");
   }
 
+  // Migration: add admiral_idle_timeout_ms column to Project if missing.
+  if (!projectCols.some((c) => c.name === "admiral_idle_timeout_ms")) {
+    db.exec("ALTER TABLE Project ADD COLUMN admiral_idle_timeout_ms INTEGER");
+  }
+
   // Migration: add agent_id column to Issue if missing.
   if (!issueCols.some((c) => c.name === "agent_id")) {
     db.exec("ALTER TABLE Issue ADD COLUMN agent_id TEXT");
