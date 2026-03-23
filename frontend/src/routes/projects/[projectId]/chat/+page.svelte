@@ -61,14 +61,12 @@
 			// Only act if we're currently waiting for a response
 			if (!sending) return;
 			// Refetch to get the saved message
-			getChatHistory(projectId).then(async (hist) => {
+			getChatHistory(projectId).then((hist) => {
 				messages = hist;
 				streamingContent = '';
 				sending = false;
-				scrollToBottom();
-				// Refocus input after state updates
-				await tick();
-				inputElement?.focus();
+				// scrollToBottom() calls tick() internally, then focus after scroll completes
+				scrollToBottom().then(() => inputElement?.focus());
 			});
 		};
 
@@ -118,6 +116,7 @@
 			// Remove optimistic message
 			messages = messages.filter((m) => m.id !== tempMessage.id);
 			sending = false;
+			inputElement?.focus();
 		}
 	}
 
