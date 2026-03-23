@@ -11,7 +11,7 @@ import { listIssues } from "../../db/repositories/issues.js";
 import { listByProject as listKnowledge } from "../../db/repositories/knowledge.js";
 import { getActiveProcessCount } from "../processes.js";
 import { spawnClaude } from "../process.js";
-import { getCrewMember } from "../crew.js";
+
 import * as chatRepo from "../../db/repositories/chat-messages.js";
 import type { AdmiralEvent } from "./queue.js";
 
@@ -289,11 +289,15 @@ export const processWithLLM = async (
     const result = await spawnClaude({
       prompt: userPrompt,
       systemPrompt,
+      // Admiral doesn't need repo access — it operates via API calls
       workdir: ".",
       env,
     });
 
-    const { stdout } = await result.exitPromise;
+    const { code, stdout } = await result.exitPromise;
+    if (code !== 0) {
+      logger.warn({ projectId, code }, "Admiral claude -p exited non-zero");
+    }
 
     // Parse the JSON output from claude -p --output-format json
     try {

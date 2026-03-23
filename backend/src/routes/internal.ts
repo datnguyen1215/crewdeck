@@ -190,11 +190,15 @@ const AdmiralMergePRSchema = z.object({
   issue_id: z.string(),
 });
 
-router.post("/admiral/merge-pr", validate(AdmiralMergePRSchema), async (req, res) => {
-  const { project_id, issue_id } = req.body;
-  verifyProjectExists(project_id);
-  const result = await handleMergePR(project_id, { issue_id });
-  res.json(result);
+router.post("/admiral/merge-pr", validate(AdmiralMergePRSchema), async (req, res, next) => {
+  try {
+    const { project_id, issue_id } = req.body;
+    verifyProjectExists(project_id);
+    const result = await handleMergePR(project_id, { issue_id });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
 });
 
 const AdmiralDispatchSchema = z.object({
@@ -203,22 +207,30 @@ const AdmiralDispatchSchema = z.object({
   instructions: z.string().optional(),
 });
 
-router.post("/admiral/dispatch-captain", validate(AdmiralDispatchSchema), async (req, res) => {
-  const { project_id, issue_id, instructions } = req.body;
-  verifyProjectExists(project_id);
-  const result = await handleDispatchCaptain(project_id, { issue_id, instructions });
-  res.json(result);
+router.post("/admiral/dispatch-captain", validate(AdmiralDispatchSchema), async (req, res, next) => {
+  try {
+    const { project_id, issue_id, instructions } = req.body;
+    verifyProjectExists(project_id);
+    const result = await handleDispatchCaptain(project_id, { issue_id, instructions });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
 });
 
 const AdmiralScanSchema = z.object({
   project_id: z.string(),
 });
 
-router.post("/admiral/scan-codebase", validate(AdmiralScanSchema), async (req, res) => {
-  const { project_id } = req.body;
-  verifyProjectExists(project_id);
-  const result = await handleScanCodebase(project_id);
-  res.json(result);
+router.post("/admiral/scan-codebase", validate(AdmiralScanSchema), async (req, res, next) => {
+  try {
+    const { project_id } = req.body;
+    verifyProjectExists(project_id);
+    const result = await handleScanCodebase(project_id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;
