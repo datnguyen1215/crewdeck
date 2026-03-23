@@ -188,3 +188,14 @@ export interface LibrarianStatus {
   started_at: string | null;
   completed_at: string | null;
 }
+
+// Admiral chat types
+export type ChatMessageRole = "user" | "assistant";
+
+export interface ChatMessage {
+  id: string;
+  project_id: string;
+  role: ChatMessageRole;
+  content: string;
+  created_at: string;
+}

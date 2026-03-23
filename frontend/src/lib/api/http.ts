@@ -16,6 +16,7 @@ import type {
   AgentRunWithEvents,
   ProjectKnowledge,
   LibrarianStatus,
+  ChatMessage,
 } from './types.js';
 
 export type {
@@ -40,6 +41,7 @@ export type {
   AgentRunEventType,
   ProjectKnowledge,
   LibrarianStatus,
+  ChatMessage,
 } from './types.js';
 
 const BASE = "/api/v1";
@@ -211,4 +213,15 @@ export function triggerKnowledgeScan(projectId: string) {
 
 export function getLibrarianStatus(projectId: string) {
   return request<LibrarianStatus>("GET", `/projects/${e(projectId)}/librarian-status`);
+}
+
+// Admiral Chat
+export function getChatHistory(projectId: string) {
+  return request<ChatMessage[]>("GET", `/projects/${e(projectId)}/chat`);
+}
+export function sendChatMessage(projectId: string, message: string) {
+  return request<{ user_message: ChatMessage; status: string }>("POST", `/projects/${e(projectId)}/chat`, { message });
+}
+export function clearChatHistory(projectId: string) {
+  return request<void>("DELETE", `/projects/${e(projectId)}/chat`);
 }
