@@ -24,7 +24,6 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
   await writeFile(tmpFile, opts.systemPrompt, "utf-8");
 
   const args = [
-    "-p", opts.prompt,
     "--system-prompt-file", tmpFile,
     "--output-format", "json",
     "--dangerously-skip-permissions",
@@ -33,8 +32,12 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
   const child = spawn("claude", args, {
     cwd: opts.workdir,
     env: { ...process.env, ...opts.env },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
+
+  // Write prompt to stdin to avoid E2BIG when prompt exceeds ARG_MAX
+  child.stdin!.write(opts.prompt);
+  child.stdin!.end();
 
   let stdout = "";
   let stderr = "";
@@ -88,7 +91,6 @@ export async function spawnClaudeStream(opts: SpawnOpts): Promise<StreamSpawnRes
   await writeFile(tmpFile, opts.systemPrompt, "utf-8");
 
   const args = [
-    "-p", opts.prompt,
     "--system-prompt-file", tmpFile,
     "--output-format", "stream-json",
     "--dangerously-skip-permissions",
@@ -97,8 +99,12 @@ export async function spawnClaudeStream(opts: SpawnOpts): Promise<StreamSpawnRes
   const child = spawn("claude", args, {
     cwd: opts.workdir,
     env: { ...process.env, ...opts.env },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
+
+  // Write prompt to stdin to avoid E2BIG when prompt exceeds ARG_MAX
+  child.stdin!.write(opts.prompt);
+  child.stdin!.end();
 
   let stderr = "";
   child.stderr!.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
