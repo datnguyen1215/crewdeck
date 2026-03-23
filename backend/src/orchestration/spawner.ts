@@ -87,6 +87,7 @@ export async function processAgentStream(
   agent: Agent,
   timer: ReturnType<typeof setTimeout>,
   timeoutState: { timedOut: boolean },
+  timeoutMinutes: number,
   options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> {
   const startTime = Date.now();
@@ -215,7 +216,7 @@ export async function processAgentStream(
       postSystemComment(
         issueId,
         projectId,
-        `Agent ${agent.name} ${timeoutState.timedOut ? "timed out (10 min limit" : `crashed (exit code ${code}`}${hasEvents ? "" : ", no output"})`,
+        `Agent ${agent.name} ${timeoutState.timedOut ? `timed out (${timeoutMinutes} min limit` : `crashed (exit code ${code}`}${hasEvents ? "" : ", no output"})`,
       );
     }
     log.logger.error(
@@ -451,7 +452,8 @@ export const spawnAgent = async (
   log.logger.info({ pid: result.pid, agent: agent.name, issueId, runId: agentRun.id }, "Agent spawned");
 
   // Process streamed events
-  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timeoutState, options)
+  const agentTimeoutMinutes = project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timeoutState, agentTimeoutMinutes, options)
     .catch((err) => {
       log.logger.error({ err, runId: agentRun.id }, "Error processing agent stream");
     });
@@ -547,7 +549,8 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   log.logger.info({ pid: result.pid, agent: agent.name, runId: agentRun.id }, "Scan spawned");
 
   // Process streamed events
-  processAgentStream(result, agentRun.id, projectId, null, agent, timer, timeoutState)
+  const scanTimeoutMinutes = project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  processAgentStream(result, agentRun.id, projectId, null, agent, timer, timeoutState, scanTimeoutMinutes)
     .catch((err) => {
       log.logger.error({ err, runId: agentRun.id }, "Error processing scan stream");
     });
