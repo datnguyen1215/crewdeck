@@ -4,6 +4,8 @@
 	import { listProjects, type Project } from '$lib/api/http.js';
 	import { onMount } from 'svelte';
 
+	const STORAGE_KEY = 'sidebar-collapsed';
+
 	const icons = {
 		home: `<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>`,
 		issues: `<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>`,
@@ -14,11 +16,13 @@
 		settings: `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>`,
 		chevronRight: `<polyline points="9 18 15 12 9 6"/>`,
 		chevronDown: `<polyline points="6 9 12 15 18 9"/>`,
+		chevronLeft: `<polyline points="15 18 9 12 15 6"/>`,
 		folder: `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>`
 	};
 
 	let projects = $state<Project[]>([]);
 	let expandedProjects = $state<Set<string>>(new Set());
+	let collapsed = $state(false);
 	let projectId = $derived($page.params.projectId);
 	let pathname = $derived($page.url.pathname);
 
@@ -30,12 +34,23 @@
 	});
 
 	onMount(async () => {
+		// Load collapsed state from localStorage
+		const stored = localStorage.getItem(STORAGE_KEY);
+		if (stored !== null) {
+			collapsed = stored === 'true';
+		}
+
 		try {
 			projects = await listProjects();
 		} catch (e) {
 			console.error('Failed to load projects:', e);
 		}
 	});
+
+	function toggleSidebar() {
+		collapsed = !collapsed;
+		localStorage.setItem(STORAGE_KEY, String(collapsed));
+	}
 
 	function isActive(href: string) {
 		return pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
@@ -61,19 +76,42 @@
 </script>
 
 <nav
-	class="group/sidebar flex flex-col w-14 hover:w-52 overflow-hidden transition-[width] duration-200 ease-in-out bg-base-hi border-r border-edge flex-shrink-0 h-full"
+	class="flex flex-col overflow-hidden transition-[width] duration-200 ease-in-out bg-base-hi border-r border-edge flex-shrink-0 h-full {collapsed ? 'w-14' : 'w-52'}"
 >
-	<a
-		href="/"
-		class="flex items-center gap-3 px-4 py-5 border-b border-edge hover:bg-surface transition-colors flex-shrink-0"
-	>
-		<span class="text-cyan font-bold text-sm tracking-wider flex-shrink-0 w-6 text-center">CD</span>
-		<span
-			class="text-cyan font-bold uppercase tracking-widest text-xs whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-150 delay-75"
+	<div class="flex items-center border-b border-edge flex-shrink-0">
+		<a
+			href="/"
+			class="flex items-center gap-3 px-4 py-5 hover:bg-surface transition-colors flex-1 min-w-0"
+			title={collapsed ? 'CrewDeck' : undefined}
 		>
-			CREWDECK
-		</span>
-	</a>
+			<span class="text-cyan font-bold text-sm tracking-wider flex-shrink-0 w-6 text-center">CD</span>
+			{#if !collapsed}
+				<span class="text-cyan font-bold uppercase tracking-widest text-xs whitespace-nowrap">
+					CREWDECK
+				</span>
+			{/if}
+		</a>
+		<button
+			onclick={toggleSidebar}
+			class="p-2 mr-2 text-secondary hover:text-primary hover:bg-surface rounded transition-colors"
+			title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				width="16"
+				height="16"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="transition-transform duration-200 {collapsed ? 'rotate-180' : ''}"
+			>
+				{@html icons.chevronLeft}
+			</svg>
+		</button>
+	</div>
 
 	<div class="flex flex-col gap-1 p-2 flex-1 overflow-y-auto overflow-x-hidden">
 		<!-- Projects list -->
@@ -82,55 +120,80 @@
 			{@const isCurrent = isProjectActive(project.id)}
 			<div>
 				<!-- Project header -->
-				<button
-					onclick={() => toggleProject(project.id)}
-					class="w-full flex items-center gap-2 px-3 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap
-					{isCurrent ? 'text-cyan' : ''}"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						width="14"
-						height="14"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						class="flex-shrink-0 transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
+				{#if collapsed}
+					<!-- Collapsed: just show folder icon as link -->
+					<a
+						href={`/projects/${project.id}`}
+						class="flex items-center justify-center px-3 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors
+						{isCurrent ? 'text-cyan bg-surface' : ''}"
+						title={project.name}
+						style={isCurrent ? 'box-shadow: inset 2px 0 0 var(--color-cyan)' : ''}
 					>
-						{@html icons.chevronDown}
-					</svg>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						width="16"
-						height="16"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						class="flex-shrink-0"
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="18"
+							height="18"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="flex-shrink-0"
+						>
+							{@html icons.folder}
+						</svg>
+					</a>
+				{:else}
+					<!-- Expanded: show toggle button with folder and name -->
+					<button
+						onclick={() => toggleProject(project.id)}
+						class="w-full flex items-center gap-2 px-3 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap
+						{isCurrent ? 'text-cyan' : ''}"
 					>
-						{@html icons.folder}
-					</svg>
-					<span
-						class="text-sm opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-150 delay-75 overflow-hidden text-ellipsis"
-					>
-						{project.name}
-					</span>
-				</button>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="flex-shrink-0 transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
+						>
+							{@html icons.chevronDown}
+						</svg>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="flex-shrink-0"
+						>
+							{@html icons.folder}
+						</svg>
+						<span class="text-sm overflow-hidden text-ellipsis">
+							{project.name}
+						</span>
+					</button>
 
-				<!-- Project sub-pages -->
-				{#if isExpanded}
-					<div class="ml-5 flex flex-col gap-0.5">
-						{@render projectNavItem(`/projects/${project.id}`, 'Issues', 'issues', pathname === `/projects/${project.id}` || pathname.startsWith(`/projects/${project.id}/issues`))}
-						{@render projectNavItem(`/projects/${project.id}/chat`, 'Chat', 'terminal', isActive(`/projects/${project.id}/chat`))}
-						{@render projectNavItem(`/projects/${project.id}/knowledge`, 'Knowledge', 'knowledge', isActive(`/projects/${project.id}/knowledge`))}
-						{@render projectNavItem(`/projects/${project.id}/activity`, 'Activity', 'activity', isActive(`/projects/${project.id}/activity`))}
-						{@render projectNavItem(`/projects/${project.id}/settings`, 'Settings', 'settings', isActive(`/projects/${project.id}/settings`))}
-					</div>
+					<!-- Project sub-pages (only when expanded and sidebar not collapsed) -->
+					{#if isExpanded}
+						<div class="ml-5 flex flex-col gap-0.5">
+							{@render projectNavItem(`/projects/${project.id}`, 'Issues', 'issues', pathname === `/projects/${project.id}` || pathname.startsWith(`/projects/${project.id}/issues`))}
+							{@render projectNavItem(`/projects/${project.id}/chat`, 'Chat', 'terminal', isActive(`/projects/${project.id}/chat`))}
+							{@render projectNavItem(`/projects/${project.id}/knowledge`, 'Knowledge', 'knowledge', isActive(`/projects/${project.id}/knowledge`))}
+							{@render projectNavItem(`/projects/${project.id}/activity`, 'Activity', 'activity', isActive(`/projects/${project.id}/activity`))}
+							{@render projectNavItem(`/projects/${project.id}/settings`, 'Settings', 'settings', isActive(`/projects/${project.id}/settings`))}
+						</div>
+					{/if}
 				{/if}
 			</div>
 		{/each}
@@ -150,8 +213,9 @@
 	<a
 		{href}
 		class="flex items-center gap-3 px-3 py-2.5 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap
-		{active ? 'text-cyan bg-surface' : ''}"
+		{active ? 'text-cyan bg-surface' : ''} {collapsed ? 'justify-center' : ''}"
 		style={active ? 'box-shadow: inset 2px 0 0 var(--color-cyan)' : ''}
+		title={collapsed ? label : undefined}
 	>
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
@@ -167,11 +231,11 @@
 		>
 			{@html icons[icon]}
 		</svg>
-		<span
-			class="text-sm opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-150 delay-75 overflow-hidden"
-		>
-			{label}
-		</span>
+		{#if !collapsed}
+			<span class="text-sm overflow-hidden">
+				{label}
+			</span>
+		{/if}
 	</a>
 {/snippet}
 
@@ -196,9 +260,7 @@
 		>
 			{@html icons[icon]}
 		</svg>
-		<span
-			class="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-150 delay-75 overflow-hidden"
-		>
+		<span class="overflow-hidden">
 			{label}
 		</span>
 	</a>
