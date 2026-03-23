@@ -36,8 +36,8 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
   });
 
   // Write prompt to stdin to avoid E2BIG when prompt exceeds ARG_MAX
-  child.stdin!.write(opts.prompt);
-  child.stdin!.end();
+  // Use end(data) to handle backpressure properly for large prompts
+  child.stdin!.end(opts.prompt);
 
   let stdout = "";
   let stderr = "";
@@ -103,8 +103,8 @@ export async function spawnClaudeStream(opts: SpawnOpts): Promise<StreamSpawnRes
   });
 
   // Write prompt to stdin to avoid E2BIG when prompt exceeds ARG_MAX
-  child.stdin!.write(opts.prompt);
-  child.stdin!.end();
+  // Use end(data) to handle backpressure properly for large prompts
+  child.stdin!.end(opts.prompt);
 
   let stderr = "";
   child.stderr!.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
