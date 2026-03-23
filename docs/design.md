@@ -28,6 +28,7 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - One or more linked GitHub repositories.
 - A shared roster of 5 fixed agents (defined globally, not per-project).
 - A concurrency limit (max simultaneous agent processes).
+- A chain depth limit (max agent dispatches per issue before requiring manual reset).
 
 ### Agent
 
@@ -43,7 +44,7 @@ Orchestration is driven by `/dispatch` commands in issue comments. When a user o
 
 A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch engineer lead`. When multiple agents are dispatched, they are grouped as a batch. The batch members are spawned immediately, and the comment's author (the originator) is automatically re-spawned once all batch members have completed. This allows Captain, for example, to delegate work to several specialists and be invoked again when all results are ready.
 
-The chain depth is tracked per issue (max 20) to prevent infinite loops. Concurrency is bounded by the project's `max_concurrency` setting.
+The chain depth is tracked per issue (capped at the project's `max_chain_depth` setting, default 20) to prevent infinite loops. Concurrency is bounded by the project's `max_concurrency` setting.
 
 ### Issue
 
@@ -314,7 +315,7 @@ Each `/dispatch` command spawns a one-shot `claude -p` process:
       ↓
 3. Per-agent-per-issue deduplication check (skip if already running)
       ↓
-4. Chain depth checked (atomic DB increment, max 20)
+4. Chain depth checked (atomic DB increment, per project's max_chain_depth)
       ↓
 5. Concurrency checked (active processes < max_concurrency)
       → if limit reached: dispatch queued; system comment posted; stops here

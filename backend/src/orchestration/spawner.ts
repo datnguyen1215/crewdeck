@@ -22,7 +22,7 @@ import { activeProcesses, getActiveProcessCount, hasActiveAgentProcess, type Act
 import { markAgentCompleted } from "./batch.js";
 import type { Agent, AgentRunStatus } from "../types/entities.js";
 
-const MAX_CHAIN_DEPTH = 20;
+const DEFAULT_MAX_CHAIN_DEPTH = 20;
 const PROCESS_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
@@ -255,23 +255,25 @@ export const spawnAgent = async (
   commentAuthorAgentId?: string,
   options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> => {
+  const project = projectRepo.getProject(projectId);
+  if (!project) return;
+
   const issue = issueRepo.getIssue(issueId);
   if (!issue) return;
 
-  const project = projectRepo.getProject(projectId);
-  if (!project) return;
+  const maxChainDepth = project.max_chain_depth ?? DEFAULT_MAX_CHAIN_DEPTH;
 
   // Atomic check-and-increment to prevent concurrent mentions from exceeding the limit.
   // If chain_depth is already at MAX, the UPDATE matches zero rows and we reject.
   const incResult = database.db
     .prepare("UPDATE Issue SET chain_depth = chain_depth + 1 WHERE id = ? AND chain_depth < ?")
-    .run(issueId, MAX_CHAIN_DEPTH);
+    .run(issueId, maxChainDepth);
 
   if (incResult.changes === 0) {
     postSystemComment(
       issueId,
       projectId,
-      `Chain depth limit reached (${MAX_CHAIN_DEPTH}). No more agents can be spawned on this issue. Use the "Reset chain depth" button to continue.`,
+      `Chain depth limit reached (${maxChainDepth}). No more agents can be spawned on this issue. Use the "Reset chain depth" button to continue.`,
     );
     events.eventBus.emit("mention.chain_depth_reached", {
       issue_id: issueId,

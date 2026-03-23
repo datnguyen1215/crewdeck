@@ -44,6 +44,7 @@ Represents a body of work tied to one or more GitHub repositories.
 | name | TEXT | NOT NULL | Human-readable project name. |
 | description | TEXT | | Optional project description. |
 | max_concurrency | INTEGER | NOT NULL, DEFAULT 1 | Maximum number of agent processes running simultaneously. |
+| max_chain_depth | INTEGER | NOT NULL, DEFAULT 20 | Maximum agent dispatches per issue before requiring manual reset. |
 | admiral_enabled | INTEGER | NOT NULL, DEFAULT 1 | Whether Admiral auto-pilot is enabled. Stored as 0/1; exposed as boolean. |
 | github_account_id | TEXT | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
@@ -97,7 +98,7 @@ The fundamental unit of work.
 | status | TEXT | NOT NULL, DEFAULT 'open' | Current status. One of: `open`, `in_progress`, `pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`, `done`. |
 | priority | INTEGER | NOT NULL, DEFAULT 0 | Priority score. Higher = more urgent. |
 | created_by | TEXT | NOT NULL, DEFAULT 'user' | Who created the issue. One of: `user`, `system`. |
-| chain_depth | INTEGER | NOT NULL, DEFAULT 0 | Number of agent spawns on this issue. Capped at 20. |
+| chain_depth | INTEGER | NOT NULL, DEFAULT 0 | Number of agent spawns on this issue. Capped at `project.max_chain_depth`. |
 | branch_name | TEXT | NULLABLE | Git branch where work is being done. |
 | worktree_path | TEXT | NULLABLE | Absolute path to the git worktree. |
 | base_branch | TEXT | NULLABLE | The branch this issue's work is based on. |

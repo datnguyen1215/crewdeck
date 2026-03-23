@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS Project (
   name TEXT NOT NULL,
   description TEXT,
   max_concurrency INTEGER NOT NULL DEFAULT 1,
+  max_chain_depth INTEGER NOT NULL DEFAULT 20,
   admiral_enabled INTEGER NOT NULL DEFAULT 1,
   github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
