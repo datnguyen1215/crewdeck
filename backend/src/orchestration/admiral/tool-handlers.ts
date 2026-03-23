@@ -201,6 +201,59 @@ export const handleDispatchCaptain = async (
   }
 };
 
+/** Valid agent IDs for dispatch-agent (excludes captain and admiral) */
+const DISPATCHABLE_AGENTS = ["engineer", "lead", "docs", "librarian"] as const;
+type DispatchableAgent = (typeof DISPATCHABLE_AGENTS)[number];
+
+/**
+ * Check if an agent ID is dispatchable via dispatch-agent.
+ */
+const isDispatchableAgent = (agentId: string): agentId is DispatchableAgent => {
+  return (DISPATCHABLE_AGENTS as readonly string[]).includes(agentId);
+};
+
+/**
+ * Dispatch a specific agent to work on an issue.
+ * Unlike dispatch-captain, this allows Admiral to directly spawn sub-agents.
+ */
+export const handleDispatchAgent = async (
+  projectId: string,
+  input: { issue_id: string; agent_id: string; instructions?: string }
+): Promise<ToolResult> => {
+  if (!isDispatchableAgent(input.agent_id)) {
+    return {
+      success: false,
+      message: `Invalid agent_id "${input.agent_id}". Must be one of: ${DISPATCHABLE_AGENTS.join(", ")}`,
+    };
+  }
+
+  const agent = getCrewMember(input.agent_id);
+  if (!agent)
+    return { success: false, message: `Agent "${input.agent_id}" not found` };
+
+  const issue = issueRepo.getIssue(input.issue_id);
+  if (!issue)
+    return { success: false, message: "Issue not found" };
+
+  if (issue.project_id !== projectId)
+    return { success: false, message: "Issue belongs to a different project" };
+
+  if (input.instructions)
+    postSystemComment(issue.id, projectId, `Admiral: ${input.instructions}`);
+
+  try {
+    await spawnAgent(agent, issue.id, projectId);
+    return {
+      success: true,
+      message: `Dispatched ${agent.name} to work on "${issue.title}"`,
+      data: { issue_id: issue.id, issue_title: issue.title, agent_id: agent.id },
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { success: false, message: `Failed to dispatch ${agent.name}: ${message}` };
+  }
+};
+
 /**
  * Trigger a librarian codebase scan.
  */
