@@ -26,7 +26,13 @@ export type WsEvent =
   | "run.event"
   | "run.completed"
   | "chat.stream"
-  | "chat.complete";
+  | "chat.complete"
+  | "admiral.event_received"
+  | "admiral.thinking"
+  | "admiral.message"
+  | "admiral.tool_call"
+  | "admiral.tool_result"
+  | "admiral.complete";
 
 export interface WsMessage {
   event: WsEvent;

@@ -165,6 +165,31 @@ function subscribeEvents(bus: EventBus): void {
   bus.on("chat.complete", ({ project_id, message_id }) =>
     broadcast(project_id, "chat.complete", { message_id }),
   );
+
+  // Admiral terminal events
+  bus.on("admiral.event_received", ({ project_id, event_type, description }) =>
+    broadcast(project_id, "admiral.event_received", { event_type, description }),
+  );
+
+  bus.on("admiral.thinking", ({ project_id }) =>
+    broadcast(project_id, "admiral.thinking", {}),
+  );
+
+  bus.on("admiral.message", ({ project_id, content }) =>
+    broadcast(project_id, "admiral.message", { content }),
+  );
+
+  bus.on("admiral.tool_call", ({ project_id, tool_name, tool_input }) =>
+    broadcast(project_id, "admiral.tool_call", { tool_name, tool_input }),
+  );
+
+  bus.on("admiral.tool_result", ({ project_id, tool_name, result }) =>
+    broadcast(project_id, "admiral.tool_result", { tool_name, result }),
+  );
+
+  bus.on("admiral.complete", ({ project_id }) =>
+    broadcast(project_id, "admiral.complete", {}),
+  );
 }
 
 interface ExtendedWebSocket extends WebSocket {

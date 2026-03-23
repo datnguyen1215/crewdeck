@@ -46,6 +46,7 @@ Represents a body of work tied to one or more GitHub repositories.
 | max_concurrency | INTEGER | NOT NULL, DEFAULT 1 | Maximum number of agent processes running simultaneously. |
 | max_chain_depth | INTEGER | NOT NULL, DEFAULT 20 | Maximum agent dispatches per issue before requiring manual reset. |
 | admiral_enabled | INTEGER | NOT NULL, DEFAULT 1 | Whether Admiral auto-pilot is enabled. Stored as 0/1; exposed as boolean. |
+| admiral_idle_timeout_ms | INTEGER | NULLABLE | Idle timeout in milliseconds for Admiral stuck detection. NULL means disabled. |
 | github_account_id | TEXT | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
@@ -247,6 +248,23 @@ Immutable audit trail of every action in the system.
 
 **Note:** This table is append-only. Rows are never updated or deleted.
 
+---
+
+### ChatMessage
+
+Stores conversation history for the Admiral LLM agent. Each project has its own conversation thread.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
+| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project. |
+| role | TEXT | NOT NULL, CHECK (IN 'user', 'assistant') | Message role. `user` for user messages and event batches, `assistant` for Admiral responses. |
+| content | TEXT | NOT NULL | Message content. |
+| message_type | TEXT | NOT NULL, DEFAULT 'chat', CHECK (IN 'chat', 'event') | Type of message. `chat` for actual user/assistant messages shown in conversation history, `event` for synthetic event-batch messages (excluded from history reload). |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the message was created. |
+
+**Note:** The `message_type` field distinguishes actual conversation messages from synthetic event descriptions. When loading conversation history, only `chat` messages are included to avoid polluting the context with system event batches.
+
 ## Relationships Summary
 
 | Relationship | Type | Description |
@@ -263,6 +281,7 @@ Immutable audit trail of every action in the system.
 | Issue → AgentRun | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
 | AgentRun → AgentRunEvent | One-to-Many | A run has many streamed events (ordered by created_at). |
 | Project → AgentRun | One-to-Many | A project has many agent run records. |
+| Project → ChatMessage | One-to-Many | A project has many Admiral chat messages. |
 
 ## Indexes
 
@@ -284,3 +303,5 @@ Immutable audit trail of every action in the system.
 - `idx_agent_run_created` on AgentRun(project_id, created_at)
 - `idx_agent_run_event_run` on AgentRunEvent(agent_run_id)
 - `idx_agent_run_event_created` on AgentRunEvent(agent_run_id, created_at)
+- `idx_chat_message_project` on ChatMessage(project_id)
+- `idx_chat_message_created` on ChatMessage(project_id, created_at DESC)

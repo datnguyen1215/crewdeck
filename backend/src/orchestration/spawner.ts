@@ -169,7 +169,7 @@ export async function processAgentStream(
         author_id: agent.id,
       });
       events.eventBus.emit("comment.added", { comment, project_id: projectId });
-    } else if (options?.batchTriggered && agent.id === "captain" && !options?.isRetry) {
+    } else if (options?.batchTriggered && agent.id === "captain" && !options?.isRetry && issueId) {
       // Captain ended with tool call (empty result) after batch completion — retry once
       // Check if captain is already running (shouldn't happen, but be consistent with normal spawn flow)
       if (hasActiveAgentProcess(agent.id, issueId)) {
@@ -192,7 +192,7 @@ export async function processAgentStream(
           log.logger.error({ err, issueId }, "Failed to retry batch-triggered captain");
         });
       }
-    } else if (options?.isRetry && !resultText) {
+    } else if (options?.isRetry && !resultText && issueId) {
       // Retry also produced no output — inform user
       log.logger.warn(
         { pid: result.pid, agent: agent.name, runId: agentRunId },

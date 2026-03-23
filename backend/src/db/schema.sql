@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS Project (
   max_chain_depth INTEGER NOT NULL DEFAULT 20,
   agent_timeout_minutes INTEGER NOT NULL DEFAULT 10,
   admiral_enabled INTEGER NOT NULL DEFAULT 1,
+  admiral_idle_timeout_ms INTEGER,
   github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -157,6 +158,7 @@ CREATE TABLE IF NOT EXISTS ChatMessage (
   project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content TEXT NOT NULL,
+  message_type TEXT NOT NULL DEFAULT 'chat' CHECK (message_type IN ('chat', 'event')),
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -2,7 +2,7 @@
  * Admiral Chat API Routes
  *
  * Provides conversational interface to the Admiral for project management.
- * Bypasses agent concurrency limits - chat always works regardless of agent load.
+ * User messages are queued as events for the event-driven Admiral to process.
  */
 import { Router, type Request } from "express";
 import { z } from "zod";
@@ -14,20 +14,10 @@ import {
   getByProject as getChatMessages,
   deleteByProject as deleteChatMessages,
 } from "../db/repositories/chat-messages.js";
-import { listRepos } from "../db/repositories/repos.js";
-import {
-  ADMIRAL_CHAT_SYSTEM_PROMPT,
-  buildAdmiralChatPrompt,
-} from "../orchestration/admiral-chat-prompt.js";
-import { spawnClaudeStream } from "../orchestration/process.js";
 import { eventBus } from "../events/bus.js";
 import { logger } from "../logger.js";
-import type { ChatMessage } from "../types/entities.js";
 
 const router = Router({ mergeParams: true });
-
-// Track active chat requests per project to prevent concurrent requests
-const activeChatRequests = new Set<string>();
 
 const SendMessageSchema = z.object({
   message: z.string().min(1).max(10000),
@@ -46,7 +36,7 @@ router.post(
   "/chat",
   verifyProject,
   validate(SendMessageSchema),
-  async (req: Request<{ projectId: string }>, res) => {
+  (req: Request<{ projectId: string }>, res) => {
     const { projectId } = req.params;
     const { message } = req.body;
 
@@ -56,70 +46,19 @@ router.post(
       return;
     }
 
-    // Check for concurrent request
-    if (activeChatRequests.has(projectId)) {
-      res.status(409).json({
-        error: { code: "CHAT_IN_PROGRESS", message: "A chat request is already in progress" },
-      });
-      return;
-    }
-
-    // Get project repo path for filesystem access
-    const repos = listRepos(projectId);
-    if (repos.length === 0) {
-      res.status(400).json({
-        error: { code: "NO_REPO", message: "No repository configured for this project" },
-      });
-      return;
-    }
-    const workdir = repos[0].local_path;
-
-    // Mark request as active
-    activeChatRequests.add(projectId);
-
-    // Save user message
+    // Save user message to DB (for history)
     const userMessage = createChatMessage(projectId, "user", message);
 
-    // Build prompt with context
-    const prompt = buildAdmiralChatPrompt({
-      project,
-      userMessage: message,
+    // Emit chat.message event for Admiral queue - response comes via WebSocket
+    eventBus.emit("chat.message", { project_id: projectId, content: message });
+
+    logger.info({ projectId, messageId: userMessage.id }, "Chat message queued for Admiral");
+
+    // Return immediately - response delivered via WebSocket events
+    res.status(202).json({
+      user_message: userMessage,
+      status: "queued",
     });
-
-    // Prepare environment
-    const env: Record<string, string> = {
-      CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
-      CREWDECK_PROJECT_ID: projectId,
-    };
-
-    // Spawn Claude process (does NOT count against concurrency)
-    try {
-      const result = await spawnClaudeStream({
-        prompt,
-        systemPrompt: ADMIRAL_CHAT_SYSTEM_PROMPT,
-        workdir,
-        env,
-      });
-
-      logger.info({ pid: result.pid, projectId }, "Admiral chat spawned");
-
-      // Immediately return user message ID (response streams via WebSocket)
-      res.status(202).json({
-        user_message: userMessage,
-        status: "streaming",
-      });
-
-      // Process stream in background
-      processAdmiralStream(result, projectId).finally(() => {
-        activeChatRequests.delete(projectId);
-      });
-    } catch (err) {
-      activeChatRequests.delete(projectId);
-      logger.error({ err, projectId }, "Failed to spawn admiral chat");
-      res.status(500).json({
-        error: { code: "SPAWN_FAILED", message: "Failed to start chat" },
-      });
-    }
   }
 );
 
@@ -129,68 +68,5 @@ router.delete("/chat", verifyProject, (req: Request<{ projectId: string }>, res)
   deleteChatMessages(projectId);
   res.status(204).send();
 });
-
-/**
- * Process streaming output from Admiral and broadcast via WebSocket.
- */
-async function processAdmiralStream(
-  result: Awaited<ReturnType<typeof spawnClaudeStream>>,
-  projectId: string
-): Promise<void> {
-  let fullResponse = "";
-
-  try {
-    for await (const event of result.events) {
-      // Extract text content from assistant_text events
-      if (event.type === "assistant_text") {
-        const text = (event as any).text ?? "";
-        if (text) {
-          fullResponse += text;
-          eventBus.emit("chat.stream", { project_id: projectId, token: text });
-        }
-      }
-
-      // Handle result event (final content)
-      if (event.type === "result") {
-        const resultText = (event as any).result ?? "";
-        if (resultText && !fullResponse) {
-          fullResponse = resultText;
-        }
-      }
-    }
-
-    // Wait for process exit with timeout (10 minutes max)
-    const CHAT_TIMEOUT_MS = 10 * 60 * 1000;
-    const timeoutPromise = new Promise<{ code: number | null }>((_, reject) =>
-      setTimeout(() => reject(new Error("Chat process timed out")), CHAT_TIMEOUT_MS)
-    );
-    const { code } = await Promise.race([result.exitPromise, timeoutPromise]);
-
-    if (code !== 0) {
-      logger.error({ code, projectId }, "Admiral chat process failed");
-      fullResponse = fullResponse || "I encountered an error processing your request. Please try again.";
-    }
-
-    // Save assistant response (skip if empty)
-    if (!fullResponse.trim()) {
-      logger.warn({ projectId }, "Admiral returned empty response, skipping save");
-      eventBus.emit("chat.complete", { project_id: projectId, message_id: null });
-      return;
-    }
-
-    const assistantMessage = createChatMessage(projectId, "assistant", fullResponse);
-
-    // Emit completion event
-    eventBus.emit("chat.complete", {
-      project_id: projectId,
-      message_id: assistantMessage.id,
-    });
-
-    logger.info({ projectId, messageId: assistantMessage.id }, "Admiral chat completed");
-  } catch (err) {
-    logger.error({ err, projectId }, "Error processing admiral chat stream");
-    eventBus.emit("chat.complete", { project_id: projectId, message_id: null });
-  }
-}
 
 export default router;
