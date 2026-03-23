@@ -274,9 +274,9 @@ export function handleUpdateIssue(
   const oldStatus = issue.status;
   const updates: { title?: string; description?: string; status?: string } = {};
 
-  if (input.title) updates.title = input.title;
-  if (input.description) updates.description = input.description;
-  if (input.status) updates.status = input.status;
+  if (input.title !== undefined) updates.title = input.title;
+  if (input.description !== undefined) updates.description = input.description;
+  if (input.status !== undefined) updates.status = input.status;
 
   if (Object.keys(updates).length === 0) {
     return { success: false, message: "No updates provided" };
