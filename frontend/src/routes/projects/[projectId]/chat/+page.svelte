@@ -19,6 +19,7 @@
 	let inputValue = $state('');
 	let streamingContent = $state('');
 	let messagesContainer: HTMLDivElement | undefined;
+	let inputElement: HTMLInputElement | undefined;
 
 	// Load initial data
 	$effect(() => {
@@ -64,7 +65,8 @@
 				messages = hist;
 				streamingContent = '';
 				sending = false;
-				scrollToBottom();
+				// scrollToBottom() calls tick() internally, then focus after scroll completes
+				scrollToBottom().then(() => inputElement?.focus());
 			});
 		};
 
@@ -114,6 +116,7 @@
 			// Remove optimistic message
 			messages = messages.filter((m) => m.id !== tempMessage.id);
 			sending = false;
+			inputElement?.focus();
 		}
 	}
 
@@ -276,6 +279,7 @@
 		<form onsubmit={handleSubmit} class="flex gap-3">
 			<input
 				type="text"
+				bind:this={inputElement}
 				bind:value={inputValue}
 				placeholder="Ask Admiral anything about your project..."
 				disabled={sending}
