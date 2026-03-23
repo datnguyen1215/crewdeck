@@ -280,13 +280,10 @@ export async function processWithLLM(
         content: toolResults,
       });
 
-      // Check stop reason
-      if (response.stop_reason === "end_turn") {
-        break;
-      }
+      // Continue loop to let LLM process tool results
     } catch (err) {
       logger.error({ err }, "Admiral LLM call failed");
-      finalResponse = "Error: Failed to process events";
+      finalResponse += finalResponse ? "\n\nError: Failed to process events" : "Error: Failed to process events";
       break;
     }
   }

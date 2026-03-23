@@ -130,6 +130,10 @@ export async function handleMergePR(
     return { success: false, message: "Issue not found" };
   }
 
+  if (issue.project_id !== projectId) {
+    return { success: false, message: "Issue belongs to a different project" };
+  }
+
   // Find open PR for this issue
   const prs = issuePRRepo.listIssuePRs(issue.id);
   const openPR = prs.find((pr) => pr.status === "open");
@@ -196,6 +200,10 @@ export async function handleDispatchCaptain(
     return { success: false, message: "Issue not found" };
   }
 
+  if (issue.project_id !== projectId) {
+    return { success: false, message: "Issue belongs to a different project" };
+  }
+
   // Post instructions as a system comment if provided
   if (input.instructions) {
     postSystemComment(issue.id, projectId, `Admiral: ${input.instructions}`);
@@ -233,6 +241,16 @@ export function handleCreateIssue(
   };
 }
 
+const VALID_STATUSES = [
+  "open",
+  "in_progress",
+  "pr_created",
+  "pr_conflict",
+  "pr_failed_actions",
+  "pr_ready_to_merge",
+  "done",
+];
+
 export function handleUpdateIssue(
   projectId: string,
   input: { issue_id: string; title?: string; description?: string; status?: string }
@@ -240,6 +258,17 @@ export function handleUpdateIssue(
   const issue = issueRepo.getIssue(input.issue_id);
   if (!issue) {
     return { success: false, message: "Issue not found" };
+  }
+
+  if (issue.project_id !== projectId) {
+    return { success: false, message: "Issue belongs to a different project" };
+  }
+
+  if (input.status && !VALID_STATUSES.includes(input.status)) {
+    return {
+      success: false,
+      message: `Invalid status: ${input.status}. Must be one of: ${VALID_STATUSES.join(", ")}`,
+    };
   }
 
   const oldStatus = issue.status;
@@ -348,6 +377,10 @@ export function handleAddComment(
   const issue = issueRepo.getIssue(input.issue_id);
   if (!issue) {
     return { success: false, message: "Issue not found" };
+  }
+
+  if (issue.project_id !== projectId) {
+    return { success: false, message: "Issue belongs to a different project" };
   }
 
   const comment = commentRepo.createComment(issue.id, {
