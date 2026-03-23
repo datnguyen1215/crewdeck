@@ -128,17 +128,18 @@
 				{:else}
 					{#each activeRuns as run, i (run.id)}
 						{@const agent = agentMap[run.agent_id]}
-						{@const issue = issueMap[run.issue_id]}
+						{@const issue = run.issue_id ? issueMap[run.issue_id] : null}
 						{@const isRunning = run.status === 'running'}
 						{@const queuePosition = !isRunning ? activeRuns.filter(r => r.status === 'queued').indexOf(run) + 1 : 0}
+						{@const isLibrarianScan = !run.issue_id && agent?.id === 'librarian'}
 						<a
-							href="/projects/{projectId}/issues/{run.issue_id}"
+							href={isLibrarianScan ? `/projects/${projectId}/knowledge` : `/projects/${projectId}/issues/${run.issue_id}`}
 							onclick={() => open = false}
 							class="block px-3 py-2 hover:bg-surface-hi transition-colors border-b border-edge last:border-0"
 						>
 							<div class="flex items-start justify-between gap-2">
 								<div class="min-w-0 flex-1">
-									<p class="text-sm text-primary truncate">{issue?.title ?? 'Unknown issue'}</p>
+									<p class="text-sm text-primary truncate">{isLibrarianScan ? 'Updating knowledge...' : (issue?.title ?? 'Unknown issue')}</p>
 									<p class="text-xs text-muted mt-0.5">{agent?.name ?? run.agent_id}</p>
 								</div>
 								<div class="flex-shrink-0 text-right">
