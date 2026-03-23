@@ -5,6 +5,7 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import { md } from '$lib/utils/markdown.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -118,34 +119,6 @@
 		const date = new Date(iso);
 		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 	}
-
-	function renderMarkdown(content: string): string {
-		// Simple markdown rendering for code blocks and basic formatting
-		let result = content
-			// Code blocks
-			.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre class="bg-base border border-edge rounded p-3 my-2 overflow-x-auto text-xs"><code>$2</code></pre>')
-			// Inline code
-			.replace(/`([^`]+)`/g, '<code class="bg-base px-1 rounded text-cyan">$1</code>')
-			// Bold
-			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-			// Headers
-			.replace(/^### (.+)$/gm, '<h3 class="text-sm font-bold text-primary mt-3 mb-1">$1</h3>')
-			.replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-primary mt-4 mb-2">$1</h2>');
-
-		// Wrap consecutive bullet points in <ul>
-		result = result.replace(/(^- .+$(\n^- .+$)*)/gm, (match) => {
-			const items = match.split('\n').map(line => {
-				const content = line.replace(/^- /, '');
-				return `<li class="ml-4">${content}</li>`;
-			}).join('');
-			return `<ul class="list-disc my-2">${items}</ul>`;
-		});
-
-		// Line breaks (but not inside <ul> tags)
-		result = result.replace(/\n/g, '<br>');
-
-		return result;
-	}
 </script>
 
 <svelte:head>
@@ -236,7 +209,7 @@
 						>
 							{#if message.role === 'assistant'}
 								<div class="text-sm prose prose-sm prose-invert max-w-none">
-									{@html renderMarkdown(message.content)}
+									{@html md(message.content)}
 								</div>
 							{:else}
 								<p class="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -265,7 +238,7 @@
 						</div>
 						<div class="rounded-lg px-4 py-3 bg-cyan/10 border border-cyan/20">
 							<div class="text-sm prose prose-sm prose-invert max-w-none">
-								{@html renderMarkdown(streamingContent)}
+								{@html md(streamingContent)}
 							</div>
 						</div>
 					</div>
