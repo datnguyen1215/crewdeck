@@ -248,31 +248,31 @@
 		{:else}
 			<div class="space-y-2">
 				{#each entries as entry (entry.id)}
-					<div class="flex gap-2">
+					<div class="flex gap-2 min-w-0">
 						<span class="text-muted/50 flex-shrink-0">[{formatTime(entry.timestamp)}]</span>
 						{#if entry.type === 'system'}
-							<span class="text-yellow/80">[system]</span>
-							<span class="text-muted">{entry.content}</span>
+							<span class="text-yellow/80 flex-shrink-0">[system]</span>
+							<span class="text-muted break-words min-w-0">{entry.content}</span>
 						{:else if entry.type === 'user'}
-							<span class="text-green">[you]</span>
-							<span class="text-primary">{entry.content}</span>
+							<span class="text-green flex-shrink-0">[you]</span>
+							<span class="text-primary break-words min-w-0">{entry.content}</span>
 						{:else if entry.type === 'admiral'}
-							<span class="text-cyan">[admiral]</span>
-							<span class="text-primary prose prose-sm prose-invert max-w-none inline">
+							<span class="text-cyan flex-shrink-0">[admiral]</span>
+							<span class="text-primary prose prose-sm prose-invert max-w-none inline break-words min-w-0">
 								{@html md(entry.content)}
 							</span>
 						{:else if entry.type === 'tool_call'}
-							<span class="text-cyan">[admiral]</span>
-							<span class="text-purple">
+							<span class="text-cyan flex-shrink-0">[admiral]</span>
+							<span class="text-purple break-words min-w-0">
 								<span class="text-muted/50">-></span> {entry.toolName}({formatToolInput(entry.toolInput)})
 							</span>
 						{:else if entry.type === 'tool_result'}
-							<span class="text-cyan">[admiral]</span>
-							<span class="text-muted/50">-></span>
-							<span class="{entry.success ? 'text-green' : 'text-red'}">
+							<span class="text-cyan flex-shrink-0">[admiral]</span>
+							<span class="text-muted/50 flex-shrink-0">-></span>
+							<span class="{entry.success ? 'text-green' : 'text-red'} min-w-0">
 								{entry.success ? 'ok' : 'err'}:
 							</span>
-							<span class="text-muted">{entry.content}</span>
+							<span class="text-muted break-words min-w-0">{entry.content}</span>
 						{/if}
 					</div>
 				{/each}
