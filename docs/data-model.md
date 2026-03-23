@@ -261,9 +261,12 @@ Stores conversation history for the Admiral LLM agent. Each project has its own 
 | role | TEXT | NOT NULL, CHECK (IN 'user', 'assistant') | Message role. `user` for user messages and event batches, `assistant` for Admiral responses. |
 | content | TEXT | NOT NULL | Message content. |
 | message_type | TEXT | NOT NULL, DEFAULT 'chat', CHECK (IN 'chat', 'event') | Type of message. `chat` for actual user/assistant messages shown in conversation history, `event` for synthetic event-batch messages (excluded from history reload). |
+| images | TEXT | NULLABLE | JSON array of image file paths. Images are stored on disk at `data/uploads/{projectId}/{messageId}/`. NULL if no images attached. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the message was created. |
 
 **Note:** The `message_type` field distinguishes actual conversation messages from synthetic event descriptions. When loading conversation history, only `chat` messages are included to avoid polluting the context with system event batches.
+
+**Note:** The `images` field stores file paths as a JSON string and is parsed to `string[] | null` at runtime. Images pasted into the Admiral Terminal are saved to disk and their paths are stored here for multimodal processing.
 
 ## Relationships Summary
 
