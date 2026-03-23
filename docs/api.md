@@ -47,6 +47,7 @@ Without `?stats`:
     "name": "My Project",
     "description": "...",
     "max_concurrency": 3,
+    "max_chain_depth": 20,
     "admiral_enabled": true,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
@@ -63,6 +64,7 @@ With `?stats`:
     "name": "My Project",
     "description": "...",
     "max_concurrency": 3,
+    "max_chain_depth": 20,
     "admiral_enabled": true,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
@@ -127,7 +129,7 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, admiral_enabled, github_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, admiral_enabled, github_account_id).
 
 **Response:** `200 OK` — The updated project object.
 
@@ -453,7 +455,7 @@ PATCH /projects/:projectId/issues/:issueId
 **Side effects:**
 - WebSocket event emitted: `issue.status_changed` (when status changes).
 
-**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue (excluding the agent specified in `X-Agent-ID`). Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the limit (20) is reached.
+**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue (excluding the agent specified in `X-Agent-ID`). Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the project's `max_chain_depth` limit is reached.
 
 ---
 
@@ -1148,7 +1150,7 @@ All events follow this structure:
 | `mention.spawned` | Agent process started for a /dispatch command | `{ issue_id, agent_id, agent_name?, issue_title?, pid }` |
 | `mention.completed` | Agent process finished | `{ issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
 | `mention.error` | Agent process failed | `{ issue_id, agent_id, agent_name?, issue_title?, message }` |
-| `mention.chain_depth_reached` | Issue chain depth limit (20) reached | `{ issue_id, issue_title? }` |
+| `mention.chain_depth_reached` | Issue chain depth limit reached (per project's `max_chain_depth` setting) | `{ issue_id, issue_title? }` |
 | `dispatch.queued` | Agent dispatch queued (concurrency limit reached) | `{ issue_id, agent_id, agent_name?, issue_title?, position }` |
 | `dispatch.dequeued` | Agent dispatch dequeued and starting | `{ issue_id, agent_id, agent_name?, issue_title? }` |
 
