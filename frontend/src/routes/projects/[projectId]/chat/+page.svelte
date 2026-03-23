@@ -24,13 +24,21 @@
 		success?: boolean;
 	}
 
+	// Pending image for attachment
+	interface PendingImage {
+		id: string;
+		data: string; // base64 data URL
+		mediaType: string;
+	}
+
 	let entries = $state<TerminalEntry[]>([]);
 	let loading = $state(true);
 	let sending = $state(false);
 	let inputValue = $state('');
 	let isThinking = $state(false);
 	let messagesContainer: HTMLDivElement | undefined;
-	let inputElement: HTMLInputElement | undefined;
+	let inputElement: HTMLTextAreaElement | undefined;
+	let pendingImages = $state<PendingImage[]>([]);
 
 	// Load initial chat history
 	$effect(() => {
@@ -155,24 +163,34 @@
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
+		await sendMessage();
+	}
+
+	async function sendMessage() {
 		const message = inputValue.trim();
 		if (!message || sending) return;
 
+		const imagesToSend = pendingImages.map(img => ({
+			data: img.data.replace(/^data:image\/[^;]+;base64,/, ''),
+			mediaType: img.mediaType
+		}));
+
 		inputValue = '';
+		pendingImages = [];
 		sending = true;
 
 		// Add user message to terminal
 		const userEntry: TerminalEntry = {
 			id: crypto.randomUUID(),
 			type: 'user',
-			content: message,
+			content: message + (imagesToSend.length ? ` [${imagesToSend.length} image(s) attached]` : ''),
 			timestamp: new Date(),
 		};
 		entries = [...entries, userEntry];
 		scrollToBottom();
 
 		try {
-			await sendChatMessage(projectId, message);
+			await sendChatMessage(projectId, message, imagesToSend.length ? imagesToSend : undefined);
 			// Response will come via WebSocket
 		} catch (err) {
 			toastStore.add('Failed to send message', 'error');
@@ -181,6 +199,42 @@
 			sending = false;
 			inputElement?.focus();
 		}
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			sendMessage();
+		}
+	}
+
+	function handlePaste(e: ClipboardEvent) {
+		const items = e.clipboardData?.items;
+		if (!items) return;
+
+		for (const item of items) {
+			if (item.type.startsWith('image/')) {
+				e.preventDefault();
+				const file = item.getAsFile();
+				if (!file) continue;
+
+				const reader = new FileReader();
+				reader.onload = () => {
+					const dataUrl = reader.result as string;
+					const mediaType = item.type;
+					pendingImages = [...pendingImages, {
+						id: crypto.randomUUID(),
+						data: dataUrl,
+						mediaType
+					}];
+				};
+				reader.readAsDataURL(file);
+			}
+		}
+	}
+
+	function removeImage(id: string) {
+		pendingImages = pendingImages.filter(img => img.id !== id);
 	}
 
 	function formatTime(date: Date): string {
@@ -300,22 +354,42 @@
 
 	<!-- Input -->
 	<div class="p-4 border-t border-edge flex-shrink-0 bg-surface/50">
+		<!-- Image previews -->
+		{#if pendingImages.length > 0}
+			<div class="flex flex-wrap gap-2 mb-3">
+				{#each pendingImages as img (img.id)}
+					<div class="relative group">
+						<img src={img.data} alt="Pending attachment" class="w-16 h-16 object-cover rounded border border-edge" />
+						<button
+							type="button"
+							onclick={() => removeImage(img.id)}
+							class="absolute -top-2 -right-2 w-5 h-5 bg-red text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+						>
+							×
+						</button>
+					</div>
+				{/each}
+			</div>
+		{/if}
 		<form onsubmit={handleSubmit} class="flex gap-3">
-			<div class="flex-1 flex items-center gap-2 bg-black/30 border border-edge rounded-lg px-4 py-3">
-				<span class="text-green font-mono">$</span>
-				<input
-					type="text"
+			<div class="flex-1 flex items-start gap-2 bg-black/30 border border-edge rounded-lg px-4 py-3">
+				<span class="text-green font-mono mt-0.5">$</span>
+				<textarea
 					bind:this={inputElement}
 					bind:value={inputValue}
-					placeholder="Send a message to Admiral..."
+					onkeydown={handleKeydown}
+					onpaste={handlePaste}
+					placeholder="Send a message to Admiral... (Shift+Enter for newline, paste images)"
 					disabled={sending}
-					class="flex-1 bg-transparent text-sm text-primary font-mono placeholder:text-muted outline-none disabled:opacity-50"
-				/>
+					rows="1"
+					class="flex-1 bg-transparent text-sm text-primary font-mono placeholder:text-muted outline-none disabled:opacity-50 resize-none min-h-[1.5rem] max-h-32 overflow-y-auto"
+					style="field-sizing: content;"
+				></textarea>
 			</div>
 			<button
 				type="submit"
 				disabled={sending || !inputValue.trim()}
-				class="px-4 py-3 bg-cyan/10 border border-cyan text-cyan rounded-lg hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm"
+				class="px-4 py-3 bg-cyan/10 border border-cyan text-cyan rounded-lg hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm self-end"
 			>
 				{#if sending}
 					<svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
