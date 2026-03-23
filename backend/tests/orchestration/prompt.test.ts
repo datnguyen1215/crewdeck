@@ -8,7 +8,6 @@ const issue: Issue = {
   title: "Add login feature",
   description: "Implement OAuth2 login flow",
   status: "in_progress",
-  priority: 1,
   created_by: "user",
   chain_depth: 0,
   branch_name: null,
@@ -85,7 +84,6 @@ describe("buildPrompt options form", () => {
       title: "Fix navbar",
       description: "Navbar broken on mobile",
       status: "open",
-      priority: 2,
       created_by: "user",
       chain_depth: 0,
       branch_name: null,
@@ -101,7 +99,6 @@ describe("buildPrompt options form", () => {
       title: "Add dark mode",
       description: "Support dark theme",
       status: "in_progress",
-      priority: 3,
       created_by: "user",
       chain_depth: 0,
       branch_name: null,
@@ -123,7 +120,7 @@ describe("buildPrompt options form", () => {
     });
     expect(prompt).toContain("internal/comment");
     expect(prompt).toContain("internal/issues/create");
-    expect(prompt).toContain("internal/issues/update");
+    expect(prompt).toContain("internal/create-pr");
     expect(prompt).toContain("PATCH");
     expect(prompt).toContain("/activity");
   });

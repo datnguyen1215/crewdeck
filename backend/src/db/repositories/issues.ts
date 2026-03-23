@@ -28,7 +28,7 @@ export function listIssues(projectId: string, filters: IssueFilters = {}): Issue
     values.push(filters.created_by);
   }
 
-  const SORT_COLS = ["priority", "created_at", "updated_at"] as const;
+  const SORT_COLS = ["created_at", "updated_at"] as const;
   const ORDERS = ["asc", "desc"] as const;
   const sortCol = SORT_COLS.includes(filters.sort as (typeof SORT_COLS)[number])
     ? filters.sort!
@@ -78,14 +78,13 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
 export function createIssue(projectId: string, input: CreateIssueInput): Issue {
   const id = crypto.randomUUID();
   db.prepare(
-    `INSERT INTO Issue (id, project_id, title, description, priority, created_by, status, agent_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO Issue (id, project_id, title, description, created_by, status, agent_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     projectId,
     input.title,
     input.description,
-    input.priority ?? 0,
     input.created_by ?? "user",
     input.status ?? "open",
     input.agent_id ?? null,

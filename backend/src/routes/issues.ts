@@ -45,7 +45,7 @@ router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   const filters: IssueFilters = {};
   if (status) filters.status = status.split(",");
   if (created_by) filters.created_by = created_by;
-  if (sort === "priority" || sort === "created_at" || sort === "updated_at")
+  if (sort === "created_at" || sort === "updated_at")
     filters.sort = sort;
   if (order === "asc" || order === "desc") filters.order = order;
 

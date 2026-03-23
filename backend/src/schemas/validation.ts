@@ -37,7 +37,6 @@ export const CreateRepoSchema = z.object({
 export const CreateIssueSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
-  priority: z.number().int().optional(),
   created_by: z.string().optional(),
 });
 
@@ -45,7 +44,6 @@ export const UpdateIssueSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
   status: z.string().optional(),
-  priority: z.number().int().optional(),
   chain_depth: z.number().int().nonnegative().optional(),
   branch_name: z.string().nullable().optional(),
   worktree_path: z.string().nullable().optional(),

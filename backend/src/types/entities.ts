@@ -53,7 +53,6 @@ export interface Issue {
   title: string;
   description: string;
   status: string;
-  priority: number;
   created_by: string;
   chain_depth: number;
   branch_name: string | null;
@@ -204,7 +203,6 @@ export interface CreateIssueInput {
   title: string;
   description: string;
   status?: string;
-  priority?: number;
   created_by?: string;
   agent_id?: string | null;
 }
@@ -213,7 +211,6 @@ export interface UpdateIssueInput {
   title?: string;
   description?: string;
   status?: string;
-  priority?: number;
   chain_depth?: number;
   branch_name?: string | null;
   worktree_path?: string | null;
@@ -225,7 +222,7 @@ export interface UpdateIssueInput {
 export interface IssueFilters {
   status?: string[];
   created_by?: string;
-  sort?: "priority" | "created_at" | "updated_at";
+  sort?: "created_at" | "updated_at";
   order?: "asc" | "desc";
 }
 

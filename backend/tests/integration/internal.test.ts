@@ -87,29 +87,6 @@ describe("POST /api/v1/internal/issues/create", () => {
   });
 });
 
-describe("POST /api/v1/internal/issues/update", () => {
-  it("updates issue priority", async () => {
-    const res = await request(app).post(`${BASE}/issues/update`).send({
-      project_id: projectId,
-      issue_id: issueId,
-      priority: 5,
-    });
-
-    expect(res.status).toBe(200);
-    expect(res.body.priority).toBe(5);
-  });
-
-  it("returns 404 for non-existent issue", async () => {
-    const res = await request(app).post(`${BASE}/issues/update`).send({
-      project_id: projectId,
-      issue_id: FAKE_ID,
-      priority: 1,
-    });
-
-    expect(res.status).toBe(404);
-  });
-});
-
 describe("POST /api/v1/internal/create-pr", () => {
   it("creates IssuePR record and returns 201", async () => {
     const prUrl = "https://github.com/test/repo/pull/42";

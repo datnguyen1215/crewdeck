@@ -355,7 +355,7 @@ GET /projects/:projectId/issues
 |-----------|------|-------------|
 | status | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
 | created_by | TEXT | Filter by creator (`user`, `agent`, or `system`). |
-| sort | TEXT | Sort field. One of: `priority`, `created_at`, `updated_at`. Default: `created_at`. |
+| sort | TEXT | Sort field. One of: `created_at`, `updated_at`. Default: `created_at`. |
 | order | TEXT | Sort order. `asc` or `desc`. Default: `desc`. |
 
 **Response:** `200 OK` — Array of issue objects (without full comment thread). Each issue includes `running_agent_id` and `running_agent_status` fields indicating the currently running or queued agent (if any).
@@ -367,7 +367,6 @@ GET /projects/:projectId/issues
     "project_id": "uuid",
     "title": "Fix authentication bug",
     "status": "in_progress",
-    "priority": 5,
     "running_agent_id": "engineer",
     "running_agent_status": "running",
     "...": "..."
@@ -393,7 +392,6 @@ GET /projects/:projectId/issues/:issueId
   "title": "Fix authentication bug",
   "description": "...",
   "status": "in_progress",
-  "priority": 8,
   "created_by": "user",
   "chain_depth": 2,
   "branch_name": "crewdeck/issue-uuid-short",
@@ -419,8 +417,7 @@ POST /projects/:projectId/issues
 ```json
 {
   "title": "Fix authentication bug",
-  "description": "The login endpoint returns 500 when...",
-  "priority": 5
+  "description": "The login endpoint returns 500 when..."
 }
 ```
 
@@ -428,7 +425,6 @@ POST /projects/:projectId/issues
 |-------|----------|---------|-------------|
 | title | Yes | — | Issue title. |
 | description | Yes | — | Issue description. |
-| priority | No | 0 | Priority score. Higher = more urgent. |
 | agent_id | No | null | Assigned agent ID (one of: captain, engineer, lead, docs, librarian). |
 
 **Response:** `201 Created` — The created issue object with status `open` and `created_by: "user"`.
@@ -442,7 +438,7 @@ POST /projects/:projectId/issues
 PATCH /projects/:projectId/issues/:issueId
 ```
 
-**Request Body:** Any subset of issue fields (title, description, status, priority, chain_depth, agent_id).
+**Request Body:** Any subset of issue fields (title, description, status, chain_depth, agent_id).
 
 **Headers:**
 
@@ -888,8 +884,7 @@ Agent creates a new issue. The issue is created with `created_by: "agent"`.
 {
   "project_id": "uuid",
   "title": "Fix authentication bug",
-  "description": "The login endpoint returns 500 when...",
-  "priority": 5
+  "description": "The login endpoint returns 500 when..."
 }
 ```
 
@@ -898,38 +893,10 @@ Agent creates a new issue. The issue is created with `created_by: "agent"`.
 | project_id | Yes | The project to create the issue in. |
 | title | Yes | Issue title (non-empty). |
 | description | Yes | Issue description (non-empty). |
-| priority | No | Priority level (integer). |
 
 **Response:** `201 Created` — The created issue object.
 
 **Side effects:** Emits `issue.created` on the event bus.
-
-#### Update Issue (Internal)
-
-```
-POST /internal/issues/update
-```
-
-Agent updates an issue's priority.
-
-**Request Body:**
-```json
-{
-  "project_id": "uuid",
-  "issue_id": "uuid",
-  "priority": 2
-}
-```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| project_id | Yes | Must match the issue's project. |
-| issue_id | Yes | The issue to update. |
-| priority | Yes | New priority level (integer). |
-
-**Response:** `200 OK` — The updated issue object.
-
-**Side effects:** Emits `issue.updated` on the event bus.
 
 #### List Knowledge Entries (Internal)
 

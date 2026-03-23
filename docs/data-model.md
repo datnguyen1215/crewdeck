@@ -96,7 +96,6 @@ The fundamental unit of work.
 | title | TEXT | NOT NULL | Issue title. |
 | description | TEXT | NOT NULL | Detailed issue description. |
 | status | TEXT | NOT NULL, DEFAULT 'open' | Current status. One of: `open`, `in_progress`, `pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`, `done`. |
-| priority | INTEGER | NOT NULL, DEFAULT 0 | Priority score. Higher = more urgent. |
 | created_by | TEXT | NOT NULL, DEFAULT 'user' | Who created the issue. One of: `user`, `system`. |
 | chain_depth | INTEGER | NOT NULL, DEFAULT 0 | Number of agent spawns on this issue. Capped at `project.max_chain_depth`. |
 | branch_name | TEXT | NULLABLE | Git branch where work is being done. |
