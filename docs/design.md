@@ -176,6 +176,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 **Frontend (Svelte)**
 - Renders project dashboard, issue board, crew (read-only), activity log.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
+- Issue detail page shows a unified Timeline view merging comments, activity, and agent run summaries chronologically.
 - Provides autocomplete for `/dispatch` commands and `@mentions` in comment input.
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
