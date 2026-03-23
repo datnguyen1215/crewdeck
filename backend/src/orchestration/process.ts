@@ -229,9 +229,8 @@ export async function spawnClaudeMultimodal(opts: MultimodalSpawnOpts): Promise<
     content: userContent,
   };
 
-  // Write the message as NDJSON to stdin and close
-  child.stdin!.write(JSON.stringify(inputMessage) + "\n");
-  child.stdin!.end();
+  // Write the message as NDJSON to stdin and close (use end() with data for backpressure safety)
+  child.stdin!.end(JSON.stringify(inputMessage) + "\n");
 
   let stdout = "";
   let stderr = "";
