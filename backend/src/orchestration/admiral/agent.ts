@@ -300,9 +300,15 @@ export const processWithLLM = async (
     }
 
     // Parse the JSON output from claude -p --output-format json
+    // Output is an array of protocol messages; find the result object
     try {
       const parsed = JSON.parse(stdout);
-      finalResponse = parsed.result ?? stdout;
+      if (Array.isArray(parsed)) {
+        const resultObj = parsed.find((obj) => obj.type === "result");
+        finalResponse = resultObj?.result ?? stdout;
+      } else {
+        finalResponse = parsed.result ?? stdout;
+      }
     } catch {
       // If not valid JSON, use raw output
       finalResponse = stdout;
