@@ -305,5 +305,6 @@ export interface ChatMessage {
   role: ChatMessageRole;
   content: string;
   message_type: ChatMessageType;
+  images: string[] | null;
   created_at: string;
 }

@@ -73,6 +73,10 @@ export function createDb(path: string): Database.Database {
     if (chatCols.length > 0 && !chatCols.some((c) => c.name === "message_type")) {
       db.exec("ALTER TABLE ChatMessage ADD COLUMN message_type TEXT NOT NULL DEFAULT 'chat'");
     }
+    // Migration: add images column to ChatMessage if missing.
+    if (chatCols.length > 0 && !chatCols.some((c) => c.name === "images")) {
+      db.exec("ALTER TABLE ChatMessage ADD COLUMN images TEXT");
+    }
   } catch {
     // Table may not exist yet in fresh DBs - schema.sql will create it
   }
