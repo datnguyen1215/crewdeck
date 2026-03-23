@@ -19,6 +19,7 @@
 	let inputValue = $state('');
 	let streamingContent = $state('');
 	let messagesContainer: HTMLDivElement | undefined;
+	let inputElement: HTMLInputElement | undefined;
 
 	// Load initial data
 	$effect(() => {
@@ -60,11 +61,14 @@
 			// Only act if we're currently waiting for a response
 			if (!sending) return;
 			// Refetch to get the saved message
-			getChatHistory(projectId).then((hist) => {
+			getChatHistory(projectId).then(async (hist) => {
 				messages = hist;
 				streamingContent = '';
 				sending = false;
 				scrollToBottom();
+				// Refocus input after state updates
+				await tick();
+				inputElement?.focus();
 			});
 		};
 
@@ -276,6 +280,7 @@
 		<form onsubmit={handleSubmit} class="flex gap-3">
 			<input
 				type="text"
+				bind:this={inputElement}
 				bind:value={inputValue}
 				placeholder="Ask Admiral anything about your project..."
 				disabled={sending}
