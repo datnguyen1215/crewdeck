@@ -156,6 +156,15 @@ function subscribeEvents(bus: EventBus): void {
   bus.on("run.completed", ({ project_id, ...data }) =>
     broadcast(project_id, "run.completed", data),
   );
+
+  // Admiral chat events
+  bus.on("chat.stream", ({ project_id, token }) =>
+    broadcast(project_id, "chat.stream", { token }),
+  );
+
+  bus.on("chat.complete", ({ project_id, message_id }) =>
+    broadcast(project_id, "chat.complete", { message_id }),
+  );
 }
 
 interface ExtendedWebSocket extends WebSocket {

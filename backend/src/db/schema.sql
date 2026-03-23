@@ -149,3 +149,15 @@ CREATE TABLE IF NOT EXISTS ProjectKnowledge (
 
 CREATE INDEX IF NOT EXISTS idx_project_knowledge_project ON ProjectKnowledge(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_knowledge_updated ON ProjectKnowledge(project_id, updated_at DESC, created_at DESC);
+
+-- Admiral chat messages
+CREATE TABLE IF NOT EXISTS ChatMessage (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_message_project ON ChatMessage(project_id);
+CREATE INDEX IF NOT EXISTS idx_chat_message_created ON ChatMessage(project_id, created_at DESC);

@@ -24,7 +24,9 @@ export type WsEvent =
   | "dispatch.dequeued"
   | "run.started"
   | "run.event"
-  | "run.completed";
+  | "run.completed"
+  | "chat.stream"
+  | "chat.complete";
 
 export interface WsMessage {
   event: WsEvent;

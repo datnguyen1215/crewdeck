@@ -291,3 +291,14 @@ export interface UpdateKnowledgeInput {
   source?: string | null;
   agent_ids?: string[] | null;
 }
+
+// Chat message types
+export type ChatMessageRole = "user" | "assistant";
+
+export interface ChatMessage {
+  id: string;
+  project_id: string;
+  role: ChatMessageRole;
+  content: string;
+  created_at: string;
+}

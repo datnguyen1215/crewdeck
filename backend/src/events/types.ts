@@ -95,4 +95,13 @@ export interface EventMap {
     duration_ms: number | null;
     completed_at: string;
   };
+  // Admiral chat events
+  "chat.stream": {
+    project_id: string;
+    token: string;
+  };
+  "chat.complete": {
+    project_id: string;
+    message_id: string | null;
+  };
 }
