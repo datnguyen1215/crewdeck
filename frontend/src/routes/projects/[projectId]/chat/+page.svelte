@@ -56,7 +56,9 @@
 			}
 		};
 
-		const handleComplete = (data: Record<string, unknown>) => {
+		const handleComplete = () => {
+			// Only act if we're currently waiting for a response
+			if (!sending) return;
 			// Refetch to get the saved message
 			getChatHistory(projectId).then((hist) => {
 				messages = hist;
