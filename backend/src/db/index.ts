@@ -42,6 +42,11 @@ export function createDb(path: string): Database.Database {
     db.exec("ALTER TABLE Project ADD COLUMN admiral_enabled INTEGER NOT NULL DEFAULT 1");
   }
 
+  // Migration: add max_chain_depth column to Project if missing.
+  if (!projectCols.some((c) => c.name === "max_chain_depth")) {
+    db.exec("ALTER TABLE Project ADD COLUMN max_chain_depth INTEGER NOT NULL DEFAULT 20");
+  }
+
   // Migration: add agent_id column to Issue if missing.
   if (!issueCols.some((c) => c.name === "agent_id")) {
     db.exec("ALTER TABLE Issue ADD COLUMN agent_id TEXT");

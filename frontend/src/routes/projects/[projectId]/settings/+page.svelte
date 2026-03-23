@@ -22,6 +22,7 @@
 	let name = $state('');
 	let description = $state('');
 	let maxConcurrency = $state(1);
+	let maxChainDepth = $state(20);
 	let admiralEnabled = $state(true);
 
 	// Environment variables state
@@ -51,6 +52,7 @@
 				name = p.name;
 				description = p.description ?? '';
 				maxConcurrency = p.max_concurrency;
+				maxChainDepth = p.max_chain_depth;
 				admiralEnabled = p.admiral_enabled;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load project', 'error'); })
@@ -142,6 +144,7 @@
 			name !== project.name ||
 			description !== (project.description ?? '') ||
 			maxConcurrency !== project.max_concurrency ||
+			maxChainDepth !== project.max_chain_depth ||
 			admiralEnabled !== project.admiral_enabled
 		)
 	);
@@ -154,12 +157,14 @@
 				name: name.trim(),
 				description: description.trim() || null,
 				max_concurrency: Number(maxConcurrency),
+				max_chain_depth: Number(maxChainDepth),
 				admiral_enabled: admiralEnabled,
 			});
 			project = updated;
 			name = updated.name;
 			description = updated.description ?? '';
 			maxConcurrency = updated.max_concurrency;
+			maxChainDepth = updated.max_chain_depth;
 			admiralEnabled = updated.admiral_enabled;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
@@ -174,6 +179,7 @@
 		name = project.name;
 		description = project.description ?? '';
 		maxConcurrency = project.max_concurrency;
+		maxChainDepth = project.max_chain_depth;
 		admiralEnabled = project.admiral_enabled;
 	}
 </script>
@@ -215,6 +221,12 @@
 					<label for="settings-concurrency" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Max Concurrency</label>
 					<input id="settings-concurrency" type="number" bind:value={maxConcurrency} min="1" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
 					<p class="text-muted text-xs mt-1">Maximum concurrent agent processes per project</p>
+				</div>
+
+				<div>
+					<label for="settings-chain-depth" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Max Chain Depth</label>
+					<input id="settings-chain-depth" type="number" bind:value={maxChainDepth} min="1" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
+					<p class="text-muted text-xs mt-1">Maximum agent dispatches per issue before requiring manual reset</p>
 				</div>
 
 				<div>

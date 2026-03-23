@@ -26,6 +26,7 @@ export const UpdateProjectSchema = CreateProjectBase.omit({
   default_branch: true,
 }).partial().extend({
   admiral_enabled: z.boolean().optional(),
+  max_chain_depth: z.number().int().positive().optional(),
 });
 
 export const CreateRepoSchema = z.object({

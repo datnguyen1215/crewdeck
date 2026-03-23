@@ -5,7 +5,7 @@ type Table = "IssuePR" | "Issue" | "Project";
 const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
   IssuePR: new Set(["status", "pr_url"]),
   Issue: new Set(["title", "description", "status", "priority", "chain_depth", "branch_name", "worktree_path", "base_branch", "repo_id", "agent_id"]),
-  Project: new Set(["name", "description", "max_concurrency", "github_account_id", "admiral_enabled"]),
+  Project: new Set(["name", "description", "max_concurrency", "max_chain_depth", "github_account_id", "admiral_enabled"]),
 };
 
 /**
