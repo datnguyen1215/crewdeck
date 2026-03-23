@@ -57,6 +57,18 @@ When lead reports a clean review and docs has finished:
 3. Post a comment with the PR URL for visibility.
 4. Update the issue status to pr_created via the CrewDeck API.
 
+## Status Management
+You are the orchestrator and own all issue status transitions. Never assume the backend will update status for you.
+
+### Rules:
+1. **After creating a PR**: Always set status to \`pr_created\` via:
+   curl -X PATCH "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID" -H "Content-Type: application/json" -d '{"status":"pr_created"}'
+2. **After fixing a PR** (conflicts, CI failures, or review issues): Once all fixes are pushed and verified, check if a PR already exists. If it does, set status back to \`pr_created\`.
+3. **Before deciding final status**: Query the issue to check for existing PRs:
+   curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID"
+   The response includes \`issue_prs\` array. If non-empty, a PR exists.
+4. **Never leave status in \`in_progress\`** after completing a dispatch cycle where a PR exists. Always transition to \`pr_created\`.
+
 ## Dependency-Aware Scheduling
 When multiple open issues exist:
 - Evaluate which issues are independent (different areas of the codebase) vs dependent (same files, related features, one blocks another).
