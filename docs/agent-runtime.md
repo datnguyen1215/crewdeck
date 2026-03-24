@@ -79,31 +79,26 @@ comment.added event
     │       ├── regress issue status to in_progress if needed (from any PR-related status or done)
     │       ├── create worktree if needed
     │       ├── build prompt from issue + comments + agentId
-    │       │       (captain also receives all open/in-progress issues)
-    │       ├── if captain: inject GH_TOKEN from linked GitHub account
     │       └── spawnClaude(...)
     │
     └── on process exit:
             ├── post agent output as comment (author_type: "agent")
             ├── post system comment with cost/duration
-            ├── emit mention.completed
+            ├── emit mention.completed (Admiral reacts to these events)
             ├── drain dispatch queue: dequeue next for this project (if any),
             │       post "Agent X dequeued, spawning now" system comment,
             │       emit dispatch.dequeued, then spawn
             └── if agent is a batch member: mark completed in batch
-                    └── if all batch members done: auto-spawn originator
 ```
 
 ### Batch Tracking
 
-When a single comment dispatches multiple agents (e.g. Captain using `/dispatch engineer lead`), the handler groups them into a **batch**:
+When a single comment dispatches multiple agents (e.g., `/dispatch engineer lead`), the handler groups them into a **batch**:
 
-- The comment's author becomes the **originator**.
-- The dispatched agents become **batch members** and are spawned immediately; the originator is skipped until the batch completes.
-- When every batch member's process exits, the originator is auto-spawned so it can act on the combined results.
+- The dispatched agents become **batch members** and are spawned immediately.
 - Batches time out after **30 minutes**. A cleanup interval (every 5 minutes) fires `handleBatchComplete` on any stale batch, preventing orphaned state.
 - Only one batch is tracked per issue at a time.
-- When a batch completes and the originator (captain) is auto-spawned, the spawn is marked as `batchTriggered`. If the captain's output is empty (e.g., it ended with a tool call instead of text), the system automatically retries once. If the retry also produces no output, a system comment is posted indicating manual intervention may be required.
+- Admiral listens to individual `run.completed` events and decides what to do next based on the comment history.
 
 ### Chain Depth
 
@@ -156,15 +151,12 @@ function buildPrompt(opts: BuildPromptOptions): string
   opts.repo           — repo name and worktree path (optional)
   opts.worktreePath   — absolute path to the git worktree
   opts.agentId        — controls which API section is injected
-  opts.projectIssues  — all open/in-progress issues (captain only)
   opts.projectKnowledge — project knowledge entries (filtered by agent assignment)
 ```
 
 The function accepts a single options object containing all required and optional fields.
 
-**Role-specific API access:** The prompt's API section varies by `agentId`. Captain receives the full API reference (issues CRUD, status transitions, activity log, internal comment/issue endpoints). Librarian receives access to the knowledge internal API (list, create, update, delete knowledge entries). All other agents receive a notice that their stdout is automatically posted as a comment — no direct API access.
-
-**Captain project issues:** When `agentId` is `"captain"`, the prompt includes a summary of all open and in-progress issues (excluding the current one) to support dependency-aware scheduling.
+**Role-specific API access:** The prompt's API section varies by `agentId`. Librarian receives access to the knowledge internal API (list, create, update, delete knowledge entries). All other agents (engineer, lead, docs) receive a notice that their stdout is automatically posted as a comment — no direct API access.
 
 **Project knowledge:** Knowledge entries are injected as a `## Project Knowledge` section. Each entry is rendered as a level-3 heading with its title and category, followed by the content:
 
@@ -184,6 +176,6 @@ Every invocation gets a complete, self-contained prompt from the database. The b
 
 ## Startup and Shutdown
 
-**Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed` and posts a system comment on each affected issue notifying users to re-dispatch.
+**Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed`, posts a system comment on each affected issue, and emits `run.recovered` events. Admiral subscribes to these events and decides how to proceed (typically by re-dispatching an appropriate agent).
 
 **Shutdown:** `shutdownMentionHandler()` stops the batch cleanup interval, sends SIGTERM to all active processes, and clears the active-process and batch tracking maps.

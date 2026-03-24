@@ -26,13 +26,13 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - A name and description.
 - Knowledge entries for project context (conventions, structure notes, gotchas) injected into agent prompts.
 - One or more linked GitHub repositories.
-- A shared roster of 5 fixed agents (defined globally, not per-project).
+- A shared roster of 4 fixed agents (defined globally, not per-project).
 - A concurrency limit (max simultaneous agent processes).
 - A chain depth limit (max agent dispatches per issue before requiring manual reset).
 
 ### Agent
 
-The crew is a fixed set of 6 immutable agents defined in code (Captain, Engineer, Lead, Docs, Librarian, Admiral). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
+The crew is a fixed set of 5 immutable agents defined in code (Engineer, Lead, Docs, Librarian, Admiral). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
 Agent names are used for `/dispatch` command matching. Admiral is a background service and is not dispatchable via `/dispatch`.
 
@@ -42,7 +42,7 @@ Orchestration is driven by `/dispatch` commands in issue comments. When a user o
 
 `@mentions` are cosmetic references only — they do NOT trigger agent spawns. This prevents duplicate spawns when agents reference each other in summaries or feedback.
 
-A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch engineer lead`. When multiple agents are dispatched, they are grouped as a batch. The batch members are spawned immediately, and the comment's author (the originator) is automatically re-spawned once all batch members have completed. This allows Captain, for example, to delegate work to several specialists and be invoked again when all results are ready.
+A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch engineer lead`. When multiple agents are dispatched, they are grouped as a batch and spawned immediately.
 
 The chain depth is tracked per issue (capped at the project's `max_chain_depth` setting, default 20) to prevent infinite loops. Concurrency is bounded by the project's `max_concurrency` setting.
 
@@ -76,7 +76,7 @@ Pull requests are tracked in the `IssuePR` table. They can be linked to an issue
 
 - **Manual**: the user clicks "Mark as PR Created", which transitions the issue to `pr_created` and records the PR.
 - **Auto-link**: when a comment is posted containing a GitHub PR URL (e.g. `https://github.com/owner/repo/pull/123`), the PR detector automatically creates an `IssuePR` record linking it to the issue (deduped by repo + PR number).
-- **Agent registration**: agents (primarily Captain) can call `POST /internal/create-pr` after running `gh pr create` to explicitly register the PR for tracking. This ensures the PR poller can auto-transition the issue to `done` when the PR is merged.
+- **Agent registration**: Admiral can call `POST /internal/create-pr` after creating a PR with `gh pr create` to explicitly register the PR for tracking. This ensures the PR poller can auto-transition the issue to `done` when the PR is merged.
 
 ## Issue Lifecycle
 
@@ -94,7 +94,7 @@ Open → In Progress → PR Created → Done
 |-------|-------------|
 | **Open** | Issue is in the queue, ready to be worked on. |
 | **In Progress** | An agent is actively working (or has worked) on the issue. Set automatically when an agent is spawned. |
-| **PR Created** | A pull request has been created. Set via the "Mark as PR Created" button, automatically by the Captain agent after creating a PR with `gh pr create`, or auto-detected when a PR URL is posted in a comment. |
+| **PR Created** | A pull request has been created. Set via the "Mark as PR Created" button, automatically by Admiral after creating a PR with `gh pr create`, or auto-detected when a PR URL is posted in a comment. |
 | **PR Conflict** | The PR has merge conflicts detected by GitHub. Transitions back to `pr_created` after conflicts are resolved. |
 | **PR Failed Actions** | The PR has failing CI checks. Transitions back to `pr_created` after checks pass. |
 | **PR Ready to Merge** | The PR passes all checks and has no conflicts. Ready to be merged. |
@@ -233,24 +233,27 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Event-driven architecture — no polling. Wakes only when events occur:
   - `issue.created`, `issue.updated`, `issue.status_changed`
   - `run.completed` (agent finished)
+  - `run.recovered` (issue needs attention after server restart)
   - `pr.status_changed` (from PR poller)
   - `chat.message` (user message from Admiral Terminal)
   - `idle.check` (configurable per-project idle timeout)
 - Event batching: accumulates events while processing, drains all pending events at once.
 - Persistent conversation per project (last 100 messages stored in ChatMessage table).
 - Uses Claude API with tool calling for intelligent decision-making.
+- Directly dispatches sub-agents (engineer, lead, docs, librarian) based on task type — no fixed workflow.
 - Available tools:
   - `merge_pr(issue_id)` — merge PR and delete branch
-  - `dispatch_captain(issue_id, instructions?)` — start/resume work
+  - `dispatch_agent(issue_id, agent_id, instructions?)` — dispatch engineer, lead, docs, or librarian
   - `create_issue(title, description)`, `update_issue(issue_id, fields)`, `list_issues(filters?)`, `get_issue(issue_id)`
   - `add_comment(issue_id, content)`
   - `scan_codebase()` — trigger librarian
   - `list_knowledge()`, `create_knowledge()`, `update_knowledge()`, `delete_knowledge()`
 - Decision priorities (encoded in system prompt):
   1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status
-  2. **Fix broken PRs** — dispatch Captain for `pr_conflict` or `pr_failed_actions`
-  3. **Start new work** — dispatch Captain on open issues when capacity allows
-- Uses OAuth token from the project's linked GitHub account for merging.
+  2. **Fix broken PRs** — dispatch engineer for `pr_conflict` or `pr_failed_actions`
+  3. **Start new work** — dispatch appropriate agent on open issues when capacity allows
+- Task-type reasoning: Admiral analyzes each issue and decides which agents to dispatch based on task type (research → librarian, docs-only → docs, code change → engineer then lead, etc.).
+- Uses OAuth token from the project's linked GitHub account for merging and PR creation.
 
 **Event Bus**
 - In-process typed EventEmitter singleton.
