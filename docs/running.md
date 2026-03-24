@@ -6,7 +6,6 @@ This guide covers running CrewDeck using Docker Compose.
 
 - [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configured on your host machine
-- A [Google Cloud OAuth 2.0 Client](https://console.cloud.google.com/apis/credentials) with `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (for user authentication)
 - A [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) with `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
 
 The following host directory **must exist** or the backend container will fail to start:
@@ -59,9 +58,6 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 | ---------------------- | ----------------------- | ------------------------------------------- |
 | `DB_PATH`              | `/app/data/crewdeck.db` | SQLite database location                    |
 | `CREWDECK_REPOS_DIR`   | `/app/data/repos`       | Where repos are cloned                      |
-| `GOOGLE_CLIENT_ID`     | *(your OAuth Client)*   | Google OAuth 2.0 client ID (user login)     |
-| `GOOGLE_CLIENT_SECRET` | *(your OAuth Client)*   | Google OAuth 2.0 client secret              |
-| `ALLOWED_EMAILS`       | *(optional)*            | Comma-separated list of allowed email addresses |
 | `GITHUB_CLIENT_ID`     | *(your OAuth App)*      | GitHub OAuth App client ID (Device Flow)    |
 | `GITHUB_CLIENT_SECRET` | *(your OAuth App)*      | GitHub OAuth App client secret (token revocation) |
 | `ANTHROPIC_API_KEY`    | *(your API key)*        | Anthropic API key (required for Admiral LLM agent) |
@@ -112,15 +108,6 @@ docker compose logs -f frontend
 ```
 
 ## Troubleshooting
-
-**Google authentication**: Users authenticate via Google OAuth. To set up:
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Create a new OAuth 2.0 Client ID (Web application)
-3. Add `http://localhost:9381/api/v1/auth/google/callback` to Authorized redirect URIs
-4. Copy the Client ID and Client Secret to your environment variables
-
-If `ALLOWED_EMAILS` is set, only those email addresses can log in. Leave it unset to allow any Google account.
 
 **GitHub authentication**: GitHub accounts are connected in-app via Device Flow (Settings → GitHub Accounts). You do not need `gh auth login` on your host. Make sure `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set for your GitHub OAuth App. The device flow requests the `repo` and `workflow` scopes — existing accounts authenticated before the `workflow` scope was added will need to disconnect and re-authenticate to push changes to `.github/workflows/` files.
 

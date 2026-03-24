@@ -57,7 +57,7 @@ let _app: Express;
 export async function getApp(): Promise<Express> {
   if (!_app) {
     const { createApp } = await import("../../src/app.js");
-    _app = createApp({ silent: true, skipAuth: true });
+    _app = createApp({ silent: true });
   }
   return _app;
 }
