@@ -29,7 +29,7 @@ export function parseGithubUrl(url: string): { owner: string; name: string } {
   throw new ValidationError(`Cannot parse GitHub URL: ${url}`);
 }
 
-/** Convert any GitHub URL to SSH format for cloning. */
+// Safe to hardcode github.com — parseGithubUrl already validates hostname
 export function toSshUrl(owner: string, name: string): string {
   return `git@github.com:${owner}/${name}.git`;
 }

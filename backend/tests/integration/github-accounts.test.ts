@@ -33,9 +33,10 @@ describe("GitHub Accounts API", () => {
       expect(res.status).toBe(201);
       expect(res.body.github_username).toBe("testuser");
       expect(res.body.id).toBeDefined();
-      // Secrets must NOT be in the response
+      // Secrets must NOT be in the response, ssh_configured should be present
       expect(res.body.gh_token).toBeUndefined();
       expect(res.body.ssh_private_key).toBeUndefined();
+      expect(res.body.ssh_configured).toBe(true);
     });
 
     it("rejects missing fields with 400", async () => {
@@ -83,6 +84,42 @@ describe("GitHub Accounts API", () => {
     it("returns 404 for non-existent id", async () => {
       const res = await request(app).delete(`${BASE}/nonexistent-uuid`);
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("PATCH /:id", () => {
+    it("updates a single field and returns account without secrets", async () => {
+      const created = await request(app)
+        .post(BASE)
+        .send({ ...validAccount, github_username: "patchuser" });
+
+      const res = await request(app)
+        .patch(`${BASE}/${created.body.id}`)
+        .send({ account_name: "updated-name" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.account_name).toBe("updated-name");
+      expect(res.body.github_username).toBe("patchuser");
+      expect(res.body.gh_token).toBeUndefined();
+      expect(res.body.ssh_private_key).toBeUndefined();
+    });
+
+    it("returns 404 for non-existent id", async () => {
+      const res = await request(app)
+        .patch(`${BASE}/nonexistent-uuid`)
+        .send({ account_name: "x" });
+      expect(res.status).toBe(404);
+    });
+
+    it("rejects empty strings via validation", async () => {
+      const created = await request(app)
+        .post(BASE)
+        .send({ ...validAccount, github_username: "valuser" });
+
+      const res = await request(app)
+        .patch(`${BASE}/${created.body.id}`)
+        .send({ account_name: "" });
+      expect(res.status).toBe(400);
     });
   });
 

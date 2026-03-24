@@ -14,9 +14,12 @@ const router = Router();
 /** Strips secrets from a GitHub account before sending to the client. */
 const stripSecrets = ({
   gh_token: _t,
-  ssh_private_key: _k,
+  ssh_private_key,
   ...rest
-}: GitHubAccount) => rest;
+}: GitHubAccount) => ({
+  ...rest,
+  ssh_configured: !!ssh_private_key,
+});
 
 router.post("/", validate(CreateGitHubAccountSchema), (req, res) => {
   const account = ghAccounts.createGitHubAccount(req.body);
