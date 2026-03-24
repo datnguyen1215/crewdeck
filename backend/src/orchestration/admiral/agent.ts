@@ -7,8 +7,6 @@
 import { logger } from "../../logger.js";
 import { eventBus } from "../../events/bus.js";
 import { getProject } from "../../db/repositories/projects.js";
-import { listIssues } from "../../db/repositories/issues.js";
-import { listByProject as listKnowledge } from "../../db/repositories/knowledge.js";
 import { getActiveProcessCount } from "../processes.js";
 import { spawnClaude, spawnClaudeMultimodal } from "../process.js";
 
@@ -24,18 +22,7 @@ const buildSystemPrompt = (projectId: string): string => {
   const project = getProject(projectId);
   if (!project) return "";
 
-  const issues = listIssues(projectId);
-  const openIssues = issues.filter((i) => i.status === "open");
-  const inProgressIssues = issues.filter((i) => i.status === "in_progress");
-  const prIssues = issues.filter((i) => i.status.startsWith("pr_"));
-  const doneIssues = issues.filter((i) => i.status === "done").slice(0, 20);
   const runningAgents = getActiveProcessCount(projectId);
-
-  const knowledge = listKnowledge(projectId);
-  const knowledgeSummary = knowledge
-    .slice(0, 10)
-    .map((k) => `- ${k.title} (${k.category})`)
-    .join("\n");
 
   return `You are Admiral, the autonomous project orchestrator for CrewDeck.
 
@@ -46,25 +33,17 @@ You can merge PRs, dispatch agents to work on issues, create new issues, and man
 ## Project: ${project.name}
 ${project.description || "No description"}
 
-## Current State
-- Open issues: ${openIssues.length}
-- In progress: ${inProgressIssues.length}
-- PRs pending: ${prIssues.length}
-- Done (recent): ${doneIssues.length}
+## Current Capacity
 - Running agents: ${runningAgents}
 - Max concurrency: ${project.max_concurrency}
 
-## Open Issues
-${openIssues.map((i) => `- [${i.id.slice(0, 8)}] ${i.title}`).join("\n") || "None"}
+## Getting Current State
+Use the curl tools below to fetch current data on-demand:
+- **List Issues** to see all issues and their statuses
+- **Get Issue Details** for specific issue information
+- **List Knowledge** to access project knowledge entries
 
-## In Progress Issues
-${inProgressIssues.map((i) => `- [${i.id.slice(0, 8)}] ${i.title} (agent: ${i.running_agent_id || "none"})`).join("\n") || "None"}
-
-## PR Issues
-${prIssues.map((i) => `- [${i.id.slice(0, 8)}] ${i.title} (${i.status})`).join("\n") || "None"}
-
-## Knowledge Entries
-${knowledgeSummary || "None"}
+Always fetch current state before making decisions.
 
 ## Available Actions
 Use curl to call the CrewDeck internal API. Environment variables $CREWDECK_API_URL and $CREWDECK_PROJECT_ID are set.
