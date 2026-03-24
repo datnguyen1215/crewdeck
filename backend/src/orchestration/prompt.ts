@@ -19,8 +19,9 @@ function formatIssueSummary(issue: Issue): string {
  * Agents with full API access (issues CRUD, status management, comments, activity, crew list).
  * Enforcement is via system prompts only — no server-side per-agent auth since the API is
  * localhost-only. The system prompt is the contract (see #321 "API Access Matrix").
+ * Note: Captain has been removed — Admiral now orchestrates directly.
  */
-const FULL_ACCESS_AGENTS = new Set(["captain"]);
+const FULL_ACCESS_AGENTS = new Set<string>();
 
 /**
  * Agents with knowledge API access (list, create, update, delete knowledge entries).
@@ -114,15 +115,7 @@ export function buildPrompt(opts: BuildPromptOptions): string {
   if (repo)
     parts.push(`## Repository\n${escapeXml("name" in repo ? repo.name : "repo")} at ${escapeXml(worktreePath)}`);
 
-  // Captain gets all open/in-progress issues for dependency-aware scheduling
-  if (agentId === "captain" && projectIssues && projectIssues.length > 0) {
-    const otherIssues = projectIssues.filter((i) => i.id !== issue.id);
-    if (otherIssues.length > 0) {
-      parts.push(
-        `## All Open/In-Progress Issues\n${otherIssues.map(formatIssueSummary).join("\n")}`,
-      );
-    }
-  }
+  // Project issues section (currently unused since Captain was removed — Admiral orchestrates directly)
 
   if (comments.length > 0)
     parts.push(`## Comment History\n<comments>\n${formatComments(comments)}\n</comments>`);

@@ -1,11 +1,12 @@
 /**
  * Batch tracking for grouped agent spawns.
- * When an agent dispatches multiple agents, they are tracked as a batch.
- * The originator is auto-spawned when all batch members complete.
+ *
+ * Note: With Captain removed, Admiral now directly dispatches sub-agents and
+ * reacts to run.completed events. The batch system is no longer used for
+ * auto-spawning Captain, but remains for potential future use or can be removed
+ * entirely in a follow-up cleanup.
  */
 import * as log from "../logger.js";
-import * as crew from "./crew.js";
-import { postSystemComment, spawnAgent } from "./spawner.js";
 
 /** Default batch timeout in milliseconds (30 minutes) */
 const BATCH_TIMEOUT_MS = 30 * 60 * 1000;
@@ -55,39 +56,19 @@ export const createBatch = (
 };
 
 /**
- * Handle batch completion - auto-spawn the originator agent.
+ * Handle batch completion.
+ * With Captain removed, we just clean up state and log. Admiral reacts
+ * to individual run.completed events instead of batch completions.
  */
 export const handleBatchComplete = (batch: AgentBatch): void => {
   log.logger.info(
-    { batchId: batch.id, originatorAgentId: batch.originatorAgentId },
-    "Batch complete, auto-spawning originator",
+    { batchId: batch.id, issueId: batch.issueId },
+    "Batch complete",
   );
 
   // Clean up batch tracking
   batches.delete(batch.id);
   issueBatches.delete(batch.issueId);
-
-  // Get the originator agent
-  const originator = crew.getCrewMember(batch.originatorAgentId);
-  if (!originator) {
-    log.logger.warn({ agentId: batch.originatorAgentId }, "Batch originator not found");
-    return;
-  }
-
-  // Create a system comment noting batch completion
-  postSystemComment(
-    batch.issueId,
-    batch.projectId,
-    `All batch members have completed. Auto-invoking ${originator.name} for follow-up.`,
-  );
-
-  // Spawn the originator with batchTriggered flag for empty-result retry logic
-  spawnAgent(originator, batch.issueId, batch.projectId, undefined, { batchTriggered: true }).catch((err) => {
-    log.logger.error(
-      { err, agent: originator.name, issueId: batch.issueId },
-      "Failed to auto-spawn batch originator",
-    );
-  });
 };
 
 /**

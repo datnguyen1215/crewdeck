@@ -12,13 +12,12 @@ import * as crew from "./crew.js";
 import * as issueRepo from "../db/repositories/issues.js";
 import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
-import * as githubAccountRepo from "../db/repositories/github-accounts.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as knowledgeRepo from "../db/repositories/knowledge.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import * as dispatchQueue from "./queue.js";
-import { activeProcesses, getActiveProcessCount, hasActiveAgentProcess, type ActiveProcess } from "./processes.js";
+import { activeProcesses, getActiveProcessCount, type ActiveProcess } from "./processes.js";
 import { markAgentCompleted } from "./batch.js";
 import type { Agent, AgentRunStatus } from "../types/entities.js";
 
@@ -169,40 +168,6 @@ export async function processAgentStream(
         author_id: agent.id,
       });
       events.eventBus.emit("comment.added", { comment, project_id: projectId });
-    } else if (options?.batchTriggered && agent.id === "captain" && !options?.isRetry && issueId) {
-      // Captain ended with tool call (empty result) after batch completion — retry once
-      // Check if captain is already running (shouldn't happen, but be consistent with normal spawn flow)
-      if (hasActiveAgentProcess(agent.id, issueId)) {
-        log.logger.info(
-          { agentId: agent.id, issueId },
-          "Skipping retry: captain already running for this issue",
-        );
-      } else {
-        log.logger.warn(
-          { pid: result.pid, agent: agent.name, runId: agentRunId },
-          "Batch-triggered captain completed with empty result, retrying once",
-        );
-        postSystemComment(
-          issueId,
-          projectId,
-          "Captain completed with no output (tool call was last action). Retrying...",
-        );
-        // Retry spawn with isRetry flag to prevent infinite loops
-        spawnAgent(agent, issueId, projectId, undefined, { batchTriggered: true, isRetry: true }).catch((err) => {
-          log.logger.error({ err, issueId }, "Failed to retry batch-triggered captain");
-        });
-      }
-    } else if (options?.isRetry && !resultText && issueId) {
-      // Retry also produced no output — inform user
-      log.logger.warn(
-        { pid: result.pid, agent: agent.name, runId: agentRunId },
-        "Captain retry also produced no output",
-      );
-      postSystemComment(
-        issueId,
-        projectId,
-        "Captain retry also produced no output — manual intervention may be required.",
-      );
     }
 
     // No system comment for successful completion — this info is in the activity log (run.completed event)
@@ -357,11 +322,8 @@ export const spawnAgent = async (
 
   const comments = commentRepo.listComments(issueId);
 
-  // Captain gets all open/in-progress issues for dependency-aware scheduling
-  const projectIssues =
-    agent.id === "captain"
-      ? issueRepo.listIssues(projectId, { status: ["open", "in_progress"] })
-      : undefined;
+  // Project issues (currently unused since Captain was removed — Admiral orchestrates directly)
+  const projectIssues = undefined;
 
   const projectKnowledge = knowledgeRepo.listForAgent(projectId, agent.id);
 
@@ -384,11 +346,7 @@ export const spawnAgent = async (
     CREWDECK_ISSUE_ID: issueId,
   };
 
-  // Captain needs GH_TOKEN for gh pr create
-  if (agent.id === "captain" && project.github_account_id) {
-    const account = githubAccountRepo.getGitHubAccount(project.github_account_id);
-    if (account) env.GH_TOKEN = account.oauth_token;
-  }
+  // GH_TOKEN no longer needed since Captain was removed — Admiral handles PR creation
 
   // Create AgentRun record
   const agentRun = agentRunRepo.createAgentRun({

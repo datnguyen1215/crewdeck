@@ -167,41 +167,7 @@ export const handleMergePR = async (
   return { success: false, message: result.message };
 };
 
-/**
- * Dispatch Captain agent to work on an issue.
- */
-export const handleDispatchCaptain = async (
-  projectId: string,
-  input: { issue_id: string; instructions?: string }
-): Promise<ToolResult> => {
-  const captain = getCrewMember("captain");
-  if (!captain)
-    return { success: false, message: "Captain agent not found" };
-
-  const issue = issueRepo.getIssue(input.issue_id);
-  if (!issue)
-    return { success: false, message: "Issue not found" };
-
-  if (issue.project_id !== projectId)
-    return { success: false, message: "Issue belongs to a different project" };
-
-  if (input.instructions)
-    postSystemComment(issue.id, projectId, `Admiral: ${input.instructions}`);
-
-  try {
-    await spawnAgent(captain, issue.id, projectId);
-    return {
-      success: true,
-      message: `Dispatched Captain to work on "${issue.title}"`,
-      data: { issue_id: issue.id, issue_title: issue.title },
-    };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return { success: false, message: `Failed to dispatch Captain: ${message}` };
-  }
-};
-
-/** Valid agent IDs for dispatch-agent (excludes captain and admiral) */
+/** Valid agent IDs for dispatch-agent (excludes admiral) */
 const DISPATCHABLE_AGENTS = ["engineer", "lead", "docs", "librarian"] as const;
 type DispatchableAgent = (typeof DISPATCHABLE_AGENTS)[number];
 

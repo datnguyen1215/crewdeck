@@ -242,7 +242,7 @@ describe("handler queue integration", () => {
       await dispatchAgent("docs");
 
       // Queue second agent - should say "1 agent ahead"
-      await dispatchAgent("captain");
+      await dispatchAgent("librarian");
 
       // Check system comments were created
       const comments = db
@@ -315,7 +315,7 @@ describe("handler queue integration", () => {
 
       // Queue multiple agents
       await dispatchAgent("docs");
-      await dispatchAgent("captain");
+      await dispatchAgent("librarian");
 
       expect(dispatchQueue.getQueueLength(projectId)).toBe(2);
 
@@ -332,9 +332,9 @@ describe("handler queue integration", () => {
       completeProcess(1001, 0, "{}");
       await new Promise((r) => setTimeout(r, 100));
 
-      // Captain should be dequeued next
+      // Librarian should be dequeued next
       expect(dequeuedEvents.length).toBe(2);
-      expect(dequeuedEvents[1].agent_id).toBe("captain");
+      expect(dequeuedEvents[1].agent_id).toBe("librarian");
       expect(dispatchQueue.getQueueLength(projectId)).toBe(0);
     });
   });
