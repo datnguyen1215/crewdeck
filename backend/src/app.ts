@@ -1,8 +1,11 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
 import { logger } from "./logger.js";
 import { errorHandler } from "./middleware/error-handler.js";
+import { authMiddleware } from "./middleware/auth.js";
+import authRouter from "./routes/auth.js";
 import projectsRouter from "./routes/projects.js";
 import reposRouter from "./routes/repos.js";
 import agentsRouter from "./routes/agents.js";
@@ -19,6 +22,7 @@ import chatRouter from "./routes/chat.js";
 export interface CreateAppOpts {
   corsOrigin?: string;
   silent?: boolean;
+  skipAuth?: boolean;
 }
 
 export function createApp(opts: CreateAppOpts = {}) {
@@ -29,9 +33,11 @@ export function createApp(opts: CreateAppOpts = {}) {
       origin: opts.corsOrigin ?? false,
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type"],
+      credentials: true,
     }),
   );
   app.use(express.json());
+  app.use(cookieParser());
 
   if (!opts.silent) {
     app.use(pinoHttp({ logger }));
@@ -40,6 +46,14 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  // Auth routes (before auth middleware)
+  app.use("/auth", authRouter);
+
+  // Auth middleware (skip in tests if needed)
+  if (!opts.skipAuth) {
+    app.use(authMiddleware);
+  }
 
   const v1 = "/api/v1";
   app.use(`${v1}/projects`, projectsRouter);

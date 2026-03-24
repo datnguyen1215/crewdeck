@@ -70,10 +70,18 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const opts: RequestInit = {
     method,
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
   };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(`${BASE}${path}`, opts);
   if (res.status === 204) return undefined as T;
+
+  // Handle 401 - redirect to login
+  if (res.status === 401) {
+    window.location.href = "/login";
+    throw new ApiError(401, "UNAUTHORIZED", "Please log in");
+  }
+
   const json = await res.json();
   if (!res.ok) {
     const err = json.error ?? {};
@@ -234,4 +242,26 @@ export function sendChatMessage(projectId: string, message: string, images?: Arr
 }
 export function clearChatHistory(projectId: string) {
   return request<void>("DELETE", `/projects/${e(projectId)}/chat`);
+}
+
+// Auth
+export interface AuthUser {
+  email: string;
+  name?: string;
+  picture?: string;
+}
+
+export interface AuthStatus {
+  authenticated: boolean;
+  user?: AuthUser;
+}
+
+export async function getAuthStatus(): Promise<AuthStatus> {
+  const res = await fetch("/auth/me", { credentials: "include" });
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  await fetch("/auth/logout", { method: "POST", credentials: "include" });
+  window.location.href = "/login";
 }

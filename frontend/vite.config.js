@@ -10,6 +10,7 @@ export default defineConfig({
     port: 9380,
     proxy: {
       "/api": { target: backendUrl, timeout: 120000 },
+      "/auth": { target: backendUrl },
     },
   },
 });

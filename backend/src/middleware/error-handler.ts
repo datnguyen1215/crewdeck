@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import { logger } from "../logger.js";
-import { NotFoundError, ValidationError, InvalidTransitionError, ForbiddenError, ConflictError } from "./errors.js";
+import { NotFoundError, ValidationError, InvalidTransitionError, ForbiddenError, ConflictError, UnauthorizedError } from "./errors.js";
 
-type AppError = NotFoundError | ValidationError | InvalidTransitionError | ForbiddenError | ConflictError;
+type AppError = NotFoundError | ValidationError | InvalidTransitionError | ForbiddenError | ConflictError | UnauthorizedError;
 
 function isAppError(err: unknown): err is AppError {
   return (
@@ -11,7 +11,8 @@ function isAppError(err: unknown): err is AppError {
     err instanceof ValidationError ||
     err instanceof InvalidTransitionError ||
     err instanceof ForbiddenError ||
-    err instanceof ConflictError
+    err instanceof ConflictError ||
+    err instanceof UnauthorizedError
   );
 }
 
