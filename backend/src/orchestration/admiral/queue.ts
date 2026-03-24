@@ -10,6 +10,7 @@ export type AdmiralEventType =
   | "issue.updated"
   | "issue.status_changed"
   | "run.completed"
+  | "run.recovered"
   | "pr.status_changed"
   | "chat.message"
   | "idle.check";
