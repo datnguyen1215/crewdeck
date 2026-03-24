@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, listAgents, createIssue, addComment, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
+	import { listIssues, listAgents, createIssue, dispatchAgent, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
@@ -144,7 +144,7 @@
 
 		dispatchingIssues = new Set([...dispatchingIssues, issue.id]);
 		try {
-			await addComment(projectId, issue.id, { content: '/dispatch Captain' });
+			await dispatchAgent(projectId, issue.id, 'engineer');
 			// Update local state to show in_progress immediately
 			issues = issues.map(i => i.id === issue.id ? { ...i, status: 'in_progress' } : i);
 		} catch (err) {
@@ -416,7 +416,7 @@
 									onclick={(e) => handleDispatch(e, issue)}
 									disabled={!canDispatch}
 									class="dispatch-btn w-7 h-7 flex items-center justify-center rounded border transition-colors {canDispatch ? 'border-edge text-muted hover:border-cyan hover:text-cyan hover:bg-cyan/10' : 'border-transparent text-muted/40 cursor-not-allowed'}"
-									title={hasActiveAgent(issue) ? 'Agent already running' : 'Dispatch Captain'}
+									title={hasActiveAgent(issue) ? 'Agent already running' : 'Start work'}
 								>
 									{#if isDispatching}
 										<svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
