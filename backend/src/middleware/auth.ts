@@ -93,13 +93,18 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
 }
 
 /**
- * Skip auth for specific paths (auth routes, health check)
+ * Skip auth for specific paths (auth routes, health check, internal API)
  */
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   const path = req.path;
 
   // Skip auth for auth routes and health check
   if (path === "/auth" || path.startsWith("/auth/") || path === "/health") {
+    return next();
+  }
+
+  // Skip auth for internal API routes (used by agents via curl)
+  if (path.startsWith("/api/v1/internal")) {
     return next();
   }
 
