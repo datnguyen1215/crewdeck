@@ -256,16 +256,16 @@
 	<title>{pageTitle}</title>
 </svelte:head>
 
-<div class="h-full flex flex-col">
+<div class="h-full flex flex-col pt-12 md:pt-0">
 	<!-- Header -->
-	<div class="p-4 border-b border-edge flex-shrink-0">
+	<div class="p-3 md:p-4 border-b border-edge flex-shrink-0">
 		<Breadcrumb segments={[
 			{ label: 'Projects', href: '/' },
 			{ label: project?.name ?? 'Project', href: `/projects/${projectId}` },
 			{ label: 'Admiral Terminal' }
 		]} />
 		<div class="mt-3 flex items-center gap-3">
-			<div class="w-8 h-8 rounded-full bg-cyan/20 flex items-center justify-center">
+			<div class="w-8 h-8 rounded-full bg-cyan/20 flex items-center justify-center flex-shrink-0">
 				<svg class="w-4 h-4 text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<rect x="3" y="3" width="18" height="18" rx="2"/>
 					<path d="M7 8h4"/>
@@ -273,8 +273,8 @@
 					<path d="M7 16h6"/>
 				</svg>
 			</div>
-			<div>
-				<h1 class="text-lg font-bold text-primary">Admiral Terminal</h1>
+			<div class="min-w-0">
+				<h1 class="text-base md:text-lg font-bold text-primary truncate">Admiral Terminal</h1>
 				<p class="text-xs text-muted">Event-driven project orchestrator</p>
 			</div>
 		</div>
@@ -283,7 +283,7 @@
 	<!-- Terminal output -->
 	<div
 		bind:this={messagesContainer}
-		class="flex-1 overflow-y-auto p-4 font-mono text-sm bg-black/20"
+		class="flex-1 overflow-y-auto p-3 md:p-4 font-mono text-xs md:text-sm bg-black/20"
 	>
 		{#if loading}
 			<div class="flex justify-center py-8">
@@ -353,17 +353,17 @@
 	</div>
 
 	<!-- Input -->
-	<div class="p-4 border-t border-edge flex-shrink-0 bg-surface/50">
+	<div class="p-3 md:p-4 border-t border-edge flex-shrink-0 bg-surface/50">
 		<!-- Image previews -->
 		{#if pendingImages.length > 0}
 			<div class="flex flex-wrap gap-2 mb-3">
 				{#each pendingImages as img (img.id)}
 					<div class="relative group">
-						<img src={img.data} alt="Pending attachment" class="w-16 h-16 object-cover rounded border border-edge" />
+						<img src={img.data} alt="Pending attachment" class="w-14 h-14 md:w-16 md:h-16 object-cover rounded border border-edge" />
 						<button
 							type="button"
 							onclick={() => removeImage(img.id)}
-							class="absolute -top-2 -right-2 w-5 h-5 bg-red text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+							class="absolute -top-2 -right-2 w-6 h-6 md:w-5 md:h-5 bg-red text-white rounded-full flex items-center justify-center text-xs"
 						>
 							×
 						</button>
@@ -371,15 +371,15 @@
 				{/each}
 			</div>
 		{/if}
-		<form onsubmit={handleSubmit} class="flex gap-3">
-			<div class="flex-1 flex items-start gap-2 bg-black/30 border border-edge rounded-lg px-4 py-3">
-				<span class="text-green font-mono mt-0.5">$</span>
+		<form onsubmit={handleSubmit} class="flex gap-2 md:gap-3">
+			<div class="flex-1 flex items-start gap-2 bg-black/30 border border-edge rounded-lg px-3 md:px-4 py-3">
+				<span class="text-green font-mono mt-0.5 hidden sm:inline">$</span>
 				<textarea
 					bind:this={inputElement}
 					bind:value={inputValue}
 					onkeydown={handleKeydown}
 					onpaste={handlePaste}
-					placeholder="Send a message to Admiral... (Shift+Enter for newline, paste images)"
+					placeholder="Message Admiral..."
 					disabled={sending}
 					rows="1"
 					class="flex-1 bg-transparent text-sm text-primary font-mono placeholder:text-muted outline-none disabled:opacity-50 resize-none min-h-[1.5rem] max-h-32 overflow-y-auto"
@@ -389,14 +389,17 @@
 			<button
 				type="submit"
 				disabled={sending || !inputValue.trim()}
-				class="px-4 py-3 bg-cyan/10 border border-cyan text-cyan rounded-lg hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm self-end"
+				class="px-3 md:px-4 py-3 bg-cyan/10 border border-cyan text-cyan rounded-lg hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm self-end min-w-[44px] min-h-[44px] flex items-center justify-center"
 			>
 				{#if sending}
 					<svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
 						<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="12" />
 					</svg>
 				{:else}
-					Send
+					<span class="hidden sm:inline">Send</span>
+					<svg class="w-5 h-5 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13"/>
+					</svg>
 				{/if}
 			</button>
 		</form>

@@ -118,9 +118,9 @@
 	<title>{pageTitle}</title>
 </svelte:head>
 
-<div class="p-6 h-full overflow-auto">
+<div class="p-4 md:p-6 h-full overflow-auto pt-14 md:pt-6">
 	<!-- Breadcrumb -->
-	<div class="mb-5">
+	<div class="mb-4 md:mb-5">
 		<Breadcrumb segments={[
 			{ label: 'Projects', href: '/' },
 			{ label: project?.name ?? 'Project', href: `/projects/${projectId}` },
@@ -131,7 +131,7 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between mb-5">
 		<div>
-			<h1 class="text-xl font-bold text-primary uppercase tracking-wide">Activity</h1>
+			<h1 class="text-lg md:text-xl font-bold text-primary uppercase tracking-wide">Activity</h1>
 			<p class="text-muted text-xs mt-0.5">
 				{#if !loading}
 					{filtered.length} event{filtered.length !== 1 ? 's' : ''}
@@ -143,14 +143,14 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="mb-6 space-y-2">
+	<div class="mb-6 space-y-3">
 		<!-- Actor type toggle pills -->
 		<div class="flex flex-wrap items-center gap-1.5">
-			<span class="text-xs text-muted uppercase tracking-widest mr-1 flex-shrink-0">Actor:</span>
+			<span class="text-xs text-muted uppercase tracking-widest mr-1 flex-shrink-0 w-full sm:w-auto mb-1 sm:mb-0">Actor:</span>
 			{#each Object.entries(ACTOR_CFG) as [type, cfg] (type)}
 				<button
 					onclick={() => toggleActor(type)}
-					class="px-2 py-0.5 text-xs rounded border transition-colors {filterActors.includes(type)
+					class="px-2.5 py-1.5 sm:py-0.5 text-xs rounded border transition-colors min-h-[36px] sm:min-h-0 {filterActors.includes(type)
 						? `${cfg.color} ${cfg.border} bg-surface-hi`
 						: 'text-muted border-edge hover:border-edge-hi hover:text-secondary'}"
 				>
@@ -161,13 +161,13 @@
 		</div>
 
 		<!-- Action + Issue selects -->
-		<div class="flex items-center gap-4 flex-wrap">
+		<div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
 			<div class="flex items-center gap-2">
 				<span class="text-xs text-muted uppercase tracking-widest">Action:</span>
 				<select
 					bind:value={filterAction}
 					onchange={() => (visibleCount = PAGE_SIZE)}
-					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none"
+					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-2 sm:py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none min-h-[36px] sm:min-h-0"
 				>
 					<option value="">All</option>
 					{#each actionTypes as action (action)}
@@ -181,7 +181,7 @@
 				<select
 					bind:value={filterIssue}
 					onchange={() => (visibleCount = PAGE_SIZE)}
-					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none max-w-[180px]"
+					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-2 sm:py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none max-w-[180px] min-h-[36px] sm:min-h-0"
 				>
 					<option value="">All</option>
 					{#each issues as issue (issue.id)}
@@ -193,7 +193,7 @@
 			{#if filterActors.length > 0 || filterAction || filterIssue}
 				<button
 					onclick={clearFilters}
-					class="px-2 py-0.5 text-xs text-muted hover:text-secondary border border-transparent hover:border-edge rounded transition-colors"
+					class="px-3 py-1.5 text-xs text-muted hover:text-secondary border border-edge hover:border-edge-hi rounded transition-colors self-start"
 				>
 					Clear ×
 				</button>
@@ -248,10 +248,10 @@
 
 				<!-- Load more -->
 				{#if hasMore}
-					<div class="pl-14 pb-4">
+					<div class="pl-10 md:pl-14 pb-4">
 						<button
 							onclick={() => (visibleCount += PAGE_SIZE)}
-							class="text-xs text-muted hover:text-secondary border border-edge hover:border-edge-hi rounded px-3 py-1.5 transition-colors"
+							class="text-xs text-muted hover:text-secondary border border-edge hover:border-edge-hi rounded px-4 py-2.5 sm:py-1.5 transition-colors min-h-[44px] sm:min-h-0"
 						>
 							Load more ({filtered.length - visibleCount} remaining)
 						</button>
