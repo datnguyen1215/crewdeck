@@ -5,8 +5,11 @@
 	import { onMount } from 'svelte';
 
 	const STORAGE_KEY = 'sidebar-collapsed';
+	const MOBILE_BREAKPOINT = 768;
 
 	const icons = {
+		menu: `<line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>`,
+		close: `<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>`,
 		home: `<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>`,
 		issues: `<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>`,
 		crew: `<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>`,
@@ -23,6 +26,8 @@
 	let projects = $state<Project[]>([]);
 	let expandedProjects = $state<Set<string>>(new Set());
 	let collapsed = $state(false);
+	let mobileOpen = $state(false);
+	let isMobile = $state(false);
 	let projectId = $derived($page.params.projectId);
 	let pathname = $derived($page.url.pathname);
 
@@ -33,23 +38,48 @@
 		}
 	});
 
-	onMount(async () => {
-		// Load collapsed state from localStorage
+	// Close mobile sidebar on navigation
+	$effect(() => {
+		pathname; // subscribe to pathname changes
+		if (isMobile && mobileOpen) {
+			mobileOpen = false;
+		}
+	});
+
+	onMount(() => {
+		// Check for mobile on mount and window resize
+		const checkMobile = () => {
+			isMobile = window.innerWidth < MOBILE_BREAKPOINT;
+			if (!isMobile) mobileOpen = false;
+		};
+		checkMobile();
+		window.addEventListener('resize', checkMobile);
+
+		// Load collapsed state from localStorage (desktop only)
 		const stored = localStorage.getItem(STORAGE_KEY);
 		if (stored !== null) {
 			collapsed = stored === 'true';
 		}
 
-		try {
-			projects = await listProjects();
-		} catch (e) {
-			console.error('Failed to load projects:', e);
-		}
+		// Load projects (async, but don't block)
+		listProjects()
+			.then((data) => { projects = data; })
+			.catch((e) => { console.error('Failed to load projects:', e); });
+
+		return () => window.removeEventListener('resize', checkMobile);
 	});
 
 	function toggleSidebar() {
-		collapsed = !collapsed;
-		localStorage.setItem(STORAGE_KEY, String(collapsed));
+		if (isMobile) {
+			mobileOpen = !mobileOpen;
+		} else {
+			collapsed = !collapsed;
+			localStorage.setItem(STORAGE_KEY, String(collapsed));
+		}
+	}
+
+	function closeMobileSidebar() {
+		if (isMobile) mobileOpen = false;
 	}
 
 	function isActive(href: string) {
@@ -75,42 +105,80 @@
 	}
 </script>
 
+<!-- Mobile hamburger button (fixed position) -->
+{#if isMobile}
+	<button
+		onclick={toggleSidebar}
+		class="fixed top-3 left-3 z-[60] p-2 bg-surface border border-edge rounded-lg text-secondary hover:text-primary hover:bg-surface-hi transition-colors md:hidden"
+		aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+	>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			width="20"
+			height="20"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		>
+			{@html mobileOpen ? icons.close : icons.menu}
+		</svg>
+	</button>
+{/if}
+
+<!-- Mobile overlay backdrop -->
+{#if isMobile && mobileOpen}
+	<button
+		class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+		onclick={closeMobileSidebar}
+		aria-label="Close menu"
+	></button>
+{/if}
+
 <nav
-	class="flex flex-col overflow-hidden transition-[width] duration-200 ease-in-out bg-base-hi border-r border-edge flex-shrink-0 h-full {collapsed ? 'w-14' : 'w-52'}"
+	class="flex flex-col overflow-hidden transition-all duration-200 ease-in-out bg-base-hi border-r border-edge flex-shrink-0 h-full
+		{isMobile ? 'fixed z-50 top-0 left-0' : ''}
+		{isMobile && !mobileOpen ? '-translate-x-full' : 'translate-x-0'}
+		{isMobile ? 'w-64' : collapsed ? 'w-14' : 'w-52'}"
 >
 	<div class="flex items-center border-b border-edge flex-shrink-0">
 		<a
 			href="/"
-			class="flex items-center gap-3 px-4 py-5 hover:bg-surface transition-colors flex-1 min-w-0"
-			title={collapsed ? 'CrewDeck' : undefined}
+			onclick={closeMobileSidebar}
+			class="flex items-center gap-3 px-4 py-5 hover:bg-surface transition-colors flex-1 min-w-0 {isMobile ? 'pl-14' : ''}"
+			title={collapsed && !isMobile ? 'CrewDeck' : undefined}
 		>
 			<span class="text-cyan font-bold text-sm tracking-wider flex-shrink-0 w-6 text-center">CD</span>
-			{#if !collapsed}
+			{#if !collapsed || isMobile}
 				<span class="text-cyan font-bold uppercase tracking-widest text-xs whitespace-nowrap">
 					CREWDECK
 				</span>
 			{/if}
 		</a>
-		<button
-			onclick={toggleSidebar}
-			class="p-2 mr-2 text-secondary hover:text-primary hover:bg-surface rounded transition-colors"
-			title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				width="16"
-				height="16"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				class="transition-transform duration-200 {collapsed ? 'rotate-180' : ''}"
+		{#if !isMobile}
+			<button
+				onclick={toggleSidebar}
+				class="p-2 mr-2 text-secondary hover:text-primary hover:bg-surface rounded transition-colors"
+				title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
 			>
-				{@html icons.chevronLeft}
-			</svg>
-		</button>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="transition-transform duration-200 {collapsed ? 'rotate-180' : ''}"
+				>
+					{@html icons.chevronLeft}
+				</svg>
+			</button>
+		{/if}
 	</div>
 
 	<div class="flex flex-col gap-1 p-2 flex-1 overflow-y-auto overflow-x-hidden">
@@ -120,11 +188,12 @@
 			{@const isCurrent = isProjectActive(project.id)}
 			<div>
 				<!-- Project header -->
-				{#if collapsed}
+				{#if collapsed && !isMobile}
 					<!-- Collapsed: just show folder icon as link -->
 					<a
 						href={`/projects/${project.id}`}
-						class="flex items-center justify-center px-3 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors
+						onclick={closeMobileSidebar}
+						class="flex items-center justify-center px-3 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors min-h-[44px]
 						{isCurrent ? 'text-cyan bg-surface' : ''}"
 						title={project.name}
 						style={isCurrent ? 'box-shadow: inset 2px 0 0 var(--color-cyan)' : ''}
@@ -148,7 +217,7 @@
 					<!-- Expanded: show toggle button with folder and name -->
 					<button
 						onclick={() => toggleProject(project.id)}
-						class="w-full flex items-center gap-2 px-3 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap
+						class="w-full flex items-center gap-2 px-3 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap min-h-[44px]
 						{isCurrent ? 'text-cyan' : ''}"
 					>
 						<svg
@@ -212,10 +281,11 @@
 {#snippet navItem(href: string, label: string, icon: keyof typeof icons, active: boolean)}
 	<a
 		{href}
-		class="flex items-center gap-3 px-3 py-2.5 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap
-		{active ? 'text-cyan bg-surface' : ''} {collapsed ? 'justify-center' : ''}"
+		onclick={closeMobileSidebar}
+		class="flex items-center gap-3 px-3 py-2.5 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap min-h-[44px]
+		{active ? 'text-cyan bg-surface' : ''} {collapsed && !isMobile ? 'justify-center' : ''}"
 		style={active ? 'box-shadow: inset 2px 0 0 var(--color-cyan)' : ''}
-		title={collapsed ? label : undefined}
+		title={collapsed && !isMobile ? label : undefined}
 	>
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
@@ -231,7 +301,7 @@
 		>
 			{@html icons[icon]}
 		</svg>
-		{#if !collapsed}
+		{#if !collapsed || isMobile}
 			<span class="text-sm overflow-hidden">
 				{label}
 			</span>
@@ -242,7 +312,8 @@
 {#snippet projectNavItem(href: string, label: string, icon: keyof typeof icons, active: boolean)}
 	<a
 		{href}
-		class="flex items-center gap-2 px-2 py-1.5 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap text-xs
+		onclick={closeMobileSidebar}
+		class="flex items-center gap-2 px-2 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap text-xs min-h-[40px]
 		{active ? 'text-cyan bg-surface' : ''}"
 		style={active ? 'box-shadow: inset 2px 0 0 var(--color-cyan)' : ''}
 	>

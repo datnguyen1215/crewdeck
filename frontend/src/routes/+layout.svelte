@@ -20,7 +20,7 @@
 
 <div class="flex h-screen bg-base overflow-hidden">
 	<Sidebar />
-	<main class="flex-1 overflow-auto">
+	<main class="flex-1 overflow-auto w-full md:w-auto">
 		{@render children()}
 	</main>
 </div>

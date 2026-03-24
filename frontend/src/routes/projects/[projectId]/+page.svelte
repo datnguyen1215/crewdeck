@@ -182,38 +182,38 @@
 	<title>{pageTitle}</title>
 </svelte:head>
 
-<div class="p-6 h-full overflow-auto">
+<div class="p-4 md:p-6 h-full overflow-auto pt-14 md:pt-6">
 	<!-- Header -->
-	<div class="flex items-center justify-between mb-5">
-		<div>
-			<h1 class="text-xl font-bold text-primary uppercase tracking-wide">Issues</h1>
+	<div class="flex items-center justify-between mb-5 gap-3">
+		<div class="min-w-0">
+			<h1 class="text-lg md:text-xl font-bold text-primary uppercase tracking-wide">Issues</h1>
 			<p class="text-muted text-xs mt-0.5">
 				{#if !loading}{filtered.length} of {issues.length} issues{:else}Loading…{/if}
 			</p>
 		</div>
 		<button
 			onclick={() => (showModal = true)}
-			class="px-3 py-1.5 bg-surface border border-edge text-primary text-xs font-medium rounded hover:border-edge-hi hover:bg-surface-hi transition-colors uppercase tracking-wide"
+			class="px-3 py-2 md:py-1.5 bg-surface border border-edge text-primary text-xs font-medium rounded hover:border-edge-hi hover:bg-surface-hi transition-colors uppercase tracking-wide flex-shrink-0 min-h-[44px] md:min-h-0"
 		>
 			+ New Issue
 		</button>
 	</div>
 
 	<!-- Filters -->
-	<div class="mb-5 space-y-2.5">
+	<div class="mb-5 space-y-3">
 		<!-- Search input -->
-		<div class="flex items-center gap-2">
-			<span class="text-xs text-muted uppercase tracking-widest">Search:</span>
+		<div class="flex flex-col sm:flex-row sm:items-center gap-2">
+			<span class="text-xs text-muted uppercase tracking-widest hidden sm:inline">Search:</span>
 			<input
 				type="text"
 				bind:value={searchQuery}
 				placeholder="Filter by title or description…"
-				class="flex-1 max-w-sm bg-surface border border-edge text-secondary text-xs rounded px-2 py-1 hover:border-edge-hi focus:border-cyan transition-colors outline-none placeholder:text-muted"
+				class="flex-1 w-full sm:max-w-sm bg-surface border border-edge text-secondary text-xs rounded px-3 py-2.5 sm:py-1.5 hover:border-edge-hi focus:border-cyan transition-colors outline-none placeholder:text-muted"
 			/>
 			{#if searchQuery}
 				<button
 					onclick={() => (searchQuery = '')}
-					class="px-2 py-0.5 text-xs text-muted hover:text-secondary border border-transparent hover:border-edge rounded transition-colors"
+					class="px-3 py-1.5 text-xs text-muted hover:text-secondary border border-edge hover:border-edge-hi rounded transition-colors self-start"
 				>
 					Clear ×
 				</button>
@@ -222,11 +222,11 @@
 
 		<!-- Status toggle pills -->
 		<div class="flex flex-wrap items-center gap-1.5">
-			<span class="text-xs text-muted uppercase tracking-widest mr-1">Status:</span>
+			<span class="text-xs text-muted uppercase tracking-widest mr-1 w-full sm:w-auto mb-1 sm:mb-0">Status:</span>
 			{#each Object.entries(STATUS_CFG) as [key, cfg] (key)}
 				<button
 					onclick={() => toggleStatus(key)}
-					class="px-2 py-0.5 text-xs rounded border transition-colors {filterStatuses.includes(key)
+					class="px-2.5 py-1.5 sm:py-0.5 text-xs rounded border transition-colors min-h-[36px] sm:min-h-0 {filterStatuses.includes(key)
 						? `${cfg.text} ${cfg.border} bg-surface-hi`
 						: 'text-muted border-edge hover:border-edge-hi hover:text-secondary'}"
 				>
@@ -236,7 +236,7 @@
 			{#if filterStatuses.length > 0}
 				<button
 					onclick={() => (filterStatuses = [])}
-					class="px-2 py-0.5 text-xs text-muted hover:text-secondary border border-transparent hover:border-edge rounded transition-colors ml-1"
+					class="px-2.5 py-1.5 sm:py-0.5 text-xs text-muted hover:text-secondary border border-transparent hover:border-edge rounded transition-colors"
 				>
 					Clear ×
 				</button>
@@ -244,12 +244,12 @@
 		</div>
 
 		<!-- Agent + Sort controls -->
-		<div class="flex items-center gap-4 flex-wrap">
+		<div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
 			<div class="flex items-center gap-2">
 				<span class="text-xs text-muted uppercase tracking-widest">Agent:</span>
 				<select
 					bind:value={filterAgent}
-					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none"
+					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-2 sm:py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none min-h-[36px] sm:min-h-0"
 				>
 					<option value="">All</option>
 					<option value="__unassigned__">Unassigned</option>
@@ -263,30 +263,30 @@
 				<span class="text-xs text-muted uppercase tracking-widest">Sort:</span>
 				<select
 					bind:value={sortField}
-					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none"
+					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-2 sm:py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none min-h-[36px] sm:min-h-0"
 				>
 					<option value="created_at">Created</option>
 					<option value="updated_at">Updated</option>
 				</select>
 				<button
 					onclick={() => (sortDesc = !sortDesc)}
-					class="px-2 py-1 bg-surface border border-edge text-secondary text-xs rounded hover:border-edge-hi hover:text-primary transition-colors"
+					class="px-3 py-2 sm:py-1 bg-surface border border-edge text-secondary text-xs rounded hover:border-edge-hi hover:text-primary transition-colors min-h-[36px] sm:min-h-0"
 					title={sortDesc ? 'Descending' : 'Ascending'}
 				>
 					{sortDesc ? '↓ Desc' : '↑ Asc'}
 				</button>
 			</div>
 
-			<label class="flex items-center gap-1.5 cursor-pointer">
+			<label class="flex items-center gap-2 cursor-pointer min-h-[36px] sm:min-h-0">
 				<input
 					type="checkbox"
 					bind:checked={showCompleted}
-					class="accent-cyan"
+					class="accent-cyan w-4 h-4"
 				/>
 				<span class="text-xs text-muted">Show completed</span>
 			</label>
 
-			<div class="ml-auto">
+			<div class="sm:ml-auto">
 				<QueueMonitor />
 			</div>
 		</div>
@@ -294,8 +294,20 @@
 
 	<!-- Table / Empty state -->
 	{#if loading}
-		<!-- Skeleton table while issues load -->
-		<div class="overflow-x-auto fade-up">
+		<!-- Mobile skeleton cards -->
+		<div class="flex flex-col gap-3 md:hidden fade-up">
+			{#each Array(5) as _, i}
+				<div class="bg-surface border border-edge rounded-lg p-4 fade-up" style="animation-delay: {i * 30}ms">
+					<div class="skeleton h-5 w-3/4 rounded mb-3"></div>
+					<div class="flex items-center gap-3">
+						<div class="skeleton h-6 w-20 rounded"></div>
+						<div class="skeleton h-4 w-12 rounded"></div>
+					</div>
+				</div>
+			{/each}
+		</div>
+		<!-- Desktop skeleton table -->
+		<div class="overflow-x-auto fade-up hidden md:block">
 			<div class="min-w-[560px] border border-edge rounded overflow-hidden">
 				<div class="grid grid-cols-[1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
 					<div class="px-3 py-2.5">Title</div>
@@ -328,12 +340,12 @@
 			</div>
 		</div>
 	{:else if issues.length === 0}
-			<div class="flex flex-col items-center justify-center py-24 text-center">
+			<div class="flex flex-col items-center justify-center py-16 md:py-24 text-center px-4">
 				<p class="text-primary text-lg font-semibold mb-1">No issues yet</p>
 				<p class="text-muted text-sm mb-6">Create your first issue to get started</p>
 				<button
 					onclick={() => (showModal = true)}
-					class="px-4 py-2 bg-surface border border-edge text-primary text-sm rounded hover:border-edge-hi hover:bg-surface-hi transition-colors uppercase tracking-wide"
+					class="px-4 py-3 md:py-2 bg-surface border border-edge text-primary text-sm rounded hover:border-edge-hi hover:bg-surface-hi transition-colors uppercase tracking-wide min-h-[44px]"
 				>
 					+ Create Issue
 				</button>
@@ -343,7 +355,66 @@
 			<p class="text-muted text-sm">No issues match the current filters.</p>
 		</div>
 	{:else}
-		<div class="overflow-x-auto">
+		<!-- Mobile card view -->
+		<div class="flex flex-col gap-3 md:hidden">
+			{#each filtered as issue, i (issue.id)}
+				{@const cfg = STATUS_CFG[issue.status] ?? STATUS_CFG.open}
+				{@const runningAgentName = issue.running_agent_id ? agentMap[issue.running_agent_id] : null}
+				{@const isQueued = issue.running_agent_status === 'queued'}
+				{@const isDispatching = dispatchingIssues.has(issue.id)}
+				{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
+				<a
+					href="/projects/{projectId}/issues/{issue.id}"
+					class="block bg-surface border border-edge rounded-lg p-4 hover:bg-surface-hi hover:border-edge-hi transition-colors active:scale-[0.99] {issue.status === 'in_progress' ? 'border-l-green border-l-2' : ''}"
+					style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
+				>
+					<div class="flex items-start justify-between gap-3 mb-3">
+						<p class="text-primary text-sm font-medium leading-snug flex-1 min-w-0">
+							{issue.title}
+						</p>
+						<button
+							onclick={(e) => handleDispatch(e, issue)}
+							disabled={!canDispatch}
+							class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg border transition-colors {canDispatch ? 'border-edge text-muted hover:border-cyan hover:text-cyan hover:bg-cyan/10 active:bg-cyan/20' : 'border-transparent text-muted/40 cursor-not-allowed'}"
+							title={hasActiveAgent(issue) ? 'Agent already running' : 'Start work'}
+						>
+							{#if isDispatching}
+								<svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+									<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="12" />
+								</svg>
+							{:else}
+								<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M8 5v14l11-7z"/>
+								</svg>
+							{/if}
+						</button>
+					</div>
+					<div class="flex items-center gap-3 flex-wrap">
+						<span
+							class="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border {cfg.text} {cfg.border} {cfg.pulse ? 'badge-pulse' : ''}"
+							style={cfg.glow ? `box-shadow: ${cfg.glow}` : ''}
+						>
+							<span class="leading-none">{cfg.dot}</span>
+							{cfg.label}
+						</span>
+						{#if runningAgentName}
+							<span class="text-xs {isQueued ? 'text-muted' : 'text-cyan'}">
+								{runningAgentName}
+							</span>
+						{/if}
+						<span class="text-xs text-muted font-mono ml-auto" title={parseUTC(issue.created_at).toLocaleString()}>
+							{relTimeDiff(issue.created_at)}
+						</span>
+					</div>
+					{#if issue.created_by === 'agent'}
+						<p class="text-muted text-xs mt-2">proposed by agent</p>
+					{/if}
+				</a>
+			{/each}
+		</div>
+
+		<!-- Desktop table view -->
+		<div class="overflow-x-auto hidden md:block">
 				<div class="min-w-[560px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
 					<div

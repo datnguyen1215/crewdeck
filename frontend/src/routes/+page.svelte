@@ -74,12 +74,12 @@
 	<title>Projects - CrewDeck</title>
 </svelte:head>
 
-<div class="p-8 h-full overflow-auto">
+<div class="p-4 md:p-8 h-full overflow-auto pt-14 md:pt-8">
 	<!-- Header -->
-	<div class="flex items-center justify-between mb-10 fade-up">
-		<div>
+	<div class="flex items-center justify-between mb-6 md:mb-10 fade-up gap-4">
+		<div class="min-w-0">
 			<h1
-				class="text-2xl font-bold tracking-[0.3em] uppercase"
+				class="text-xl md:text-2xl font-bold tracking-[0.2em] md:tracking-[0.3em] uppercase"
 				style="color: var(--color-cyan); text-shadow: var(--glow-cyan)"
 			>
 				CREWDECK
@@ -89,11 +89,12 @@
 		{#if projects.length > 0}
 			<button
 				onclick={() => (showModal = true)}
-				class="flex items-center gap-2 px-4 py-2 bg-surface border border-edge rounded text-sm text-secondary hover:text-cyan hover:border-cyan transition-colors"
+				class="flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-2 bg-surface border border-edge rounded text-sm text-secondary hover:text-cyan hover:border-cyan transition-colors min-h-[44px] md:min-h-0 flex-shrink-0"
 				style="hover:box-shadow: var(--glow-cyan)"
 			>
 				<span class="text-cyan font-bold">+</span>
-				New Project
+				<span class="hidden sm:inline">New Project</span>
+				<span class="sm:hidden">New</span>
 			</button>
 		{/if}
 	</div>
@@ -208,8 +209,8 @@
 					<!-- Enter project link -->
 					<a
 						href="/projects/{project.id}"
-						class="mt-auto flex items-center justify-between px-3 py-2 bg-base-hi border border-edge rounded text-xs text-secondary
-							hover:border-cyan hover:text-cyan transition-colors group/btn"
+						class="mt-auto flex items-center justify-between px-3 py-3 md:py-2 bg-base-hi border border-edge rounded text-xs text-secondary
+							hover:border-cyan hover:text-cyan transition-colors group/btn min-h-[44px] md:min-h-0"
 					>
 						<span>Enter Project</span>
 						<span class="group-hover/btn:translate-x-0.5 transition-transform">→</span>
