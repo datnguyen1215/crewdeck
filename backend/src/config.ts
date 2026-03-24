@@ -28,7 +28,6 @@ export const config = {
   // Google OAuth
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-  sessionSecret: process.env.SESSION_SECRET ?? "change-me-in-production",
   allowedEmails: process.env.ALLOWED_EMAILS
     ? process.env.ALLOWED_EMAILS.split(",").map((e) => e.trim().toLowerCase())
     : [],

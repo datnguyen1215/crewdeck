@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import type { IncomingMessage } from "http";
 import crypto from "crypto";
 import { config } from "../config.js";
 import { UnauthorizedError } from "./errors.js";
@@ -20,6 +21,27 @@ const SESSION_COOKIE = "crewdeck_session";
  */
 export function getSession(req: Request): Session | null {
   const sessionId = req.cookies?.[SESSION_COOKIE];
+  if (!sessionId) return null;
+  return sessions.get(sessionId) ?? null;
+}
+
+/**
+ * Parse session from raw cookie header (for WebSocket upgrade requests)
+ */
+export function getSessionFromCookie(req: IncomingMessage): Session | null {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return null;
+
+  // Parse cookies from header
+  const cookies: Record<string, string> = {};
+  for (const pair of cookieHeader.split(";")) {
+    const [name, ...rest] = pair.trim().split("=");
+    if (name && rest.length > 0) {
+      cookies[name] = decodeURIComponent(rest.join("="));
+    }
+  }
+
+  const sessionId = cookies[SESSION_COOKIE];
   if (!sessionId) return null;
   return sessions.get(sessionId) ?? null;
 }

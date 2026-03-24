@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { onNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import Toast from '$lib/components/Toast.svelte';
@@ -13,13 +13,8 @@
 	let user = $state<AuthUser | null>(null);
 	let isLoginPage = $derived($page.url.pathname === '/login');
 
-	onMount(async () => {
-		// Check isLoginPage inside the async function to get current value
-		const currentPath = $page.url.pathname;
-		if (currentPath === '/login') {
-			loading = false;
-			return;
-		}
+	async function checkAuth() {
+		if ($page.url.pathname === '/login') return;
 
 		try {
 			const status = await getAuthStatus();
@@ -30,9 +25,33 @@
 			user = status.user ?? null;
 		} catch {
 			goto('/login');
+		}
+	}
+
+	// Re-check auth when tab becomes visible (handles session expiry)
+	function handleVisibilityChange() {
+		if (document.visibilityState === 'visible') {
+			checkAuth();
+		}
+	}
+
+	onMount(async () => {
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+
+		const currentPath = $page.url.pathname;
+		if (currentPath === '/login') {
+			loading = false;
 			return;
 		}
+
+		await checkAuth();
 		loading = false;
+	});
+
+	onDestroy(() => {
+		if (typeof document !== 'undefined') {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+		}
 	});
 
 	// Page transitions via View Transitions API

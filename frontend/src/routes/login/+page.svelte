@@ -7,7 +7,8 @@
 		token_exchange_failed: 'Failed to complete authentication',
 		userinfo_failed: 'Failed to retrieve user information',
 		no_email: 'No email address found in your account',
-		not_allowed: 'Your email is not authorized to access this application'
+		not_allowed: 'Your email is not authorized to access this application',
+		invalid_state: 'Authentication verification failed'
 	};
 
 	let error = $derived($page.url.searchParams.get('error'));

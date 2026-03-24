@@ -6,6 +6,8 @@ import { getProject } from "./db/repositories/projects.js";
 import { getIssue } from "./db/repositories/issues.js";
 import { getCrewMember } from "./orchestration/crew.js";
 import { logger } from "./logger.js";
+import { getSessionFromCookie, type Session } from "./middleware/auth.js";
+import { config } from "./config.js";
 
 const PING_INTERVAL = 30_000;
 const PONG_TIMEOUT = 10_000;
@@ -221,6 +223,15 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
   wss.on("connection", (socket, req: IncomingMessage) => {
     const ws = socket as ExtendedWebSocket;
     try {
+      // Validate session from cookie (skip in test/dev if no Google OAuth configured)
+      if (config.googleClientId) {
+        const session = getSessionFromCookie(req);
+        if (!session) {
+          ws.close(4001, "Unauthorized");
+          return;
+        }
+      }
+
       const url = new URL(req.url ?? "", "http://localhost");
       const projectId = url.searchParams.get("projectId");
       if (!projectId) { ws.close(4004, "Missing projectId"); return; }
