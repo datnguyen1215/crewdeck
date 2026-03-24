@@ -11,7 +11,7 @@ import { initPRDetector } from "./pr/detector.js";
 import { startPRPoller, stopPRPoller } from "./pr/poller.js";
 import { initAdmiral, shutdownAdmiral } from "./orchestration/admiral.js";
 
-const app = createApp({ corsOrigin: config.corsOrigin });
+const app = createApp();
 
 async function main(): Promise<void> {
   initActivityLogger();
