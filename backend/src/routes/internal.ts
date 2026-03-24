@@ -26,7 +26,7 @@ import {
   UpdateKnowledgeSchema,
 } from "../schemas/validation.js";
 import { parsePRUrls } from "../pr/detector.js";
-import { handleMergePR, handleDispatchCaptain, handleScanCodebase } from "../orchestration/admiral/tool-handlers.js";
+import { handleMergePR, handleDispatchAgent, handleScanCodebase } from "../orchestration/admiral/tool-handlers.js";
 
 // Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
@@ -183,7 +183,7 @@ router.post("/knowledge/delete", validate(InternalKnowledgeDeleteSchema), (req, 
   res.status(204).send();
 });
 
-// Admiral-specific routes (merge PR, dispatch captain, scan codebase)
+// Admiral-specific routes (merge PR, dispatch agent, scan codebase)
 
 const AdmiralMergePRSchema = z.object({
   project_id: z.string(),
@@ -201,17 +201,18 @@ router.post("/admiral/merge-pr", validate(AdmiralMergePRSchema), async (req, res
   }
 });
 
-const AdmiralDispatchSchema = z.object({
+const AdmiralDispatchAgentSchema = z.object({
   project_id: z.string(),
   issue_id: z.string(),
+  agent_id: z.string(),
   instructions: z.string().optional(),
 });
 
-router.post("/admiral/dispatch-captain", validate(AdmiralDispatchSchema), async (req, res, next) => {
+router.post("/admiral/dispatch-agent", validate(AdmiralDispatchAgentSchema), async (req, res, next) => {
   try {
-    const { project_id, issue_id, instructions } = req.body;
+    const { project_id, issue_id, agent_id, instructions } = req.body;
     verifyProjectExists(project_id);
-    const result = await handleDispatchCaptain(project_id, { issue_id, instructions });
+    const result = await handleDispatchAgent(project_id, { issue_id, agent_id, instructions });
     res.json(result);
   } catch (err) {
     next(err);

@@ -304,7 +304,7 @@ DELETE /projects/:projectId/repos/:repoId
 
 ### Crew / Agents
 
-The crew is a fixed set of 6 global agents (captain, engineer, lead, docs, librarian, admiral). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, excluding non-dispatchable agents like Admiral.
+The crew is a fixed set of 5 global agents (engineer, lead, docs, librarian, admiral). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, excluding non-dispatchable agents like Admiral.
 
 #### List Crew
 
@@ -313,18 +313,18 @@ GET /crew
 GET /agents
 ```
 
-Both paths return the dispatchable agents (5 agents). Admiral is excluded because it is a background service, not a dispatchable agent. The `/crew` path is canonical; `/agents` is kept for compatibility.
+Both paths return the dispatchable agents (4 agents). Admiral is excluded because it is a background service, not a dispatchable agent. The `/crew` path is canonical; `/agents` is kept for compatibility.
 
 **Response:** `200 OK` — Array of agent objects.
 
 ```json
 [
   {
-    "id": "captain",
-    "name": "Captain",
-    "title": "Project Manager",
-    "description": "Coordinates the crew and manages project execution.",
-    "system_prompt": "You are Captain, the project manager...",
+    "id": "engineer",
+    "name": "Engineer",
+    "title": "Software Engineer",
+    "description": "Writes and tests production code.",
+    "system_prompt": "You are Engineer, a senior software engineer...",
     "dispatchable": true
   }
 ]
@@ -425,7 +425,7 @@ POST /projects/:projectId/issues
 |-------|----------|---------|-------------|
 | title | Yes | — | Issue title. |
 | description | Yes | — | Issue description. |
-| agent_id | No | null | Assigned agent ID (one of: captain, engineer, lead, docs, librarian). |
+| agent_id | No | null | Assigned agent ID (one of: engineer, lead, docs, librarian). |
 
 **Response:** `201 Created` — The created issue object with status `open` and `created_by: "user"`.
 
@@ -551,7 +551,7 @@ GET /projects/:projectId/issues/:issueId/runs
     "id": "uuid",
     "project_id": "uuid",
     "issue_id": "uuid",
-    "agent_id": "captain",
+    "agent_id": "engineer",
     "pid": 12345,
     "status": "completed",
     "exit_code": 0,
@@ -1047,6 +1047,47 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 **Error:** `400 VALIDATION_ERROR` — Invalid PR URL format or PR URL does not match any repository linked to the project.
 
 **Side effects:** Emits `pr.created` on the event bus.
+
+#### Dispatch Agent (Internal)
+
+```
+POST /internal/admiral/dispatch-agent
+```
+
+Admiral dispatches a sub-agent to work on an issue. This is used internally by Admiral to orchestrate work.
+
+**Request Body:**
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid",
+  "agent_id": "engineer",
+  "instructions": "Optional instructions for the agent"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| project_id | Yes | The project the issue belongs to. |
+| issue_id | Yes | The issue to dispatch the agent on. |
+| agent_id | Yes | The agent to dispatch. One of: `engineer`, `lead`, `docs`, `librarian`. |
+| instructions | No | Optional instructions posted as a system comment before spawning. |
+
+**Response:** `200 OK` — ToolResult object with success status and message.
+
+```json
+{
+  "success": true,
+  "message": "Dispatched engineer on issue abc123"
+}
+```
+
+**Error:** `400 VALIDATION_ERROR` — Invalid agent_id (must be engineer, lead, docs, or librarian — not captain or admiral).
+
+**Side effects:**
+- Posts a system comment with instructions (if provided).
+- Spawns the specified agent process.
+- Emits `run.started` event.
 
 ---
 

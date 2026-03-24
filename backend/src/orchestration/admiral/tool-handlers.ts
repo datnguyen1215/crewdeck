@@ -167,16 +167,35 @@ export const handleMergePR = async (
   return { success: false, message: result.message };
 };
 
+/** Valid agent IDs for dispatch-agent (excludes admiral) */
+const DISPATCHABLE_AGENTS = ["engineer", "lead", "docs", "librarian"] as const;
+type DispatchableAgent = (typeof DISPATCHABLE_AGENTS)[number];
+
 /**
- * Dispatch Captain agent to work on an issue.
+ * Check if an agent ID is dispatchable via dispatch-agent.
  */
-export const handleDispatchCaptain = async (
+const isDispatchableAgent = (agentId: string): agentId is DispatchableAgent => {
+  return (DISPATCHABLE_AGENTS as readonly string[]).includes(agentId);
+};
+
+/**
+ * Dispatch a specific agent to work on an issue.
+ * Unlike dispatch-captain, this allows Admiral to directly spawn sub-agents.
+ */
+export const handleDispatchAgent = async (
   projectId: string,
-  input: { issue_id: string; instructions?: string }
+  input: { issue_id: string; agent_id: string; instructions?: string }
 ): Promise<ToolResult> => {
-  const captain = getCrewMember("captain");
-  if (!captain)
-    return { success: false, message: "Captain agent not found" };
+  if (!isDispatchableAgent(input.agent_id)) {
+    return {
+      success: false,
+      message: `Invalid agent_id "${input.agent_id}". Must be one of: ${DISPATCHABLE_AGENTS.join(", ")}`,
+    };
+  }
+
+  const agent = getCrewMember(input.agent_id);
+  if (!agent)
+    return { success: false, message: `Agent "${input.agent_id}" not found` };
 
   const issue = issueRepo.getIssue(input.issue_id);
   if (!issue)
@@ -189,15 +208,15 @@ export const handleDispatchCaptain = async (
     postSystemComment(issue.id, projectId, `Admiral: ${input.instructions}`);
 
   try {
-    await spawnAgent(captain, issue.id, projectId);
+    await spawnAgent(agent, issue.id, projectId);
     return {
       success: true,
-      message: `Dispatched Captain to work on "${issue.title}"`,
-      data: { issue_id: issue.id, issue_title: issue.title },
+      message: `Dispatched ${agent.name} to work on "${issue.title}"`,
+      data: { issue_id: issue.id, issue_title: issue.title, agent_id: agent.id },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { success: false, message: `Failed to dispatch Captain: ${message}` };
+    return { success: false, message: `Failed to dispatch ${agent.name}: ${message}` };
   }
 };
 

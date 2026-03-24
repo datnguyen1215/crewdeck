@@ -10,7 +10,7 @@ status: draft
 
 Agents are triggered by **`/dispatch` commands** in issue comments. When a user or another agent posts a comment containing `/dispatch agent-name` at the start of a line, the backend automatically spawns that agent as a `claude -p` subprocess. The agent's output is posted back to the issue as a comment.
 
-`@mentions` are cosmetic references only — they do NOT trigger agent spawns. There is no persistent captain session or CLI tool for agents to call. All orchestration happens through the comment thread.
+`@mentions` are cosmetic references only — they do NOT trigger agent spawns. Admiral orchestrates work by directly dispatching sub-agents (engineer, lead, docs, librarian) via the internal API. All communication happens through the issue comment thread.
 
 ## How It Works
 
@@ -46,7 +46,7 @@ Dispatching an agent on an issue automatically regresses its status to `in_progr
 | Trigger | Status change |
 |---------|--------------|
 | Agent spawned on open/done/PR-related issue | → `in_progress` |
-| User clicks "Mark as PR Created", or Captain runs `gh pr create` | → `pr_created` |
+| User clicks "Mark as PR Created", or Admiral creates a PR via `gh pr create` | → `pr_created` |
 | User clicks "Mark as Done" (no active processes) | → `done` |
 
 ## Environment Variables
@@ -59,7 +59,6 @@ The following variables are passed to each agent process:
 | `CREWDECK_PROJECT_ID` | The project ID |
 | `CREWDECK_AGENT_ID` | The agent's ID |
 | `CREWDECK_ISSUE_ID` | The issue ID being worked on |
-| `GH_TOKEN` | GitHub OAuth token — injected for Captain only, from the project's linked GitHub account |
 
 In addition, any project-level environment variables configured via the [Environment Variables API](api.md#environment-variables) are injected.
 
@@ -71,7 +70,6 @@ Each agent receives a prompt built from:
 - Project knowledge entries (conventions, structure notes, gotchas) — filtered by agent assignment
 - The repository name and worktree path
 - All previous comments on the issue (in order)
-- For Captain only: a summary of all other open/in-progress issues (for dependency-aware scheduling)
 
 The agent's system prompt is passed via `--system-prompt-file`. The backend does not rely on Claude's session management — every invocation gets a complete, self-contained prompt built from CrewDeck's database.
 

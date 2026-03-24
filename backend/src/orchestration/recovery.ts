@@ -1,20 +1,19 @@
 /**
  * Startup recovery for orphaned agent runs.
- * Cleans up runs that were interrupted by server restart and re-dispatches captains.
+ * Cleans up runs that were interrupted by server restart and emits recovery events
+ * for Admiral to handle.
  */
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as issueRepo from "../db/repositories/issues.js";
-import * as projectRepo from "../db/repositories/projects.js";
 import * as log from "../logger.js";
-import * as dispatchQueue from "./queue.js";
 import * as crew from "./crew.js";
-import { getActiveProcessCount } from "./processes.js";
-import { postSystemComment, spawnAgent } from "./spawner.js";
+import { eventBus } from "../events/bus.js";
+import { postSystemComment } from "./spawner.js";
 
 /** Delay before recovery to ensure server is fully initialized */
 const RECOVERY_DELAY_MS = 2000;
-/** Stagger delay between captain dispatches */
-const DISPATCH_STAGGER_MS = 500;
+/** Stagger delay between recovery events */
+const RECOVERY_STAGGER_MS = 500;
 
 /**
  * Check if a process with the given PID is still alive.
@@ -54,97 +53,52 @@ export const killOrphanedProcess = (pid: number): void => {
   }
 };
 
+interface RecoveryItem {
+  projectId: string;
+  issueId: string;
+  agentId: string;
+}
+
 /**
- * Dispatch captain for recovered issues, respecting max_concurrency.
+ * Emit recovery events for issues that need attention after server restart.
+ * Admiral listens to these events and decides how to proceed.
  */
-export const dispatchCaptainsForRecovery = (issuesByProject: Map<string, Set<string>>): void => {
-  log.logger.info("Starting captain dispatch for recovered issues");
+export const emitRecoveryEvents = (items: RecoveryItem[]): void => {
+  log.logger.info({ count: items.length }, "Emitting recovery events for orphaned issues");
 
-  let dispatchIndex = 0;
+  let eventIndex = 0;
 
-  for (const [projectId, issueIds] of issuesByProject) {
-    const project = projectRepo.getProject(projectId);
-    if (!project) {
-      log.logger.warn({ projectId }, "Project not found for recovery dispatch");
-      continue;
-    }
+  for (const item of items) {
+    const delay = eventIndex * RECOVERY_STAGGER_MS;
+    eventIndex++;
 
-    // Get issues still in in_progress status (they need recovery)
-    const issuesToDispatch: string[] = [];
-    for (const issueId of issueIds) {
-      const issue = issueRepo.getIssue(issueId);
-      if (issue && issue.status === "in_progress") {
-        issuesToDispatch.push(issueId);
+    setTimeout(() => {
+      const issue = issueRepo.getIssue(item.issueId);
+      if (!issue || issue.status !== "in_progress") {
+        // Issue no longer needs recovery
+        return;
       }
-    }
 
-    if (issuesToDispatch.length === 0) continue;
+      postSystemComment(item.issueId, item.projectId, "Recovery: resuming work after server restart");
 
-    log.logger.info(
-      { projectId, issueCount: issuesToDispatch.length, maxConcurrency: project.max_concurrency },
-      "Dispatching captains for recovered issues",
-    );
+      eventBus.emit("run.recovered", {
+        project_id: item.projectId,
+        issue_id: item.issueId,
+        failed_agent_id: item.agentId,
+      });
 
-    // Dispatch captains with staggered timing, respecting concurrency
-    for (const issueId of issuesToDispatch) {
-      const delay = dispatchIndex * DISPATCH_STAGGER_MS;
-      dispatchIndex++;
-
-      setTimeout(() => {
-        const captain = crew.getCrewMember("captain");
-        if (!captain) {
-          log.logger.error({ issueId, projectId }, "Recovery failed: captain agent not found");
-          return;
-        }
-
-        // Check current concurrency before dispatching
-        const activeCount = getActiveProcessCount(projectId);
-        if (activeCount >= project.max_concurrency) {
-          // Queue the dispatch instead
-          const position = dispatchQueue.enqueue({
-            projectId,
-            issueId,
-            agentId: "captain",
-            queuedAt: new Date(),
-          });
-          log.logger.info(
-            { issueId, projectId, position },
-            "Recovery captain dispatch queued (at concurrency limit)",
-          );
-          postSystemComment(
-            issueId,
-            projectId,
-            `Recovery: captain queued (${position} ahead)`,
-          );
-          return;
-        }
-
-        // Spawn captain directly instead of posting a system comment
-        // (system comments are ignored by the dispatch handler to prevent loops)
-        postSystemComment(issueId, projectId, "Recovery: resuming work after server restart");
-
-        spawnAgent(captain, issueId, projectId).catch((err) => {
-          log.logger.error(
-            { err, issueId, projectId },
-            "Recovery captain spawn failed",
-          );
-          postSystemComment(
-            issueId,
-            projectId,
-            `Recovery failed: ${err instanceof Error ? err.message : "unknown error"}`,
-          );
-        });
-
-        log.logger.info({ issueId, projectId }, "Recovery captain dispatch triggered");
-      }, delay);
-    }
+      log.logger.info(
+        { issueId: item.issueId, projectId: item.projectId, agentId: item.agentId },
+        "Recovery event emitted",
+      );
+    }, delay);
   }
 };
 
 /**
  * Recover orphaned agent runs on startup.
  * Marks any "running" runs as "failed", kills orphaned processes,
- * and re-dispatches captain for affected issues.
+ * and emits recovery events for Admiral to handle.
  */
 export const recoverOnStartup = (): void => {
   const orphanedRuns = agentRunRepo.listRunningAgentRuns();
@@ -159,8 +113,8 @@ export const recoverOnStartup = (): void => {
     "MentionHandler startup recovery: processing orphaned runs",
   );
 
-  // Track unique issues that need captain re-dispatch, grouped by project
-  const issuesByProject = new Map<string, Set<string>>();
+  // Track unique issues that need recovery (dedupe by issueId)
+  const recoveryItems = new Map<string, RecoveryItem>();
 
   for (const run of orphanedRuns) {
     // Kill orphaned process if still running
@@ -174,7 +128,7 @@ export const recoverOnStartup = (): void => {
     const agent = crew.getCrewMember(run.agent_id);
     const agentName = agent?.name ?? run.agent_id;
 
-    // Only post comment and track for captain re-dispatch if there's an issue
+    // Only post comment and track for recovery if there's an issue
     if (run.issue_id) {
       postSystemComment(
         run.issue_id,
@@ -182,11 +136,14 @@ export const recoverOnStartup = (): void => {
         `Agent run interrupted by server restart (${agentName})`,
       );
 
-      // Track issue for captain re-dispatch
-      if (!issuesByProject.has(run.project_id)) {
-        issuesByProject.set(run.project_id, new Set());
+      // Track issue for recovery (only keep one per issue)
+      if (!recoveryItems.has(run.issue_id)) {
+        recoveryItems.set(run.issue_id, {
+          projectId: run.project_id,
+          issueId: run.issue_id,
+          agentId: run.agent_id,
+        });
       }
-      issuesByProject.get(run.project_id)!.add(run.issue_id);
     }
 
     log.logger.info(
@@ -195,12 +152,12 @@ export const recoverOnStartup = (): void => {
     );
   }
 
-  // Schedule captain re-dispatch after server is fully initialized
-  if (issuesByProject.size > 0) {
+  // Schedule recovery events after server is fully initialized
+  if (recoveryItems.size > 0) {
     setTimeout(() => {
-      dispatchCaptainsForRecovery(issuesByProject);
+      emitRecoveryEvents(Array.from(recoveryItems.values()));
     }, RECOVERY_DELAY_MS);
   }
 
-  log.logger.info("MentionHandler startup recovery: orphaned runs processed, captain dispatch scheduled");
+  log.logger.info("MentionHandler startup recovery: orphaned runs processed, recovery events scheduled");
 };

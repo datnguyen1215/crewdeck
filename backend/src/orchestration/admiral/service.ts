@@ -179,6 +179,20 @@ function createProjectHandlers(projectId: string): () => void {
     });
   };
 
+  // Handler for recovered runs (orphaned runs after server restart)
+  const handleRunRecovered = (data: { project_id: string; issue_id: string; failed_agent_id: string }) => {
+    if (data.project_id !== projectId) return;
+    const event: AdmiralEvent = {
+      type: "run.recovered",
+      projectId,
+      timestamp: new Date(),
+      data,
+    };
+    queueAndProcess(event).catch((err) => {
+      logger.error({ err, projectId }, "Admiral: Failed to queue run.recovered");
+    });
+  };
+
   // Handler for chat messages
   const handleChatMessage = (data: { project_id: string; content: string; images?: Array<{ data: string; mediaType: string }> }) => {
     if (data.project_id !== projectId) return;
@@ -202,6 +216,7 @@ function createProjectHandlers(projectId: string): () => void {
   eventBus.on("run.completed", handleRunCompleted);
   eventBus.on("pr.status_changed", handlePRStatusChanged);
   eventBus.on("chat.message", handleChatMessage);
+  eventBus.on("run.recovered", handleRunRecovered);
 
   // Return unsubscribe function
   return () => {
@@ -211,6 +226,7 @@ function createProjectHandlers(projectId: string): () => void {
     eventBus.off("run.completed", handleRunCompleted);
     eventBus.off("pr.status_changed", handlePRStatusChanged);
     eventBus.off("chat.message", handleChatMessage);
+    eventBus.off("run.recovered", handleRunRecovered);
 
     // Clear idle timeout
     const timeout = idleTimeouts.get(projectId);

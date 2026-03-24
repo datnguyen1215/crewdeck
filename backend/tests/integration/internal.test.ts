@@ -145,3 +145,81 @@ describe("POST /api/v1/internal/create-pr", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("POST /api/v1/internal/admiral/dispatch-agent", () => {
+  it("rejects captain agent_id", async () => {
+    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      agent_id: "captain",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("Invalid agent_id");
+  });
+
+  it("rejects admiral agent_id", async () => {
+    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      agent_id: "admiral",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("Invalid agent_id");
+  });
+
+  it("rejects unknown agent_id", async () => {
+    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      agent_id: "nonexistent",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("Invalid agent_id");
+  });
+
+  it("returns 400 for missing agent_id", async () => {
+    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+      project_id: projectId,
+      issue_id: issueId,
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for missing issue_id", async () => {
+    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+      project_id: projectId,
+      agent_id: "engineer",
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 for non-existent project", async () => {
+    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+      project_id: FAKE_ID,
+      issue_id: issueId,
+      agent_id: "engineer",
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns error for non-existent issue", async () => {
+    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+      project_id: projectId,
+      issue_id: FAKE_ID,
+      agent_id: "engineer",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("Issue not found");
+  });
+});

@@ -103,7 +103,7 @@ The fundamental unit of work.
 | worktree_path | TEXT | NULLABLE | Absolute path to the git worktree. |
 | base_branch | TEXT | NULLABLE | The branch this issue's work is based on. |
 | repo_id | TEXT | FOREIGN KEY → Repo.id, NULLABLE | The repo this issue is being worked on in. |
-| agent_id | TEXT | NULLABLE | The agent currently assigned to this issue. One of the fixed agent IDs (captain, engineer, lead, docs, librarian) or NULL if unassigned. |
+| agent_id | TEXT | NULLABLE | The agent currently assigned to this issue. One of the fixed agent IDs (engineer, lead, docs, librarian) or NULL if unassigned. |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
 
@@ -146,7 +146,7 @@ Records a single execution of an agent. Can be associated with an issue (for `/d
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
 | project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
 | issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue this run was triggered by. NULL for standalone runs (e.g., scans). |
-| agent_id | TEXT | NOT NULL | The agent that was spawned (e.g., `captain`). |
+| agent_id | TEXT | NOT NULL | The agent that was spawned (e.g., `engineer`). |
 | pid | INTEGER | NULLABLE | OS process ID. NULL until the process is spawned. |
 | status | TEXT | NOT NULL, DEFAULT 'queued' | Current status. One of: `queued`, `running`, `completed`, `failed`, `timeout`. |
 | exit_code | INTEGER | NULLABLE | Process exit code. NULL if not yet completed or if status is `timeout`. |
@@ -220,14 +220,14 @@ Tracks each agent process spawn for crash recovery and observability.
 | id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
 | project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
 | issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue the agent was working on. NULL for standalone runs (e.g., scans). |
-| agent_id | TEXT | NOT NULL | The agent identifier (e.g., `captain`, `engineer`). |
+| agent_id | TEXT | NOT NULL | The agent identifier (e.g., `engineer`, `lead`). |
 | pid | INTEGER | NOT NULL | OS process ID of the spawned `claude` process. |
 | status | TEXT | NOT NULL, DEFAULT 'running' | Current run status. One of: `running`, `completed`, `failed`, `timeout`. |
 | exit_code | INTEGER | NULLABLE | Exit code of the process. NULL if still running or timed out. |
 | started_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned. |
 | completed_at | DATETIME | NULLABLE | When the process finished. NULL if still running. |
 
-**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed` and posts system comments on affected issues (if associated with an issue).
+**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed`, posts system comments on affected issues (if associated with an issue), and emits `run.recovered` events for Admiral to handle.
 
 ---
 
