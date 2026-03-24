@@ -21,6 +21,9 @@ services:
       - CORS_ORIGIN=http://localhost:9380
       - DB_PATH=/app/data/crewdeck.db
       - CREWDECK_REPOS_DIR=/app/data/repos
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - ALLOWED_EMAILS=${ALLOWED_EMAILS:-}
 
 volumes:
   crewdeck-data:

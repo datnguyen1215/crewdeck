@@ -6,6 +6,7 @@ A dashboard for managing autonomous Claude Code agents across GitHub repositorie
 
 - Docker & Docker Compose
 - [Claude Code](https://claude.ai/claude-code) configured on host
+- A [Google Cloud OAuth 2.0 Client](https://console.cloud.google.com/apis/credentials) (for user authentication)
 - A [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) (for GitHub authentication via Device Flow)
 
 ## Quick Start
