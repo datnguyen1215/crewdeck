@@ -165,25 +165,25 @@
 		<div class="text-xs text-muted uppercase tracking-widest mb-3">Actions</div>
 		<div class="flex flex-col gap-2 text-xs">
 			{#if issue.status === 'in_progress'}
-				<button onclick={handleMarkPrCreated} disabled={working} class="w-full py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 disabled:opacity-50">Mark as PR Created</button>
+				<button onclick={handleMarkPrCreated} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0">Mark as PR Created</button>
 			{/if}
 
 			{#if issue.status !== 'done'}
-				<button onclick={handleMarkDone} disabled={working} class="w-full py-1.5 border border-green text-green rounded hover:bg-green/10 transition-colors text-left px-3 disabled:opacity-50">Mark as Done</button>
+				<button onclick={handleMarkDone} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-green text-green rounded hover:bg-green/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0">Mark as Done</button>
 			{/if}
 
 			{#if issue.chain_depth > 0}
-				<button onclick={handleResetChainDepth} disabled={working} class="w-full py-1.5 border border-amber text-amber rounded hover:bg-amber/10 transition-colors text-left px-3 disabled:opacity-50">Reset Chain Depth ({issue.chain_depth})</button>
+				<button onclick={handleResetChainDepth} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-amber text-amber rounded hover:bg-amber/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0">Reset Chain Depth ({issue.chain_depth})</button>
 			{/if}
 
 			{#if issue.status.startsWith('pr_') && issue.issue_prs?.length}
 				{@const pr = issue.issue_prs[0]}
-				<a href={pr.pr_url} target="_blank" rel="noopener" class="w-full py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 block">View PR #{pr.pr_number}</a>
+				<a href={pr.pr_url} target="_blank" rel="noopener" class="w-full py-2.5 sm:py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 block min-h-[44px] sm:min-h-0 flex items-center">View PR #{pr.pr_number}</a>
 			{/if}
 
-			<button onclick={onEdit} class="w-full py-1.5 border border-edge text-secondary rounded hover:border-edge-hi hover:text-primary transition-colors text-left px-3">Edit Issue</button>
+			<button onclick={onEdit} class="w-full py-2.5 sm:py-1.5 border border-edge text-secondary rounded hover:border-edge-hi hover:text-primary transition-colors text-left px-3 min-h-[44px] sm:min-h-0">Edit Issue</button>
 
-			<button onclick={() => showDeleteModal = true} class="w-full py-1.5 border border-red/50 text-red/50 rounded hover:border-red hover:text-red transition-colors text-left px-3">Delete Issue</button>
+			<button onclick={() => showDeleteModal = true} class="w-full py-2.5 sm:py-1.5 border border-red/50 text-red/50 rounded hover:border-red hover:text-red transition-colors text-left px-3 min-h-[44px] sm:min-h-0">Delete Issue</button>
 		</div>
 	</div>
 

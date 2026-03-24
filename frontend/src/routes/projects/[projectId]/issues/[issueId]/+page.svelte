@@ -546,14 +546,14 @@
 </svelte:head>
 
 {#if loading}
-	<div class="p-6 max-w-6xl fade-up">
+	<div class="p-4 md:p-6 max-w-6xl fade-up pt-14 md:pt-6">
 		<div class="mb-6"><div class="skeleton h-3 w-24 rounded"></div></div>
-		<div class="grid lg:grid-cols-[1fr_288px] gap-5">
+		<div class="flex flex-col lg:grid lg:grid-cols-[1fr_288px] gap-5">
 			<div class="bg-surface border border-edge rounded overflow-hidden">
 				<div class="flex border-b border-edge gap-1 px-1 pt-1">
 					{#each [80, 100] as w}<div class="skeleton h-8 rounded-t" style="width: {w}px"></div>{/each}
 				</div>
-				<div class="p-6 flex flex-col gap-4">
+				<div class="p-4 md:p-6 flex flex-col gap-4">
 					<div class="skeleton h-6 w-3/4 rounded"></div>
 					{#each [100, 90, 95, 70, 85] as pct}<div class="skeleton h-4 rounded" style="width: {pct}%"></div>{/each}
 				</div>
@@ -566,13 +566,13 @@
 		</div>
 	</div>
 {:else if !issue}
-	<div class="p-8">
+	<div class="p-4 md:p-8 pt-14 md:pt-8">
 		<p class="text-muted text-sm">Issue not found.</p>
 		<a href="/projects/{projectId}" class="text-cyan text-xs mt-2 inline-block hover:underline">&larr; Back to Board</a>
 	</div>
 {:else}
-	<div class="p-6 max-w-6xl fade-up">
-		<div class="mb-6">
+	<div class="p-4 md:p-6 max-w-6xl fade-up pt-14 md:pt-6">
+		<div class="mb-4 md:mb-6">
 			<Breadcrumb segments={[
 				{ label: 'Projects', href: '/' },
 				{ label: project?.name ?? 'Project', href: `/projects/${projectId}` },
@@ -581,22 +581,22 @@
 			]} />
 		</div>
 
-		<div class="grid lg:grid-cols-[1fr_288px] gap-5">
-			<div class="bg-surface border border-edge rounded overflow-hidden">
+		<div class="flex flex-col lg:grid lg:grid-cols-[1fr_288px] gap-5">
+			<div class="bg-surface border border-edge rounded overflow-hidden order-1 lg:order-none">
 				<div class="flex border-b border-edge text-xs">
-					<button onclick={() => activeTab = 'description'} class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'description' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Description</button>
-					<button onclick={() => activeTab = 'timeline'} class="px-4 py-2.5 border-b-2 transition-colors {activeTab === 'timeline' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Timeline ({timeline.length})</button>
+					<button onclick={() => activeTab = 'description'} class="flex-1 sm:flex-initial px-4 py-3 sm:py-2.5 border-b-2 transition-colors min-h-[44px] sm:min-h-0 {activeTab === 'description' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Description</button>
+					<button onclick={() => activeTab = 'timeline'} class="flex-1 sm:flex-initial px-4 py-3 sm:py-2.5 border-b-2 transition-colors min-h-[44px] sm:min-h-0 {activeTab === 'timeline' ? 'border-cyan text-cyan' : 'border-transparent text-muted hover:text-secondary'}">Timeline ({timeline.length})</button>
 				</div>
 
-				<div class="p-6">
+				<div class="p-4 md:p-6">
 					{#if activeTab === 'description'}
 						{#if showEditForm}
 							<div class="flex flex-col gap-3">
-								<input bind:value={editTitle} class="bg-base border border-edge rounded px-3 py-2 text-primary text-sm w-full focus:border-cyan focus:outline-none" placeholder="Title" />
-								<textarea bind:value={editDescription} rows={10} class="bg-base border border-edge rounded px-3 py-2 text-secondary text-xs w-full focus:border-cyan focus:outline-none resize-none" placeholder="Description (Markdown supported)"></textarea>
+								<input bind:value={editTitle} class="bg-base border border-edge rounded px-3 py-3 sm:py-2 text-primary text-sm w-full focus:border-cyan focus:outline-none" placeholder="Title" />
+								<textarea bind:value={editDescription} rows={10} class="bg-base border border-edge rounded px-3 py-3 sm:py-2 text-secondary text-sm sm:text-xs w-full focus:border-cyan focus:outline-none resize-y" placeholder="Description (Markdown supported)"></textarea>
 								<div class="flex gap-2">
-									<button onclick={handleEditSave} disabled={working} class="px-3 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors">Save</button>
-									<button onclick={() => showEditForm = false} class="px-3 py-1.5 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors">Cancel</button>
+									<button onclick={handleEditSave} disabled={working} class="px-4 py-2.5 sm:py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors min-h-[44px] sm:min-h-0">Save</button>
+									<button onclick={() => showEditForm = false} class="px-4 py-2.5 sm:py-1.5 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors min-h-[44px] sm:min-h-0">Cancel</button>
 								</div>
 							</div>
 						{:else}
@@ -786,7 +786,7 @@
 						{/if}
 
 						<!-- Add comment form -->
-						<div class="border border-edge rounded p-4 relative">
+						<div class="border border-edge rounded p-3 sm:p-4 relative">
 							<textarea
 								bind:this={textareaEl}
 								bind:value={commentText}
@@ -802,7 +802,7 @@
 									{#each filteredAgents as agent, i (agent.id)}
 										<button
 											onclick={() => selectMention(agent)}
-											class="w-full text-left px-3 py-2 text-sm hover:bg-base transition-colors flex flex-col {i === mentionIdx ? 'bg-base' : ''}"
+											class="w-full text-left px-3 py-3 sm:py-2 text-sm hover:bg-base transition-colors flex flex-col min-h-[44px] {i === mentionIdx ? 'bg-base' : ''}"
 										>
 											<span class="text-primary font-medium">{agent.name}</span>
 											<span class="text-muted text-xs">{agent.title}</span>
@@ -815,7 +815,7 @@
 								<button
 									onclick={postComment}
 									disabled={posting || !commentText.trim()}
-									class="px-4 py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+									class="px-4 py-2.5 sm:py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] sm:min-h-0"
 								>
 									{posting ? 'Posting...' : 'Post Comment'}
 								</button>
@@ -825,6 +825,7 @@
 				</div>
 			</div>
 
+			<div class="order-first lg:order-none">
 			<IssueSidebar
 				{issue}
 				{project}
@@ -832,6 +833,7 @@
 				onStatusChange={() => { getIssue(projectId, issueId).then(d => { issue = d; }).catch(() => {}); }}
 				onEdit={openEdit}
 			/>
+			</div>
 		</div>
 	</div>
 {/if}
