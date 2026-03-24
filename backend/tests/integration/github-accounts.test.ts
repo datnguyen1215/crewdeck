@@ -1,7 +1,14 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { getApp } from "./setup.js";
+
+// Mock ensureCloned so integration tests don't attempt real git clone via SSH
+vi.mock("../../src/db/repositories/repos.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../src/db/repositories/repos.js")>();
+  return { ...actual, ensureCloned: vi.fn() };
+});
 
 const BASE = "/api/v1/github-accounts";
 

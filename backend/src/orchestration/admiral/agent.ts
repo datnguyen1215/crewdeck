@@ -341,6 +341,7 @@ export const processWithLLM = async (
   };
 
   // Admiral needs GH_TOKEN for API/gh CLI and SSH for git operations
+  let sshKeyPath: string | undefined;
   if (project?.github_account_id) {
     const { getGitHubAccount } =
       await import("../../db/repositories/github-accounts.js");
@@ -349,8 +350,8 @@ export const processWithLLM = async (
       env.GH_TOKEN = account.gh_token;
       const { createGitSshEnv } = await import("../../utils/git-auth.js");
       const ssh = createGitSshEnv(account.ssh_private_key);
+      sshKeyPath = ssh.keyPath;
       Object.assign(env, ssh.env);
-      // SSH key file persists for Admiral's lifetime — /tmp handles cleanup
     }
   }
 
@@ -407,6 +408,11 @@ export const processWithLLM = async (
   } catch (err) {
     logger.error({ err }, "Admiral claude -p call failed");
     finalResponse = "Error: Failed to process events";
+  } finally {
+    if (sshKeyPath) {
+      const { cleanupSshKey } = await import("../../utils/git-auth.js");
+      cleanupSshKey(sshKeyPath);
+    }
   }
 
   // Emit final message

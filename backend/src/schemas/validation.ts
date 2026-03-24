@@ -111,6 +111,7 @@ export const UpdateEnvironmentVariableSchema = z.object({
   is_secret: z.boolean().optional(),
 });
 
+// SSH key and PAT transmitted in plaintext — acceptable for local/self-hosted deployments behind TLS
 export const CreateGitHubAccountSchema = z.object({
   account_name: z.string().min(1),
   github_username: z.string().min(1),

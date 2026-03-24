@@ -45,10 +45,16 @@ export const updateGitHubAccount = (
     >
   >,
 ): GitHubAccount | null => {
+  const ALLOWED_COLS = new Set([
+    "account_name",
+    "github_username",
+    "gh_token",
+    "ssh_private_key",
+  ]);
   const fields: string[] = [];
   const values: unknown[] = [];
   for (const [key, value] of Object.entries(input)) {
-    if (value !== undefined) {
+    if (value !== undefined && ALLOWED_COLS.has(key)) {
       fields.push(`${key} = ?`);
       values.push(value);
     }

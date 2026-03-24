@@ -23,6 +23,7 @@ export function createGitSshEnv(sshPrivateKey: string): {
   fs.writeFileSync(keyPath, sshPrivateKey, { mode: 0o600 });
   return {
     env: {
+      // accept-new: TOFU for github.com — acceptable since we only connect to known hosts
       GIT_SSH_COMMAND: `ssh -i ${keyPath} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`,
     },
     keyPath,
