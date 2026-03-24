@@ -1,5 +1,4 @@
 import express from "express";
-import cors from "cors";
 import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
 import { logger } from "./logger.js";
@@ -20,7 +19,6 @@ import knowledgeRouter from "./routes/knowledge.js";
 import chatRouter from "./routes/chat.js";
 
 export interface CreateAppOpts {
-  corsOrigin?: string;
   silent?: boolean;
   skipAuth?: boolean;
 }
@@ -31,14 +29,6 @@ export function createApp(opts: CreateAppOpts = {}) {
   // Trust proxy for correct protocol detection behind reverse proxies
   app.set("trust proxy", 1);
 
-  app.use(
-    cors({
-      origin: opts.corsOrigin ?? false,
-      methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type"],
-      credentials: true,
-    }),
-  );
   app.use(express.json());
   app.use(cookieParser());
 

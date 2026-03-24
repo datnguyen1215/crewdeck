@@ -190,7 +190,6 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Manages agent lifecycle — spawning `claude -p` processes, tracking active processes, enforcing concurrency limits.
 - Graceful shutdown on SIGTERM/SIGINT — kills active agent processes.
 - Structured JSON logging via pino.
-- CORS enabled for local frontend development.
 
 **MentionHandler**
 - Subscribes to `comment.added` events.

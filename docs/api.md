@@ -18,8 +18,6 @@ The backend exposes a REST API for CRUD operations and a WebSocket server for re
 
 **Validation:** All request bodies are validated with Zod schemas. Invalid requests return a `VALIDATION_ERROR` response.
 
-**CORS:** Enabled for local frontend development (configurable allowed origins).
-
 ## REST API
 
 ### Projects
