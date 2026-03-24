@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
 	import {
-		startDeviceFlow,
-		pollDeviceFlow,
+		createGitHubAccount,
 		type GitHubAccount
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
@@ -12,223 +10,118 @@
 		inline?: boolean;
 	} = $props();
 
-	let deviceCode = $state('');
-	let userCode = $state('');
-	let verificationUri = $state('');
-	let polling = $state(false);
-	let pollInterval = 5;
-	let pollTimer: ReturnType<typeof setTimeout> | null = null;
-	let deviceFlowError = $state('');
-	let started = $state(false);
-
-	async function startFlow() {
-		deviceFlowError = '';
-		try {
-			const res = await startDeviceFlow();
-			deviceCode = res.device_code;
-			userCode = res.user_code;
-			verificationUri = res.verification_uri;
-			pollInterval = res.interval || 5;
-			started = true;
-			startPolling();
-		} catch (err) {
-			toastStore.add(err instanceof Error ? err.message : 'Failed to start device flow', 'error');
-		}
-	}
-
-	function startPolling() {
-		polling = true;
-		schedulePoll();
-	}
-
-	function schedulePoll() {
-		pollTimer = setTimeout(async () => {
-			if (!polling) return;
-			try {
-				const res = await pollDeviceFlow(deviceCode);
-				if (res.id) {
-					stopPolling();
-					started = false;
-					const account: GitHubAccount = {
-						id: res.id,
-						account_name: res.account_name!,
-						github_username: res.github_username!,
-						scopes: res.scopes ?? null,
-						created_at: res.created_at!
-					};
-					toastStore.add(`Connected GitHub account: ${account.github_username}`, 'success');
-					onConnected(account);
-				} else if (res.error === 'slow_down') {
-					pollInterval += 5;
-					schedulePoll();
-				} else if (res.error === 'expired_token') {
-					stopPolling();
-					deviceFlowError = 'Code expired. Please try again.';
-				} else if (res.error === 'access_denied') {
-					stopPolling();
-					deviceFlowError = 'Authorization was denied.';
-				} else {
-					schedulePoll();
-				}
-			} catch {
-				stopPolling();
-				deviceFlowError = 'Polling failed. Please try again.';
-			}
-		}, pollInterval * 1000);
-	}
-
-	function stopPolling() {
-		polling = false;
-		if (pollTimer) {
-			clearTimeout(pollTimer);
-			pollTimer = null;
-		}
-	}
+	let showForm = $state(inline);
+	let submitting = $state(false);
+	let githubUsername = $state('');
+	let ghToken = $state('');
+	let sshPrivateKey = $state('');
 
 	function reset() {
-		stopPolling();
-		started = false;
-		deviceCode = '';
-		userCode = '';
-		verificationUri = '';
-		deviceFlowError = '';
+		showForm = inline;
+		githubUsername = '';
+		ghToken = '';
+		sshPrivateKey = '';
+		submitting = false;
 	}
 
-	onDestroy(() => {
-		stopPolling();
-	});
+	async function handleSubmit() {
+		submitting = true;
+		try {
+			const account = await createGitHubAccount({
+				account_name: githubUsername,
+				github_username: githubUsername,
+				gh_token: ghToken,
+				ssh_private_key: sshPrivateKey,
+			});
+			toastStore.add(`Connected GitHub account: ${account.github_username}`, 'success');
+			reset();
+			onConnected(account);
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to add account', 'error');
+		} finally {
+			submitting = false;
+		}
+	}
 
-	// Auto-start when inline (used in wizard)
-	$effect(() => {
-		if (inline && !started) startFlow();
-	});
+	const canSubmit = $derived(!!githubUsername && !!ghToken && !!sshPrivateKey && !submitting);
 </script>
 
-{#if !started && !inline}
-	<!-- Trigger button (used in settings page) -->
+{#if !showForm && !inline}
 	<button
-		onclick={startFlow}
+		onclick={() => (showForm = true)}
 		class="px-3 py-1.5 bg-cyan/10 border border-cyan text-cyan text-xs font-medium rounded hover:bg-cyan/20 transition-colors uppercase tracking-wide flex-shrink-0"
 	>
-		+ Connect GitHub Account
+		+ Add GitHub Account
 	</button>
-{:else if started}
-	{#if inline}
-		<!-- Inline and modal variants are intentionally separate — they share logic but have different container needs. -->
-		{#if deviceFlowError}
-			<div class="text-center py-4">
-				<p class="text-red text-sm mb-4">{deviceFlowError}</p>
+{:else if showForm && !inline}
+	<!-- Modal form (settings page) -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+		onclick={(e) => { if (e.target === e.currentTarget) reset(); }}
+		onkeydown={(e) => e.key === 'Escape' && reset()}
+		role="dialog"
+		aria-modal="true"
+		aria-label="Add GitHub Account"
+		tabindex="-1"
+	>
+		<div class="bg-surface border border-edge rounded w-full max-w-md mx-4 p-6 shadow-2xl">
+			<div class="flex items-center justify-between mb-5">
+				<h2 class="text-primary font-bold uppercase tracking-wide text-sm">
+					Add GitHub Account
+				</h2>
 				<button
-					onclick={() => { reset(); startFlow(); }}
-					class="px-4 py-2 bg-cyan/10 border border-cyan text-cyan text-sm rounded hover:bg-cyan/20 transition-colors uppercase tracking-wide"
+					onclick={reset}
+					class="text-muted hover:text-primary transition-colors text-xl leading-none"
+					aria-label="Close"
 				>
-					Try Again
+					&times;
 				</button>
 			</div>
-		{:else}
-			<div class="text-center py-4">
-				<p class="text-muted text-xs uppercase tracking-widest mb-3">
-					Enter this code on GitHub
-				</p>
-				<p
-					class="text-3xl font-mono font-bold text-primary tracking-[0.3em] bg-base border border-edge rounded px-4 py-3 inline-block select-all"
-				>
-					{userCode}
-				</p>
-
-				<div class="mt-5">
-					<a
-						href={verificationUri}
-						target="_blank"
-						rel="noopener noreferrer"
-						class="inline-block px-4 py-2 bg-cyan/10 border border-cyan text-cyan text-sm rounded hover:bg-cyan/20 transition-colors uppercase tracking-wide"
-					>
-						Open GitHub
-					</a>
+			<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-3">
+				<div>
+					<label class="block text-muted text-xs uppercase tracking-wide mb-1" for="gh-username">GitHub Username</label>
+					<input id="gh-username" type="text" bind:value={githubUsername} placeholder="octocat" required class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors" />
 				</div>
-
-				<p class="text-muted text-xs mt-5">
-					Copy the code above, then click "Open GitHub" to authorize.
-				</p>
-
-				{#if polling}
-					<div class="flex items-center justify-center gap-2 mt-4 text-muted text-xs">
-						<span class="inline-block w-3 h-3 border-2 border-cyan border-t-transparent rounded-full animate-spin"></span>
-						Waiting for authorization...
-					</div>
-				{/if}
-			</div>
-		{/if}
-	{:else}
-		<!-- Modal device flow UI (for settings page) -->
-		<div
-			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-			onclick={(e: MouseEvent) => { if (e.target === e.currentTarget) reset(); }}
-			onkeydown={(e) => e.key === 'Escape' && reset()}
-			role="dialog"
-			aria-modal="true"
-			aria-label="Connect GitHub Account"
-			tabindex="-1"
-		>
-			<div class="bg-surface border border-edge rounded w-full max-w-md mx-4 p-6 shadow-2xl">
-				<div class="flex items-center justify-between mb-5">
-					<h2 class="text-primary font-bold uppercase tracking-wide text-sm">
-						Connect GitHub Account
-					</h2>
-					<button
-						onclick={reset}
-						class="text-muted hover:text-primary transition-colors text-xl leading-none"
-						aria-label="Close"
-					>
-						&times;
+				<div>
+					<label class="block text-muted text-xs uppercase tracking-wide mb-1" for="gh-token">Personal Access Token</label>
+					<input id="gh-token" type="password" bind:value={ghToken} placeholder="ghp_..." required class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors font-mono" />
+					<p class="text-muted text-xs mt-1">Needs <code class="text-secondary">repo</code> and <code class="text-secondary">workflow</code> scopes</p>
+				</div>
+				<div>
+					<label class="block text-muted text-xs uppercase tracking-wide mb-1" for="ssh-key">SSH Private Key</label>
+					<textarea id="ssh-key" bind:value={sshPrivateKey} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" required rows="4" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors font-mono resize-none"></textarea>
+				</div>
+				<div class="flex gap-2 pt-2">
+					<button type="submit" disabled={!canSubmit} class="flex-1 px-4 py-2 bg-cyan/10 border border-cyan text-cyan text-sm rounded hover:bg-cyan/20 transition-colors uppercase tracking-wide disabled:opacity-50">
+						{submitting ? 'Adding...' : 'Add Account'}
+					</button>
+					<button type="button" onclick={reset} class="px-4 py-2 border border-edge rounded text-sm text-secondary hover:text-primary hover:border-edge-hi transition-colors">
+						Cancel
 					</button>
 				</div>
-
-				{#if deviceFlowError}
-					<div class="text-center py-4">
-						<p class="text-red text-sm mb-4">{deviceFlowError}</p>
-						<button
-							onclick={() => { reset(); startFlow(); }}
-							class="px-4 py-2 bg-cyan/10 border border-cyan text-cyan text-sm rounded hover:bg-cyan/20 transition-colors uppercase tracking-wide"
-						>
-							Try Again
-						</button>
-					</div>
-				{:else}
-					<div class="text-center py-4">
-						<p class="text-muted text-xs uppercase tracking-widest mb-3">
-							Enter this code on GitHub
-						</p>
-						<p
-							class="text-3xl font-mono font-bold text-primary tracking-[0.3em] bg-base border border-edge rounded px-4 py-3 inline-block select-all"
-						>
-							{userCode}
-						</p>
-
-						<div class="mt-5">
-							<a
-								href={verificationUri}
-								target="_blank"
-								rel="noopener noreferrer"
-								class="inline-block px-4 py-2 bg-cyan/10 border border-cyan text-cyan text-sm rounded hover:bg-cyan/20 transition-colors uppercase tracking-wide"
-							>
-								Open GitHub
-							</a>
-						</div>
-
-						<p class="text-muted text-xs mt-5">
-							Copy the code above, then click "Open GitHub" to authorize.
-						</p>
-
-						{#if polling}
-							<div class="flex items-center justify-center gap-2 mt-4 text-muted text-xs">
-								<span class="inline-block w-3 h-3 border-2 border-cyan border-t-transparent rounded-full animate-spin"></span>
-								Waiting for authorization...
-							</div>
-						{/if}
-					</div>
-				{/if}
-			</div>
+			</form>
 		</div>
-	{/if}
+	</div>
+{:else}
+	<!-- Inline form (wizard) -->
+	<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-3">
+		<div>
+			<label class="block text-muted text-xs uppercase tracking-wide mb-1" for="gh-username-inline">GitHub Username</label>
+			<input id="gh-username-inline" type="text" bind:value={githubUsername} placeholder="octocat" required class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors" />
+		</div>
+		<div>
+			<label class="block text-muted text-xs uppercase tracking-wide mb-1" for="gh-token-inline">Personal Access Token</label>
+			<input id="gh-token-inline" type="password" bind:value={ghToken} placeholder="ghp_..." required class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors font-mono" />
+			<p class="text-muted text-xs mt-1">Needs <code class="text-secondary">repo</code> and <code class="text-secondary">workflow</code> scopes</p>
+		</div>
+		<div>
+			<label class="block text-muted text-xs uppercase tracking-wide mb-1" for="ssh-key-inline">SSH Private Key</label>
+			<textarea id="ssh-key-inline" bind:value={sshPrivateKey} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" required rows="4" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors font-mono resize-none"></textarea>
+		</div>
+		<div class="pt-2">
+			<button type="submit" disabled={!canSubmit} class="w-full px-4 py-2 bg-cyan/10 border border-cyan text-cyan text-sm rounded hover:bg-cyan/20 transition-colors uppercase tracking-wide disabled:opacity-50">
+				{submitting ? 'Adding...' : 'Add Account'}
+			</button>
+		</div>
+	</form>
 {/if}

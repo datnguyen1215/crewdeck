@@ -77,8 +77,8 @@ CREATE TABLE IF NOT EXISTS GitHubAccount (
   id TEXT PRIMARY KEY,
   account_name TEXT NOT NULL,
   github_username TEXT NOT NULL,
-  oauth_token TEXT NOT NULL,
-  scopes TEXT,
+  gh_token TEXT NOT NULL,
+  ssh_private_key TEXT NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

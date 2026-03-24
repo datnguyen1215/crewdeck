@@ -1,4 +1,4 @@
-/** GitHub account repository for managing OAuth-linked GitHub accounts. */
+/** GitHub account repository for managing SSH key + PAT linked accounts. */
 import { db } from "../index.js";
 import type {
   GitHubAccount,
@@ -23,14 +23,48 @@ export const createGitHubAccount = (
 ): GitHubAccount => {
   const id = crypto.randomUUID();
   db.prepare(
-    `INSERT INTO GitHubAccount (id, account_name, github_username, oauth_token, scopes)
+    `INSERT INTO GitHubAccount (id, account_name, github_username, gh_token, ssh_private_key)
      VALUES (?, ?, ?, ?, ?)`,
-  ).run(id, input.account_name, input.github_username, input.oauth_token, input.scopes ?? null);
+  ).run(
+    id,
+    input.account_name,
+    input.github_username,
+    input.gh_token,
+    input.ssh_private_key,
+  );
   return getGitHubAccount(id)!;
 };
 
+/** Updates an existing GitHub account. */
+export const updateGitHubAccount = (
+  id: string,
+  input: Partial<
+    Pick<
+      GitHubAccount,
+      "account_name" | "github_username" | "gh_token" | "ssh_private_key"
+    >
+  >,
+): GitHubAccount | null => {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined) {
+      fields.push(`${key} = ?`);
+      values.push(value);
+    }
+  }
+  if (fields.length === 0) return getGitHubAccount(id);
+  values.push(id);
+  db.prepare(`UPDATE GitHubAccount SET ${fields.join(", ")} WHERE id = ?`).run(
+    ...values,
+  );
+  return getGitHubAccount(id);
+};
+
 /** @returns The first GitHub account matching the given username, or null. */
-export const getGitHubAccountByUsername = (username: string): GitHubAccount | null =>
+export const getGitHubAccountByUsername = (
+  username: string,
+): GitHubAccount | null =>
   (db
     .prepare("SELECT * FROM GitHubAccount WHERE github_username = ? LIMIT 1")
     .get(username) as GitHubAccount) ?? null;

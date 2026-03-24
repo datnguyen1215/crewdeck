@@ -71,9 +71,9 @@ export function listProjectsWithStats(): ProjectWithStats[] {
 }
 
 export function getProject(id: string): Project | null {
-  const row = db
-    .prepare("SELECT * FROM Project WHERE id = ?")
-    .get(id) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT * FROM Project WHERE id = ?").get(id) as
+    | Record<string, unknown>
+    | undefined;
   return row ? fromRow(row) : null;
 }
 
@@ -84,7 +84,7 @@ export function createProject(input: CreateProjectInput): Project {
     const ghAccount = input.github_account_id
       ? getGitHubAccount(input.github_account_id)
       : null;
-    ensureCloned(input.github_url, ghAccount?.oauth_token);
+    ensureCloned(input.github_url, ghAccount?.ssh_private_key);
   }
 
   db.transaction(() => {

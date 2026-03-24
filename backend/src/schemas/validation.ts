@@ -5,7 +5,11 @@ const githubUrl = z
   .url()
   .refine(
     (url) => {
-      try { return new URL(url).hostname === "github.com"; } catch { return false; }
+      try {
+        return new URL(url).hostname === "github.com";
+      } catch {
+        return false;
+      }
     },
     { message: "Must be a GitHub URL" },
   );
@@ -24,11 +28,13 @@ export const CreateProjectSchema = CreateProjectBase;
 export const UpdateProjectSchema = CreateProjectBase.omit({
   github_url: true,
   default_branch: true,
-}).partial().extend({
-  admiral_enabled: z.boolean().optional(),
-  max_chain_depth: z.number().int().positive().optional(),
-  agent_timeout_minutes: z.number().int().min(1).max(60).optional(),
-});
+})
+  .partial()
+  .extend({
+    admiral_enabled: z.boolean().optional(),
+    max_chain_depth: z.number().int().positive().optional(),
+    agent_timeout_minutes: z.number().int().min(1).max(60).optional(),
+  });
 
 export const CreateRepoSchema = z.object({
   github_url: githubUrl,
@@ -81,24 +87,42 @@ export const CreateActivitySchema = z.object({
 });
 
 export const CreateEnvironmentVariableSchema = z.object({
-  key: z.string().min(1).regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "Must be a valid environment variable name"),
+  key: z
+    .string()
+    .min(1)
+    .regex(
+      /^[A-Za-z_][A-Za-z0-9_]*$/,
+      "Must be a valid environment variable name",
+    ),
   value: z.string(),
   is_secret: z.boolean().optional(),
 });
 
 export const UpdateEnvironmentVariableSchema = z.object({
-  key: z.string().min(1).regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "Must be a valid environment variable name").optional(),
+  key: z
+    .string()
+    .min(1)
+    .regex(
+      /^[A-Za-z_][A-Za-z0-9_]*$/,
+      "Must be a valid environment variable name",
+    )
+    .optional(),
   value: z.string().optional(),
   is_secret: z.boolean().optional(),
 });
 
-export const InitDeviceFlowSchema = z.object({
-  client_id: z.string().min(1).optional(),
+export const CreateGitHubAccountSchema = z.object({
+  account_name: z.string().min(1),
+  github_username: z.string().min(1),
+  gh_token: z.string().min(1),
+  ssh_private_key: z.string().min(1),
 });
 
-export const PollDeviceFlowSchema = z.object({
-  device_code: z.string().min(1),
-  client_id: z.string().min(1).optional(),
+export const UpdateGitHubAccountSchema = z.object({
+  account_name: z.string().min(1).optional(),
+  github_username: z.string().min(1).optional(),
+  gh_token: z.string().min(1).optional(),
+  ssh_private_key: z.string().min(1).optional(),
 });
 
 export const CreateKnowledgeSchema = z.object({

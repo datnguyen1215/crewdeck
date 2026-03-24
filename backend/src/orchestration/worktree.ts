@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { updateIssue } from "../db/repositories/issues.js";
 import { shellQuote } from "./shell.js";
 import { toContainerPath } from "../utils/paths.js";
+import { createGitSshEnv, cleanupSshKey } from "../utils/git-auth.js";
 import type { Repo, Issue } from "../types/entities.js";
 
 const execAsync = promisify(exec);
@@ -21,18 +22,25 @@ export async function createWorktree(
   repo: Repo,
   issue: Issue,
   baseBranch: string,
+  sshPrivateKey?: string,
 ): Promise<{ path: string; branchName: string }> {
   const branchName = `crewdeck/${issue.id.slice(0, 8)}-${slugify(issue.title)}`;
   const repoPath = toContainerPath(repo.local_path);
   const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
 
-  // Try to fetch latest from origin
+  // Try to fetch latest from origin (with SSH credentials if available)
   let fetchSucceeded = false;
+  const ssh = sshPrivateKey ? createGitSshEnv(sshPrivateKey) : null;
   try {
-    await execAsync(`git -C ${shellQuote(repoPath)} fetch origin`);
+    const fetchEnv = ssh ? { ...process.env, ...ssh.env } : process.env;
+    await execAsync(`git -C ${shellQuote(repoPath)} fetch origin`, {
+      env: fetchEnv,
+    });
     fetchSucceeded = true;
   } catch (err) {
     console.warn(`Failed to fetch from origin, using local branch: ${err}`);
+  } finally {
+    if (ssh) cleanupSshKey(ssh.keyPath);
   }
 
   const startPoint = fetchSucceeded ? `origin/${baseBranch}` : baseBranch;
@@ -43,7 +51,9 @@ export async function createWorktree(
   // If the branch already exists (from a previous run), reuse it instead of -b
   let branchExists = false;
   try {
-    await execAsync(`git -C ${shellQuote(repoPath)} rev-parse --verify ${shellQuote(branchName)}`);
+    await execAsync(
+      `git -C ${shellQuote(repoPath)} rev-parse --verify ${shellQuote(branchName)}`,
+    );
     branchExists = true;
   } catch {
     // Branch doesn't exist
@@ -80,7 +90,6 @@ export async function cleanupWorktree(
   );
 
   if (deleteBranch) {
-    // Best-effort branch deletion — ignore if branch has unmerged changes
     try {
       await execAsync(
         `git -C ${shellQuote(repoPath)} branch -d ${shellQuote(branchName)}`,

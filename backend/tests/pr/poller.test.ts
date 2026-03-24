@@ -44,11 +44,21 @@ describe("pollPRs", () => {
       const account = createGitHubAccount({
         account_name: "testuser",
         github_username: "testuser",
-        oauth_token: "gho_test",
+        gh_token: "gho_test",
+        ssh_private_key: "test-key",
       });
-      const project = createProject({ name: "P", github_account_id: account.id });
-      const repo = createRepo(project.id, { github_url: "https://github.com/acme/repo" });
-      const issue = createIssue(project.id, { title: "T", description: "D", status: "pr_created" });
+      const project = createProject({
+        name: "P",
+        github_account_id: account.id,
+      });
+      const repo = createRepo(project.id, {
+        github_url: "https://github.com/acme/repo",
+      });
+      const issue = createIssue(project.id, {
+        title: "T",
+        description: "D",
+        status: "pr_created",
+      });
       createIssuePR({
         issue_id: issue.id,
         repo_id: repo.id,
@@ -69,11 +79,21 @@ describe("pollPRs", () => {
       const account = createGitHubAccount({
         account_name: "testuser",
         github_username: "testuser",
-        oauth_token: "gho_test",
+        gh_token: "gho_test",
+        ssh_private_key: "test-key",
       });
-      const project = createProject({ name: "P", github_account_id: account.id });
-      const repo = createRepo(project.id, { github_url: "https://github.com/acme/repo" });
-      const issue = createIssue(project.id, { title: "T", description: "D", status: "in_progress" });
+      const project = createProject({
+        name: "P",
+        github_account_id: account.id,
+      });
+      const repo = createRepo(project.id, {
+        github_url: "https://github.com/acme/repo",
+      });
+      const issue = createIssue(project.id, {
+        title: "T",
+        description: "D",
+        status: "in_progress",
+      });
       createIssuePR({
         issue_id: issue.id,
         repo_id: repo.id,
@@ -94,11 +114,21 @@ describe("pollPRs", () => {
       const account = createGitHubAccount({
         account_name: "testuser",
         github_username: "testuser",
-        oauth_token: "gho_test",
+        gh_token: "gho_test",
+        ssh_private_key: "test-key",
       });
-      const project = createProject({ name: "P", github_account_id: account.id });
-      const repo = createRepo(project.id, { github_url: "https://github.com/acme/repo" });
-      const issue = createIssue(project.id, { title: "T", description: "D", status: "done" });
+      const project = createProject({
+        name: "P",
+        github_account_id: account.id,
+      });
+      const repo = createRepo(project.id, {
+        github_url: "https://github.com/acme/repo",
+      });
+      const issue = createIssue(project.id, {
+        title: "T",
+        description: "D",
+        status: "done",
+      });
       createIssuePR({
         issue_id: issue.id,
         repo_id: repo.id,
@@ -125,7 +155,15 @@ interface GitHubStatusResponse {
 
 interface GitHubCheckRun {
   status: "queued" | "in_progress" | "completed";
-  conclusion: "success" | "failure" | "neutral" | "cancelled" | "skipped" | "timed_out" | "action_required" | null;
+  conclusion:
+    | "success"
+    | "failure"
+    | "neutral"
+    | "cancelled"
+    | "skipped"
+    | "timed_out"
+    | "action_required"
+    | null;
 }
 
 interface GitHubCheckRunsResponse {
@@ -137,13 +175,14 @@ function analyzeCheckRuns(checkRuns: GitHubCheckRunsResponse): CheckResult {
   if (checkRuns.total_count === 0) return "pass";
 
   const runs = checkRuns.check_runs;
-  const hasIncomplete = runs.some(r => r.status !== "completed");
+  const hasIncomplete = runs.some((r) => r.status !== "completed");
   if (hasIncomplete) return "pending";
 
-  const hasFailed = runs.some(r =>
-    r.conclusion === "failure" ||
-    r.conclusion === "cancelled" ||
-    r.conclusion === "timed_out"
+  const hasFailed = runs.some(
+    (r) =>
+      r.conclusion === "failure" ||
+      r.conclusion === "cancelled" ||
+      r.conclusion === "timed_out",
   );
   return hasFailed ? "fail" : "pass";
 }
@@ -155,7 +194,10 @@ function analyzeCommitStatus(status: GitHubStatusResponse): CheckResult {
   return "pending";
 }
 
-function combineCheckResults(checkRuns: CheckResult, legacy: CheckResult): CheckResult {
+function combineCheckResults(
+  checkRuns: CheckResult,
+  legacy: CheckResult,
+): CheckResult {
   if (checkRuns === "fail" || legacy === "fail") return "fail";
   if (checkRuns === "pending" || legacy === "pending") return "pending";
   return "pass";
@@ -163,19 +205,27 @@ function combineCheckResults(checkRuns: CheckResult, legacy: CheckResult): Check
 
 describe("analyzeCommitStatus", () => {
   it("returns pass for success state", () => {
-    expect(analyzeCommitStatus({ state: "success", total_count: 1 })).toBe("pass");
+    expect(analyzeCommitStatus({ state: "success", total_count: 1 })).toBe(
+      "pass",
+    );
   });
 
   it("returns fail for failure state", () => {
-    expect(analyzeCommitStatus({ state: "failure", total_count: 1 })).toBe("fail");
+    expect(analyzeCommitStatus({ state: "failure", total_count: 1 })).toBe(
+      "fail",
+    );
   });
 
   it("returns pending for pending state with statuses", () => {
-    expect(analyzeCommitStatus({ state: "pending", total_count: 2 })).toBe("pending");
+    expect(analyzeCommitStatus({ state: "pending", total_count: 2 })).toBe(
+      "pending",
+    );
   });
 
   it("returns pass for pending state with zero statuses (no legacy CI configured)", () => {
-    expect(analyzeCommitStatus({ state: "pending", total_count: 0 })).toBe("pass");
+    expect(analyzeCommitStatus({ state: "pending", total_count: 0 })).toBe(
+      "pass",
+    );
   });
 });
 
@@ -185,59 +235,63 @@ describe("analyzeCheckRuns", () => {
   });
 
   it("returns pass when all check runs succeed", () => {
-    expect(analyzeCheckRuns({
-      total_count: 2,
-      check_runs: [
-        { status: "completed", conclusion: "success" },
-        { status: "completed", conclusion: "success" },
-      ],
-    })).toBe("pass");
+    expect(
+      analyzeCheckRuns({
+        total_count: 2,
+        check_runs: [
+          { status: "completed", conclusion: "success" },
+          { status: "completed", conclusion: "success" },
+        ],
+      }),
+    ).toBe("pass");
   });
 
   it("returns pending when check runs are in progress", () => {
-    expect(analyzeCheckRuns({
-      total_count: 1,
-      check_runs: [
-        { status: "in_progress", conclusion: null },
-      ],
-    })).toBe("pending");
+    expect(
+      analyzeCheckRuns({
+        total_count: 1,
+        check_runs: [{ status: "in_progress", conclusion: null }],
+      }),
+    ).toBe("pending");
   });
 
   it("returns fail when any check run fails", () => {
-    expect(analyzeCheckRuns({
-      total_count: 2,
-      check_runs: [
-        { status: "completed", conclusion: "success" },
-        { status: "completed", conclusion: "failure" },
-      ],
-    })).toBe("fail");
+    expect(
+      analyzeCheckRuns({
+        total_count: 2,
+        check_runs: [
+          { status: "completed", conclusion: "success" },
+          { status: "completed", conclusion: "failure" },
+        ],
+      }),
+    ).toBe("fail");
   });
 
   it("returns fail for cancelled check runs", () => {
-    expect(analyzeCheckRuns({
-      total_count: 1,
-      check_runs: [
-        { status: "completed", conclusion: "cancelled" },
-      ],
-    })).toBe("fail");
+    expect(
+      analyzeCheckRuns({
+        total_count: 1,
+        check_runs: [{ status: "completed", conclusion: "cancelled" }],
+      }),
+    ).toBe("fail");
   });
 
   it("returns fail for timed_out check runs", () => {
-    expect(analyzeCheckRuns({
-      total_count: 1,
-      check_runs: [
-        { status: "completed", conclusion: "timed_out" },
-      ],
-    })).toBe("fail");
+    expect(
+      analyzeCheckRuns({
+        total_count: 1,
+        check_runs: [{ status: "completed", conclusion: "timed_out" }],
+      }),
+    ).toBe("fail");
   });
 
   it("returns pass for skipped check runs", () => {
-    expect(analyzeCheckRuns({
-      total_count: 1,
-      check_runs: [
-        { status: "completed", conclusion: "skipped" },
-      ],
-    })).toBe("pass");
+    expect(
+      analyzeCheckRuns({
+        total_count: 1,
+        check_runs: [{ status: "completed", conclusion: "skipped" }],
+      }),
+    ).toBe("pass");
   });
 });
 
@@ -269,7 +323,10 @@ describe("modern check runs only (no legacy statuses)", () => {
       total_count: 1,
       check_runs: [{ status: "completed", conclusion: "success" }],
     });
-    const legacyResult = analyzeCommitStatus({ state: "pending", total_count: 0 });
+    const legacyResult = analyzeCommitStatus({
+      state: "pending",
+      total_count: 0,
+    });
 
     expect(checkRunsResult).toBe("pass");
     expect(legacyResult).toBe("pass");

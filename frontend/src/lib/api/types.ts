@@ -108,27 +108,7 @@ export interface GitHubAccount {
   id: string;
   account_name: string;
   github_username: string;
-  scopes: string | null;
   created_at: string;
-}
-
-export interface DeviceCodeResponse {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  expires_in: number;
-  interval: number;
-}
-
-export interface DeviceCodePollResponse {
-  id?: string;
-  account_name?: string;
-  github_username?: string;
-  scopes?: string | null;
-  created_at?: string;
-  status?: string;
-  error?: string;
-  error_description?: string;
 }
 
 export interface EnvironmentVariable {
@@ -141,7 +121,12 @@ export interface EnvironmentVariable {
   updated_at: string;
 }
 
-export type AgentRunStatus = "queued" | "running" | "completed" | "failed" | "timeout";
+export type AgentRunStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "timeout";
 
 export interface AgentRun {
   id: string;

@@ -66,8 +66,18 @@ describe("listIssuePRs", () => {
     const p = createProject({ name: "P" });
     const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
-    createIssuePR({ issue_id: issue.id, repo_id: repo.id, pr_number: 1, pr_url: "https://github.com/acme/x/pull/1" });
-    createIssuePR({ issue_id: issue.id, repo_id: repo.id, pr_number: 2, pr_url: "https://github.com/acme/x/pull/2" });
+    createIssuePR({
+      issue_id: issue.id,
+      repo_id: repo.id,
+      pr_number: 1,
+      pr_url: "https://github.com/acme/x/pull/1",
+    });
+    createIssuePR({
+      issue_id: issue.id,
+      repo_id: repo.id,
+      pr_number: 2,
+      pr_url: "https://github.com/acme/x/pull/2",
+    });
 
     expect(listIssuePRs(issue.id).length).toBe(2);
   });
@@ -166,10 +176,13 @@ describe("listOpenPRsWithContext", () => {
     const account = createGitHubAccount({
       account_name: "testuser",
       github_username: "testuser",
-      oauth_token: "gho_test123",
+      gh_token: "gho_test123",
+      ssh_private_key: "test-key",
     });
     const p = createProject({ name: "P", github_account_id: account.id });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/myrepo" });
+    const repo = createRepo(p.id, {
+      github_url: "https://github.com/acme/myrepo",
+    });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     const pr = createIssuePR({
@@ -215,8 +228,12 @@ describe("listOpenPRsWithContext", () => {
   it("returns multiple open PRs from different projects", () => {
     const p1 = createProject({ name: "P1" });
     const p2 = createProject({ name: "P2" });
-    const repo1 = createRepo(p1.id, { github_url: "https://github.com/acme/x" });
-    const repo2 = createRepo(p2.id, { github_url: "https://github.com/acme/y" });
+    const repo1 = createRepo(p1.id, {
+      github_url: "https://github.com/acme/x",
+    });
+    const repo2 = createRepo(p2.id, {
+      github_url: "https://github.com/acme/y",
+    });
     const issue1 = createIssue(p1.id, { title: "T1", description: "D1" });
     const issue2 = createIssue(p2.id, { title: "T2", description: "D2" });
 
@@ -235,7 +252,7 @@ describe("listOpenPRsWithContext", () => {
 
     const result = listOpenPRsWithContext();
     expect(result).toHaveLength(2);
-    const prNumbers = result.map(r => r.pr_number).sort();
+    const prNumbers = result.map((r) => r.pr_number).sort();
     expect(prNumbers).toEqual([1, 2]);
   });
 });

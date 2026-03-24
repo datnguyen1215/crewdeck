@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createWorktree, cleanupWorktree } from "../../src/orchestration/worktree.js";
+import {
+  createWorktree,
+  cleanupWorktree,
+} from "../../src/orchestration/worktree.js";
 import type { Repo, Issue } from "../../src/types/entities.js";
 
 vi.mock("node:child_process", () => ({
@@ -45,14 +48,16 @@ describe("createWorktree", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: all calls succeed except rev-parse (branch doesn't exist yet)
-    vi.mocked(exec).mockImplementation((cmd: unknown, callback: unknown) => {
-      const cmdStr = cmd as string;
+    vi.mocked(exec).mockImplementation((...args: unknown[]) => {
+      const cmdStr = args[0] as string;
+      // callback may be 2nd or 3rd arg depending on whether options are passed
+      const cb = typeof args[1] === "function" ? args[1] : args[2];
       if (cmdStr.includes("rev-parse --verify")) {
-        (callback as (err: Error) => void)(new Error("branch not found"));
+        (cb as (err: Error) => void)(new Error("branch not found"));
       } else {
-        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
+        (cb as (err: null, result: { stdout: string; stderr: string }) => void)(
           null,
-          { stdout: "", stderr: "" }
+          { stdout: "", stderr: "" },
         );
       }
       return {} as ReturnType<typeof exec>;
@@ -78,18 +83,17 @@ describe("createWorktree", () => {
   it("falls back to local branch when fetch fails", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const mockedExec = vi.mocked(exec);
-    mockedExec.mockImplementation((cmd: unknown, callback: unknown) => {
-      const cmdStr = cmd as string;
+    mockedExec.mockImplementation((...args: unknown[]) => {
+      const cmdStr = args[0] as string;
+      const cb = typeof args[1] === "function" ? args[1] : args[2];
       if (cmdStr.includes("fetch origin")) {
-        // fetch fails
-        (callback as (err: Error) => void)(new Error("network error"));
+        (cb as (err: Error) => void)(new Error("network error"));
       } else if (cmdStr.includes("rev-parse --verify")) {
-        // branch doesn't exist
-        (callback as (err: Error) => void)(new Error("branch not found"));
+        (cb as (err: Error) => void)(new Error("branch not found"));
       } else {
-        (callback as (err: null, result: { stdout: string; stderr: string }) => void)(
+        (cb as (err: null, result: { stdout: string; stderr: string }) => void)(
           null,
-          { stdout: "", stderr: "" }
+          { stdout: "", stderr: "" },
         );
       }
       return {} as ReturnType<typeof exec>;

@@ -29,7 +29,9 @@ export function createDb(path: string): Database.Database {
   // Migration: add chain_depth column to Issue if missing (from legacy schema).
   const issueCols = db.pragma("table_info(Issue)") as { name: string }[];
   if (!issueCols.some((c) => c.name === "chain_depth")) {
-    db.exec("ALTER TABLE Issue ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0");
+    db.exec(
+      "ALTER TABLE Issue ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0",
+    );
   }
 
   // Migration: add memory column to Project if missing.
@@ -39,17 +41,23 @@ export function createDb(path: string): Database.Database {
 
   // Migration: add admiral_enabled column to Project if missing.
   if (!projectCols.some((c) => c.name === "admiral_enabled")) {
-    db.exec("ALTER TABLE Project ADD COLUMN admiral_enabled INTEGER NOT NULL DEFAULT 1");
+    db.exec(
+      "ALTER TABLE Project ADD COLUMN admiral_enabled INTEGER NOT NULL DEFAULT 1",
+    );
   }
 
   // Migration: add max_chain_depth column to Project if missing.
   if (!projectCols.some((c) => c.name === "max_chain_depth")) {
-    db.exec("ALTER TABLE Project ADD COLUMN max_chain_depth INTEGER NOT NULL DEFAULT 20");
+    db.exec(
+      "ALTER TABLE Project ADD COLUMN max_chain_depth INTEGER NOT NULL DEFAULT 20",
+    );
   }
 
   // Migration: add agent_timeout_minutes column to Project if missing.
   if (!projectCols.some((c) => c.name === "agent_timeout_minutes")) {
-    db.exec("ALTER TABLE Project ADD COLUMN agent_timeout_minutes INTEGER NOT NULL DEFAULT 10");
+    db.exec(
+      "ALTER TABLE Project ADD COLUMN agent_timeout_minutes INTEGER NOT NULL DEFAULT 10",
+    );
   }
 
   // Migration: add admiral_idle_timeout_ms column to Project if missing.
@@ -63,15 +71,43 @@ export function createDb(path: string): Database.Database {
   }
 
   // Migration: drop Agent table — agents are now fixed constants in code.
+  db.pragma("foreign_keys = OFF");
   db.exec("DROP TABLE IF EXISTS Agent");
   db.exec("DROP INDEX IF EXISTS idx_agent_project");
+  db.pragma("foreign_keys = ON");
+
+  // Migration: replace oauth_token/scopes with gh_token/ssh_private_key in GitHubAccount.
+  const ghCols = db.pragma("table_info(GitHubAccount)") as { name: string }[];
+  if (ghCols.some((c) => c.name === "oauth_token")) {
+    db.pragma("foreign_keys = OFF");
+    db.exec(`
+      CREATE TABLE GitHubAccount_new (
+        id TEXT PRIMARY KEY,
+        account_name TEXT NOT NULL,
+        github_username TEXT NOT NULL,
+        gh_token TEXT NOT NULL,
+        ssh_private_key TEXT NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO GitHubAccount_new (id, account_name, github_username, gh_token, ssh_private_key, created_at)
+        SELECT id, account_name, github_username, oauth_token, '', created_at FROM GitHubAccount;
+      DROP TABLE GitHubAccount;
+      ALTER TABLE GitHubAccount_new RENAME TO GitHubAccount;
+    `);
+    db.pragma("foreign_keys = ON");
+  }
 
   // Migration: add message_type column to ChatMessage if missing (for older DBs without the column).
   // Only runs if ChatMessage table exists and lacks the column.
   try {
     const chatCols = db.pragma("table_info(ChatMessage)") as { name: string }[];
-    if (chatCols.length > 0 && !chatCols.some((c) => c.name === "message_type")) {
-      db.exec("ALTER TABLE ChatMessage ADD COLUMN message_type TEXT NOT NULL DEFAULT 'chat'");
+    if (
+      chatCols.length > 0 &&
+      !chatCols.some((c) => c.name === "message_type")
+    ) {
+      db.exec(
+        "ALTER TABLE ChatMessage ADD COLUMN message_type TEXT NOT NULL DEFAULT 'chat'",
+      );
     }
     // Migration: add images column to ChatMessage if missing.
     if (chatCols.length > 0 && !chatCols.some((c) => c.name === "images")) {
@@ -91,7 +127,10 @@ export function createDb(path: string): Database.Database {
   `);
 
   // Migration: make AgentRun.issue_id nullable (was NOT NULL in older schema).
-  const arCols = db.pragma("table_info(AgentRun)") as { name: string; notnull: number }[];
+  const arCols = db.pragma("table_info(AgentRun)") as {
+    name: string;
+    notnull: number;
+  }[];
   const issueIdCol = arCols.find((c) => c.name === "issue_id");
   if (issueIdCol && issueIdCol.notnull === 1) {
     db.exec(`

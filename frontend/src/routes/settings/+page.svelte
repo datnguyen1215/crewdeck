@@ -112,19 +112,6 @@
 						{/if}
 					</div>
 
-					<!-- Scopes -->
-					{#if account.scopes}
-						<div class="flex flex-wrap gap-1 mb-3">
-							{#each account.scopes.split(',') as scope (scope)}
-								<span
-									class="text-xs px-1.5 py-0.5 rounded border border-edge text-muted"
-								>
-									{scope.trim()}
-								</span>
-							{/each}
-						</div>
-					{/if}
-
 					<!-- Connected date -->
 					<p class="text-muted text-xs mt-auto pt-3 border-t border-edge">
 						Connected {formatDate(account.created_at)}

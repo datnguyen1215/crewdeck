@@ -1,15 +1,20 @@
 import { execFileSync } from "node:child_process";
-import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import { db } from "../index.js";
 import { config } from "../../config.js";
 import { toContainerPath } from "../../utils/paths.js";
+import { createGitSshEnv, cleanupSshKey } from "../../utils/git-auth.js";
 import type { Repo, CreateRepoInput } from "../../types/entities.js";
 import { ValidationError } from "../../middleware/errors.js";
 
 function validateSegments(url: string, owner: string, name: string) {
-  if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(name) || owner === '..' || name === '..')
+  if (
+    !/^[\w.-]+$/.test(owner) ||
+    !/^[\w.-]+$/.test(name) ||
+    owner === ".." ||
+    name === ".."
+  )
     throw new ValidationError(`Cannot parse GitHub URL: ${url}`);
   return { owner, name };
 }
@@ -24,42 +29,46 @@ export function parseGithubUrl(url: string): { owner: string; name: string } {
   throw new ValidationError(`Cannot parse GitHub URL: ${url}`);
 }
 
-function cloneIfNeeded(githubUrl: string, localPath: string, token?: string): void {
+/** Convert any GitHub URL to SSH format for cloning. */
+export function toSshUrl(owner: string, name: string): string {
+  return `git@github.com:${owner}/${name}.git`;
+}
+
+function cloneIfNeeded(
+  githubUrl: string,
+  localPath: string,
+  sshPrivateKey?: string,
+): void {
   const diskPath = toContainerPath(localPath);
   if (fs.existsSync(path.join(diskPath, ".git"))) return;
   fs.mkdirSync(path.dirname(diskPath), { recursive: true });
+
+  const { owner, name } = parseGithubUrl(githubUrl);
+  const sshUrl = toSshUrl(owner, name);
+
+  const ssh = sshPrivateKey ? createGitSshEnv(sshPrivateKey) : null;
   try {
-    if (token) {
-      // Use GIT_ASKPASS to inject credentials without embedding them in the URL
-      // (which would persist the token in .git/config).
-      const askpass = path.join(os.tmpdir(), `crewdeck-askpass-${crypto.randomUUID()}.sh`);
-      fs.writeFileSync(askpass, `#!/bin/sh\nprintf '%s\n' '${token.replace(/'/g, "'\\''")}';\n`, { mode: 0o700 });
-      const env = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: askpass };
-      try {
-        execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe", env });
-      } finally {
-        try { fs.unlinkSync(askpass); } catch {}
-      }
-    } else {
-      execFileSync("git", ["clone", githubUrl, diskPath], { stdio: "pipe" });
-    }
+    const env = ssh ? { ...process.env, ...ssh.env } : undefined;
+    execFileSync("git", ["clone", sshUrl, diskPath], { stdio: "pipe", env });
   } catch (err: unknown) {
     const stderr =
       err instanceof Error && "stderr" in err
         ? String((err as any).stderr).trim()
         : "";
-    // Strip URLs that may contain embedded credentials (e.g. https://token@github.com/...)
-    const safe = (stderr || (err instanceof Error ? err.message : "unknown error"))
-      .replace(/https?:\/\/[^\s]+/g, "<url>");
+    const safe = (
+      stderr || (err instanceof Error ? err.message : "unknown error")
+    ).replace(/https?:\/\/[^\s]+/g, "<url>");
     throw new ValidationError(`Failed to clone repository: ${safe}`);
+  } finally {
+    if (ssh) cleanupSshKey(ssh.keyPath);
   }
 }
 
 /** Parse the URL and clone the repo if needed, without touching the DB. */
-export function ensureCloned(githubUrl: string, token?: string): void {
+export function ensureCloned(githubUrl: string, sshPrivateKey?: string): void {
   const { owner, name } = parseGithubUrl(githubUrl);
   const localPath = path.resolve(config.reposDir, owner, name);
-  cloneIfNeeded(githubUrl, localPath, token);
+  cloneIfNeeded(githubUrl, localPath, sshPrivateKey);
 }
 
 /** Insert a repo row. Assumes the repo is already cloned on disk. */
@@ -70,7 +79,7 @@ export function insertRepo(projectId: string, input: CreateRepoInput): Repo {
 
   db.prepare(
     `INSERT INTO Repo (id, project_id, github_url, name, owner, local_path, default_branch)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     projectId,
@@ -78,7 +87,7 @@ export function insertRepo(projectId: string, input: CreateRepoInput): Repo {
     name,
     owner,
     localPath,
-    input.default_branch ?? "main"
+    input.default_branch ?? "main",
   );
 
   return getRepo(id)!;
@@ -91,18 +100,22 @@ export function listRepos(projectId: string): Repo[] {
 }
 
 export function getRepo(id: string): Repo | null {
-  return (db.prepare("SELECT * FROM Repo WHERE id = ?").get(id) as Repo) ?? null;
+  return (
+    (db.prepare("SELECT * FROM Repo WHERE id = ?").get(id) as Repo) ?? null
+  );
 }
 
 /** Clone the repo (if needed) and insert a DB row. Used by the standalone endpoint. */
-export function createRepo(projectId: string, input: CreateRepoInput, token?: string): Repo {
-  ensureCloned(input.github_url, token);
+export function createRepo(
+  projectId: string,
+  input: CreateRepoInput,
+  sshPrivateKey?: string,
+): Repo {
+  ensureCloned(input.github_url, sshPrivateKey);
   return insertRepo(projectId, input);
 }
 
 export function deleteRepo(id: string): void {
-  // IssuePR.repo_id has a NOT NULL FK to Repo — with foreign_keys=ON this delete
-  // would fail if IssuePR rows exist, so we clean them up first.
   db.transaction(() => {
     db.prepare("DELETE FROM IssuePR WHERE repo_id = ?").run(id);
     db.prepare("DELETE FROM Repo WHERE id = ?").run(id);
