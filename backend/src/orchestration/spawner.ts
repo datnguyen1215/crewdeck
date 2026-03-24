@@ -17,8 +17,17 @@ import * as knowledgeRepo from "../db/repositories/knowledge.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import * as dispatchQueue from "./queue.js";
-import { activeProcesses, getActiveProcessCount, type ActiveProcess } from "./processes.js";
+import {
+  activeProcesses,
+  getActiveProcessCount,
+  type ActiveProcess,
+} from "./processes.js";
 import { markAgentCompleted } from "./batch.js";
+import {
+  createGitAuthEnv,
+  cleanupAskpass,
+  getProjectToken,
+} from "../utils/git-auth.js";
 import type { Agent, AgentRunStatus } from "../types/entities.js";
 
 const DEFAULT_MAX_CHAIN_DEPTH = 20;
@@ -30,7 +39,11 @@ const DEFAULT_AGENT_TIMEOUT_MINUTES = 10;
  * @param {string} projectId - Parent project
  * @param {string} content - Comment body
  */
-export const postSystemComment = (issueId: string, projectId: string, content: string): void => {
+export const postSystemComment = (
+  issueId: string,
+  projectId: string,
+  content: string,
+): void => {
   const comment = commentRepo.createComment(issueId, {
     content,
     author_type: "system",
@@ -99,7 +112,11 @@ export async function processAgentStream(
     hasEvents = true;
 
     // Persist event to DB using raw event type from Claude CLI
-    const savedEvent = agentRunRepo.createAgentRunEvent(agentRunId, event.type, event);
+    const savedEvent = agentRunRepo.createAgentRunEvent(
+      agentRunId,
+      event.type,
+      event,
+    );
 
     // Broadcast via WebSocket
     events.eventBus.emit("run.event", {
@@ -173,7 +190,13 @@ export async function processAgentStream(
     // No system comment for successful completion — this info is in the activity log (run.completed event)
 
     log.logger.info(
-      { pid: result.pid, agent: agent.name, cost, durationMs, runId: agentRunId },
+      {
+        pid: result.pid,
+        agent: agent.name,
+        cost,
+        durationMs,
+        runId: agentRunId,
+      },
       "Agent finished",
     );
   } else {
@@ -232,7 +255,9 @@ export const spawnAgent = async (
   // Atomic check-and-increment to prevent concurrent mentions from exceeding the limit.
   // If chain_depth is already at MAX, the UPDATE matches zero rows and we reject.
   const incResult = database.db
-    .prepare("UPDATE Issue SET chain_depth = chain_depth + 1 WHERE id = ? AND chain_depth < ?")
+    .prepare(
+      "UPDATE Issue SET chain_depth = chain_depth + 1 WHERE id = ? AND chain_depth < ?",
+    )
     .run(issueId, maxChainDepth);
 
   if (incResult.changes === 0) {
@@ -252,7 +277,11 @@ export const spawnAgent = async (
   if (activeCount >= project.max_concurrency) {
     // Don't queue duplicates
     if (dispatchQueue.isQueued(projectId, issueId, agent.id)) {
-      postSystemComment(issueId, projectId, `Agent ${agent.name} is already queued`);
+      postSystemComment(
+        issueId,
+        projectId,
+        `Agent ${agent.name} is already queued`,
+      );
       // Rollback the chain_depth increment since we're not spawning
       database.db
         .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
@@ -303,10 +332,14 @@ export const spawnAgent = async (
 
   // Create worktree if needed, or re-create if it was cleaned up (e.g. /tmp cleared on reboot)
   const repo = getFirstRepo(projectId);
+  const token = getProjectToken(projectId);
   let worktreePath = issue.worktree_path;
 
   if (worktreePath && !fs.existsSync(worktreePath)) {
-    log.logger.info({ worktreePath, issueId }, "Worktree path missing, will re-create");
+    log.logger.info(
+      { worktreePath, issueId },
+      "Worktree path missing, will re-create",
+    );
     worktreePath = null;
   }
 
@@ -316,6 +349,7 @@ export const spawnAgent = async (
       repo as any,
       freshIssue,
       repo.default_branch,
+      token,
     );
     worktreePath = result.path;
   }
@@ -346,7 +380,13 @@ export const spawnAgent = async (
     CREWDECK_ISSUE_ID: issueId,
   };
 
-  // GH_TOKEN no longer needed since Captain was removed — Admiral handles PR creation
+  // Inject git credentials so agents can push to private repos
+  let askpassPath: string | undefined;
+  if (token) {
+    const auth = createGitAuthEnv(token);
+    askpassPath = auth.askpassPath;
+    Object.assign(env, auth.env);
+  }
 
   // Create AgentRun record
   const agentRun = agentRunRepo.createAgentRun({
@@ -366,7 +406,10 @@ export const spawnAgent = async (
   // Update run with PID
   agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
 
-  const timeoutMs = (project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES) * 60 * 1000;
+  const timeoutMs =
+    (project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES) *
+    60 *
+    1000;
   const timeoutState = { timedOut: false };
   const timer = setTimeout(() => {
     timeoutState.timedOut = true;
@@ -407,13 +450,33 @@ export const spawnAgent = async (
     started_at: agentRun.started_at,
   });
 
-  log.logger.info({ pid: result.pid, agent: agent.name, issueId, runId: agentRun.id }, "Agent spawned");
+  log.logger.info(
+    { pid: result.pid, agent: agent.name, issueId, runId: agentRun.id },
+    "Agent spawned",
+  );
 
   // Process streamed events
-  const agentTimeoutMinutes = project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
-  processAgentStream(result, agentRun.id, projectId, issueId, agent, timer, timeoutState, agentTimeoutMinutes, options)
+  const agentTimeoutMinutes =
+    project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  processAgentStream(
+    result,
+    agentRun.id,
+    projectId,
+    issueId,
+    agent,
+    timer,
+    timeoutState,
+    agentTimeoutMinutes,
+    options,
+  )
     .catch((err) => {
-      log.logger.error({ err, runId: agentRun.id }, "Error processing agent stream");
+      log.logger.error(
+        { err, runId: agentRun.id },
+        "Error processing agent stream",
+      );
+    })
+    .finally(() => {
+      if (askpassPath) cleanupAskpass(askpassPath);
     });
 };
 
@@ -433,7 +496,9 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   // Check concurrency limit (scans can't be queued since they have no issue)
   const activeCount = getActiveProcessCount(projectId);
   if (activeCount >= project.max_concurrency) {
-    throw new Error(`Concurrency limit reached (${project.max_concurrency} agents running). Try again later.`);
+    throw new Error(
+      `Concurrency limit reached (${project.max_concurrency} agents running). Try again later.`,
+    );
   }
 
   const repo = getFirstRepo(projectId);
@@ -473,11 +538,17 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   // Update run with PID
   agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
 
-  const timeoutMs = (project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES) * 60 * 1000;
+  const timeoutMs =
+    (project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES) *
+    60 *
+    1000;
   const timeoutState = { timedOut: false };
   const timer = setTimeout(() => {
     timeoutState.timedOut = true;
-    log.logger.warn({ pid: result.pid, agentId: agent.id }, "Scan process timed out");
+    log.logger.warn(
+      { pid: result.pid, agentId: agent.id },
+      "Scan process timed out",
+    );
     result.process.kill("SIGTERM");
     setTimeout(() => {
       if (!result.process.killed) result.process.kill("SIGKILL");
@@ -504,14 +575,29 @@ export const spawnScan = async (projectId: string): Promise<string> => {
     started_at: agentRun.started_at,
   });
 
-  log.logger.info({ pid: result.pid, agent: agent.name, runId: agentRun.id }, "Scan spawned");
+  log.logger.info(
+    { pid: result.pid, agent: agent.name, runId: agentRun.id },
+    "Scan spawned",
+  );
 
   // Process streamed events
-  const scanTimeoutMinutes = project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
-  processAgentStream(result, agentRun.id, projectId, null, agent, timer, timeoutState, scanTimeoutMinutes)
-    .catch((err) => {
-      log.logger.error({ err, runId: agentRun.id }, "Error processing scan stream");
-    });
+  const scanTimeoutMinutes =
+    project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  processAgentStream(
+    result,
+    agentRun.id,
+    projectId,
+    null,
+    agent,
+    timer,
+    timeoutState,
+    scanTimeoutMinutes,
+  ).catch((err) => {
+    log.logger.error(
+      { err, runId: agentRun.id },
+      "Error processing scan stream",
+    );
+  });
 
   return agentRun.id;
 };
