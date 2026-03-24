@@ -14,8 +14,9 @@
 	let isLoginPage = $derived($page.url.pathname === '/login');
 
 	onMount(async () => {
-		// Skip auth check on login page
-		if (isLoginPage) {
+		// Check isLoginPage inside the async function to get current value
+		const currentPath = $page.url.pathname;
+		if (currentPath === '/login') {
 			loading = false;
 			return;
 		}

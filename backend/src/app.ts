@@ -28,6 +28,9 @@ export interface CreateAppOpts {
 export function createApp(opts: CreateAppOpts = {}) {
   const app = express();
 
+  // Trust proxy for correct protocol detection behind reverse proxies
+  app.set("trust proxy", 1);
+
   app.use(
     cors({
       origin: opts.corsOrigin ?? false,

@@ -77,7 +77,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   const path = req.path;
 
   // Skip auth for auth routes and health check
-  if (path.startsWith("/auth/") || path === "/health") {
+  if (path === "/auth" || path.startsWith("/auth/") || path === "/health") {
     return next();
   }
 

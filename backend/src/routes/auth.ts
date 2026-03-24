@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Router } from "express";
 import { config } from "../config.js";
 import { createSession, destroySession, getSession, isEmailAllowed } from "../middleware/auth.js";
@@ -11,6 +12,9 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
+// Cookie name for CSRF state
+const STATE_COOKIE = "crewdeck_oauth_state";
+
 /**
  * GET /auth/google - Redirect to Google OAuth consent screen
  */
@@ -21,6 +25,15 @@ router.get("/google", (req, res) => {
 
   const redirectUri = `${req.protocol}://${req.get("host")}/auth/google/callback`;
 
+  // Generate CSRF state token
+  const state = crypto.randomBytes(16).toString("hex");
+  res.cookie(STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: config.nodeEnv === "production",
+    sameSite: "lax",
+    maxAge: 10 * 60 * 1000, // 10 minutes
+  });
+
   const params = new URLSearchParams({
     client_id: config.googleClientId,
     redirect_uri: redirectUri,
@@ -28,6 +41,7 @@ router.get("/google", (req, res) => {
     scope: "openid email profile",
     access_type: "offline",
     prompt: "select_account",
+    state,
   });
 
   res.redirect(`${GOOGLE_AUTH_URL}?${params.toString()}`);
@@ -38,7 +52,7 @@ router.get("/google", (req, res) => {
  */
 router.get("/google/callback", async (req, res, next) => {
   try {
-    const { code, error } = req.query;
+    const { code, error, state } = req.query;
 
     if (error) {
       logger.warn({ error }, "Google OAuth error");
@@ -47,6 +61,14 @@ router.get("/google/callback", async (req, res, next) => {
 
     if (!code || typeof code !== "string") {
       return res.redirect("/login?error=missing_code");
+    }
+
+    // Validate CSRF state
+    const storedState = req.cookies?.[STATE_COOKIE];
+    res.clearCookie(STATE_COOKIE);
+    if (!storedState || storedState !== state) {
+      logger.warn("OAuth state mismatch - possible CSRF attack");
+      return res.redirect("/login?error=invalid_state");
     }
 
     const redirectUri = `${req.protocol}://${req.get("host")}/auth/google/callback`;
