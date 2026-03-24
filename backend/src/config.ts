@@ -24,10 +24,4 @@ export const config = {
   reposContainerPath: process.env.CREWDECK_REPOS_CONTAINER_PATH || "",
   githubClientId: process.env.GITHUB_CLIENT_ID ?? "",
   githubClientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
-  // Google OAuth
-  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
-  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-  allowedEmails: process.env.ALLOWED_EMAILS
-    ? process.env.ALLOWED_EMAILS.split(",").map((e) => e.trim().toLowerCase())
-    : [],
 };
