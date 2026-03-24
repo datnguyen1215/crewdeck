@@ -57,7 +57,6 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 
 | Variable               | Value                   | Purpose                                     |
 | ---------------------- | ----------------------- | ------------------------------------------- |
-| `CORS_ORIGIN`          | `http://localhost:9380` | Allowed CORS origin (frontend)              |
 | `DB_PATH`              | `/app/data/crewdeck.db` | SQLite database location                    |
 | `CREWDECK_REPOS_DIR`   | `/app/data/repos`       | Where repos are cloned                      |
 | `GOOGLE_CLIENT_ID`     | *(your OAuth Client)*   | Google OAuth 2.0 client ID (user login)     |
