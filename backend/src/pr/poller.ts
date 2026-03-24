@@ -5,7 +5,10 @@
  * Also checks merge conflicts and CI status to transition issues appropriately.
  */
 import { eventBus } from "../events/bus.js";
-import { getGitHubAccount, getGitHubAccountByUsername } from "../db/repositories/github-accounts.js";
+import {
+  getGitHubAccount,
+  getGitHubAccountByUsername,
+} from "../db/repositories/github-accounts.js";
 import { getIssue, updateIssue } from "../db/repositories/issues.js";
 import {
   listOpenPRsWithContext,
@@ -26,7 +29,15 @@ interface GitHubPRResponse {
 
 interface GitHubCheckRun {
   status: "queued" | "in_progress" | "completed";
-  conclusion: "success" | "failure" | "neutral" | "cancelled" | "skipped" | "timed_out" | "action_required" | null;
+  conclusion:
+    | "success"
+    | "failure"
+    | "neutral"
+    | "cancelled"
+    | "skipped"
+    | "timed_out"
+    | "action_required"
+    | null;
 }
 
 interface GitHubCheckRunsResponse {
@@ -45,14 +56,21 @@ const GITHUB_HEADERS = {
 };
 
 /** Generic GitHub API fetch with error handling. */
-async function githubFetch<T>(url: string, token: string, context: string): Promise<T | null> {
+async function githubFetch<T>(
+  url: string,
+  token: string,
+  context: string,
+): Promise<T | null> {
   try {
     const response = await fetch(url, {
       headers: { ...GITHUB_HEADERS, Authorization: `Bearer ${token}` },
     });
 
     if (response.status === 401 || response.status === 403) {
-      logger.warn({ url, status: response.status }, `${context}: token invalid or expired`);
+      logger.warn(
+        { url, status: response.status },
+        `${context}: token invalid or expired`,
+      );
       return null;
     }
 
@@ -62,7 +80,10 @@ async function githubFetch<T>(url: string, token: string, context: string): Prom
     }
 
     if (!response.ok) {
-      logger.warn({ url, status: response.status }, `${context}: API request failed`);
+      logger.warn(
+        { url, status: response.status },
+        `${context}: API request failed`,
+      );
       return null;
     }
 
@@ -78,7 +99,7 @@ async function fetchPRStatus(
   owner: string,
   repo: string,
   prNumber: number,
-  token: string
+  token: string,
 ): Promise<GitHubPRResponse | null> {
   const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`;
   return githubFetch<GitHubPRResponse>(url, token, "PR status");
@@ -89,7 +110,7 @@ async function fetchCheckRuns(
   owner: string,
   repo: string,
   ref: string,
-  token: string
+  token: string,
 ): Promise<GitHubCheckRunsResponse | null> {
   const url = `https://api.github.com/repos/${owner}/${repo}/commits/${ref}/check-runs`;
   return githubFetch<GitHubCheckRunsResponse>(url, token, "Check runs");
@@ -100,7 +121,7 @@ async function fetchCommitStatus(
   owner: string,
   repo: string,
   ref: string,
-  token: string
+  token: string,
 ): Promise<GitHubStatusResponse | null> {
   const url = `https://api.github.com/repos/${owner}/${repo}/commits/${ref}/status`;
   return githubFetch<GitHubStatusResponse>(url, token, "Commit status");
@@ -120,13 +141,14 @@ function analyzeCheckRuns(checkRuns: GitHubCheckRunsResponse): CheckResult {
   if (checkRuns.total_count === 0) return "pass"; // No checks configured
 
   const runs = checkRuns.check_runs;
-  const hasIncomplete = runs.some(r => r.status !== "completed");
+  const hasIncomplete = runs.some((r) => r.status !== "completed");
   if (hasIncomplete) return "pending";
 
-  const hasFailed = runs.some(r =>
-    r.conclusion === "failure" ||
-    r.conclusion === "cancelled" ||
-    r.conclusion === "timed_out"
+  const hasFailed = runs.some(
+    (r) =>
+      r.conclusion === "failure" ||
+      r.conclusion === "cancelled" ||
+      r.conclusion === "timed_out",
   );
   return hasFailed ? "fail" : "pass";
 }
@@ -141,7 +163,10 @@ function analyzeCommitStatus(status: GitHubStatusResponse): CheckResult {
 }
 
 /** Combine check runs and legacy status results. */
-function combineCheckResults(checkRuns: CheckResult, legacy: CheckResult): CheckResult {
+function combineCheckResults(
+  checkRuns: CheckResult,
+  legacy: CheckResult,
+): CheckResult {
   if (checkRuns === "fail" || legacy === "fail") return "fail";
   if (checkRuns === "pending" || legacy === "pending") return "pending";
   return "pass";
@@ -150,7 +175,7 @@ function combineCheckResults(checkRuns: CheckResult, legacy: CheckResult): Check
 /** Determine issue status based on PR state, mergeability, and CI status. */
 function determineIssueStatus(
   mergeable: boolean | null,
-  ciStatus: CheckResult
+  ciStatus: CheckResult,
 ): string {
   // Merge conflict takes priority
   if (mergeable === false) return "pr_conflict";
@@ -179,10 +204,10 @@ export async function pollPRs(): Promise<void> {
 
     let token: string | null = null;
     if (pr.github_account_id) {
-      token = getGitHubAccount(pr.github_account_id)?.oauth_token ?? null;
+      token = getGitHubAccount(pr.github_account_id)?.gh_token ?? null;
     }
     if (!token) {
-      token = getGitHubAccountByUsername(pr.repo_owner)?.oauth_token ?? null;
+      token = getGitHubAccountByUsername(pr.repo_owner)?.gh_token ?? null;
     }
     tokenCache.set(key, token);
     return token;
@@ -193,8 +218,12 @@ export async function pollPRs(): Promise<void> {
     const token = resolveToken(pr);
     if (!token) {
       logger.warn(
-        { pr_number: pr.pr_number, repo_owner: pr.repo_owner, project_id: pr.project_id },
-        "Skipping PR: no GitHub token (project has no account and no account matches repo owner)"
+        {
+          pr_number: pr.pr_number,
+          repo_owner: pr.repo_owner,
+          project_id: pr.project_id,
+        },
+        "Skipping PR: no GitHub token (project has no account and no account matches repo owner)",
       );
       continue;
     }
@@ -203,7 +232,7 @@ export async function pollPRs(): Promise<void> {
       pr.repo_owner,
       pr.repo_name,
       pr.pr_number,
-      token
+      token,
     );
 
     if (!ghPR) continue;
@@ -215,8 +244,13 @@ export async function pollPRs(): Promise<void> {
       updateIssuePR(pr.id, { status: newPRStatus });
 
       logger.info(
-        { pr_id: pr.id, pr_number: pr.pr_number, from: pr.status, to: newPRStatus },
-        "PR status changed"
+        {
+          pr_id: pr.id,
+          pr_number: pr.pr_number,
+          from: pr.status,
+          to: newPRStatus,
+        },
+        "PR status changed",
       );
 
       eventBus.emit("pr.status_changed", {
@@ -235,7 +269,7 @@ export async function pollPRs(): Promise<void> {
 
         logger.info(
           { issue_id: pr.issue_id, pr_number: pr.pr_number },
-          "Issue auto-transitioned to done (PR merged)"
+          "Issue auto-transitioned to done (PR merged)",
         );
 
         eventBus.emit("issue.status_changed", {
@@ -259,8 +293,12 @@ export async function pollPRs(): Promise<void> {
         fetchCommitStatus(pr.repo_owner, pr.repo_name, ghPR.head.sha, token),
       ]);
 
-      const checkRunsResult = checkRuns ? analyzeCheckRuns(checkRuns) : "pending";
-      const legacyResult = commitStatus ? analyzeCommitStatus(commitStatus) : "pending";
+      const checkRunsResult = checkRuns
+        ? analyzeCheckRuns(checkRuns)
+        : "pending";
+      const legacyResult = commitStatus
+        ? analyzeCommitStatus(commitStatus)
+        : "pending";
       const ciStatus = combineCheckResults(checkRunsResult, legacyResult);
 
       const newIssueStatus = determineIssueStatus(ghPR.mergeable, ciStatus);
@@ -277,7 +315,7 @@ export async function pollPRs(): Promise<void> {
             mergeable: ghPR.mergeable,
             ciStatus,
           },
-          "Issue status updated based on PR checks"
+          "Issue status updated based on PR checks",
         );
 
         eventBus.emit("issue.status_changed", {

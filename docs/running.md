@@ -6,7 +6,7 @@ This guide covers running CrewDeck using Docker Compose.
 
 - [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configured on your host machine
-- A [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) with `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
+- A GitHub account with an SSH key and Personal Access Token (PAT) with `repo` and `workflow` scopes
 
 The following host directory **must exist** or the backend container will fail to start:
 
@@ -54,13 +54,11 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 
 **Backend** (set in `docker-compose.yml`):
 
-| Variable               | Value                   | Purpose                                     |
-| ---------------------- | ----------------------- | ------------------------------------------- |
-| `DB_PATH`              | `/app/data/crewdeck.db` | SQLite database location                    |
-| `CREWDECK_REPOS_DIR`   | `/app/data/repos`       | Where repos are cloned                      |
-| `GITHUB_CLIENT_ID`     | *(your OAuth App)*      | GitHub OAuth App client ID (Device Flow)    |
-| `GITHUB_CLIENT_SECRET` | *(your OAuth App)*      | GitHub OAuth App client secret (token revocation) |
-| `ANTHROPIC_API_KEY`    | *(your API key)*        | Anthropic API key (required for Admiral LLM agent) |
+| Variable             | Value                   | Purpose                                            |
+| -------------------- | ----------------------- | -------------------------------------------------- |
+| `DB_PATH`            | `/app/data/crewdeck.db` | SQLite database location                           |
+| `CREWDECK_REPOS_DIR` | `/app/data/repos`       | Where repos are cloned                             |
+| `ANTHROPIC_API_KEY`  | _(your API key)_        | Anthropic API key (required for Admiral LLM agent) |
 
 **Frontend**:
 
@@ -109,6 +107,6 @@ docker compose logs -f frontend
 
 ## Troubleshooting
 
-**GitHub authentication**: GitHub accounts are connected in-app via Device Flow (Settings → GitHub Accounts). You do not need `gh auth login` on your host. Make sure `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set for your GitHub OAuth App. The device flow requests the `repo` and `workflow` scopes — existing accounts authenticated before the `workflow` scope was added will need to disconnect and re-authenticate to push changes to `.github/workflows/` files.
+**GitHub authentication**: GitHub accounts are added in-app (Settings → GitHub Accounts) by providing an SSH private key and a Personal Access Token (PAT) with `repo` and `workflow` scopes. Each project links to an account for per-project credential isolation. You do not need `gh auth login` or machine-wide SSH config on your host.
 
 **Claude Code not working**: Ensure `~/.claude` exists on your host with valid configuration.

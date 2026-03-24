@@ -28,7 +28,9 @@ interface ToolResult {
 /**
  * Get repo info for an issue PR.
  */
-const getRepoInfo = (repoId: string): { owner: string; name: string } | null => {
+const getRepoInfo = (
+  repoId: string,
+): { owner: string; name: string } | null => {
   const row = db
     .prepare("SELECT owner, name FROM Repo WHERE id = ?")
     .get(repoId) as { owner: string; name: string } | undefined;
@@ -42,7 +44,7 @@ const mergePROnGitHub = async (
   owner: string,
   repo: string,
   prNumber: number,
-  token: string
+  token: string,
 ): Promise<{ success: boolean; message: string }> => {
   const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/merge`;
 
@@ -60,7 +62,8 @@ const mergePROnGitHub = async (
       return { success: true, message: "PR merged successfully" };
 
     const body = await response.json().catch(() => ({}));
-    const message = (body as { message?: string }).message || `HTTP ${response.status}`;
+    const message =
+      (body as { message?: string }).message || `HTTP ${response.status}`;
 
     if (response.status === 405)
       return { success: false, message: `PR not mergeable: ${message}` };
@@ -81,7 +84,7 @@ const deleteBranchOnGitHub = async (
   owner: string,
   repo: string,
   branch: string,
-  token: string
+  token: string,
 ): Promise<void> => {
   const url = `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`;
   try {
@@ -92,9 +95,15 @@ const deleteBranchOnGitHub = async (
     if (response.ok || response.status === 422)
       logger.info({ owner, repo, branch }, "Admiral: Deleted branch");
     else
-      logger.warn({ owner, repo, branch, status: response.status }, "Admiral: Failed to delete branch");
+      logger.warn(
+        { owner, repo, branch, status: response.status },
+        "Admiral: Failed to delete branch",
+      );
   } catch (err) {
-    logger.warn({ err, owner, repo, branch }, "Admiral: Branch deletion failed");
+    logger.warn(
+      { err, owner, repo, branch },
+      "Admiral: Branch deletion failed",
+    );
   }
 };
 
@@ -103,22 +112,19 @@ const deleteBranchOnGitHub = async (
  */
 export const handleMergePR = async (
   projectId: string,
-  input: { issue_id: string }
+  input: { issue_id: string },
 ): Promise<ToolResult> => {
   const project = getProject(projectId);
-  if (!project)
-    return { success: false, message: "Project not found" };
+  if (!project) return { success: false, message: "Project not found" };
 
   if (!project.github_account_id)
     return { success: false, message: "No GitHub account linked to project" };
 
   const account = getGitHubAccount(project.github_account_id);
-  if (!account)
-    return { success: false, message: "GitHub account not found" };
+  if (!account) return { success: false, message: "GitHub account not found" };
 
   const issue = issueRepo.getIssue(input.issue_id);
-  if (!issue)
-    return { success: false, message: "Issue not found" };
+  if (!issue) return { success: false, message: "Issue not found" };
 
   if (issue.project_id !== projectId)
     return { success: false, message: "Issue belongs to a different project" };
@@ -129,14 +135,13 @@ export const handleMergePR = async (
     return { success: false, message: "No open PR found for this issue" };
 
   const repoInfo = getRepoInfo(openPR.repo_id);
-  if (!repoInfo)
-    return { success: false, message: "Repository not found" };
+  if (!repoInfo) return { success: false, message: "Repository not found" };
 
   const result = await mergePROnGitHub(
     repoInfo.owner,
     repoInfo.name,
     openPR.pr_number,
-    account.oauth_token
+    account.gh_token,
   );
 
   if (result.success) {
@@ -146,9 +151,18 @@ export const handleMergePR = async (
     issueRepo.updateIssue(issue.id, { status: "done" });
 
     if (issue.branch_name)
-      await deleteBranchOnGitHub(repoInfo.owner, repoInfo.name, issue.branch_name, account.oauth_token);
+      await deleteBranchOnGitHub(
+        repoInfo.owner,
+        repoInfo.name,
+        issue.branch_name,
+        account.gh_token,
+      );
 
-    postSystemComment(issue.id, projectId, `PR #${openPR.pr_number} merged by Admiral.`);
+    postSystemComment(
+      issue.id,
+      projectId,
+      `PR #${openPR.pr_number} merged by Admiral.`,
+    );
 
     eventBus.emit("issue.status_changed", {
       issue_id: issue.id,
@@ -160,7 +174,10 @@ export const handleMergePR = async (
     return {
       success: true,
       message: `Merged PR #${openPR.pr_number}`,
-      data: { pr_number: openPR.pr_number, branch_deleted: !!issue.branch_name },
+      data: {
+        pr_number: openPR.pr_number,
+        branch_deleted: !!issue.branch_name,
+      },
     };
   }
 
@@ -184,7 +201,7 @@ const isDispatchableAgent = (agentId: string): agentId is DispatchableAgent => {
  */
 export const handleDispatchAgent = async (
   projectId: string,
-  input: { issue_id: string; agent_id: string; instructions?: string }
+  input: { issue_id: string; agent_id: string; instructions?: string },
 ): Promise<ToolResult> => {
   if (!isDispatchableAgent(input.agent_id)) {
     return {
@@ -198,8 +215,7 @@ export const handleDispatchAgent = async (
     return { success: false, message: `Agent "${input.agent_id}" not found` };
 
   const issue = issueRepo.getIssue(input.issue_id);
-  if (!issue)
-    return { success: false, message: "Issue not found" };
+  if (!issue) return { success: false, message: "Issue not found" };
 
   if (issue.project_id !== projectId)
     return { success: false, message: "Issue belongs to a different project" };
@@ -212,18 +228,27 @@ export const handleDispatchAgent = async (
     return {
       success: true,
       message: `Dispatched ${agent.name} to work on "${issue.title}"`,
-      data: { issue_id: issue.id, issue_title: issue.title, agent_id: agent.id },
+      data: {
+        issue_id: issue.id,
+        issue_title: issue.title,
+        agent_id: agent.id,
+      },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { success: false, message: `Failed to dispatch ${agent.name}: ${message}` };
+    return {
+      success: false,
+      message: `Failed to dispatch ${agent.name}: ${message}`,
+    };
   }
 };
 
 /**
  * Trigger a librarian codebase scan.
  */
-export const handleScanCodebase = async (projectId: string): Promise<ToolResult> => {
+export const handleScanCodebase = async (
+  projectId: string,
+): Promise<ToolResult> => {
   try {
     const runId = await spawnScan(projectId);
     return {

@@ -41,7 +41,7 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
 
     // Fetch metadata from GitHub API
     const token = body.github_account_id
-      ? getGitHubAccount(body.github_account_id)?.oauth_token
+      ? getGitHubAccount(body.github_account_id)?.gh_token
       : undefined;
 
     let metadata;

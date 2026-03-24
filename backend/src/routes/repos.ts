@@ -11,14 +11,23 @@ router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   res.json(listRepos(req.params.projectId));
 });
 
-router.post("/", verifyProject, validate(CreateRepoSchema), (req: Request<{ projectId: string }>, res) => {
-  const project = req.project!;
-  const ghAccount = project.github_account_id
-    ? getGitHubAccount(project.github_account_id)
-    : null;
-  const repo = createRepo(req.params.projectId, req.body, ghAccount?.oauth_token);
-  res.status(201).json(repo);
-});
+router.post(
+  "/",
+  verifyProject,
+  validate(CreateRepoSchema),
+  (req: Request<{ projectId: string }>, res) => {
+    const project = req.project!;
+    const ghAccount = project.github_account_id
+      ? getGitHubAccount(project.github_account_id)
+      : null;
+    const repo = createRepo(
+      req.params.projectId,
+      req.body,
+      ghAccount?.ssh_private_key,
+    );
+    res.status(201).json(repo);
+  },
+);
 
 router.delete("/:repoId", verifyRepoOwnership, (req, res) => {
   deleteRepo(req.repo!.id);

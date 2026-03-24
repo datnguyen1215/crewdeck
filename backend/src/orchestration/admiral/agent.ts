@@ -227,7 +227,11 @@ const formatEvents = (events: AdmiralEvent[]): string => {
           return `[${ts}] Issue ${data.issue_id.slice(0, 8)} status: ${data.from} → ${data.to}`;
         }
         case "run.completed": {
-          const data = e.data as { agent_id: string; issue_id: string | null; status: string };
+          const data = e.data as {
+            agent_id: string;
+            issue_id: string | null;
+            status: string;
+          };
           return `[${ts}] Agent ${data.agent_id} completed (${data.status})${data.issue_id ? ` on issue ${data.issue_id.slice(0, 8)}` : ""}`;
         }
         case "pr.status_changed": {
@@ -252,15 +256,18 @@ const formatEvents = (events: AdmiralEvent[]): string => {
  * Past images are replaced with [image attached] to save tokens.
  */
 const getConversationHistory = (projectId: string): string => {
-  const messages = chatRepo.getChatOnly(projectId, MAX_CONTEXT_MESSAGES).reverse();
+  const messages = chatRepo
+    .getChatOnly(projectId, MAX_CONTEXT_MESSAGES)
+    .reverse();
   if (messages.length === 0) return "";
 
   return messages
     .map((m) => {
       if (m.role === "user") {
-        const imageNote = m.images && m.images.length > 0
-          ? `\n[${m.images.length} image${m.images.length > 1 ? "s" : ""} attached]`
-          : "";
+        const imageNote =
+          m.images && m.images.length > 0
+            ? `\n[${m.images.length} image${m.images.length > 1 ? "s" : ""} attached]`
+            : "";
         return `User:\n<user_message>\n${m.content}${imageNote}\n</user_message>`;
       }
       return `Admiral: ${m.content}`;
@@ -287,7 +294,7 @@ const collectImages = (events: AdmiralEvent[]): ChatImage[] => {
  */
 export const processWithLLM = async (
   projectId: string,
-  events: AdmiralEvent[]
+  events: AdmiralEvent[],
 ): Promise<string> => {
   const systemPrompt = buildSystemPrompt(projectId);
   if (!systemPrompt) return "Error: Project not found";
@@ -312,7 +319,10 @@ export const processWithLLM = async (
 
   // Emit admiral.event_received for each event so frontend can show them
   for (const event of events) {
-    const description = formatEvents([event]).replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, "");
+    const description = formatEvents([event]).replace(
+      /^\[\d{2}:\d{2}:\d{2}\]\s*/,
+      "",
+    );
     eventBus.emit("admiral.event_received", {
       project_id: projectId,
       event_type: event.type,
@@ -330,11 +340,19 @@ export const processWithLLM = async (
     CREWDECK_AGENT_ID: "admiral",
   };
 
-  // Admiral needs GH_TOKEN for merge operations done via the API
+  // Admiral needs GH_TOKEN for API/gh CLI and SSH for git operations
+  let sshKeyPath: string | undefined;
   if (project?.github_account_id) {
-    const { getGitHubAccount } = await import("../../db/repositories/github-accounts.js");
+    const { getGitHubAccount } =
+      await import("../../db/repositories/github-accounts.js");
     const account = getGitHubAccount(project.github_account_id);
-    if (account) env.GH_TOKEN = account.oauth_token;
+    if (account) {
+      env.GH_TOKEN = account.gh_token;
+      const { createGitSshEnv } = await import("../../utils/git-auth.js");
+      const ssh = createGitSshEnv(account.ssh_private_key);
+      sshKeyPath = ssh.keyPath;
+      Object.assign(env, ssh.env);
+    }
   }
 
   let finalResponse = "";
@@ -390,6 +408,11 @@ export const processWithLLM = async (
   } catch (err) {
     logger.error({ err }, "Admiral claude -p call failed");
     finalResponse = "Error: Failed to process events";
+  } finally {
+    if (sshKeyPath) {
+      const { cleanupSshKey } = await import("../../utils/git-auth.js");
+      cleanupSshKey(sshKeyPath);
+    }
   }
 
   // Emit final message

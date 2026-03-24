@@ -2,16 +2,16 @@ export interface GitHubAccount {
   id: string;
   account_name: string;
   github_username: string;
-  oauth_token: string;
-  scopes: string | null;
+  gh_token: string;
+  ssh_private_key: string;
   created_at: string;
 }
 
 export interface CreateGitHubAccountInput {
   account_name: string;
   github_username: string;
-  oauth_token: string;
-  scopes?: string;
+  gh_token: string;
+  ssh_private_key: string;
 }
 
 export interface Project {
@@ -102,7 +102,12 @@ export interface ActivityLog {
   created_at: string;
 }
 
-export type AgentRunStatus = "queued" | "running" | "completed" | "failed" | "timeout";
+export type AgentRunStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "timeout";
 
 export interface AgentRun {
   id: string;
@@ -201,7 +206,6 @@ export interface CreateRepoInput {
   github_url: string;
   default_branch?: string;
 }
-
 
 export interface CreateIssueInput {
   title: string;
