@@ -12,7 +12,7 @@ import { getActiveProcessCount } from "../processes.js";
 import { spawnClaudeStream, spawnClaudeMultimodal } from "../process.js";
 
 import * as chatRepo from "../../db/repositories/chat-messages.js";
-import type { CaptainEvent, ChatImage } from "./queue.js";
+import type { CaptainEvent } from "./queue.js";
 
 const MAX_CONTEXT_MESSAGES = 100;
 
@@ -154,19 +154,6 @@ const getChatHistory = (projectId: string): string => {
       return `Captain: ${m.content}`;
     })
     .join("\n\n");
-};
-
-/**
- * Collect images from chat events.
- */
-const collectImages = (events: CaptainEvent[]): ChatImage[] => {
-  const images: ChatImage[] = [];
-  for (const event of events) {
-    if (event.images) {
-      images.push(...event.images);
-    }
-  }
-  return images;
 };
 
 /**
