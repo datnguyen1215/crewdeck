@@ -373,7 +373,7 @@ export function getLibrarianStatus(projectId: string) {
   );
 }
 
-// Admiral Chat
+// Captain Chat
 export function getChatHistory(projectId: string) {
   return request<ChatMessage[]>("GET", `/projects/${e(projectId)}/chat`);
 }

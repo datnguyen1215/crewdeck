@@ -24,7 +24,7 @@
 	let maxConcurrency = $state(1);
 	let maxChainDepth = $state(20);
 	let agentTimeoutMinutes = $state(10);
-	let admiralEnabled = $state(true);
+	let captainEnabled = $state(true);
 	let autoMergeEnabled = $state(false);
 
 	// Environment variables state
@@ -56,7 +56,7 @@
 				maxConcurrency = p.max_concurrency;
 				maxChainDepth = p.max_chain_depth;
 				agentTimeoutMinutes = p.agent_timeout_minutes;
-				admiralEnabled = p.admiral_enabled;
+				captainEnabled = p.captain_enabled;
 				autoMergeEnabled = p.auto_merge_enabled;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load project', 'error'); })
@@ -150,7 +150,7 @@
 			maxConcurrency !== project.max_concurrency ||
 			maxChainDepth !== project.max_chain_depth ||
 			agentTimeoutMinutes !== project.agent_timeout_minutes ||
-			admiralEnabled !== project.admiral_enabled ||
+			captainEnabled !== project.captain_enabled ||
 			autoMergeEnabled !== project.auto_merge_enabled
 		)
 	);
@@ -165,7 +165,7 @@
 				max_concurrency: Number(maxConcurrency),
 				max_chain_depth: Number(maxChainDepth),
 				agent_timeout_minutes: Number(agentTimeoutMinutes),
-				admiral_enabled: admiralEnabled,
+				captain_enabled: captainEnabled,
 				auto_merge_enabled: autoMergeEnabled,
 			});
 			project = updated;
@@ -174,7 +174,7 @@
 			maxConcurrency = updated.max_concurrency;
 			maxChainDepth = updated.max_chain_depth;
 			agentTimeoutMinutes = updated.agent_timeout_minutes;
-			admiralEnabled = updated.admiral_enabled;
+			captainEnabled = updated.captain_enabled;
 			autoMergeEnabled = updated.auto_merge_enabled;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
@@ -191,7 +191,7 @@
 		maxConcurrency = project.max_concurrency;
 		maxChainDepth = project.max_chain_depth;
 		agentTimeoutMinutes = project.agent_timeout_minutes;
-		admiralEnabled = project.admiral_enabled;
+		captainEnabled = project.captain_enabled;
 		autoMergeEnabled = project.auto_merge_enabled;
 	}
 </script>
@@ -249,19 +249,19 @@
 
 				<div>
 					<label class="flex items-center gap-3 cursor-pointer">
-						<input type="checkbox" bind:checked={admiralEnabled} class="accent-cyan w-4 h-4" />
-						<span class="text-sm text-primary">Enable Admiral (auto-pilot)</span>
+						<input type="checkbox" bind:checked={captainEnabled} class="accent-cyan w-4 h-4" />
+						<span class="text-sm text-primary">Enable Captain (auto-pilot)</span>
 					</label>
-					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Admiral automatically coordinates agents to work on issues</p>
+					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Captain automatically coordinates agents to work on issues</p>
 				</div>
 
-				{#if admiralEnabled}
+				{#if captainEnabled}
 				<div>
 					<label class="flex items-center gap-3 cursor-pointer">
 						<input type="checkbox" bind:checked={autoMergeEnabled} class="accent-cyan w-4 h-4" />
 						<span class="text-sm text-primary">Auto-merge PRs</span>
 					</label>
-					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Admiral automatically merges PRs that pass all checks</p>
+					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Captain automatically merges PRs that pass all checks</p>
 				</div>
 				{/if}
 
