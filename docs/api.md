@@ -1061,6 +1061,52 @@ Deletes all chat messages for the project. Kept for backward compatibility.
 
 ---
 
+### Monitor
+
+#### Get Monitor History
+
+```
+GET /projects/:projectId/monitor/history
+GET /projects/:projectId/monitor/history?limit=50
+```
+
+Returns stored monitor messages (ChatMessage records with `session_id = null`), sorted chronologically (oldest first). Used by the Monitor panel to load history on mount.
+
+**Query Parameters:**
+
+| Parameter | Type    | Description                              |
+| --------- | ------- | ---------------------------------------- |
+| limit     | INTEGER | Max messages to return. Default: 100. Max: 500. |
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "session_id": null,
+    "role": "user",
+    "content": "Event batch: issue.created, run.completed",
+    "images": null,
+    "created_at": "ISO 8601"
+  },
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "session_id": null,
+    "role": "assistant",
+    "content": "I'll dispatch the engineer to work on the new issue.",
+    "images": null,
+    "created_at": "ISO 8601"
+  }
+]
+```
+
+**Error:** `404 Not Found` — Project does not exist.
+
+---
+
 ### Internal API
 
 These endpoints are used by agent processes (`claude -p` subprocesses) spawned by the MentionHandler. They are not intended for frontend or external use. See [Agent Orchestration](agent-cli.md) for details on how agents are spawned and use these endpoints.
