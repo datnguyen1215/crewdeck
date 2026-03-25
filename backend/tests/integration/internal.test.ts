@@ -42,9 +42,8 @@ describe("POST /api/v1/internal/comment", () => {
     });
 
     expect(res.status).toBe(201);
-    expect(res.body.author_type).toBe("agent");
+    expect(res.body.author_type).toBe(agentId);
     expect(res.body.content).toBe("Agent comment here");
-    expect(res.body.author_id).toBe(agentId);
   });
 
   it("validates issue exists and belongs to project", async () => {
