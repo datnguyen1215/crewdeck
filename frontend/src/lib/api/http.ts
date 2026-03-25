@@ -378,24 +378,6 @@ export function getChatHistory(projectId: string) {
   return request<ChatMessage[]>("GET", `/projects/${e(projectId)}/chat`);
 }
 
-// Admiral dispatch
-export function dispatchAgent(
-  projectId: string,
-  issueId: string,
-  agentId: string,
-  instructions?: string,
-) {
-  return request<{ success: boolean; message: string }>(
-    "POST",
-    `/internal/admiral/dispatch-agent`,
-    {
-      project_id: projectId,
-      issue_id: issueId,
-      agent_id: agentId,
-      instructions,
-    },
-  );
-}
 export function sendChatMessage(
   projectId: string,
   message: string,

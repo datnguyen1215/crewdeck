@@ -241,6 +241,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - `run.completed` (agent finished)
   - `run.recovered` (issue needs attention after server restart)
   - `pr.status_changed` (from PR poller)
+  - `comment.added` (user comments only — e.g., "Start work" button posts a comment that Admiral picks up)
   - `chat.message` (user message from Admiral Terminal)
   - `idle.check` (configurable per-project idle timeout)
 - Event batching: accumulates events while processing, drains all pending events at once.

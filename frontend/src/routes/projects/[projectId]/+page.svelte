@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, listAgents, createIssue, dispatchAgent, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
+	import { listIssues, listAgents, createIssue, addComment, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
@@ -144,11 +144,10 @@
 
 		dispatchingIssues = new Set([...dispatchingIssues, issue.id]);
 		try {
-			await dispatchAgent(projectId, issue.id, 'engineer');
-			// Update local state to show in_progress immediately
-			issues = issues.map(i => i.id === issue.id ? { ...i, status: 'in_progress' } : i);
+			await addComment(projectId, issue.id, { content: 'User requested work on this issue' });
+			toastStore.add('Work requested — Admiral will decide next steps', 'success');
 		} catch (err) {
-			// Silently fail - user can retry
+			toastStore.add('Failed to request work', 'error');
 		} finally {
 			dispatchingIssues = new Set([...dispatchingIssues].filter(id => id !== issue.id));
 		}
