@@ -47,7 +47,7 @@ Without `?stats`:
     "description": "...",
     "max_concurrency": 3,
     "max_chain_depth": 20,
-    "admiral_enabled": true,
+    "captain_enabled": true,
     "auto_merge_enabled": false,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
@@ -66,7 +66,7 @@ With `?stats`:
     "description": "...",
     "max_concurrency": 3,
     "max_chain_depth": 20,
-    "admiral_enabled": true,
+    "captain_enabled": true,
     "auto_merge_enabled": false,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
@@ -132,7 +132,7 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, admiral_enabled, auto_merge_enabled, github_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, captain_enabled, auto_merge_enabled, github_account_id).
 
 **Response:** `200 OK` — The updated project object.
 

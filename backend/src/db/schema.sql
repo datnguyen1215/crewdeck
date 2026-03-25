@@ -5,9 +5,9 @@ CREATE TABLE IF NOT EXISTS Project (
   max_concurrency INTEGER NOT NULL DEFAULT 1,
   max_chain_depth INTEGER NOT NULL DEFAULT 20,
   agent_timeout_minutes INTEGER NOT NULL DEFAULT 10,
-  admiral_enabled INTEGER NOT NULL DEFAULT 1,
+  captain_enabled INTEGER NOT NULL DEFAULT 1,
   auto_merge_enabled INTEGER NOT NULL DEFAULT 0,
-  admiral_idle_timeout_ms INTEGER,
+  captain_idle_timeout_ms INTEGER,
   github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS ProjectKnowledge (
 CREATE INDEX IF NOT EXISTS idx_project_knowledge_project ON ProjectKnowledge(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_knowledge_updated ON ProjectKnowledge(project_id, updated_at DESC, created_at DESC);
 
--- Admiral chat messages
+-- Captain chat messages
 CREATE TABLE IF NOT EXISTS ChatMessage (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,

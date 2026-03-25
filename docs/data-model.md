@@ -45,9 +45,9 @@ Represents a body of work tied to one or more GitHub repositories.
 | description             | TEXT        |                                                              | Optional project description.                                                                                                          |
 | max_concurrency         | INTEGER     | NOT NULL, DEFAULT 1                                          | Maximum number of agent processes running simultaneously.                                                                              |
 | max_chain_depth         | INTEGER     | NOT NULL, DEFAULT 20                                         | Maximum agent dispatches per issue before requiring manual reset.                                                                      |
-| admiral_enabled         | INTEGER     | NOT NULL, DEFAULT 1                                          | Whether Admiral auto-pilot is enabled. Stored as 0/1; exposed as boolean.                                                              |
-| auto_merge_enabled      | INTEGER     | NOT NULL, DEFAULT 0                                          | Whether Admiral can auto-merge PRs. When disabled, Admiral reports ready PRs but cannot merge them. Stored as 0/1; exposed as boolean. |
-| admiral_idle_timeout_ms | INTEGER     | NULLABLE                                                     | Idle timeout in milliseconds for Admiral stuck detection. NULL means disabled.                                                         |
+| captain_enabled         | INTEGER     | NOT NULL, DEFAULT 1                                          | Whether Captain auto-pilot is enabled. Stored as 0/1; exposed as boolean.                                                              |
+| auto_merge_enabled      | INTEGER     | NOT NULL, DEFAULT 0                                          | Whether Captain can auto-merge PRs. When disabled, Captain reports ready PRs but cannot merge them. Stored as 0/1; exposed as boolean. |
+| captain_idle_timeout_ms | INTEGER     | NULLABLE                                                     | Idle timeout in milliseconds for Captain stuck detection. NULL means disabled.                                                         |
 | github_account_id       | TEXT        | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations.                                                                        |
 | created_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                                                                        |
 | updated_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                                                                        |
@@ -230,7 +230,7 @@ Tracks each agent process spawn for crash recovery and observability.
 | started_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned.                                               |
 | completed_at | DATETIME    | NULLABLE                            | When the process finished. NULL if still running.                           |
 
-**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed`, posts system comments on affected issues (if associated with an issue), and emits `run.recovered` events for Admiral to handle.
+**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed`, posts system comments on affected issues (if associated with an issue), and emits `run.recovered` events for Captain to handle.
 
 ---
 
@@ -255,13 +255,13 @@ Immutable audit trail of every action in the system.
 
 ### ChatMessage
 
-Stores conversation history for the Admiral LLM agent. Each project has its own conversation thread.
+Stores conversation history for the Captain LLM agent. Each project has its own conversation thread.
 
 | Field        | Type        | Constraints                                          | Description                                                                                                                                                          |
 | ------------ | ----------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | id           | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                                                                                                                   |
 | project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                                                                                                                      |
-| role         | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role. `user` for user messages and event batches, `assistant` for Admiral responses.                                                                         |
+| role         | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role. `user` for user messages and event batches, `assistant` for Captain responses.                                                                         |
 | content      | TEXT        | NOT NULL                                             | Message content.                                                                                                                                                     |
 | message_type | TEXT        | NOT NULL, DEFAULT 'chat', CHECK (IN 'chat', 'event') | Type of message. `chat` for actual user/assistant messages shown in conversation history, `event` for synthetic event-batch messages (excluded from history reload). |
 | images       | TEXT        | NULLABLE                                             | JSON array of image file paths. Images are stored on disk at `data/uploads/{projectId}/{messageId}/`. NULL if no images attached.                                    |
@@ -269,7 +269,7 @@ Stores conversation history for the Admiral LLM agent. Each project has its own 
 
 **Note:** The `message_type` field distinguishes actual conversation messages from synthetic event descriptions. When loading conversation history, only `chat` messages are included to avoid polluting the context with system event batches.
 
-**Note:** The `images` field stores file paths as a JSON string and is parsed to `string[] | null` at runtime. Images pasted into the Admiral Terminal are saved to disk and their paths are stored here for multimodal processing.
+**Note:** The `images` field stores file paths as a JSON string and is parsed to `string[] | null` at runtime. Images pasted into the Captain Terminal are saved to disk and their paths are stored here for multimodal processing.
 
 ## Relationships Summary
 
@@ -287,7 +287,7 @@ Stores conversation history for the Admiral LLM agent. Each project has its own 
 | Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
-| Project → ChatMessage         | One-to-Many | A project has many Admiral chat messages.                                   |
+| Project → ChatMessage         | One-to-Many | A project has many Captain chat messages.                                   |
 
 ## Indexes
 

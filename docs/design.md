@@ -234,7 +234,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 **Admiral**
 
 - LLM-powered auto-pilot orchestrator that manages the project automatically.
-- Only acts on projects with `admiral_enabled = true`.
+- Only acts on projects with `captain_enabled = true`.
 - Background service that is not dispatchable via `/dispatch` (unlike other agents).
 - Event-driven architecture — no polling. Wakes only when events occur:
   - `issue.created`, `issue.updated`, `issue.status_changed`
