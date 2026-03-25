@@ -273,6 +273,37 @@ export const formatEvents = (events: CaptainEvent[]): string => {
           const data = e.data as { pr_id: string; from: string; to: string };
           return `[${ts}] PR status: ${data.from} → ${data.to}`;
         }
+        case "issue.updated": {
+          const data = e.data as {
+            issue_id: string;
+            changes: Record<string, unknown>;
+          };
+          const changedFields = Object.keys(data.changes || {}).join(", ");
+          return `[${ts}] Issue ${data.issue_id.slice(0, 8)} updated: ${changedFields || "unknown fields"}`;
+        }
+        case "comment.added": {
+          const data = e.data as {
+            comment: {
+              id: string;
+              issue_id: string;
+              author_type: string;
+              content: string;
+            };
+            project_id: string;
+          };
+          const preview =
+            data.comment.content.length > 200
+              ? data.comment.content.slice(0, 200) + "…"
+              : data.comment.content;
+          return `[${ts}] Comment on issue ${data.comment.issue_id.slice(0, 8)} by ${data.comment.author_type}: ${preview}`;
+        }
+        case "run.recovered": {
+          const data = e.data as {
+            issue_id: string;
+            failed_agent_id: string;
+          };
+          return `[${ts}] Run recovered: agent ${data.failed_agent_id} failed on issue ${data.issue_id.slice(0, 8)}, ready for retry`;
+        }
         case "idle.check":
           return `[${ts}] Idle check: checking for stuck issues`;
         default:
