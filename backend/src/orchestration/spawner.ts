@@ -147,8 +147,7 @@ export async function processAgentStream(
     if (resultText && issueId) {
       const comment = commentRepo.createComment(issueId, {
         content: resultText,
-        author_type: "agent",
-        author_id: agent.id,
+        author_type: agent.id,
       });
       events.eventBus.emit("comment.added", { comment, project_id: projectId });
     }

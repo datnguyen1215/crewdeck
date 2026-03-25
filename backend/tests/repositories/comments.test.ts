@@ -23,19 +23,16 @@ describe("createComment", () => {
     expect(comment.id).toBeTruthy();
     expect(comment.content).toBe("Hello");
     expect(comment.author_type).toBe("user");
-    expect(comment.author_id).toBeNull();
   });
 
-  it("creates a comment with author info", () => {
+  it("creates a comment with author_type as agent ID", () => {
     const p = createProject({ name: "P" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     const comment = createComment(issue.id, {
       content: "Agent says hi",
-      author_type: "agent",
-      author_id: "agent-123",
+      author_type: "engineer",
     });
-    expect(comment.author_type).toBe("agent");
-    expect(comment.author_id).toBe("agent-123");
+    expect(comment.author_type).toBe("engineer");
   });
 });
 

@@ -118,22 +118,27 @@ export const initMentionHandler = (): void => {
     if (!issue) return;
 
     const agents = crew.listCrew();
+    // Extract agent ID from author_type (if comment is from an agent, author_type = agent ID)
+    const authorAgentId =
+      comment.author_type !== "user" && comment.author_type !== "system"
+        ? comment.author_type
+        : undefined;
     const mentioned = mentionParser.parseDispatches(
       comment.content,
       agents,
-      comment.author_id ?? undefined,
+      authorAgentId,
     );
 
     if (mentioned.length === 0) return;
 
     // Create a batch when an agent dispatches other agents, so the originator is auto-invoked on completion
-    if (mentioned.length >= 1 && comment.author_id) {
+    if (mentioned.length >= 1 && authorAgentId) {
       const existingBatchId = issueBatches.get(comment.issue_id);
       if (!existingBatchId) {
         createBatch(
           comment.issue_id,
           project_id,
-          comment.author_id,
+          authorAgentId,
           mentioned.map((a) => a.id),
         );
       }
@@ -166,12 +171,8 @@ export const initMentionHandler = (): void => {
         continue;
       }
 
-      spawnAgent(
-        agent,
-        comment.issue_id,
-        project_id,
-        comment.author_id ?? undefined,
-      ).catch((err) => {
+      spawnAgent(agent, comment.issue_id, project_id, authorAgentId).catch(
+        (err) => {
         log.logger.error(
           { err, agent: agent.name, issueId: comment.issue_id },
           "Failed to spawn agent",

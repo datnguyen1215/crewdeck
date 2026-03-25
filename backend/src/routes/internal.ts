@@ -68,10 +68,10 @@ router.post("/comment", validate(InternalCommentSchema), (req, res) => {
 
   verifyIssueOwner(issue_id, project_id);
 
+  // Use agent_id as author_type directly (e.g., "captain", "engineer")
   const comment = createComment(issue_id, {
     content,
-    author_type: "agent",
-    author_id: agent_id ?? null,
+    author_type: agent_id ?? "system",
   });
 
   eventBus.emit("comment.added", { comment, project_id });

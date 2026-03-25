@@ -10,11 +10,7 @@ function formatComments(comments: Comment[]): string {
   return comments
     .map((c) => {
       const time = c.created_at.replace("T", " ").slice(0, 19);
-      const author =
-        c.author_type === "agent"
-          ? `agent:${c.author_id ?? "unknown"}`
-          : c.author_type;
-      return `[${time}] (${author}) ${c.content}`;
+      return `[${time}] (${c.author_type}) ${c.content}`;
     })
     .join("\n\n");
 }

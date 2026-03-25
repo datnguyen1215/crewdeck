@@ -76,7 +76,6 @@ export interface Comment {
   id: string;
   issue_id: string;
   author_type: string;
-  author_id: string | null;
   content: string;
   created_at: string;
 }
@@ -239,7 +238,6 @@ export interface IssueFilters {
 export interface CreateCommentInput {
   content: string;
   author_type?: string;
-  author_id?: string;
 }
 
 export interface CreateIssuePRInput {
