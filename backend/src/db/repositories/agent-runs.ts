@@ -31,17 +31,31 @@ export function createAgentRun(input: CreateAgentRunInput): AgentRun {
 
   db.prepare(
     `INSERT INTO AgentRun (id, project_id, issue_id, agent_id, pid, status, started_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, input.project_id, input.issue_id ?? null, input.agent_id, input.pid ?? null, status, startedAt);
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id,
+    input.project_id,
+    input.issue_id ?? null,
+    input.agent_id,
+    input.pid ?? null,
+    status,
+    startedAt,
+  );
 
   return getAgentRun(id)!;
 }
 
 export function getAgentRun(id: string): AgentRun | null {
-  return (db.prepare("SELECT * FROM AgentRun WHERE id = ?").get(id) as AgentRun) ?? null;
+  return (
+    (db.prepare("SELECT * FROM AgentRun WHERE id = ?").get(id) as AgentRun) ??
+    null
+  );
 }
 
-export function updateAgentRun(id: string, input: UpdateAgentRunInput): AgentRun | null {
+export function updateAgentRun(
+  id: string,
+  input: UpdateAgentRunInput,
+): AgentRun | null {
   const fields: string[] = [];
   const values: unknown[] = [];
 
@@ -77,24 +91,30 @@ export function updateAgentRun(id: string, input: UpdateAgentRunInput): AgentRun
   if (fields.length === 0) return getAgentRun(id);
 
   values.push(id);
-  db.prepare(`UPDATE AgentRun SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+  db.prepare(`UPDATE AgentRun SET ${fields.join(", ")} WHERE id = ?`).run(
+    ...values,
+  );
   return getAgentRun(id);
 }
 
 export function listAgentRunsForIssue(issueId: string): AgentRun[] {
   return db
-    .prepare("SELECT * FROM AgentRun WHERE issue_id = ? ORDER BY created_at DESC")
+    .prepare(
+      "SELECT * FROM AgentRun WHERE issue_id = ? ORDER BY created_at DESC",
+    )
     .all(issueId) as AgentRun[];
 }
 
 export function listAgentRunsForProject(
   projectId: string,
-  options?: { limit?: number; offset?: number }
+  options?: { limit?: number; offset?: number },
 ): AgentRun[] {
   const limit = options?.limit ?? 50;
   const offset = options?.offset ?? 0;
   return db
-    .prepare("SELECT * FROM AgentRun WHERE project_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")
+    .prepare(
+      "SELECT * FROM AgentRun WHERE project_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+    )
     .all(projectId, limit, offset) as AgentRun[];
 }
 
@@ -106,15 +126,29 @@ export function getAgentRunWithEvents(id: string): AgentRunWithEvents | null {
 }
 
 export function listRunningAgentRuns(): AgentRun[] {
-  return db.prepare("SELECT * FROM AgentRun WHERE status = 'running'").all() as AgentRun[];
+  return db
+    .prepare("SELECT * FROM AgentRun WHERE status = 'running'")
+    .all() as AgentRun[];
+}
+
+export function listActiveRunsForProject(projectId: string): AgentRun[] {
+  return db
+    .prepare(
+      "SELECT * FROM AgentRun WHERE project_id = ? AND status IN ('running', 'queued') ORDER BY created_at ASC",
+    )
+    .all(projectId) as AgentRun[];
 }
 
 export function getLatestLibrarianRun(projectId: string): AgentRun | null {
-  return (db.prepare(
-    `SELECT * FROM AgentRun
+  return (
+    (db
+      .prepare(
+        `SELECT * FROM AgentRun
      WHERE project_id = ? AND agent_id = 'librarian'
-     ORDER BY created_at DESC LIMIT 1`
-  ).get(projectId) as AgentRun) ?? null;
+     ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get(projectId) as AgentRun) ?? null
+  );
 }
 
 export function markRunFailed(id: string): AgentRun | null {
@@ -124,7 +158,8 @@ export function markRunFailed(id: string): AgentRun | null {
   // Calculate duration if we have a start time
   let durationMs: number | undefined;
   if (run?.started_at) {
-    durationMs = new Date(completedAt).getTime() - new Date(run.started_at).getTime();
+    durationMs =
+      new Date(completedAt).getTime() - new Date(run.started_at).getTime();
   }
 
   return updateAgentRun(id, {
@@ -140,19 +175,25 @@ export function markRunFailed(id: string): AgentRun | null {
 export function createAgentRunEvent(
   agentRunId: string,
   type: string,
-  data: unknown
+  data: unknown,
 ): AgentRunEvent {
   const id = crypto.randomUUID();
   const dataStr = JSON.stringify(data);
   db.prepare(
-    `INSERT INTO AgentRunEvent (id, agent_run_id, type, data) VALUES (?, ?, ?, ?)`
+    `INSERT INTO AgentRunEvent (id, agent_run_id, type, data) VALUES (?, ?, ?, ?)`,
   ).run(id, agentRunId, type, dataStr);
   return getAgentRunEvent(id)!;
 }
 
 export function getAgentRunEvent(id: string): AgentRunEvent | null {
   const row = db.prepare("SELECT * FROM AgentRunEvent WHERE id = ?").get(id) as
-    | { id: string; agent_run_id: string; type: string; data: string; created_at: string }
+    | {
+        id: string;
+        agent_run_id: string;
+        type: string;
+        data: string;
+        created_at: string;
+      }
     | undefined;
   if (!row) return null;
   return {
@@ -166,8 +207,16 @@ export function getAgentRunEvent(id: string): AgentRunEvent | null {
 
 export function listAgentRunEvents(agentRunId: string): AgentRunEvent[] {
   const rows = db
-    .prepare("SELECT * FROM AgentRunEvent WHERE agent_run_id = ? ORDER BY created_at ASC")
-    .all(agentRunId) as { id: string; agent_run_id: string; type: string; data: string; created_at: string }[];
+    .prepare(
+      "SELECT * FROM AgentRunEvent WHERE agent_run_id = ? ORDER BY created_at ASC",
+    )
+    .all(agentRunId) as {
+    id: string;
+    agent_run_id: string;
+    type: string;
+    data: string;
+    created_at: string;
+  }[];
   return rows.map((row) => ({
     id: row.id,
     agent_run_id: row.agent_run_id,
