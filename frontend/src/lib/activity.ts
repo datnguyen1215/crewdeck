@@ -52,7 +52,7 @@ export function actorName(entry: ActivityLog): string {
     if (entry.actor_name) return entry.actor_name;
     return "Agent";
   }
-  if (entry.actor_type === "system") return "Admiral";
+  if (entry.actor_type === "system") return "System";
   return "User";
 }
 

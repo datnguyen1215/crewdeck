@@ -63,7 +63,6 @@ export const UpdateIssueSchema = z.object({
 export const CreateCommentSchema = z.object({
   content: z.string().min(1),
   author_type: z.string().optional(),
-  author_id: z.string().optional(),
 });
 
 export const CreateIssuePRSchema = z.object({

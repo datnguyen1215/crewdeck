@@ -2,10 +2,14 @@ import { randomUUID } from "crypto";
 import { db } from "../db/index.js";
 import { eventBus } from "./bus.js";
 
-const VALID_ACTOR_TYPES = new Set(["user", "agent", "system"]);
+const BASE_ACTOR_TYPES = new Set(["user", "system"]);
 
-function sanitizeActorType(value: string): string {
-  return VALID_ACTOR_TYPES.has(value) ? value : "unknown";
+function deriveActorType(authorType: string): { type: string; id: string | null } {
+  if (BASE_ACTOR_TYPES.has(authorType)) {
+    return { type: authorType, id: null };
+  }
+  // For agents, author_type is the agent ID (captain, engineer, etc.)
+  return { type: "agent", id: authorType };
 }
 
 const insert = db.prepare(`
@@ -34,10 +38,12 @@ function log(entry: {
 
 export function initActivityLogger(): void {
   eventBus.on("issue.created", ({ issue }) => {
+    const actor = deriveActorType(issue.created_by);
     log({
       project_id: issue.project_id,
       issue_id: issue.id,
-      actor_type: sanitizeActorType(issue.created_by),
+      actor_type: actor.type,
+      actor_id: actor.id,
       action: "issue.created",
       details: { title: issue.title },
     });
@@ -58,11 +64,12 @@ export function initActivityLogger(): void {
   );
 
   eventBus.on("comment.added", ({ comment, project_id }) => {
+    const actor = deriveActorType(comment.author_type);
     log({
       project_id,
       issue_id: comment.issue_id,
-      actor_type: sanitizeActorType(comment.author_type),
-      actor_id: comment.author_id,
+      actor_type: actor.type,
+      actor_id: actor.id,
       action: "comment.added",
       details: { content_preview: comment.content.slice(0, 200) },
     });

@@ -71,12 +71,14 @@ describe("ActivityLogger", () => {
     expect(logs[0].actor_type).toBe("agent");
   });
 
-  it("clamps unknown actor_type to 'unknown' for issue.created", () => {
+  it("treats unknown created_by as agent and stores it as actor_id", () => {
     eventBus.emit("issue.created", {
-      issue: { ...baseIssue, created_by: "arbitrary-external-value" },
+      issue: { ...baseIssue, created_by: "custom-agent" },
     });
     const logs = getLog();
-    expect(logs[0].actor_type).toBe("unknown");
+    // Non-user/system values are treated as agent IDs
+    expect(logs[0].actor_type).toBe("agent");
+    expect(logs[0].actor_id).toBe("custom-agent");
   });
 
   it("logs issue.status_changed", () => {
@@ -102,7 +104,6 @@ describe("ActivityLogger", () => {
       id: "c1",
       issue_id: ISSUE_ID,
       author_type: "user",
-      author_id: "u1",
       content: "Hello world",
       created_at: new Date().toISOString(),
     };
@@ -113,19 +114,34 @@ describe("ActivityLogger", () => {
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
       actor_type: "user",
-      actor_id: "u1",
+      actor_id: null,
       action: "comment.added",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({ content_preview: "Hello world" });
   });
 
-  it("truncates comment content_preview to 200 chars", () => {
-    const longContent = "x".repeat(300);
+  it("logs comment.added from agent with author_type as actor_id", () => {
     const comment: Comment = {
       id: "c2",
       issue_id: ISSUE_ID,
-      author_type: "agent",
-      author_id: null,
+      author_type: "engineer",
+      content: "Agent comment",
+      created_at: new Date().toISOString(),
+    };
+    eventBus.emit("comment.added", { comment, project_id: PROJECT_ID });
+    const logs = getLog();
+    expect(logs[0]).toMatchObject({
+      actor_type: "agent",
+      actor_id: "engineer",
+    });
+  });
+
+  it("truncates comment content_preview to 200 chars", () => {
+    const longContent = "x".repeat(300);
+    const comment: Comment = {
+      id: "c3",
+      issue_id: ISSUE_ID,
+      author_type: "captain",
       content: longContent,
       created_at: new Date().toISOString(),
     };

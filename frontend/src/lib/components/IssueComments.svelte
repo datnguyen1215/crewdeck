@@ -47,20 +47,18 @@
 		listAgents().then(a => { agents = a; }).catch(() => toastStore.add('Failed to load agents', 'error'));
 	});
 
-	function commentStyle(authorType: string, content: string): { border: string; textColor: string } {
+	function commentStyle(authorType: string): { border: string; textColor: string } {
 		if (authorType === 'system') return { border: 'var(--color-muted)', textColor: 'text-muted' };
-		if (authorType === 'agent') return { border: 'var(--color-cyan)', textColor: 'text-cyan' };
-		return { border: 'var(--color-edge-hi)', textColor: 'text-secondary' };
+		if (authorType === 'user') return { border: 'var(--color-edge-hi)', textColor: 'text-secondary' };
+		// Agent types (captain, engineer, lead, etc.) use cyan
+		return { border: 'var(--color-cyan)', textColor: 'text-cyan' };
 	}
 
 	function commentAuthorLabel(comment: Comment): string {
-		if (comment.author_type === 'system') return 'Admiral';
+		if (comment.author_type === 'system') return 'System';
 		if (comment.author_type === 'user') return 'User';
-		if (comment.author_type === 'agent') {
-			const agent = agents.find(a => a.id === comment.author_id);
-			return agent ? agent.name : 'Agent';
-		}
-		return comment.author_type;
+		// For agent types, capitalize first letter (captain → Captain)
+		return comment.author_type.charAt(0).toUpperCase() + comment.author_type.slice(1);
 	}
 
 	async function postComment() {
@@ -166,7 +164,7 @@
 {#if comments.length > 0}
 	<div class="flex flex-col gap-3 mb-6">
 		{#each comments as comment (comment.id)}
-			{@const cs = commentStyle(comment.author_type, comment.content)}
+			{@const cs = commentStyle(comment.author_type)}
 			<div
 				class="border border-edge rounded-r rounded-tl rounded-bl bg-base p-4"
 				style="border-left: 3px solid {cs.border}"
