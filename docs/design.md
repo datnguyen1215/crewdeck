@@ -161,7 +161,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  ┌──────────────────────────────────────────────┐ │
 │  │  Captain (Chat + Monitor)                   │ │
 │  │  Chat:  chat.message → stream-json → WS     │ │
-│  │  Monitor: events → claude -p → actions       │ │
+│  │  Monitor: events → stream-json → action plan│ │
 │  └──────────────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
 │  │  Centralized Error Handler + Zod Validation  │ │
@@ -268,9 +268,11 @@ Captain is split into two independent services that run concurrently per project
   - `idle.check` (configurable per-project idle timeout)
 - Has its own queue namespace (`monitor:{projectId}`) — a long monitor batch won't block user chat, and vice versa.
 - Event batching: accumulates events while processing, drains all pending events at once.
-- Uses `claude -p --output-format json` (batch, non-streaming) for orchestration decisions.
+- Uses `claude -p --output-format stream-json` for orchestration decisions with read-only tool access.
+- **Structured action plans**: Instead of making curl calls for write operations, the Monitor outputs a JSON action plan that the backend executes deterministically. This enables parallel dispatch execution and faster mutex release.
 - Maintains its own conversation history (last 100 sessionless messages in ChatMessage table, i.e. `session_id IS NULL`), separate from chat session history.
-- Available actions via curl to the internal API: merge PR, dispatch agent, create/update/list/get issues, add comments, scan codebase, manage knowledge.
+- **Read-only curl access**: Monitor can still use curl for read operations (list issues, get issue details, list knowledge) to gather state before making decisions.
+- **Action types**: dispatch, merge, scan, comment, create-issue, update-issue, skip. Action schemas are validated with Zod (`action-schema.ts`) and executed by `plan-executor.ts`.
 - Decision priorities (encoded in system prompt, conditional on `auto_merge` and `auto_start` settings):
   1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status (when `auto_merge` is true); otherwise, **Report ready PRs** — note they are ready for manual merge
   2. **Fix broken PRs** — dispatch engineer for `pr_conflict` or `pr_failed_actions`
