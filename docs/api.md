@@ -890,7 +890,7 @@ Agent posts a comment on an issue.
 
 **Response:** `201 Created`
 
-**Side effects:** Emits `comment.added` on the event bus (which may trigger further `/dispatch` processing and Admiral evaluation for user-authored comments).
+**Side effects:** Emits `comment.added` on the event bus (which may trigger further `/dispatch` processing and Captain evaluation for user-authored comments).
 
 #### Create Issue (Internal)
 
