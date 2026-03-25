@@ -158,167 +158,74 @@
 		return `$${cost.toFixed(4)}`;
 	}
 
-	function renderEventContent(event: AgentRunEvent): string {
-		const data = event.data as Record<string, unknown>;
-		switch (event.type) {
-			case 'assistant':
-				return extractAssistantText(data);
-			case 'tool_use':
-				return extractToolUse(data);
-			case 'tool_result':
-				return extractToolResult(data);
-			case 'result':
-				return (data.result as string)?.slice(0, 100) ?? 'Finished';
-			case 'system':
-				return extractSystemInfo(data);
-			case 'user':
-				return extractUserContent(data);
-			default:
-				return event.type;
-		}
-	}
-
-	function extractAssistantText(data: Record<string, unknown>): string {
-		// Flat format: data.text or data.content
-		if (typeof data.text === 'string') return data.text.slice(0, 200);
-		if (typeof data.content === 'string') return data.content.slice(0, 200);
-
-		// Flat array format: data.content[]
-		if (Array.isArray(data.content)) {
-			const textBlock = data.content.find((c: any) => c.type === 'text');
-			if (textBlock?.text) return textBlock.text.slice(0, 200);
-			// Fallback: show tool name if only tool_use blocks
-			const toolBlock = data.content.find((c: any) => c.type === 'tool_use');
-			if (toolBlock?.name) return `Using ${toolBlock.name}`;
-		}
-
-		// Nested format: data.message.content[]
-		const message = data.message as Record<string, unknown> | undefined;
-		if (message && Array.isArray(message.content)) {
-			const textBlock = message.content.find((c: any) => c.type === 'text');
-			if (textBlock?.text) return (textBlock.text as string).slice(0, 200);
-			// Fallback: show tool name if only tool_use blocks
-			const toolBlock = message.content.find((c: any) => c.type === 'tool_use');
-			if (toolBlock?.name) return `Using ${toolBlock.name}`;
-		}
-
-		return 'Text output';
-	}
-
-	function extractToolUse(data: Record<string, unknown>): string {
-		// Flat format: data.name
-		if (typeof data.name === 'string') {
-			const desc = extractToolDescription(data);
-			return desc ? `${data.name}: ${desc}` : data.name;
-		}
-
-		// Nested format: data.message.content[] with type: "tool_use"
-		const message = data.message as Record<string, unknown> | undefined;
-		if (message && Array.isArray(message.content)) {
-			const toolBlock = message.content.find((c: any) => c.type === 'tool_use');
-			if (toolBlock?.name) {
-				const desc = extractToolDescription(toolBlock);
-				return desc ? `${toolBlock.name}: ${desc}` : toolBlock.name;
-			}
-		}
-
-		return 'Tool';
-	}
-
-	function extractToolDescription(data: Record<string, unknown>): string | null {
-		const input = data.input as Record<string, unknown> | undefined;
+	function extractToolDescription(input: Record<string, unknown> | undefined): string | null {
 		if (!input) return null;
-
-		// Common description fields
 		if (typeof input.description === 'string') return input.description.slice(0, 100);
 		if (typeof input.command === 'string') return input.command.slice(0, 100);
 		if (typeof input.file_path === 'string') return input.file_path;
 		if (typeof input.pattern === 'string') return input.pattern;
 		if (typeof input.query === 'string') return input.query.slice(0, 100);
-
 		return null;
 	}
 
-	function extractToolResult(data: Record<string, unknown>): string {
-		let output: string | null = null;
-
-		// Check for content field (nested or flat)
-		if (typeof data.content === 'string' && data.content.length > 0) {
-			output = data.content;
-		}
-
-		// Check for nested content array
-		if (!output && Array.isArray(data.content)) {
-			const textBlock = data.content.find((c: any) => c.type === 'text');
-			if (textBlock?.text) output = textBlock.text as string;
-		}
-
-		if (output) {
-			// Sanitize newlines and truncate
-			const sanitized = output.replace(/\n+/g, ' ').trim();
-			return `Output: ${sanitized.slice(0, 100)}`;
-		}
-
-		return 'Tool completed';
-	}
-
-	function extractSystemInfo(data: Record<string, unknown>): string {
-		// Init event with model info
-		if (typeof data.model === 'string') {
-			return `Session started (${data.model})`;
-		}
-
-		// Check for subtype or message
-		if (typeof data.subtype === 'string') {
-			return data.subtype;
-		}
-
-		// Handle message field - can be string or object
-		if (typeof data.message === 'string') {
-			return data.message.slice(0, 100);
-		}
-
-		// Handle nested message object (same format as assistant events)
-		const message = data.message as Record<string, unknown> | undefined;
-		if (message && Array.isArray(message.content)) {
-			const textBlock = message.content.find((c: any) => c.type === 'text');
-			if (textBlock?.text) return (textBlock.text as string).slice(0, 100);
-		}
-
-		return 'System';
-	}
-
-	function extractUserContent(data: Record<string, unknown>): string {
-		// User events contain tool results fed back to the model
-		// Format: data.message.content[] with type: "tool_result"
-		const message = data.message as Record<string, unknown> | undefined;
-		if (message && Array.isArray(message.content)) {
-			const toolResult = message.content.find((c: any) => c.type === 'tool_result');
-			if (toolResult) {
-				// Extract content from tool_result
-				const content = toolResult.content;
-				if (typeof content === 'string' && content.length > 0) {
-					return `Tool result: ${content.slice(0, 100)}`;
+	function renderEventContent(event: AgentRunEvent): string {
+		const d = event.data as Record<string, unknown>;
+		switch (event.type) {
+			case 'assistant': {
+				// Normalized: d.text, d.tool_use[]
+				if (typeof d.text === 'string') return d.text.slice(0, 200);
+				if (Array.isArray(d.tool_use) && d.tool_use.length > 0) {
+					const tool = d.tool_use[0] as { name: string; input: unknown };
+					const desc = extractToolDescription(tool.input as Record<string, unknown>);
+					return desc ? `Using ${tool.name}: ${desc}` : `Using ${tool.name}`;
 				}
-				if (Array.isArray(content)) {
-					const textBlock = content.find((c: any) => c.type === 'text');
-					if (textBlock?.text) return `Tool result: ${(textBlock.text as string).slice(0, 100)}`;
+				return 'Text output';
+			}
+			case 'tool_use': {
+				// Normalized: d.tool_use[]
+				if (Array.isArray(d.tool_use) && d.tool_use.length > 0) {
+					const tool = d.tool_use[0] as { name: string; input: unknown };
+					const desc = extractToolDescription(tool.input as Record<string, unknown>);
+					return desc ? `${tool.name}: ${desc}` : tool.name;
 				}
-				return 'Tool result';
+				return 'Tool';
 			}
-		}
-
-		// Flat format fallback
-		if (Array.isArray(data.content)) {
-			const toolResult = data.content.find((c: any) => c.type === 'tool_result');
-			if (toolResult) {
-				const content = toolResult.content;
-				if (typeof content === 'string') return `Tool result: ${content.slice(0, 100)}`;
-				return 'Tool result';
+			case 'tool_result': {
+				// Normalized: d.tool_results[]
+				if (Array.isArray(d.tool_results) && d.tool_results.length > 0) {
+					const result = d.tool_results[0] as { output: string };
+					if (result.output) {
+						const sanitized = result.output.replace(/\n+/g, ' ').trim();
+						return `Output: ${sanitized.slice(0, 100)}`;
+					}
+				}
+				return 'Tool completed';
 			}
+			case 'user': {
+				// Normalized: d.tool_results[]
+				if (Array.isArray(d.tool_results) && d.tool_results.length > 0) {
+					const result = d.tool_results[0] as { output: string };
+					if (result.output) {
+						return `Tool result: ${result.output.slice(0, 100)}`;
+					}
+					return 'Tool result';
+				}
+				return 'User input';
+			}
+			case 'system': {
+				// Normalized: d.model, d.subtype, d.message
+				if (typeof d.model === 'string') return `Session started (${d.model})`;
+				if (typeof d.subtype === 'string') return d.subtype;
+				if (typeof d.message === 'string') return d.message.slice(0, 100);
+				return 'System';
+			}
+			case 'result':
+				return (d.result as string)?.slice(0, 100) ?? 'Finished';
+			case 'error':
+				return (d.error as string) ?? 'Unknown error';
+			default:
+				return event.type;
 		}
-
-		return 'User input';
 	}
 </script>
 

@@ -243,69 +243,75 @@
 		content: string | null;
 	}
 
+	function formatToolUse(tool: { name: string; input: unknown }): FormattedEvent {
+		const input = tool.input as Record<string, unknown> | undefined;
+		switch (tool.name) {
+			case 'Read':
+				return { label: 'Read', content: (input?.file_path as string) ?? null };
+			case 'Edit':
+				return { label: 'Edit', content: (input?.file_path as string) ?? null };
+			case 'Write':
+				return { label: 'Write', content: (input?.file_path as string) ?? null };
+			case 'Bash':
+				return { label: 'Bash', content: (input?.command as string) ?? (input?.description as string) ?? null };
+			case 'Glob':
+				return { label: 'Glob', content: (input?.pattern as string) ?? null };
+			case 'Grep':
+				return { label: 'Grep', content: (input?.pattern as string) ?? null };
+			case 'Task':
+				return { label: 'Task', content: (input?.description as string) ?? (input?.prompt as string) ?? null };
+			case 'TodoWrite':
+				return { label: 'TodoWrite', content: null };
+			default:
+				return { label: tool.name || 'Tool', content: input ? JSON.stringify(input).slice(0, 200) : null };
+		}
+	}
+
 	function formatEvent(event: { type: string; data: unknown }): FormattedEvent {
 		const d = event.data as Record<string, unknown> | null;
 		switch (event.type) {
-			case 'tool_use': {
-				const name = (d?.name ?? d?.tool_name ?? '') as string;
-				const input = d?.input as Record<string, unknown> | undefined;
-				let label = '';
-				let content: string | null = null;
-				switch (name) {
-					case 'Read':
-						label = 'Read';
-						content = (input?.file_path as string) ?? null;
-						break;
-					case 'Edit':
-						label = 'Edit';
-						content = (input?.file_path as string) ?? null;
-						break;
-					case 'Write':
-						label = 'Write';
-						content = (input?.file_path as string) ?? null;
-						break;
-					case 'Bash':
-						label = 'Bash';
-						content = (input?.command as string) ?? (input?.description as string) ?? null;
-						break;
-					case 'Glob':
-						label = 'Glob';
-						content = (input?.pattern as string) ?? null;
-						break;
-					case 'Grep':
-						label = 'Grep';
-						content = (input?.pattern as string) ?? null;
-						break;
-					case 'Task':
-						label = 'Task';
-						content = (input?.description as string) ?? (input?.prompt as string) ?? null;
-						break;
-					case 'TodoWrite':
-						label = 'TodoWrite';
-						break;
-					default:
-						label = name || 'Tool';
-						content = input ? JSON.stringify(input).slice(0, 200) : null;
-				}
-				return { label, content };
-			}
-			case 'tool_result': {
-				const raw = d?.output ?? d?.content ?? d?.result ?? '';
-				const output = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
-				return { label: 'Result', content: output || null };
-			}
 			case 'assistant': {
-				const text = (d?.content ?? d?.text ?? '') as string;
-				return { label: 'Assistant', content: text || null };
+				// Normalized: d.text, d.tool_use[]
+				if (d?.text) return { label: 'Assistant', content: d.text as string };
+				if (Array.isArray(d?.tool_use) && d.tool_use.length > 0) {
+					return formatToolUse(d.tool_use[0] as { name: string; input: unknown });
+				}
+				return { label: 'Assistant', content: null };
 			}
 			case 'user': {
-				const text = (d?.content ?? d?.text ?? d?.message ?? '') as string;
-				return { label: 'User', content: text || null };
+				// Normalized: d.tool_results[]
+				if (Array.isArray(d?.tool_results) && d.tool_results.length > 0) {
+					const result = d.tool_results[0] as { output: string };
+					return { label: 'Result', content: result.output || null };
+				}
+				return { label: 'User', content: null };
+			}
+			case 'tool_use': {
+				// Normalized: d.tool_use[]
+				if (Array.isArray(d?.tool_use) && d.tool_use.length > 0) {
+					return formatToolUse(d.tool_use[0] as { name: string; input: unknown });
+				}
+				return { label: 'Tool', content: null };
+			}
+			case 'tool_result': {
+				// Normalized: d.tool_results[]
+				if (Array.isArray(d?.tool_results) && d.tool_results.length > 0) {
+					const result = d.tool_results[0] as { output: string };
+					return { label: 'Result', content: result.output || null };
+				}
+				return { label: 'Result', content: null };
+			}
+			case 'system': {
+				// Normalized: d.model, d.subtype, d.message
+				if (d?.model) return { label: 'System', content: `Session started (${d.model})` };
+				if (d?.subtype) return { label: 'System', content: d.subtype as string };
+				if (d?.message) return { label: 'System', content: d.message as string };
+				return { label: 'System', content: null };
 			}
 			case 'result':
-				return { label: 'Finished', content: (d?.message as string) ?? null };
+				return { label: 'Finished', content: (d?.result as string) ?? null };
 			case 'error':
-				return { label: 'Error', content: (d?.message as string) ?? 'unknown' };
+				return { label: 'Error', content: (d?.error as string) ?? 'unknown' };
 			default:
 				return { label: event.type, content: d ? JSON.stringify(d).slice(0, 200) : null };
 		}

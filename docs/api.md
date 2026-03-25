@@ -599,14 +599,26 @@ GET /projects/:projectId/runs/:runId
       "id": "uuid",
       "agent_run_id": "uuid",
       "type": "assistant",
-      "data": { "message": { "content": [...] } },
+      "data": { "text": "I'll help with that...", "tool_use": [...] },
       "created_at": "ISO 8601"
     }
   ]
 }
 ```
 
-Event `type` values are raw strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`). Types are stored as-is without mapping.
+Event `type` values are strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`, `system`, `error`). Events are **normalized** on retrieval — the nested Claude CLI format (`message.content[]` arrays) is flattened into a simpler structure:
+
+| Type          | Normalized `data` fields                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `assistant`   | `text` (string), `thinking` (string), `tool_use` (array of `{id, name, input}`)          |
+| `user`        | `text` (string), `tool_results` (array of `{tool_use_id, output, is_error?}`)            |
+| `tool_use`    | `tool_use` (array of `{id, name, input}`)                                                |
+| `tool_result` | `tool_results` (array of `{tool_use_id, output, is_error?}`)                             |
+| `system`      | `model` (string), `subtype` (string), `message` (string)                                 |
+| `result`      | `result` (string), `cost_usd` (number), `duration_ms` (number)                           |
+| `error`       | `error` (string)                                                                         |
+
+Raw events are stored as-is in the database for debugging; normalization occurs only at retrieval time.
 
 **Error:** `404 Not Found` — Run does not exist or belongs to a different project.
 
@@ -1445,7 +1457,7 @@ All events follow this structure:
 | Event           | Description                             | Data                                                                                                       |
 | --------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `run.started`   | Agent run started (process spawned)     | `{ agent_run_id, project_id, issue_id, agent_id, status, started_at }`                                     |
-| `run.event`     | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }`                                           |
+| `run.event`     | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }` — `data` is normalized (see Agent Runs)   |
 | `run.completed` | Agent run finished                      | `{ agent_run_id, project_id, issue_id, agent_id, status, exit_code, cost_usd, duration_ms, completed_at }` |
 
 #### PR Events
