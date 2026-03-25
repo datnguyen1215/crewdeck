@@ -1166,11 +1166,11 @@ All events follow this structure:
 
 #### Issue Events
 
-| Event                  | Description          | Data                     |
-| ---------------------- | -------------------- | ------------------------ |
-| `issue.created`        | New issue created    | Full issue object        |
-| `issue.updated`        | Issue fields changed | `{ issue_id, changes }`  |
-| `issue.status_changed` | Status transition    | `{ issue_id, from, to }` |
+| Event                  | Description          | Data                                             |
+| ---------------------- | -------------------- | ------------------------------------------------ |
+| `issue.created`        | New issue created    | Full issue object                                |
+| `issue.updated`        | Issue fields changed | `{ issue_id, changes }`                          |
+| `issue.status_changed` | Status transition    | `{ issue_id, from, to, actor_type?, actor_id? }` |
 
 #### Comment Events
 
