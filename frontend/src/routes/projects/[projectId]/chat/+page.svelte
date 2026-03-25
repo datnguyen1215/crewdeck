@@ -5,7 +5,6 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import ChatPanel from '$lib/components/ChatPanel.svelte';
-	import MonitorPanel from '$lib/components/MonitorPanel.svelte';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -13,19 +12,6 @@
 	let ws = $derived(getWs());
 	let project = $state<Project | null>(null);
 	let pageTitle = $derived(project?.name ? `Captain - ${project.name} - CrewDeck` : 'Captain - CrewDeck');
-
-	// Mobile tab state: reactive to URL search param changes (e.g. sidebar navigation)
-	let urlTab = $derived<'chat' | 'monitor'>(
-		$page.url.searchParams.get('panel') === 'monitor' ? 'monitor' : 'chat'
-	);
-	let manualTab = $state<'chat' | 'monitor' | null>(null);
-	let activeTab = $derived(manualTab ?? urlTab);
-
-	// Reset manual override when URL changes
-	$effect(() => {
-		urlTab; // track
-		manualTab = null;
-	});
 
 	$effect(() => {
 		let cancelled = false;
@@ -57,51 +43,13 @@
 			</div>
 			<div class="min-w-0">
 				<h1 class="text-base md:text-lg font-bold text-primary truncate">Captain</h1>
-				<p class="text-xs text-muted">Chat & Monitor</p>
+				<p class="text-xs text-muted">Project orchestration chat</p>
 			</div>
 		</div>
 	</div>
 
-	<!-- Mobile tabs -->
-	<div class="flex md:hidden border-b border-edge flex-shrink-0">
-		<button
-			onclick={() => manualTab = 'chat'}
-			class="flex-1 py-3 text-sm font-mono text-center transition-colors
-				{activeTab === 'chat' ? 'text-cyan border-b-2 border-cyan bg-cyan/5' : 'text-muted hover:text-secondary'}"
-		>
-			Chat
-		</button>
-		<button
-			onclick={() => manualTab = 'monitor'}
-			class="flex-1 py-3 text-sm font-mono text-center transition-colors
-				{activeTab === 'monitor' ? 'text-cyan border-b-2 border-cyan bg-cyan/5' : 'text-muted hover:text-secondary'}"
-		>
-			Monitor
-		</button>
-	</div>
-
-	<!-- Panels -->
-	<div class="flex-1 flex min-h-0">
-		<!-- Chat panel -->
-		<div class="flex-1 min-w-0 border-r border-edge
-			{activeTab === 'chat' ? 'flex' : 'hidden'} md:flex flex-col">
-			<div class="px-3 md:px-4 py-2 border-b border-edge flex-shrink-0 bg-surface/30">
-				<span class="text-xs font-mono text-cyan">Chat</span>
-			</div>
-			<div class="flex-1 min-h-0">
-				<ChatPanel {projectId} {ws} />
-			</div>
-		</div>
-
-		<!-- Monitor panel -->
-		<div class="flex-1 min-w-0
-			{activeTab === 'monitor' ? 'flex' : 'hidden'} md:flex flex-col">
-			<div class="px-3 md:px-4 py-2 border-b border-edge flex-shrink-0 bg-surface/30">
-				<span class="text-xs font-mono text-purple">Monitor</span>
-			</div>
-			<div class="flex-1 min-h-0">
-				<MonitorPanel {ws} {projectId} />
-			</div>
-		</div>
+	<!-- Chat panel (full width) -->
+	<div class="flex-1 min-h-0">
+		<ChatPanel {projectId} {ws} />
 	</div>
 </div>
