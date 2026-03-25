@@ -18,6 +18,7 @@ import {
 import { eventBus } from "../events/bus.js";
 import { logger } from "../logger.js";
 import { saveImages } from "../utils/image-storage.js";
+import { isSessionBusy } from "../orchestration/captain/chat-agent.js";
 
 const router = Router({ mergeParams: true });
 
@@ -105,6 +106,18 @@ router.post(
       return;
     }
 
+    // Per-session concurrency: reject if session has an in-flight message
+    if (isSessionBusy(sessionId)) {
+      res.status(409).json({
+        error: {
+          code: "SESSION_BUSY",
+          message:
+            "Session already has an in-flight message. Wait for completion or abort.",
+        },
+      });
+      return;
+    }
+
     const project = getProject(projectId);
     if (!project) {
       res.status(404).json({
@@ -155,6 +168,31 @@ router.post(
       user_message: userMessage,
       status: "queued",
     });
+  },
+);
+
+// POST /chat/sessions/:sessionId/abort — abort in-flight message for a session
+router.post(
+  "/chat/sessions/:sessionId/abort",
+  verifyProject,
+  (req: Request<SessionParams>, res) => {
+    const { projectId, sessionId } = req.params;
+
+    const session = sessionRepo.getById(sessionId);
+    if (!session || session.project_id !== projectId) {
+      res.status(404).json({
+        error: { code: "NOT_FOUND", message: "Session not found" },
+      });
+      return;
+    }
+
+    // Emit abort event for the chat service to handle
+    eventBus.emit("chat.abort", {
+      project_id: projectId,
+      session_id: sessionId,
+    });
+
+    res.json({ status: "abort_requested" });
   },
 );
 

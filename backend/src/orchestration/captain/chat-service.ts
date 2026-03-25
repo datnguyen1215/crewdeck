@@ -2,74 +2,55 @@
  * Chat Service
  *
  * Handles interactive user conversations. Subscribes to chat.message events,
- * queues them, and processes through the Chat LLM agent with streaming output.
- * Runs independently from the Monitor service.
+ * enforces per-session concurrency (one in-flight message per session), and
+ * processes through the Chat LLM agent with streaming output.
+ *
+ * Also handles chat.abort events to kill in-flight processes.
  */
 import { eventBus } from "../../events/bus.js";
 import { logger } from "../../logger.js";
 import { getProject, listProjects } from "../../db/repositories/projects.js";
-import { enqueue, tryAcquire, release, drain, hasPending } from "./queue.js";
-import { processChat } from "./chat-agent.js";
+import { processChat, isSessionBusy, abortSession } from "./chat-agent.js";
 import type { CaptainEvent } from "./queue.js";
-
-// Queue namespace prefix to separate chat from monitor queues
-const CHAT_PREFIX = "chat:";
 
 const projectSubscriptions = new Map<string, () => void>();
 
 /**
- * Queue a chat event and trigger processing if not already running.
+ * Process a single chat message for a session.
+ * Per-session concurrency: rejects if session already has an in-flight message.
  */
-async function queueAndProcess(event: CaptainEvent): Promise<void> {
+async function handleChatEvent(event: CaptainEvent): Promise<void> {
   const { projectId } = event;
-  const queueKey = `${CHAT_PREFIX}${projectId}`;
+  const sessionId = (event.data as { session_id?: string }).session_id;
 
-  const project = getProject(projectId);
-  if (!project?.captain_enabled) return;
-
-  enqueue({ ...event, projectId: queueKey });
-
-  if (!tryAcquire(queueKey)) {
-    logger.debug({ projectId }, "Chat: Message queued while processing");
+  if (!sessionId) {
+    logger.warn({ projectId }, "Chat: Ignoring message without session_id");
     return;
   }
 
-  try {
-    await processQueue(projectId, queueKey);
-  } finally {
-    release(queueKey);
-  }
-}
-
-/**
- * Process all pending chat messages in the queue.
- */
-async function processQueue(
-  projectId: string,
-  queueKey: string,
-): Promise<void> {
-  while (hasPending(queueKey)) {
-    const events = drain(queueKey).map((e) => ({
-      ...e,
-      projectId, // restore original projectId for the agent
-    }));
-    if (events.length === 0) break;
-
-    logger.info(
-      { projectId, messageCount: events.length },
-      "Chat: Processing messages",
+  // Per-session concurrency: reject if session already busy
+  if (isSessionBusy(sessionId)) {
+    logger.warn(
+      { projectId, sessionId },
+      "Chat: Rejecting message — session has in-flight message",
     );
+    return;
+  }
 
-    try {
-      await processChat(projectId, events);
-    } catch (err) {
-      logger.error({ err, projectId }, "Chat: Failed to process messages");
-    }
+  logger.info({ projectId, sessionId }, "Chat: Processing message");
+
+  try {
+    await processChat(projectId, [event]);
+  } catch (err) {
+    logger.error(
+      { err, projectId, sessionId },
+      "Chat: Failed to process message",
+    );
   }
 }
 
 /**
- * Create chat event handler for a project.
+ * Create chat event handlers for a project.
  */
 function createProjectHandler(projectId: string): () => void {
   const handleChatMessage = (data: {
@@ -86,15 +67,28 @@ function createProjectHandler(projectId: string): () => void {
       data,
       images: data.images,
     };
-    queueAndProcess(event).catch((err) => {
-      logger.error({ err, projectId }, "Chat: Failed to queue chat.message");
+    handleChatEvent(event).catch((err) => {
+      logger.error({ err, projectId }, "Chat: Failed to handle chat.message");
     });
   };
 
+  const handleAbort = (data: { project_id: string; session_id: string }) => {
+    if (data.project_id !== projectId) return;
+    const aborted = abortSession(data.session_id);
+    if (aborted) {
+      logger.info(
+        { projectId, sessionId: data.session_id },
+        "Chat: Aborted in-flight message",
+      );
+    }
+  };
+
   eventBus.on("chat.message", handleChatMessage);
+  eventBus.on("chat.abort", handleAbort);
 
   return () => {
     eventBus.off("chat.message", handleChatMessage);
+    eventBus.off("chat.abort", handleAbort);
   };
 }
 

@@ -186,6 +186,35 @@ function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "captain.complete", {}),
   );
 
+  // Captain chat streaming events (granular)
+  bus.on("captain.chat.chunk", ({ project_id, session_id, text }) =>
+    broadcast(project_id, "captain.chat.chunk", { session_id, text }),
+  );
+
+  bus.on(
+    "captain.chat.tool_call",
+    ({ project_id, session_id, tool_name, tool_input }) =>
+      broadcast(project_id, "captain.chat.tool_call", {
+        session_id,
+        tool_name,
+        tool_input,
+      }),
+  );
+
+  bus.on(
+    "captain.chat.tool_result",
+    ({ project_id, session_id, tool_name, result }) =>
+      broadcast(project_id, "captain.chat.tool_result", {
+        session_id,
+        tool_name,
+        result,
+      }),
+  );
+
+  bus.on("captain.chat.complete", ({ project_id, session_id, message_id }) =>
+    broadcast(project_id, "captain.chat.complete", { session_id, message_id }),
+  );
+
   // Monitor events (automated orchestration)
   bus.on("monitor.event_received", ({ project_id, event_type, description }) =>
     broadcast(project_id, "monitor.event_received", {
