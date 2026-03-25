@@ -14,10 +14,18 @@
 	let project = $state<Project | null>(null);
 	let pageTitle = $derived(project?.name ? `Captain - ${project.name} - CrewDeck` : 'Captain - CrewDeck');
 
-	// Mobile tab state: default from URL search param
-	let activeTab = $state<'chat' | 'monitor'>(
+	// Mobile tab state: reactive to URL search param changes (e.g. sidebar navigation)
+	let urlTab = $derived<'chat' | 'monitor'>(
 		$page.url.searchParams.get('panel') === 'monitor' ? 'monitor' : 'chat'
 	);
+	let manualTab = $state<'chat' | 'monitor' | null>(null);
+	let activeTab = $derived(manualTab ?? urlTab);
+
+	// Reset manual override when URL changes
+	$effect(() => {
+		urlTab; // track
+		manualTab = null;
+	});
 
 	$effect(() => {
 		let cancelled = false;
@@ -57,14 +65,14 @@
 	<!-- Mobile tabs -->
 	<div class="flex md:hidden border-b border-edge flex-shrink-0">
 		<button
-			onclick={() => activeTab = 'chat'}
+			onclick={() => manualTab = 'chat'}
 			class="flex-1 py-3 text-sm font-mono text-center transition-colors
 				{activeTab === 'chat' ? 'text-cyan border-b-2 border-cyan bg-cyan/5' : 'text-muted hover:text-secondary'}"
 		>
 			Chat
 		</button>
 		<button
-			onclick={() => activeTab = 'monitor'}
+			onclick={() => manualTab = 'monitor'}
 			class="flex-1 py-3 text-sm font-mono text-center transition-colors
 				{activeTab === 'monitor' ? 'text-cyan border-b-2 border-cyan bg-cyan/5' : 'text-muted hover:text-secondary'}"
 		>

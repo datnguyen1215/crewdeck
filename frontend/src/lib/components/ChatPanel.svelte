@@ -32,6 +32,7 @@
 	let messagesContainer: HTMLDivElement | undefined;
 	let inputElement: HTMLTextAreaElement | undefined;
 	let pendingImages = $state<PendingImage[]>([]);
+	let sendingTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	// Load chat history
 	$effect(() => {
@@ -147,6 +148,7 @@
 			isThinking = false;
 			sending = false;
 			streamingEntryId = null;
+			if (sendingTimeout) { clearTimeout(sendingTimeout); sendingTimeout = null; }
 			inputElement?.focus();
 		};
 
@@ -184,6 +186,19 @@
 		pendingImages = [];
 		sending = true;
 
+		// Safety timeout: reset sending if no completion event arrives within 60s
+		if (sendingTimeout) clearTimeout(sendingTimeout);
+		sendingTimeout = setTimeout(() => {
+			if (sending) {
+				sending = false;
+				isThinking = false;
+				streamingEntryId = null;
+				toastStore.add('Response timed out — you can try again', 'warning');
+				inputElement?.focus();
+			}
+			sendingTimeout = null;
+		}, 60_000);
+
 		const userEntry: TerminalEntry = {
 			id: crypto.randomUUID(),
 			type: 'user',
@@ -199,6 +214,7 @@
 			toastStore.add('Failed to send message', 'error');
 			entries = entries.filter((e) => e.id !== userEntry.id);
 			sending = false;
+			if (sendingTimeout) { clearTimeout(sendingTimeout); sendingTimeout = null; }
 			inputElement?.focus();
 		}
 	}
