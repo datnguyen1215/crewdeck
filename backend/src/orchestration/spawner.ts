@@ -425,7 +425,6 @@ export const spawnAgent = async (
   }
 
   const comments = commentRepo.listComments(issueId);
-
   const projectKnowledge = knowledgeRepo.listForAgent(projectId, agent.id);
 
   const prompt = agentPrompt.buildPrompt({
@@ -434,7 +433,6 @@ export const spawnAgent = async (
     repo,
     worktreePath: worktreePath ?? ".",
     agentId: agent.id,
-    projectIssues: undefined,
     projectKnowledge,
   });
 

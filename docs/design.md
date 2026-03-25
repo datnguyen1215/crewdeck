@@ -76,7 +76,7 @@ Pull requests are tracked in the `IssuePR` table. They can be linked to an issue
 
 - **Manual**: the user clicks "Mark as PR Created", which transitions the issue to `pr_created` and records the PR.
 - **Auto-link**: when a comment is posted containing a GitHub PR URL (e.g. `https://github.com/owner/repo/pull/123`), the PR detector automatically creates an `IssuePR` record linking it to the issue (deduped by repo + PR number).
-- **Agent registration**: Captain can call `POST /internal/create-pr` after creating a PR with `gh pr create` to explicitly register the PR for tracking. This ensures the PR poller can auto-transition the issue to `done` when the PR is merged.
+- **Agent registration**: An agent can call `POST /internal/create-pr` after creating a PR with `gh pr create` to explicitly register the PR for tracking. This ensures the PR poller can auto-transition the issue to `done` when the PR is merged.
 
 ## Issue Lifecycle
 
@@ -90,15 +90,15 @@ Open → In Progress → PR Created → Done
 
 ### States
 
-| State                 | Description                                                                                                                                                                                        |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open**              | Issue is in the queue, ready to be worked on.                                                                                                                                                      |
-| **In Progress**       | An agent is actively working (or has worked) on the issue. Set automatically when an agent is spawned.                                                                                             |
-| **PR Created**        | A pull request has been created. Set via the "Mark as PR Created" button, automatically by Captain after creating a PR with `gh pr create`, or auto-detected when a PR URL is posted in a comment. |
-| **PR Conflict**       | The PR has merge conflicts detected by GitHub. Transitions back to `pr_created` after conflicts are resolved.                                                                                      |
-| **PR Failed Actions** | The PR has failing CI checks. Transitions back to `pr_created` after checks pass.                                                                                                                  |
-| **PR Ready to Merge** | The PR passes all checks and has no conflicts. Ready to be merged.                                                                                                                                 |
-| **Done**              | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running), or automatically when a linked PR is merged.                                                          |
+| State                 | Description                                                                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Open**              | Issue is in the queue, ready to be worked on.                                                                                             |
+| **In Progress**       | An agent is actively working (or has worked) on the issue. Set automatically when an agent is spawned.                                    |
+| **PR Created**        | A pull request has been created. Set via the "Mark as PR Created" button, or auto-detected when a PR URL is posted in a comment.          |
+| **PR Conflict**       | The PR has merge conflicts detected by GitHub. Transitions back to `pr_created` after conflicts are resolved.                             |
+| **PR Failed Actions** | The PR has failing CI checks. Transitions back to `pr_created` after checks pass.                                                         |
+| **PR Ready to Merge** | The PR passes all checks and has no conflicts. Ready to be merged.                                                                        |
+| **Done**              | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running), or automatically when a linked PR is merged. |
 
 Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) or `done` issue automatically regresses it to `in_progress`.
 
@@ -229,7 +229,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - **CI status** — via both GitHub check-runs API (modern) and commit status API (legacy). If any check failed, transitions issue to `pr_failed_actions`. If all checks pass and mergeable, transitions to `pr_ready_to_merge`.
 - Issues in intermediate states (`pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) are transitioned back to `pr_created` when conditions become pending (e.g., new commits pushed).
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
-- Exports `pollPRs()` for external callers (e.g., Captain) to trigger immediate polling.
+- Exports `pollPRs()` for external callers to trigger immediate polling.
 
 **Captain**
 
@@ -330,7 +330,7 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued.
 - **PR events** — PR created, status updated.
-- **Captain events** — event received, thinking, message, tool call, tool result, complete.
+- **Orchestrator events** — event received, thinking, message, tool call, tool result, complete.
 
 The frontend subscribes to events scoped by project.
 
