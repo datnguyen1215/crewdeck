@@ -237,13 +237,27 @@ async function spawnAndTrack(opts: {
     status: "running",
   });
 
-  const result = await agentProcess.spawnClaudeStream({
-    prompt,
-    systemPrompt: agent.system_prompt,
-    workdir,
-    env,
-    model,
-  });
+  let result: Awaited<ReturnType<typeof agentProcess.spawnClaudeStream>>;
+  try {
+    result = await agentProcess.spawnClaudeStream({
+      prompt,
+      systemPrompt: agent.system_prompt,
+      workdir,
+      env,
+      model,
+    });
+  } catch (err) {
+    agentRunRepo.updateAgentRun(agentRun.id, {
+      status: "failed",
+      completed_at: new Date().toISOString(),
+    });
+    log.logger.error(
+      { err, runId: agentRun.id, agent: agent.name },
+      `${logLabel} spawn failed`,
+    );
+    onComplete?.();
+    throw err;
+  }
 
   // Update run with PID
   agentRunRepo.updateAgentRun(agentRun.id, { pid: result.pid });
