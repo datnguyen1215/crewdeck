@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick, onMount } from 'svelte';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import type { WsEventMap } from '$lib/api/types.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { getMonitorHistory, type ChatMessage } from '$lib/api/http.js';
 
@@ -47,7 +48,7 @@
 		// Don't subscribe to WebSocket until history is loaded to prevent duplicates
 		if (!ws || loading) return;
 
-		const handleEventReceived = (data: Record<string, unknown>) => {
+		const handleEventReceived = (data: WsEventMap['monitor.event_received']) => {
 			entries = [...entries, {
 				id: crypto.randomUUID(),
 				type: 'event',
@@ -67,35 +68,35 @@
 			scrollToBottom();
 		};
 
-		const handleMessage = (data: Record<string, unknown>) => {
+		const handleMessage = (data: WsEventMap['monitor.message']) => {
 			entries = [...entries, {
 				id: crypto.randomUUID(),
 				type: 'message',
-				content: data.content as string,
+				content: data.content,
 				timestamp: new Date(),
 			}];
 			scrollToBottom();
 		};
 
-		const handleToolCall = (data: Record<string, unknown>) => {
+		const handleToolCall = (data: WsEventMap['monitor.tool_call']) => {
 			entries = [...entries, {
 				id: crypto.randomUUID(),
 				type: 'tool_call',
 				content: `${data.tool_name}`,
-				toolName: data.tool_name as string,
+				toolName: data.tool_name,
 				toolInput: data.tool_input,
 				timestamp: new Date(),
 			}];
 			scrollToBottom();
 		};
 
-		const handleToolResult = (data: Record<string, unknown>) => {
+		const handleToolResult = (data: WsEventMap['monitor.tool_result']) => {
 			const result = data.result as { success: boolean; message: string } | undefined;
 			entries = [...entries, {
 				id: crypto.randomUUID(),
 				type: 'tool_result',
-				content: result?.message ?? String(data.message ?? ''),
-				toolName: data.tool_name as string,
+				content: result?.message ?? '',
+				toolName: data.tool_name,
 				success: result?.success ?? true,
 				timestamp: new Date(),
 			}];

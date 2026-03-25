@@ -9,6 +9,7 @@
 		type ChatMessage,
 	} from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import type { WsEventMap } from '$lib/api/types.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { md } from '$lib/utils/markdown.js';
 
@@ -99,9 +100,9 @@
 		};
 
 		// Streaming: build up assistant message token-by-token
-		const handleChunk = (data: Record<string, unknown>) => {
+		const handleChunk = (data: WsEventMap['captain.chat.chunk']) => {
 			isThinking = false;
-			const text = (data.text ?? data.content ?? '') as string;
+			const text = data.text;
 			if (streamingEntryId) {
 				entries = entries.map(e =>
 					e.id === streamingEntryId
@@ -122,13 +123,12 @@
 		};
 
 		// Full message (non-streaming fallback)
-		const handleMessage = (data: Record<string, unknown>) => {
+		const handleMessage = (data: WsEventMap['captain.message']) => {
 			isThinking = false;
-			// If we already have a streaming entry, finalize it with full content
 			if (streamingEntryId) {
 				entries = entries.map(e =>
 					e.id === streamingEntryId
-						? { ...e, content: data.content as string }
+						? { ...e, content: data.content }
 						: e
 				);
 				streamingEntryId = null;
@@ -136,34 +136,33 @@
 				entries = [...entries, {
 					id: crypto.randomUUID(),
 					type: 'captain',
-					content: data.content as string,
+					content: data.content,
 					timestamp: new Date(),
 				}];
 			}
 			scrollToBottom();
 		};
 
-		const handleToolCall = (data: Record<string, unknown>) => {
-			// Finalize any in-progress streaming entry
+		const handleToolCall = (data: WsEventMap['captain.chat.tool_call']) => {
 			streamingEntryId = null;
 			entries = [...entries, {
 				id: crypto.randomUUID(),
 				type: 'tool_call',
 				content: `${data.tool_name}`,
-				toolName: data.tool_name as string,
+				toolName: data.tool_name,
 				toolInput: data.tool_input,
 				timestamp: new Date(),
 			}];
 			scrollToBottom();
 		};
 
-		const handleToolResult = (data: Record<string, unknown>) => {
+		const handleToolResult = (data: WsEventMap['captain.chat.tool_result']) => {
 			const result = data.result as { success: boolean; message: string } | undefined;
 			entries = [...entries, {
 				id: crypto.randomUUID(),
 				type: 'tool_result',
-				content: result?.message ?? String(data.message ?? ''),
-				toolName: data.tool_name as string,
+				content: result?.message ?? '',
+				toolName: data.tool_name,
 				success: result?.success ?? true,
 				timestamp: new Date(),
 			}];

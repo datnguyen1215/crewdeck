@@ -3,6 +3,7 @@
 	import { getContext, tick, onMount } from 'svelte';
 	import { listActiveRuns, listAgents, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project, type ChatMessage } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import type { WsEventMap } from '$lib/api/types.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import { md } from '$lib/utils/markdown.js';
 
@@ -80,7 +81,7 @@
 		const ws = getWs();
 		if (!ws || monitorLoading) return;
 
-		const handleEventReceived = (data: Record<string, unknown>) => {
+		const handleEventReceived = (data: WsEventMap['monitor.event_received']) => {
 			monitorEntries = [...monitorEntries, {
 				id: crypto.randomUUID(),
 				type: 'event',
@@ -101,35 +102,35 @@
 			scrollMonitorToBottom();
 		};
 
-		const handleMessage = (data: Record<string, unknown>) => {
+		const handleMessage = (data: WsEventMap['monitor.message']) => {
 			monitorEntries = [...monitorEntries, {
 				id: crypto.randomUUID(),
 				type: 'message',
-				content: data.content as string,
+				content: data.content,
 				timestamp: new Date(),
 			}];
 			scrollMonitorToBottom();
 		};
 
-		const handleToolCall = (data: Record<string, unknown>) => {
+		const handleToolCall = (data: WsEventMap['monitor.tool_call']) => {
 			monitorEntries = [...monitorEntries, {
 				id: crypto.randomUUID(),
 				type: 'tool_call',
 				content: `${data.tool_name}`,
-				toolName: data.tool_name as string,
+				toolName: data.tool_name,
 				toolInput: data.tool_input,
 				timestamp: new Date(),
 			}];
 			scrollMonitorToBottom();
 		};
 
-		const handleToolResult = (data: Record<string, unknown>) => {
+		const handleToolResult = (data: WsEventMap['monitor.tool_result']) => {
 			const result = data.result as { success: boolean; message: string } | undefined;
 			monitorEntries = [...monitorEntries, {
 				id: crypto.randomUUID(),
 				type: 'tool_result',
-				content: result?.message ?? String(data.message ?? ''),
-				toolName: data.tool_name as string,
+				content: result?.message ?? '',
+				toolName: data.tool_name,
 				success: result?.success ?? true,
 				timestamp: new Date(),
 			}];
@@ -204,23 +205,22 @@
 		const ws = getWs();
 		if (!ws) return;
 
-		const handleRunStarted = (data: Record<string, unknown>) => {
-			// Reload active runs when a new run starts
+		const handleRunStarted = () => {
 			listActiveRuns(projectId).then((r) => { runs = r; }).catch(() => {});
 		};
 
-		const handleRunEvent = (data: Record<string, unknown>) => {
-			const runId = data.agent_run_id as string;
+		const handleRunEvent = (data: WsEventMap['run.event']) => {
+			const runId = data.agent_run_id;
 			if (!runId) return;
-			const event = { id: crypto.randomUUID(), agent_run_id: runId, type: data.type as string, data: data.data, created_at: new Date().toISOString() };
+			const event = { id: crypto.randomUUID(), agent_run_id: runId, type: data.type, data: data.data, created_at: new Date().toISOString() };
 			runs = runs.map((r) => {
 				if (r.id !== runId) return r;
 				return { ...r, events: [...r.events.slice(-49), event] };
 			});
 		};
 
-		const handleRunCompleted = (data: Record<string, unknown>) => {
-			const runId = data.agent_run_id as string;
+		const handleRunCompleted = (data: WsEventMap['run.completed']) => {
+			const runId = data.agent_run_id;
 			runs = runs.filter((r) => r.id !== runId);
 		};
 
