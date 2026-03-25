@@ -6,7 +6,6 @@
 		createKnowledge,
 		updateKnowledge,
 		deleteKnowledge,
-		listAgents,
 		getProject,
 		triggerKnowledgeScan,
 		getLibrarianStatus,
@@ -25,7 +24,6 @@
 	let project = $state<Project | null>(null);
 	let pageTitle = $derived(project?.name ? `Knowledge - ${project.name} - CrewDeck` : 'Knowledge - CrewDeck');
 	let knowledge = $state<ProjectKnowledge[]>([]);
-	let agents = $state<Agent[]>([]);
 	let loading = $state(true);
 
 	// Modal state
@@ -42,6 +40,8 @@
 
 	// WebSocket for auto-refresh
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+	const getAgents = getContext<() => Agent[]>('agents');
+	let agents = $derived(getAgents());
 
 	// Computed: is a scan currently running?
 	let scanRunning = $derived(librarianStatus?.status === 'running' || librarianStatus?.status === 'queued');
@@ -74,11 +74,10 @@
 		loading = true;
 		let cancelled = false;
 
-		Promise.all([listKnowledge(projectId), listAgents(), getProject(projectId), getLibrarianStatus(projectId)])
-			.then(([k, a, p, status]) => {
+		Promise.all([listKnowledge(projectId), getProject(projectId), getLibrarianStatus(projectId)])
+			.then(([k, p, status]) => {
 				if (cancelled) return;
 				knowledge = k;
-				agents = a;
 				project = p;
 				librarianStatus = status;
 			})
