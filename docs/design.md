@@ -278,8 +278,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Stores all persistent state: projects, issues, comments, activity logs. (Agents are fixed constants in code, not persisted.)
 - Accessed via `better-sqlite3` with raw SQL (synchronous API).
 - `schema.sql` defines the full current schema and is executed on startup for fresh databases.
-- Versioned migration system (`_migrations` table) tracks which migrations have run. Each migration executes once and is recorded. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF`.
-- On fresh databases, all migrations are seeded as already applied (since `schema.sql` contains the final schema).
+- Versioned migration system (`_migrations` table) tracks which migrations have run. Each migration runs idempotently — it checks whether its changes are already present before executing, making it safe for both fresh and existing databases. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF`.
 - Single file, no external dependencies, suitable for local-first operation.
 - See [Data Model](data-model.md) for the full schema.
 
