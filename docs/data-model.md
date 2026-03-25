@@ -120,14 +120,13 @@ The fundamental unit of work.
 
 A message on an issue from an agent, the system, or a human.
 
-| Field       | Type        | Constraints                         | Description                                                    |
-| ----------- | ----------- | ----------------------------------- | -------------------------------------------------------------- |
-| id          | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                             |
-| issue_id    | TEXT        | NOT NULL, FOREIGN KEY → Issue.id    | The issue this comment belongs to.                             |
-| author_type | TEXT        | NOT NULL                            | Who posted it. One of: `user`, `agent`, `system`.              |
-| author_id   | TEXT        | NULLABLE                            | If author_type is `agent`, the Agent.id. NULL for user/system. |
-| content     | TEXT        | NOT NULL                            | Comment body (Markdown supported).                             |
-| created_at  | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                |
+| Field       | Type        | Constraints                         | Description                                                                                          |
+| ----------- | ----------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| id          | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                   |
+| issue_id    | TEXT        | NOT NULL, FOREIGN KEY → Issue.id    | The issue this comment belongs to.                                                                   |
+| author_type | TEXT        | NOT NULL                            | Who posted it. One of: `user`, `system`, `captain`, `engineer`, `lead`, `docs`, `librarian`.         |
+| content     | TEXT        | NOT NULL                            | Comment body (Markdown supported).                                                                   |
+| created_at  | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                      |
 
 ### IssuePR
 

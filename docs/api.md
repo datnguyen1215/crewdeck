@@ -482,8 +482,7 @@ GET /projects/:projectId/issues/:issueId/comments
   {
     "id": "uuid",
     "issue_id": "uuid",
-    "author_type": "user | agent",
-    "author_id": "uuid | null",
+    "author_type": "user | system | captain | engineer | lead | docs | librarian",
     "content": "I've identified the root cause...",
     "created_at": "ISO 8601"
   }
@@ -528,7 +527,7 @@ PATCH /projects/:projectId/issues/:issueId/comments/:commentId
 
 **Response:** `200 OK` — The updated comment object.
 
-**Error:** `403 Forbidden` — Cannot edit agent or system comments (author_type ≠ `user`).
+**Error:** `403 Forbidden` — Cannot edit non-user comments (author_type ≠ `user`).
 
 **Side effects:**
 
@@ -542,7 +541,7 @@ DELETE /projects/:projectId/issues/:issueId/comments/:commentId
 
 **Response:** `204 No Content`
 
-**Error:** `403 Forbidden` — Cannot delete agent or system comments (author_type ≠ `user`).
+**Error:** `403 Forbidden` — Cannot delete non-user comments (author_type ≠ `user`).
 
 **Side effects:**
 
@@ -1080,17 +1079,17 @@ Agent posts a comment on an issue.
 {
   "issue_id": "uuid",
   "project_id": "uuid",
-  "agent_id": "uuid",
+  "agent_id": "engineer",
   "content": "Fixed the bug, added tests"
 }
 ```
 
-| Field      | Required | Description                              |
-| ---------- | -------- | ---------------------------------------- |
-| issue_id   | Yes      | The issue to comment on.                 |
-| project_id | Yes      | The owning project.                      |
-| agent_id   | No       | The agent's ID (for author attribution). |
-| content    | Yes      | Comment body.                            |
+| Field      | Required | Description                                                                        |
+| ---------- | -------- | ---------------------------------------------------------------------------------- |
+| issue_id   | Yes      | The issue to comment on.                                                           |
+| project_id | Yes      | The owning project.                                                                |
+| agent_id   | No       | The agent's ID (e.g., `engineer`, `lead`). Used directly as `author_type`.         |
+| content    | Yes      | Comment body.                                                                      |
 
 **Response:** `201 Created`
 

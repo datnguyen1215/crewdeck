@@ -107,7 +107,7 @@ comment.added event
     │       (only /dispatch at start of line triggers spawns; @mentions are ignored)
     │
     ├── if multiple agents dispatched by an agent author:
-    │       └── create batch (originator = comment.author_id, members = dispatched agents)
+    │       └── create batch (originator = comment.author_type, members = dispatched agents)
     │
     ├── for each dispatched agent:
     │       ├── skip if agent is the batch originator (will be auto-spawned later)
@@ -122,7 +122,7 @@ comment.added event
     │       └── spawnClaude(...)
     │
     └── on process exit:
-            ├── post agent output as comment (author_type: "agent")
+            ├── post agent output as comment (author_type: agent ID, e.g., "engineer")
             ├── post system comment with cost/duration
             ├── emit mention.completed
             ├── drain dispatch queue: dequeue next for this project (if any),
