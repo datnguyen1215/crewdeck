@@ -301,16 +301,28 @@ export interface UpdateKnowledgeInput {
   agent_ids?: string[] | null;
 }
 
+// Chat session types
+export type ChatSessionStatus = "active" | "archived";
+
+export interface ChatSession {
+  id: string;
+  project_id: string;
+  title: string | null;
+  summary: string | null;
+  status: ChatSessionStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 // Chat message types
 export type ChatMessageRole = "user" | "assistant";
-export type ChatMessageType = "chat" | "event" | "monitor";
 
 export interface ChatMessage {
   id: string;
   project_id: string;
+  session_id: string | null;
   role: ChatMessageRole;
   content: string;
-  message_type: ChatMessageType;
   images: string[] | null;
   created_at: string;
 }

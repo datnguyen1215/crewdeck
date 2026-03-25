@@ -1,17 +1,18 @@
 /**
- * Captain Chat API Routes
+ * Chat Session API Routes
  *
- * Provides conversational interface to the Captain for project management.
- * User messages are queued as events for the event-driven Captain to process.
+ * Session-based conversational interface to the Captain.
+ * Each project can have one active session at a time.
  */
 import { Router, type Request } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
 import { verifyProject } from "../middleware/ownership.js";
 import { getProject } from "../db/repositories/projects.js";
+import * as sessionRepo from "../db/repositories/chat-sessions.js";
 import {
   createWithId as createChatMessageWithId,
-  getByProject as getChatMessages,
+  getBySession as getMessagesBySession,
   deleteByProject as deleteChatMessages,
 } from "../db/repositories/chat-messages.js";
 import { eventBus } from "../events/bus.js";
@@ -19,6 +20,10 @@ import { logger } from "../logger.js";
 import { saveImages } from "../utils/image-storage.js";
 
 const router = Router({ mergeParams: true });
+
+const CreateSessionSchema = z.object({
+  title: z.string().max(200).optional(),
+});
 
 const ImageSchema = z.object({
   data: z.string(),
@@ -30,32 +35,81 @@ const SendMessageSchema = z.object({
   images: z.array(ImageSchema).optional(),
 });
 
-// GET /chat - Get chat history
+type ProjectParams = { projectId: string };
+type SessionParams = { projectId: string; sessionId: string };
+
+// GET /chat/sessions — list sessions (newest first)
 router.get(
-  "/chat",
+  "/chat/sessions",
   verifyProject,
-  (req: Request<{ projectId: string }>, res) => {
-    const { projectId } = req.params;
-    // Return messages in chronological order (oldest first)
-    const messages = getChatMessages(projectId, 100).reverse();
+  (req: Request<ProjectParams>, res) => {
+    const sessions = sessionRepo.listByProject(req.params.projectId);
+    res.json(sessions);
+  },
+);
+
+// POST /chat/sessions — create a new session (archives current active one)
+router.post(
+  "/chat/sessions",
+  verifyProject,
+  validate(CreateSessionSchema),
+  (req: Request<ProjectParams>, res) => {
+    const { title } = req.body;
+    const session = sessionRepo.create(req.params.projectId, title);
+    res.status(201).json(session);
+  },
+);
+
+// GET /chat/sessions/:sessionId/messages — get session messages
+router.get(
+  "/chat/sessions/:sessionId/messages",
+  verifyProject,
+  (req: Request<SessionParams>, res) => {
+    const { projectId, sessionId } = req.params;
+    const session = sessionRepo.getById(sessionId);
+    if (!session || session.project_id !== projectId) {
+      res.status(404).json({
+        error: { code: "NOT_FOUND", message: "Session not found" },
+      });
+      return;
+    }
+    const messages = getMessagesBySession(sessionId);
     res.json(messages);
   },
 );
 
-// POST /chat - Send a message to Captain
+// POST /chat/sessions/:sessionId/messages — send a message (triggers claude -p)
 router.post(
-  "/chat",
+  "/chat/sessions/:sessionId/messages",
   verifyProject,
   validate(SendMessageSchema),
-  (req: Request<{ projectId: string }>, res) => {
-    const { projectId } = req.params;
+  (req: Request<SessionParams>, res) => {
+    const { projectId, sessionId } = req.params;
     const { message, images } = req.body;
+
+    const session = sessionRepo.getById(sessionId);
+    if (!session || session.project_id !== projectId) {
+      res.status(404).json({
+        error: { code: "NOT_FOUND", message: "Session not found" },
+      });
+      return;
+    }
+
+    if (session.status === "archived") {
+      res.status(400).json({
+        error: {
+          code: "SESSION_ARCHIVED",
+          message: "Cannot add messages to an archived session",
+        },
+      });
+      return;
+    }
 
     const project = getProject(projectId);
     if (!project) {
-      res
-        .status(404)
-        .json({ error: { code: "NOT_FOUND", message: "Project not found" } });
+      res.status(404).json({
+        error: { code: "NOT_FOUND", message: "Project not found" },
+      });
       return;
     }
 
@@ -68,30 +122,35 @@ router.post(
       imagePaths = saveImages(projectId, messageId, images);
     }
 
-    // Save user message to DB (for history)
+    // Save user message to DB
     const userMessage = createChatMessageWithId(
       messageId,
       projectId,
       "user",
       message,
-      "chat",
+      sessionId,
       imagePaths,
     );
 
-    // Emit chat.message event for Captain queue - response comes via WebSocket
-    // Include base64 images for Captain to process (paths stored in DB, base64 sent to LLM)
+    // Emit chat.message event for Captain — response comes via WebSocket
     eventBus.emit("chat.message", {
       project_id: projectId,
+      session_id: sessionId,
       content: message,
       images: images,
     });
 
     logger.info(
-      { projectId, messageId: userMessage.id, imageCount: images?.length ?? 0 },
+      {
+        projectId,
+        sessionId,
+        messageId: userMessage.id,
+        imageCount: images?.length ?? 0,
+      },
       "Chat message queued for Captain",
     );
 
-    // Return immediately - response delivered via WebSocket events
+    // Return immediately — response delivered via WebSocket events
     res.status(202).json({
       user_message: userMessage,
       status: "queued",
@@ -99,15 +158,10 @@ router.post(
   },
 );
 
-// DELETE /chat - Clear chat history
-router.delete(
-  "/chat",
-  verifyProject,
-  (req: Request<{ projectId: string }>, res) => {
-    const { projectId } = req.params;
-    deleteChatMessages(projectId);
-    res.status(204).send();
-  },
-);
+// DELETE /chat — Clear all chat history for project (kept for backward compat)
+router.delete("/chat", verifyProject, (req: Request<ProjectParams>, res) => {
+  deleteChatMessages(req.params.projectId);
+  res.status(204).send();
+});
 
 export default router;

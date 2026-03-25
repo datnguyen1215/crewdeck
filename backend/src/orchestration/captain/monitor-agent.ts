@@ -316,12 +316,14 @@ export const formatEvents = (events: CaptainEvent[]): string => {
 const MAX_CONTEXT_MESSAGES = 100;
 
 /**
- * Get conversation history from DB as text for the prompt.
- * Includes only monitor messages for context continuity.
+ * Get monitor conversation history from DB.
+ * Monitor messages are stored without a session_id.
  */
 const getMonitorHistory = (projectId: string): string => {
+  // Get recent messages without a session (monitor messages)
   const messages = chatRepo
-    .getByType(projectId, "monitor", MAX_CONTEXT_MESSAGES)
+    .getByProject(projectId, MAX_CONTEXT_MESSAGES)
+    .filter((m) => !m.session_id)
     .reverse();
   if (messages.length === 0) return "";
 
@@ -376,8 +378,8 @@ export const processWithLLM = async (
   sections.push(eventSection);
   const userPrompt = sections.join("\n\n");
 
-  // Save event message to DB as 'monitor' type
-  chatRepo.create(projectId, "user", eventSection, "monitor");
+  // Save event message to DB (no session — monitor messages are sessionless)
+  chatRepo.create(projectId, "user", eventSection);
 
   // Emit captain.event_received for each event so frontend can show them
   for (const event of events) {
@@ -448,7 +450,7 @@ export const processWithLLM = async (
       project_id: projectId,
       content: finalResponse,
     });
-    chatRepo.create(projectId, "assistant", finalResponse, "monitor");
+    chatRepo.create(projectId, "assistant", finalResponse);
   }
 
   eventBus.emit("monitor.complete", {
