@@ -284,6 +284,7 @@ export async function pollPRs(): Promise<void> {
           project_id: pr.project_id,
           from: issue.status,
           to: IssueStatus.DONE,
+          actor_type: "system",
         });
       }
       continue; // No need to check CI for merged PRs
@@ -334,6 +335,7 @@ export async function pollPRs(): Promise<void> {
           project_id: pr.project_id,
           from: issue.status,
           to: newIssueStatus,
+          actor_type: "system",
         });
       }
     }

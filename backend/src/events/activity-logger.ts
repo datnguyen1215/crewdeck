@@ -43,15 +43,19 @@ export function initActivityLogger(): void {
     });
   });
 
-  eventBus.on("issue.status_changed", ({ project_id, issue_id, from, to }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "system",
-      action: "issue.status_changed",
-      details: { from, to },
-    });
-  });
+  eventBus.on(
+    "issue.status_changed",
+    ({ project_id, issue_id, from, to, actor_type, actor_id }) => {
+      log({
+        project_id,
+        issue_id,
+        actor_type: actor_type ?? "system",
+        actor_id,
+        action: "issue.status_changed",
+        details: { from, to },
+      });
+    },
+  );
 
   eventBus.on("comment.added", ({ comment, project_id }) => {
     log({
@@ -84,25 +88,31 @@ export function initActivityLogger(): void {
     });
   });
 
-  eventBus.on("mention.completed", ({ project_id, issue_id, agent_id, exit_code }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "system",
-      action: "mention.completed",
-      details: { agent_id, exit_code },
-    });
-  });
+  eventBus.on(
+    "mention.completed",
+    ({ project_id, issue_id, agent_id, exit_code }) => {
+      log({
+        project_id,
+        issue_id,
+        actor_type: "system",
+        action: "mention.completed",
+        details: { agent_id, exit_code },
+      });
+    },
+  );
 
-  eventBus.on("dispatch.queued", ({ project_id, issue_id, agent_id, position }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "system",
-      action: "agent.queued",
-      details: { agent_id, position },
-    });
-  });
+  eventBus.on(
+    "dispatch.queued",
+    ({ project_id, issue_id, agent_id, position }) => {
+      log({
+        project_id,
+        issue_id,
+        actor_type: "system",
+        action: "agent.queued",
+        details: { agent_id, position },
+      });
+    },
+  );
 
   eventBus.on("dispatch.dequeued", ({ project_id, issue_id, agent_id }) => {
     log({

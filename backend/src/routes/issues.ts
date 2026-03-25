@@ -97,6 +97,7 @@ router.patch(
         project_id: updated.project_id,
         from: existing.status,
         to: updated.status,
+        actor_type: "user",
       });
     }
 

@@ -169,6 +169,8 @@ export const handleMergePR = async (
       project_id: projectId,
       from: oldStatus,
       to: IssueStatus.DONE,
+      actor_type: "agent",
+      actor_id: "captain",
     });
 
     return {

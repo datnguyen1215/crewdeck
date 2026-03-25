@@ -17,6 +17,8 @@ export interface EventMap {
     project_id: string;
     from: string;
     to: string;
+    actor_type?: "user" | "agent" | "system";
+    actor_id?: string;
   };
   "comment.added": { comment: Comment; project_id: string };
   "comment.updated": { comment: Comment; project_id: string };
