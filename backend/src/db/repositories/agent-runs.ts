@@ -29,6 +29,11 @@ export interface NormalizedEventData {
  * Extracts text, tool_use, tool_result from nested message.content[].
  */
 export function normalizeEvent(event: AgentRunEvent): AgentRunEvent {
+  // Guard: if data is missing or not an object, return event unchanged
+  if (!event.data || typeof event.data !== "object") {
+    return event;
+  }
+
   const raw = event.data as Record<string, unknown>;
   const normalized: NormalizedEventData = {};
 
@@ -67,6 +72,10 @@ export function normalizeEvent(event: AgentRunEvent): AgentRunEvent {
           normalized.tool_use = toolUseBlocks;
         }
       }
+      // If nothing extracted, return original event unchanged
+      if (Object.keys(normalized).length === 0) {
+        return event;
+      }
       break;
     }
 
@@ -94,6 +103,19 @@ export function normalizeEvent(event: AgentRunEvent): AgentRunEvent {
         if (toolResults.length > 0) {
           normalized.tool_results = toolResults;
         }
+
+        // Also extract text blocks from user events (e.g. user messages)
+        const textBlocks = contentArr
+          .filter((c: any) => c.type === "text")
+          .map((c: any) => c.text)
+          .filter(Boolean);
+        if (textBlocks.length > 0) {
+          normalized.text = textBlocks.join("\n");
+        }
+      }
+      // If nothing extracted, return original event unchanged
+      if (Object.keys(normalized).length === 0) {
+        return event;
       }
       break;
     }
