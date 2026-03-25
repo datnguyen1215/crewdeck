@@ -1,8 +1,8 @@
 /**
- * Admiral Tool Handlers
+ * Captain Tool Handlers
  *
- * Server-side business logic for Admiral-specific actions (merge PR,
- * dispatch captain, scan codebase). Exposed via internal API routes.
+ * Server-side business logic for Captain-specific actions (merge PR,
+ * dispatch agent, scan codebase). Exposed via internal API routes.
  */
 import { db } from "../../db/index.js";
 import { eventBus } from "../../events/bus.js";
@@ -93,16 +93,16 @@ const deleteBranchOnGitHub = async (
       headers: { ...GITHUB_HEADERS, Authorization: `Bearer ${token}` },
     });
     if (response.ok || response.status === 422)
-      logger.info({ owner, repo, branch }, "Admiral: Deleted branch");
+      logger.info({ owner, repo, branch }, "Captain: Deleted branch");
     else
       logger.warn(
         { owner, repo, branch, status: response.status },
-        "Admiral: Failed to delete branch",
+        "Captain: Failed to delete branch",
       );
   } catch (err) {
     logger.warn(
       { err, owner, repo, branch },
-      "Admiral: Branch deletion failed",
+      "Captain: Branch deletion failed",
     );
   }
 };
@@ -167,7 +167,7 @@ export const handleMergePR = async (
     postSystemComment(
       issue.id,
       projectId,
-      `PR #${openPR.pr_number} merged by Admiral.`,
+      `PR #${openPR.pr_number} merged by Captain.`,
     );
 
     eventBus.emit("issue.status_changed", {
@@ -190,7 +190,7 @@ export const handleMergePR = async (
   return { success: false, message: result.message };
 };
 
-/** Valid agent IDs for dispatch-agent (excludes admiral) */
+/** Valid agent IDs for dispatch-agent (excludes captain) */
 const DISPATCHABLE_AGENTS = ["engineer", "lead", "docs", "librarian"] as const;
 type DispatchableAgent = (typeof DISPATCHABLE_AGENTS)[number];
 
@@ -203,7 +203,7 @@ const isDispatchableAgent = (agentId: string): agentId is DispatchableAgent => {
 
 /**
  * Dispatch a specific agent to work on an issue.
- * Unlike dispatch-captain, this allows Admiral to directly spawn sub-agents.
+ * Allows Captain to directly spawn sub-agents.
  */
 export const handleDispatchAgent = async (
   projectId: string,
@@ -227,7 +227,7 @@ export const handleDispatchAgent = async (
     return { success: false, message: "Issue belongs to a different project" };
 
   if (input.instructions)
-    postSystemComment(issue.id, projectId, `Admiral: ${input.instructions}`);
+    postSystemComment(issue.id, projectId, `Captain: ${input.instructions}`);
 
   try {
     await spawnAgent(agent, issue.id, projectId);

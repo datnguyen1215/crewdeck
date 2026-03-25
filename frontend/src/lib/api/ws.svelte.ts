@@ -27,12 +27,12 @@ export type WsEvent =
   | "run.completed"
   | "chat.stream"
   | "chat.complete"
-  | "admiral.event_received"
-  | "admiral.thinking"
-  | "admiral.message"
-  | "admiral.tool_call"
-  | "admiral.tool_result"
-  | "admiral.complete";
+  | "captain.event_received"
+  | "captain.thinking"
+  | "captain.message"
+  | "captain.tool_call"
+  | "captain.tool_result"
+  | "captain.complete";
 
 export interface WsMessage {
   event: WsEvent;
@@ -42,7 +42,11 @@ export interface WsMessage {
 
 type Handler = (data: Record<string, unknown>) => void;
 
-export type WsState = "connecting" | "connected" | "disconnected" | "reconnecting";
+export type WsState =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "reconnecting";
 
 const INITIAL_DELAY = 1000;
 const MAX_DELAY = 30000;
@@ -70,29 +74,47 @@ export class ProjectWebSocket {
   disconnect() {
     this.#intentionalClose = true;
     this.#clearReconnect();
-    if (this.#ws) { this.#ws.close(); this.#ws = null; }
+    if (this.#ws) {
+      this.#ws.close();
+      this.#ws = null;
+    }
     this.state = "disconnected";
   }
 
   on(event: WsEvent | "*", handler: Handler) {
     let set = this.#listeners.get(event);
-    if (!set) { set = new Set(); this.#listeners.set(event, set); }
+    if (!set) {
+      set = new Set();
+      this.#listeners.set(event, set);
+    }
     set.add(handler);
-    return () => { this.#listeners.get(event)?.delete(handler); };
+    return () => {
+      this.#listeners.get(event)?.delete(handler);
+    };
   }
 
   #open() {
-    this.state = this.#reconnectDelay > INITIAL_DELAY ? "reconnecting" : "connecting";
+    this.state =
+      this.#reconnectDelay > INITIAL_DELAY ? "reconnecting" : "connecting";
     const url = `${wsBase()}/ws?projectId=${encodeURIComponent(this.#projectId)}`;
     const ws = new WebSocket(url);
 
-    ws.onopen = () => { this.state = "connected"; this.#reconnectDelay = INITIAL_DELAY; };
+    ws.onopen = () => {
+      this.state = "connected";
+      this.#reconnectDelay = INITIAL_DELAY;
+    };
     ws.onmessage = (e) => {
-      try { const msg: WsMessage = JSON.parse(e.data); this.#dispatch(msg.event, msg.data); } catch {}
+      try {
+        const msg: WsMessage = JSON.parse(e.data);
+        this.#dispatch(msg.event, msg.data);
+      } catch {}
     };
     ws.onclose = () => {
       this.#ws = null;
-      if (!this.#intentionalClose) { this.state = "reconnecting"; this.#scheduleReconnect(); }
+      if (!this.#intentionalClose) {
+        this.state = "reconnecting";
+        this.#scheduleReconnect();
+      }
     };
     ws.onerror = () => {};
     this.#ws = ws;
@@ -112,6 +134,9 @@ export class ProjectWebSocket {
   }
 
   #clearReconnect() {
-    if (this.#reconnectTimer) { clearTimeout(this.#reconnectTimer); this.#reconnectTimer = null; }
+    if (this.#reconnectTimer) {
+      clearTimeout(this.#reconnectTimer);
+      this.#reconnectTimer = null;
+    }
   }
 }

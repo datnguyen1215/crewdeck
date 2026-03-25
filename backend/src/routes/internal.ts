@@ -26,13 +26,25 @@ import {
   UpdateKnowledgeSchema,
 } from "../schemas/validation.js";
 import { parsePRUrls } from "../pr/detector.js";
-import { handleMergePR, handleDispatchAgent, handleScanCodebase } from "../orchestration/admiral/tool-handlers.js";
+import {
+  handleMergePR,
+  handleDispatchAgent,
+  handleScanCodebase,
+} from "../orchestration/captain/tool-handlers.js";
 
 // Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
 
-const verifyIssueOwner = createOwnershipVerifier(getIssue, "Issue", "project_id");
-const verifyKnowledgeOwner = createOwnershipVerifier(getKnowledge, "Knowledge entry", "project_id");
+const verifyIssueOwner = createOwnershipVerifier(
+  getIssue,
+  "Issue",
+  "project_id",
+);
+const verifyKnowledgeOwner = createOwnershipVerifier(
+  getKnowledge,
+  "Knowledge entry",
+  "project_id",
+);
 
 function verifyProjectExists(projectId: string) {
   const project = getProject(projectId);
@@ -41,7 +53,9 @@ function verifyProjectExists(projectId: string) {
 }
 
 // Reuse base schemas with internal route requirements (project_id, issue_id, etc.)
-const InternalCommentSchema = CreateCommentSchema.pick({ content: true }).extend({
+const InternalCommentSchema = CreateCommentSchema.pick({
+  content: true,
+}).extend({
   issue_id: z.string(),
   project_id: z.string(),
   agent_id: z.string().optional(),
@@ -64,20 +78,26 @@ router.post("/comment", validate(InternalCommentSchema), (req, res) => {
 });
 
 // POST /issues/create — agent creates a new issue
-const InternalCreateIssueSchema = BaseCreateIssueSchema.omit({ created_by: true }).extend({
+const InternalCreateIssueSchema = BaseCreateIssueSchema.omit({
+  created_by: true,
+}).extend({
   project_id: z.string(),
 });
 
-router.post("/issues/create", validate(InternalCreateIssueSchema), (req, res) => {
-  const { project_id, title, description } = req.body;
-  const issue = createIssue(project_id, {
-    title,
-    description,
-    created_by: "agent",
-  });
-  eventBus.emit("issue.created", { issue });
-  res.status(201).json(issue);
-});
+router.post(
+  "/issues/create",
+  validate(InternalCreateIssueSchema),
+  (req, res) => {
+    const { project_id, title, description } = req.body;
+    const issue = createIssue(project_id, {
+      title,
+      description,
+      created_by: "agent",
+    });
+    eventBus.emit("issue.created", { issue });
+    res.status(201).json(issue);
+  },
+);
 
 // POST /create-pr — agent registers a PR for tracking
 const CreatePRSchema = z.object({
@@ -93,8 +113,7 @@ router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
 
   // Parse PR URL to extract owner/repo/number
   const parsed = parsePRUrls(pr_url);
-  if (parsed.length === 0)
-    throw new ValidationError("Invalid GitHub PR URL");
+  if (parsed.length === 0) throw new ValidationError("Invalid GitHub PR URL");
 
   const pr = parsed[0];
 
@@ -103,7 +122,7 @@ router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
   const repo = repos.find(
     (r) =>
       r.owner.toLowerCase() === pr.owner.toLowerCase() &&
-      r.name.toLowerCase() === pr.name.toLowerCase()
+      r.name.toLowerCase() === pr.name.toLowerCase(),
   );
 
   if (!repo)
@@ -130,44 +149,62 @@ router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
   res.status(201).json(issuePR);
 });
 
-
 // GET /knowledge/list — list knowledge entries
 const InternalKnowledgeListSchema = z.object({
   project_id: z.string(),
 });
 
-router.get("/knowledge/list", validate(InternalKnowledgeListSchema, "query"), (req, res) => {
-  const { project_id } = req.query as { project_id: string };
-  verifyProjectExists(project_id);
-  const entries = listKnowledge(project_id);
-  res.json(entries);
-});
+router.get(
+  "/knowledge/list",
+  validate(InternalKnowledgeListSchema, "query"),
+  (req, res) => {
+    const { project_id } = req.query as { project_id: string };
+    verifyProjectExists(project_id);
+    const entries = listKnowledge(project_id);
+    res.json(entries);
+  },
+);
 
 // POST /knowledge/create — create knowledge entry (force source to "librarian")
-const InternalKnowledgeCreateSchema = CreateKnowledgeSchema.omit({ source: true }).extend({
+const InternalKnowledgeCreateSchema = CreateKnowledgeSchema.omit({
+  source: true,
+}).extend({
   project_id: z.string(),
 });
 
-router.post("/knowledge/create", validate(InternalKnowledgeCreateSchema), (req, res) => {
-  const { project_id, ...input } = req.body;
-  verifyProjectExists(project_id);
-  const entry = createKnowledge(project_id, { ...input, source: "librarian" });
-  res.status(201).json(entry);
-});
+router.post(
+  "/knowledge/create",
+  validate(InternalKnowledgeCreateSchema),
+  (req, res) => {
+    const { project_id, ...input } = req.body;
+    verifyProjectExists(project_id);
+    const entry = createKnowledge(project_id, {
+      ...input,
+      source: "librarian",
+    });
+    res.status(201).json(entry);
+  },
+);
 
 // POST /knowledge/update — update knowledge entry
-const InternalKnowledgeUpdateSchema = UpdateKnowledgeSchema.omit({ source: true }).extend({
+const InternalKnowledgeUpdateSchema = UpdateKnowledgeSchema.omit({
+  source: true,
+}).extend({
   project_id: z.string(),
   knowledge_id: z.string(),
 });
 
-router.post("/knowledge/update", validate(InternalKnowledgeUpdateSchema), (req, res) => {
-  const { project_id, knowledge_id, ...updates } = req.body;
-  verifyProjectExists(project_id);
-  verifyKnowledgeOwner(knowledge_id, project_id);
-  const updated = updateKnowledge(knowledge_id, updates);
-  res.json(updated);
-});
+router.post(
+  "/knowledge/update",
+  validate(InternalKnowledgeUpdateSchema),
+  (req, res) => {
+    const { project_id, knowledge_id, ...updates } = req.body;
+    verifyProjectExists(project_id);
+    verifyKnowledgeOwner(knowledge_id, project_id);
+    const updated = updateKnowledge(knowledge_id, updates);
+    res.json(updated);
+  },
+);
 
 // POST /knowledge/delete — delete knowledge entry
 const InternalKnowledgeDeleteSchema = z.object({
@@ -175,63 +212,83 @@ const InternalKnowledgeDeleteSchema = z.object({
   knowledge_id: z.string(),
 });
 
-router.post("/knowledge/delete", validate(InternalKnowledgeDeleteSchema), (req, res) => {
-  const { project_id, knowledge_id } = req.body;
-  verifyProjectExists(project_id);
-  verifyKnowledgeOwner(knowledge_id, project_id);
-  removeKnowledge(knowledge_id);
-  res.status(204).send();
-});
+router.post(
+  "/knowledge/delete",
+  validate(InternalKnowledgeDeleteSchema),
+  (req, res) => {
+    const { project_id, knowledge_id } = req.body;
+    verifyProjectExists(project_id);
+    verifyKnowledgeOwner(knowledge_id, project_id);
+    removeKnowledge(knowledge_id);
+    res.status(204).send();
+  },
+);
 
-// Admiral-specific routes (merge PR, dispatch agent, scan codebase)
+// Captain-specific routes (merge PR, dispatch agent, scan codebase)
 
-const AdmiralMergePRSchema = z.object({
+const CaptainMergePRSchema = z.object({
   project_id: z.string(),
   issue_id: z.string(),
 });
 
-router.post("/admiral/merge-pr", validate(AdmiralMergePRSchema), async (req, res, next) => {
-  try {
-    const { project_id, issue_id } = req.body;
-    verifyProjectExists(project_id);
-    const result = await handleMergePR(project_id, { issue_id });
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-});
+router.post(
+  "/captain/merge-pr",
+  validate(CaptainMergePRSchema),
+  async (req, res, next) => {
+    try {
+      const { project_id, issue_id } = req.body;
+      verifyProjectExists(project_id);
+      const result = await handleMergePR(project_id, { issue_id });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
-const AdmiralDispatchAgentSchema = z.object({
+const CaptainDispatchAgentSchema = z.object({
   project_id: z.string(),
   issue_id: z.string(),
   agent_id: z.string(),
   instructions: z.string().optional(),
 });
 
-router.post("/admiral/dispatch-agent", validate(AdmiralDispatchAgentSchema), async (req, res, next) => {
-  try {
-    const { project_id, issue_id, agent_id, instructions } = req.body;
-    verifyProjectExists(project_id);
-    const result = await handleDispatchAgent(project_id, { issue_id, agent_id, instructions });
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-});
+router.post(
+  "/captain/dispatch-agent",
+  validate(CaptainDispatchAgentSchema),
+  async (req, res, next) => {
+    try {
+      const { project_id, issue_id, agent_id, instructions } = req.body;
+      verifyProjectExists(project_id);
+      const result = await handleDispatchAgent(project_id, {
+        issue_id,
+        agent_id,
+        instructions,
+      });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
-const AdmiralScanSchema = z.object({
+const CaptainScanSchema = z.object({
   project_id: z.string(),
 });
 
-router.post("/admiral/scan-codebase", validate(AdmiralScanSchema), async (req, res, next) => {
-  try {
-    const { project_id } = req.body;
-    verifyProjectExists(project_id);
-    const result = await handleScanCodebase(project_id);
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-});
+router.post(
+  "/captain/scan-codebase",
+  validate(CaptainScanSchema),
+  async (req, res, next) => {
+    try {
+      const { project_id } = req.body;
+      verifyProjectExists(project_id);
+      const result = await handleScanCodebase(project_id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 export default router;

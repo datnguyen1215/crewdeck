@@ -1,9 +1,9 @@
 /**
  * Batch tracking for grouped agent spawns.
  *
- * Note: With Captain removed, Admiral now directly dispatches sub-agents and
+ * Note: Captain now directly dispatches sub-agents and
  * reacts to run.completed events. The batch system is no longer used for
- * auto-spawning Captain, but remains for potential future use or can be removed
+ * auto-spawning but remains for potential future use or can be removed
  * entirely in a follow-up cleanup.
  */
 import * as log from "../logger.js";
@@ -57,8 +57,8 @@ export const createBatch = (
 
 /**
  * Handle batch completion.
- * With Captain removed, we just clean up state and log. Admiral reacts
- * to individual run.completed events instead of batch completions.
+ * We just clean up state and log. Captain reacts to individual
+ * run.completed events instead of batch completions.
  */
 export const handleBatchComplete = (batch: AgentBatch): void => {
   log.logger.info(
@@ -82,7 +82,11 @@ export const cleanupStaleBatches = (): void => {
     const age = now - batch.createdAt.getTime();
     if (age > BATCH_TIMEOUT_MS) {
       log.logger.warn(
-        { batchId: batch.id, issueId: batch.issueId, age: Math.round(age / 1000 / 60) },
+        {
+          batchId: batch.id,
+          issueId: batch.issueId,
+          age: Math.round(age / 1000 / 60),
+        },
         "Cleaning up stale batch (timeout exceeded)",
       );
       stale.push(batch);

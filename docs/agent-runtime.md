@@ -84,7 +84,7 @@ comment.added event
     └── on process exit:
             ├── post agent output as comment (author_type: "agent")
             ├── post system comment with cost/duration
-            ├── emit mention.completed (Admiral reacts to these events)
+            ├── emit mention.completed (Captain reacts to these events)
             ├── drain dispatch queue: dequeue next for this project (if any),
             │       post "Agent X dequeued, spawning now" system comment,
             │       emit dispatch.dequeued, then spawn
@@ -98,7 +98,7 @@ When a single comment dispatches multiple agents (e.g., `/dispatch engineer lead
 - The dispatched agents become **batch members** and are spawned immediately.
 - Batches time out after **30 minutes**. A cleanup interval (every 5 minutes) fires `handleBatchComplete` on any stale batch, preventing orphaned state.
 - Only one batch is tracked per issue at a time.
-- Admiral listens to individual `run.completed` events and decides what to do next based on the comment history.
+- Captain listens to individual `run.completed` events and decides what to do next based on the comment history.
 
 ### Chain Depth
 
@@ -183,6 +183,6 @@ Every invocation gets a complete, self-contained prompt from the database. The b
 
 ## Startup and Shutdown
 
-**Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed`, posts a system comment on each affected issue, and emits `run.recovered` events. Admiral subscribes to these events and decides how to proceed (typically by re-dispatching an appropriate agent).
+**Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed`, posts a system comment on each affected issue, and emits `run.recovered` events. Captain subscribes to these events and decides how to proceed (typically by re-dispatching an appropriate agent).
 
 **Shutdown:** `shutdownMentionHandler()` stops the batch cleanup interval, sends SIGTERM to all active processes, and clears the active-process and batch tracking maps.

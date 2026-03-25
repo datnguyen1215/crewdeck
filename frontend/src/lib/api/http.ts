@@ -373,9 +373,28 @@ export function getLibrarianStatus(projectId: string) {
   );
 }
 
-// Admiral Chat
+// Captain Chat
 export function getChatHistory(projectId: string) {
   return request<ChatMessage[]>("GET", `/projects/${e(projectId)}/chat`);
+}
+
+// Captain dispatch
+export function dispatchAgent(
+  projectId: string,
+  issueId: string,
+  agentId: string,
+  instructions?: string,
+) {
+  return request<{ success: boolean; message: string }>(
+    "POST",
+    `/internal/captain/dispatch-agent`,
+    {
+      project_id: projectId,
+      issue_id: issueId,
+      agent_id: agentId,
+      instructions,
+    },
+  );
 }
 
 export function sendChatMessage(

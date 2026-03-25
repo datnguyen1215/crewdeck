@@ -1,11 +1,11 @@
 /**
- * Admiral Event Queue
+ * Captain Event Queue
  *
- * Queues events while Admiral is processing, drains all when done.
+ * Queues events while Captain is processing, drains all when done.
  * Uses a mutex to prevent concurrent LLM calls.
  */
 
-export type AdmiralEventType =
+export type CaptainEventType =
   | "issue.created"
   | "issue.updated"
   | "issue.status_changed"
@@ -22,8 +22,8 @@ export interface ChatImage {
   mediaType: string;
 }
 
-export interface AdmiralEvent {
-  type: AdmiralEventType;
+export interface CaptainEvent {
+  type: CaptainEventType;
   projectId: string;
   timestamp: Date;
   data: unknown;
@@ -32,7 +32,7 @@ export interface AdmiralEvent {
 }
 
 interface ProjectQueue {
-  events: AdmiralEvent[];
+  events: CaptainEvent[];
   processing: boolean;
 }
 
@@ -53,7 +53,7 @@ function getQueue(projectId: string): ProjectQueue {
 /**
  * Add an event to the queue.
  */
-export function enqueue(event: AdmiralEvent): void {
+export function enqueue(event: CaptainEvent): void {
   const queue = getQueue(event.projectId);
   queue.events.push(event);
 }
@@ -93,7 +93,7 @@ export function isProcessing(projectId: string): boolean {
  * Drain all events from the queue.
  * Returns the events and clears the queue.
  */
-export function drain(projectId: string): AdmiralEvent[] {
+export function drain(projectId: string): CaptainEvent[] {
   const queue = getQueue(projectId);
   const events = queue.events;
   queue.events = [];

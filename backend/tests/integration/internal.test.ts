@@ -17,7 +17,10 @@ beforeAll(async () => {
   // Create project
   const projRes = await request(app)
     .post("/api/v1/projects")
-    .send({ name: `internal-test-${Date.now()}`, github_url: "https://github.com/test/repo" });
+    .send({
+      name: `internal-test-${Date.now()}`,
+      github_url: "https://github.com/test/repo",
+    });
   expect(projRes.status).toBe(201);
   projectId = projRes.body.id;
 
@@ -146,9 +149,9 @@ describe("POST /api/v1/internal/create-pr", () => {
   });
 });
 
-describe("POST /api/v1/internal/admiral/dispatch-agent", () => {
+describe("POST /api/v1/internal/captain/dispatch-agent", () => {
   it("rejects captain agent_id", async () => {
-    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
       project_id: projectId,
       issue_id: issueId,
       agent_id: "captain",
@@ -160,7 +163,7 @@ describe("POST /api/v1/internal/admiral/dispatch-agent", () => {
   });
 
   it("rejects admiral agent_id", async () => {
-    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
       project_id: projectId,
       issue_id: issueId,
       agent_id: "admiral",
@@ -172,7 +175,7 @@ describe("POST /api/v1/internal/admiral/dispatch-agent", () => {
   });
 
   it("rejects unknown agent_id", async () => {
-    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
       project_id: projectId,
       issue_id: issueId,
       agent_id: "nonexistent",
@@ -184,7 +187,7 @@ describe("POST /api/v1/internal/admiral/dispatch-agent", () => {
   });
 
   it("returns 400 for missing agent_id", async () => {
-    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
       project_id: projectId,
       issue_id: issueId,
     });
@@ -193,7 +196,7 @@ describe("POST /api/v1/internal/admiral/dispatch-agent", () => {
   });
 
   it("returns 400 for missing issue_id", async () => {
-    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
       project_id: projectId,
       agent_id: "engineer",
     });
@@ -202,7 +205,7 @@ describe("POST /api/v1/internal/admiral/dispatch-agent", () => {
   });
 
   it("returns 404 for non-existent project", async () => {
-    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
       project_id: FAKE_ID,
       issue_id: issueId,
       agent_id: "engineer",
@@ -212,7 +215,7 @@ describe("POST /api/v1/internal/admiral/dispatch-agent", () => {
   });
 
   it("returns error for non-existent issue", async () => {
-    const res = await request(app).post(`${BASE}/admiral/dispatch-agent`).send({
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
       project_id: projectId,
       issue_id: FAKE_ID,
       agent_id: "engineer",

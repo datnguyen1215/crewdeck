@@ -10,7 +10,7 @@ status: draft
 
 Agents are triggered by **`/dispatch` commands** in issue comments. When a user or another agent posts a comment containing `/dispatch agent-name` at the start of a line, the backend automatically spawns that agent as a `claude -p` subprocess. The agent's output is posted back to the issue as a comment.
 
-`@mentions` are cosmetic references only — they do NOT trigger agent spawns. Admiral orchestrates work by directly dispatching sub-agents (engineer, lead, docs, librarian) via the internal API. All communication happens through the issue comment thread.
+`@mentions` are cosmetic references only — they do NOT trigger agent spawns. Captain orchestrates work by directly dispatching sub-agents (engineer, lead, docs, librarian) via the internal API. All communication happens through the issue comment thread.
 
 ## How It Works
 
@@ -27,15 +27,15 @@ Agents are triggered by **`/dispatch` commands** in issue comments. When a user 
 - Matching is case-insensitive.
 - Dispatches inside fenced code blocks or inline backticks are ignored.
 - Agents cannot dispatch themselves (self-dispatches are skipped).
-- Background services (e.g., Admiral) cannot be dispatched — they have `dispatchable: false` and are ignored by the parser.
+- Background services (e.g., Captain) cannot be dispatched — they have `dispatchable: false` and are ignored by the parser.
 
 ## Limits
 
-| Limit | Value | Behavior when exceeded |
-|-------|-------|----------------------|
-| Chain depth | Project setting (default 20) | System comment posted; "Reset chain depth" button appears on the issue |
-| Max concurrency | Project setting | System comment posted; dispatch is dropped |
-| Process timeout | 10 minutes | Process killed; system comment posted |
+| Limit           | Value                        | Behavior when exceeded                                                 |
+| --------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| Chain depth     | Project setting (default 20) | System comment posted; "Reset chain depth" button appears on the issue |
+| Max concurrency | Project setting              | System comment posted; dispatch is dropped                             |
+| Process timeout | 10 minutes                   | Process killed; system comment posted                                  |
 
 Chain depth is tracked per-issue and increments each time an agent is spawned on that issue. The limit is configurable via `max_chain_depth` in project settings. It can be reset via the "Reset chain depth" button on the issue detail page.
 
@@ -43,22 +43,22 @@ Chain depth is tracked per-issue and increments each time an agent is spawned on
 
 Dispatching an agent on an issue automatically regresses its status to `in_progress` if it was `open`, any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`), or `done`. Status transitions are:
 
-| Trigger | Status change |
-|---------|--------------|
-| Agent spawned on open/done/PR-related issue | → `in_progress` |
-| User clicks "Mark as PR Created", or Admiral creates a PR via `gh pr create` | → `pr_created` |
-| User clicks "Mark as Done" (no active processes) | → `done` |
+| Trigger                                                                      | Status change   |
+| ---------------------------------------------------------------------------- | --------------- |
+| Agent spawned on open/done/PR-related issue                                  | → `in_progress` |
+| User clicks "Mark as PR Created", or Captain creates a PR via `gh pr create` | → `pr_created`  |
+| User clicks "Mark as Done" (no active processes)                             | → `done`        |
 
 ## Environment Variables
 
 The following variables are passed to each agent process:
 
-| Variable | Description |
-|----------|-------------|
-| `CREWDECK_API_URL` | Backend API base URL |
-| `CREWDECK_PROJECT_ID` | The project ID |
-| `CREWDECK_AGENT_ID` | The agent's ID |
-| `CREWDECK_ISSUE_ID` | The issue ID being worked on |
+| Variable              | Description                  |
+| --------------------- | ---------------------------- |
+| `CREWDECK_API_URL`    | Backend API base URL         |
+| `CREWDECK_PROJECT_ID` | The project ID               |
+| `CREWDECK_AGENT_ID`   | The agent's ID               |
+| `CREWDECK_ISSUE_ID`   | The issue ID being worked on |
 
 In addition, any project-level environment variables configured via the [Environment Variables API](api.md#environment-variables) are injected.
 

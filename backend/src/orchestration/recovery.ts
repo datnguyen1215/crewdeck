@@ -1,7 +1,7 @@
 /**
  * Startup recovery for orphaned agent runs.
  * Cleans up runs that were interrupted by server restart and emits recovery events
- * for Admiral to handle.
+ * for Captain to handle.
  */
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as issueRepo from "../db/repositories/issues.js";
@@ -61,10 +61,13 @@ interface RecoveryItem {
 
 /**
  * Emit recovery events for issues that need attention after server restart.
- * Admiral listens to these events and decides how to proceed.
+ * Captain listens to these events and decides how to proceed.
  */
 export const emitRecoveryEvents = (items: RecoveryItem[]): void => {
-  log.logger.info({ count: items.length }, "Emitting recovery events for orphaned issues");
+  log.logger.info(
+    { count: items.length },
+    "Emitting recovery events for orphaned issues",
+  );
 
   let eventIndex = 0;
 
@@ -79,7 +82,11 @@ export const emitRecoveryEvents = (items: RecoveryItem[]): void => {
         return;
       }
 
-      postSystemComment(item.issueId, item.projectId, "Recovery: resuming work after server restart");
+      postSystemComment(
+        item.issueId,
+        item.projectId,
+        "Recovery: resuming work after server restart",
+      );
 
       eventBus.emit("run.recovered", {
         project_id: item.projectId,
@@ -88,7 +95,11 @@ export const emitRecoveryEvents = (items: RecoveryItem[]): void => {
       });
 
       log.logger.info(
-        { issueId: item.issueId, projectId: item.projectId, agentId: item.agentId },
+        {
+          issueId: item.issueId,
+          projectId: item.projectId,
+          agentId: item.agentId,
+        },
         "Recovery event emitted",
       );
     }, delay);
@@ -98,7 +109,7 @@ export const emitRecoveryEvents = (items: RecoveryItem[]): void => {
 /**
  * Recover orphaned agent runs on startup.
  * Marks any "running" runs as "failed", kills orphaned processes,
- * and emits recovery events for Admiral to handle.
+ * and emits recovery events for Captain to handle.
  */
 export const recoverOnStartup = (): void => {
   const orphanedRuns = agentRunRepo.listRunningAgentRuns();
@@ -147,7 +158,12 @@ export const recoverOnStartup = (): void => {
     }
 
     log.logger.info(
-      { runId: run.id, agentId: run.agent_id, issueId: run.issue_id, pid: run.pid },
+      {
+        runId: run.id,
+        agentId: run.agent_id,
+        issueId: run.issue_id,
+        pid: run.pid,
+      },
       "Marked orphaned run as failed",
     );
   }
@@ -159,5 +175,7 @@ export const recoverOnStartup = (): void => {
     }, RECOVERY_DELAY_MS);
   }
 
-  log.logger.info("MentionHandler startup recovery: orphaned runs processed, recovery events scheduled");
+  log.logger.info(
+    "MentionHandler startup recovery: orphaned runs processed, recovery events scheduled",
+  );
 };
