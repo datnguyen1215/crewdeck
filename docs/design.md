@@ -387,7 +387,7 @@ On startup, the backend:
 4. Initializes the MentionHandler (subscribes to `comment.added`).
 5. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 6. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
-7. Initializes Admiral service (subscribes to event bus for all admiral-enabled projects).
+7. Initializes Admiral service (subscribes to event bus for all captain-enabled projects).
 8. Starts the Express HTTP server.
 9. Starts the WebSocket server.
 10. Logs startup complete via pino.
