@@ -242,6 +242,31 @@ function createProjectHandlers(projectId: string): () => void {
     });
   };
 
+  // Handler for comments (e.g. user requesting work on an issue)
+  const handleCommentAdded = (data: {
+    comment: {
+      id: string;
+      issue_id: string;
+      author_type: string;
+      content: string;
+    };
+    project_id: string;
+  }) => {
+    if (data.project_id !== projectId) return;
+    const event: AdmiralEvent = {
+      type: "comment.added",
+      projectId,
+      timestamp: new Date(),
+      data,
+    };
+    queueAndProcess(event).catch((err) => {
+      logger.error(
+        { err, projectId },
+        "Admiral: Failed to queue comment.added",
+      );
+    });
+  };
+
   // Handler for chat messages
   const handleChatMessage = (data: {
     project_id: string;
@@ -268,6 +293,7 @@ function createProjectHandlers(projectId: string): () => void {
   eventBus.on("issue.status_changed", handleIssueStatusChanged);
   eventBus.on("run.completed", handleRunCompleted);
   eventBus.on("pr.status_changed", handlePRStatusChanged);
+  eventBus.on("comment.added", handleCommentAdded);
   eventBus.on("chat.message", handleChatMessage);
   eventBus.on("run.recovered", handleRunRecovered);
 
@@ -278,6 +304,7 @@ function createProjectHandlers(projectId: string): () => void {
     eventBus.off("issue.status_changed", handleIssueStatusChanged);
     eventBus.off("run.completed", handleRunCompleted);
     eventBus.off("pr.status_changed", handlePRStatusChanged);
+    eventBus.off("comment.added", handleCommentAdded);
     eventBus.off("chat.message", handleChatMessage);
     eventBus.off("run.recovered", handleRunRecovered);
 

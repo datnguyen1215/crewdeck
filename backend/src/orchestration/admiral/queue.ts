@@ -12,6 +12,7 @@ export type AdmiralEventType =
   | "run.completed"
   | "run.recovered"
   | "pr.status_changed"
+  | "comment.added"
   | "chat.message"
   | "idle.check";
 
