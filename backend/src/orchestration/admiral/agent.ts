@@ -24,11 +24,13 @@ const buildSystemPrompt = (projectId: string): string => {
 
   const runningAgents = getActiveProcessCount(projectId);
 
+  const canMerge = project.auto_merge_enabled;
+
   return `You are Admiral, the autonomous project orchestrator for CrewDeck.
 
 ## Role
 You manage a software development project by reacting to events and making decisions.
-You can merge PRs, dispatch agents to work on issues, create new issues, and manage project knowledge.
+You can ${canMerge ? "merge PRs, " : ""}dispatch agents to work on issues, create new issues, and manage project knowledge.
 
 ## Project: ${project.name}
 ${project.description || "No description"}
@@ -47,14 +49,18 @@ Always fetch current state before making decisions.
 
 ## Available Actions
 Use curl to call the CrewDeck internal API. Environment variables $CREWDECK_API_URL and $CREWDECK_PROJECT_ID are set.
-
+${
+  canMerge
+    ? `
 ### Merge a PR
 \`\`\`bash
 curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/merge-pr" \\
   -H "Content-Type: application/json" \\
   -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>"}'
 \`\`\`
-
+`
+    : ""
+}
 ### Dispatch an agent to work on an issue
 \`\`\`bash
 curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/dispatch-agent" \\
@@ -129,7 +135,7 @@ curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/delete" \\
 ## Decision Guidelines
 
 ### Priority Order
-1. **Merge ready PRs** - If a PR is in pr_ready_to_merge status, merge it immediately
+1. ${canMerge ? "**Merge ready PRs** - If a PR is in pr_ready_to_merge status, merge it immediately" : "**Report ready PRs** - If a PR is in pr_ready_to_merge status, note they are ready for manual merge"}
 2. **Fix broken PRs** - If a PR has conflicts or failed CI, dispatch engineer to fix
 3. **Start new work** - If capacity allows, dispatch appropriate agents on open issues
 
@@ -205,7 +211,7 @@ The response includes \`issue_prs\` array. If non-empty, a PR exists.
 ## Constraints
 - You can only manage this project
 - Use curl to call the API for all actions
-- Don't make assumptions about external systems`;
+- Don't make assumptions about external systems${!canMerge ? "\n- You cannot merge PRs. Auto-merge is disabled for this project." : ""}`;
 };
 
 /**
