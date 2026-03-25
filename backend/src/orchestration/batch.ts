@@ -1,10 +1,7 @@
 /**
  * Batch tracking for grouped agent spawns.
- *
- * Note: Captain now directly dispatches sub-agents and
- * reacts to run.completed events. The batch system is no longer used for
- * auto-spawning but remains for potential future use or can be removed
- * entirely in a follow-up cleanup.
+ * Tracks completion of grouped dispatches so the originator
+ * isn't re-spawned while its batch members are still running.
  */
 import * as log from "../logger.js";
 
@@ -56,9 +53,7 @@ export const createBatch = (
 };
 
 /**
- * Handle batch completion.
- * We just clean up state and log. Captain reacts to individual
- * run.completed events instead of batch completions.
+ * Handle batch completion — clean up tracking state.
  */
 export const handleBatchComplete = (batch: AgentBatch): void => {
   log.logger.info(

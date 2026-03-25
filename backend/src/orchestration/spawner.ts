@@ -355,10 +355,6 @@ export const spawnAgent = async (
   }
 
   const comments = commentRepo.listComments(issueId);
-
-  // Project issues (currently unused — Captain orchestrates directly)
-  const projectIssues = undefined;
-
   const projectKnowledge = knowledgeRepo.listForAgent(projectId, agent.id);
 
   const prompt = agentPrompt.buildPrompt({
@@ -367,7 +363,6 @@ export const spawnAgent = async (
     repo: repo ?? null,
     worktreePath: worktreePath ?? ".",
     agentId: agent.id,
-    projectIssues,
     projectKnowledge,
   });
 

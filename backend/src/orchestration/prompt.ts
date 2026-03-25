@@ -19,18 +19,6 @@ function formatComments(comments: Comment[]): string {
     .join("\n\n");
 }
 
-function formatIssueSummary(issue: Issue): string {
-  return `- [${issue.status}] #${issue.id}: ${escapeXml(issue.title)}`;
-}
-
-/**
- * Agents with full API access (issues CRUD, status management, comments, activity, crew list).
- * Enforcement is via system prompts only — no server-side per-agent auth since the API is
- * localhost-only. The system prompt is the contract (see #321 "API Access Matrix").
- * Note: Captain orchestrates directly.
- */
-const FULL_ACCESS_AGENTS = new Set<string>();
-
 /**
  * Agents with knowledge API access (list, create, update, delete knowledge entries).
  */
@@ -46,26 +34,7 @@ function buildApiSection(agentId: string): string {
     "- CREWDECK_ISSUE_ID — current issue ID",
   ];
 
-  if (FULL_ACCESS_AGENTS.has(agentId)) {
-    lines.push(
-      "",
-      "API endpoints (via curl):",
-      "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues — list issues",
-      "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID — get this issue",
-      // Spec (#321) listed mark-pr-created/mark-done/reset-chain-depth as separate endpoints;
-      // actual API uses PATCH status transitions.
-      "- PATCH $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID — update issue fields",
-      "  Include header X-Agent-ID: $CREWDECK_AGENT_ID when marking status=done so you're excluded from the active process check.",
-      "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/$CREWDECK_ISSUE_ID/comments — list comments",
-      "- GET $CREWDECK_API_URL/api/v1/crew — list available agents",
-      "- GET $CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity — view activity log",
-      "",
-      "Internal API (for agent actions):",
-      "- POST $CREWDECK_API_URL/api/v1/internal/comment — post a comment (body: { issue_id, project_id, agent_id, content })",
-      "- POST $CREWDECK_API_URL/api/v1/internal/issues/create — create a new issue (body: { project_id, title, description })",
-      "- POST $CREWDECK_API_URL/api/v1/internal/create-pr — register a PR for tracking (body: { project_id, issue_id, pr_url })",
-    );
-  } else if (KNOWLEDGE_ACCESS_AGENTS.has(agentId)) {
+  if (KNOWLEDGE_ACCESS_AGENTS.has(agentId)) {
     lines.push(
       "",
       "Knowledge API (via curl):",
@@ -75,7 +44,7 @@ function buildApiSection(agentId: string): string {
       "- POST $CREWDECK_API_URL/api/v1/internal/knowledge/delete — delete entry (body: { project_id, knowledge_id })",
     );
   } else {
-    // Non-captain agents don't need API access — their stdout is automatically
+    // Agents don't need direct API access — their stdout is automatically
     // captured and posted as a comment by the backend.
     lines.push(
       "",
@@ -95,8 +64,6 @@ export interface BuildPromptOptions {
     | null;
   worktreePath: string;
   agentId: string;
-  /** All open/in-progress issues for the project (injected for captain). */
-  projectIssues?: Issue[];
   /** Knowledge entries filtered for this agent. */
   projectKnowledge?: ProjectKnowledge[];
 }
@@ -108,15 +75,8 @@ export interface BuildScanPromptOptions {
 }
 
 export function buildPrompt(opts: BuildPromptOptions): string {
-  const {
-    issue,
-    comments,
-    repo,
-    worktreePath,
-    agentId,
-    projectIssues,
-    projectKnowledge,
-  } = opts;
+  const { issue, comments, repo, worktreePath, agentId, projectKnowledge } =
+    opts;
   const parts: string[] = [];
 
   parts.push(
@@ -135,8 +95,6 @@ export function buildPrompt(opts: BuildPromptOptions): string {
     parts.push(
       `## Repository\n${escapeXml("name" in repo ? repo.name : "repo")} at ${escapeXml(worktreePath)}`,
     );
-
-  // Project issues section (currently unused — Captain orchestrates directly)
 
   if (comments.length > 0)
     parts.push(

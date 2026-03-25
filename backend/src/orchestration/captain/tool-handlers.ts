@@ -1,7 +1,7 @@
 /**
- * Captain Tool Handlers
+ * Tool Handlers
  *
- * Server-side business logic for Captain-specific actions (merge PR,
+ * Server-side business logic for orchestration actions (merge PR,
  * dispatch agent, scan codebase). Exposed via internal API routes.
  */
 import { db } from "../../db/index.js";
@@ -93,17 +93,14 @@ const deleteBranchOnGitHub = async (
       headers: { ...GITHUB_HEADERS, Authorization: `Bearer ${token}` },
     });
     if (response.ok || response.status === 422)
-      logger.info({ owner, repo, branch }, "Captain: Deleted branch");
+      logger.info({ owner, repo, branch }, "Deleted branch after merge");
     else
       logger.warn(
         { owner, repo, branch, status: response.status },
-        "Captain: Failed to delete branch",
+        "Failed to delete branch after merge",
       );
   } catch (err) {
-    logger.warn(
-      { err, owner, repo, branch },
-      "Captain: Branch deletion failed",
-    );
+    logger.warn({ err, owner, repo, branch }, "Branch deletion failed");
   }
 };
 
@@ -164,11 +161,7 @@ export const handleMergePR = async (
         account.gh_token,
       );
 
-    postSystemComment(
-      issue.id,
-      projectId,
-      `PR #${openPR.pr_number} merged by Captain.`,
-    );
+    postSystemComment(issue.id, projectId, `PR #${openPR.pr_number} merged.`);
 
     eventBus.emit("issue.status_changed", {
       issue_id: issue.id,
@@ -190,7 +183,7 @@ export const handleMergePR = async (
   return { success: false, message: result.message };
 };
 
-/** Valid agent IDs for dispatch-agent (excludes captain) */
+/** Valid agent IDs for dispatch-agent */
 const DISPATCHABLE_AGENTS = ["engineer", "lead", "docs", "librarian"] as const;
 type DispatchableAgent = (typeof DISPATCHABLE_AGENTS)[number];
 
@@ -203,7 +196,6 @@ const isDispatchableAgent = (agentId: string): agentId is DispatchableAgent => {
 
 /**
  * Dispatch a specific agent to work on an issue.
- * Allows Captain to directly spawn sub-agents.
  */
 export const handleDispatchAgent = async (
   projectId: string,
@@ -227,7 +219,7 @@ export const handleDispatchAgent = async (
     return { success: false, message: "Issue belongs to a different project" };
 
   if (input.instructions)
-    postSystemComment(issue.id, projectId, `Captain: ${input.instructions}`);
+    postSystemComment(issue.id, projectId, input.instructions);
 
   try {
     await spawnAgent(agent, issue.id, projectId);

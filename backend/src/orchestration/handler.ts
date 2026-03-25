@@ -3,9 +3,8 @@
  * Listens for comment.added events, parses dispatch commands, spawns agents,
  * and posts results back as comments.
  *
- * When a comment spawns multiple agents, they are grouped as a batch.
- * The system tracks batch completion and auto-spawns the originator
- * when all batch members finish.
+ * When a comment spawns multiple agents, they are grouped as a batch
+ * to prevent the originator from being re-spawned while batch members run.
  *
  * Agent runs are persisted to the database with streamed output for real-time progress.
  */
@@ -79,7 +78,12 @@ const drainQueue = async (projectId: string): Promise<void> => {
     });
 
     try {
-      await spawnAgent(agent, next.issueId, projectId, next.commentAuthorAgentId);
+      await spawnAgent(
+        agent,
+        next.issueId,
+        projectId,
+        next.commentAuthorAgentId,
+      );
     } catch (err) {
       log.logger.error(
         { err, agent: agent.name, issueId: next.issueId },
@@ -142,7 +146,11 @@ export const initMentionHandler = (): void => {
         const batch = batches.get(existingBatchId);
         if (batch && batch.originatorAgentId === agent.id) {
           log.logger.debug(
-            { agentId: agent.id, issueId: comment.issue_id, batchId: existingBatchId },
+            {
+              agentId: agent.id,
+              issueId: comment.issue_id,
+              batchId: existingBatchId,
+            },
             "Skipping spawn: agent is batch originator with pending batch",
           );
           continue;
@@ -158,32 +166,38 @@ export const initMentionHandler = (): void => {
         continue;
       }
 
-      spawnAgent(agent, comment.issue_id, project_id, comment.author_id ?? undefined).catch(
-        (err) => {
-          log.logger.error(
-            { err, agent: agent.name, issueId: comment.issue_id },
-            "Failed to spawn agent",
-          );
-          events.eventBus.emit("mention.error", {
-            project_id,
-            issue_id: comment.issue_id,
-            agent_id: agent.id,
-            message: err instanceof Error ? err.message : "unknown error",
-          });
-          postSystemComment(
-            comment.issue_id,
-            project_id,
-            `Failed to spawn agent ${agent.name}: ${err instanceof Error ? err.message : "unknown error"}`,
-          );
-        },
-      );
+      spawnAgent(
+        agent,
+        comment.issue_id,
+        project_id,
+        comment.author_id ?? undefined,
+      ).catch((err) => {
+        log.logger.error(
+          { err, agent: agent.name, issueId: comment.issue_id },
+          "Failed to spawn agent",
+        );
+        events.eventBus.emit("mention.error", {
+          project_id,
+          issue_id: comment.issue_id,
+          agent_id: agent.id,
+          message: err instanceof Error ? err.message : "unknown error",
+        });
+        postSystemComment(
+          comment.issue_id,
+          project_id,
+          `Failed to spawn agent ${agent.name}: ${err instanceof Error ? err.message : "unknown error"}`,
+        );
+      });
     }
   });
 
   // Drain queue when an agent completes
   events.eventBus.on("mention.completed", ({ project_id }) => {
     drainQueue(project_id).catch((err) => {
-      log.logger.error({ err, projectId: project_id }, "Failed to drain dispatch queue");
+      log.logger.error(
+        { err, projectId: project_id },
+        "Failed to drain dispatch queue",
+      );
     });
   });
 
@@ -210,4 +224,3 @@ export const shutdownMentionHandler = (): void => {
   activeProcesses.clear();
   clearBatches();
 };
-
