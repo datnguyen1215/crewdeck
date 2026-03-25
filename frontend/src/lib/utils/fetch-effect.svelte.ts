@@ -18,7 +18,17 @@ export function fetchEffect<T>(
     let cancelled = false;
     opts.onLoading?.(true);
 
-    fn()
+    let promise: Promise<T>;
+    try {
+      promise = fn();
+    } catch {
+      opts.onLoading?.(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    promise
       .then((result) => {
         if (cancelled) return;
         opts.onData(result);
