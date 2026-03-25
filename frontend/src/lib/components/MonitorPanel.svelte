@@ -77,8 +77,8 @@
 		};
 
 		const handleComplete = () => {
-			// Remove trailing "thinking" entries
-			entries = entries.filter(e => e.type !== 'thinking' || entries.indexOf(e) !== entries.length - 1);
+			// Remove all thinking entries on completion
+			entries = entries.filter(e => e.type !== 'thinking');
 		};
 
 		const unsubs = [

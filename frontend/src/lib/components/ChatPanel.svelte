@@ -28,16 +28,19 @@
 	let sending = $state(false);
 	let inputValue = $state('');
 	let isThinking = $state(false);
+	let streamingEntryId = $state<string | null>(null);
 	let messagesContainer: HTMLDivElement | undefined;
 	let inputElement: HTMLTextAreaElement | undefined;
 	let pendingImages = $state<PendingImage[]>([]);
 
 	// Load chat history
 	$effect(() => {
-		loading = true;
+		const pid = projectId;
 		let cancelled = false;
+		loading = true;
+		streamingEntryId = null;
 
-		getChatHistory(projectId)
+		getChatHistory(pid)
 			.then((hist: ChatMessage[]) => {
 				if (cancelled) return;
 				entries = hist.map((m) => ({
@@ -63,20 +66,59 @@
 	$effect(() => {
 		if (!ws) return;
 
-		const handleThinking = () => { isThinking = true; };
+		const handleThinking = () => {
+			isThinking = true;
+			streamingEntryId = null;
+		};
 
+		// Streaming: build up assistant message token-by-token
+		const handleChunk = (data: Record<string, unknown>) => {
+			isThinking = false;
+			const text = (data.text ?? data.content ?? '') as string;
+			if (streamingEntryId) {
+				entries = entries.map(e =>
+					e.id === streamingEntryId
+						? { ...e, content: e.content + text }
+						: e
+				);
+			} else {
+				const id = crypto.randomUUID();
+				streamingEntryId = id;
+				entries = [...entries, {
+					id,
+					type: 'captain',
+					content: text,
+					timestamp: new Date(),
+				}];
+			}
+			scrollToBottom();
+		};
+
+		// Full message (non-streaming fallback)
 		const handleMessage = (data: Record<string, unknown>) => {
 			isThinking = false;
-			entries = [...entries, {
-				id: crypto.randomUUID(),
-				type: 'captain',
-				content: data.content as string,
-				timestamp: new Date(),
-			}];
+			// If we already have a streaming entry, finalize it with full content
+			if (streamingEntryId) {
+				entries = entries.map(e =>
+					e.id === streamingEntryId
+						? { ...e, content: data.content as string }
+						: e
+				);
+				streamingEntryId = null;
+			} else {
+				entries = [...entries, {
+					id: crypto.randomUUID(),
+					type: 'captain',
+					content: data.content as string,
+					timestamp: new Date(),
+				}];
+			}
 			scrollToBottom();
 		};
 
 		const handleToolCall = (data: Record<string, unknown>) => {
+			// Finalize any in-progress streaming entry
+			streamingEntryId = null;
 			entries = [...entries, {
 				id: crypto.randomUUID(),
 				type: 'tool_call',
@@ -89,13 +131,13 @@
 		};
 
 		const handleToolResult = (data: Record<string, unknown>) => {
-			const result = data.result as { success: boolean; message: string };
+			const result = data.result as { success: boolean; message: string } | undefined;
 			entries = [...entries, {
 				id: crypto.randomUUID(),
 				type: 'tool_result',
-				content: result.message,
+				content: result?.message ?? String(data.message ?? ''),
 				toolName: data.tool_name as string,
-				success: result.success,
+				success: result?.success ?? true,
 				timestamp: new Date(),
 			}];
 			scrollToBottom();
@@ -104,13 +146,18 @@
 		const handleComplete = () => {
 			isThinking = false;
 			sending = false;
+			streamingEntryId = null;
 			inputElement?.focus();
 		};
 
 		const unsubs = [
 			ws.on('captain.thinking', handleThinking),
+			ws.on('captain.chat.chunk', handleChunk),
 			ws.on('captain.message', handleMessage),
+			ws.on('captain.chat.tool_call', handleToolCall),
+			ws.on('captain.chat.tool_result', handleToolResult),
 			ws.on('captain.complete', handleComplete),
+			ws.on('captain.chat.complete', handleComplete),
 			ws.on('chat.complete', handleComplete),
 		];
 

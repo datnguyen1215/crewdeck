@@ -33,6 +33,7 @@
 	let isMobile = $state(false);
 	let projectId = $derived($page.params.projectId);
 	let pathname = $derived($page.url.pathname);
+	let searchParams = $derived($page.url.searchParams);
 
 	// Auto-expand current project when route changes
 	$effect(() => {
@@ -261,8 +262,8 @@
 						<div class="ml-5 flex flex-col gap-0.5">
 							{@render projectNavItem(`/projects/${project.id}`, 'Issues', 'issues', pathname === `/projects/${project.id}` || pathname.startsWith(`/projects/${project.id}/issues`))}
 							{@render projectNavItem(`/projects/${project.id}/terminals`, 'Terminals', 'terminals', isActive(`/projects/${project.id}/terminals`))}
-							{@render projectNavItem(`/projects/${project.id}/chat`, 'Chat', 'chat', isActive(`/projects/${project.id}/chat`))}
-							{@render projectNavItem(`/projects/${project.id}/chat?panel=monitor`, 'Monitor', 'monitor', isActive(`/projects/${project.id}/chat`))}
+							{@render projectNavItem(`/projects/${project.id}/chat`, 'Chat', 'chat', isActive(`/projects/${project.id}/chat`) && searchParams.get('panel') !== 'monitor')}
+							{@render projectNavItem(`/projects/${project.id}/chat?panel=monitor`, 'Monitor', 'monitor', isActive(`/projects/${project.id}/chat`) && searchParams.get('panel') === 'monitor')}
 							{@render projectNavItem(`/projects/${project.id}/knowledge`, 'Knowledge', 'knowledge', isActive(`/projects/${project.id}/knowledge`))}
 							{@render projectNavItem(`/projects/${project.id}/activity`, 'Activity', 'activity', isActive(`/projects/${project.id}/activity`))}
 							{@render projectNavItem(`/projects/${project.id}/settings`, 'Settings', 'settings', isActive(`/projects/${project.id}/settings`))}
