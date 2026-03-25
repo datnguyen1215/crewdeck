@@ -13,6 +13,7 @@ import * as sessionRepo from "../db/repositories/chat-sessions.js";
 import {
   createWithId as createChatMessageWithId,
   getBySession as getMessagesBySession,
+  getByProjectWithoutSession as getMonitorMessages,
   deleteByProject as deleteChatMessages,
 } from "../db/repositories/chat-messages.js";
 import { eventBus } from "../events/bus.js";
@@ -38,6 +39,18 @@ const SendMessageSchema = z.object({
 
 type ProjectParams = { projectId: string };
 type SessionParams = { projectId: string; sessionId: string };
+
+// GET /monitor/history — get monitor messages (session_id = null)
+router.get(
+  "/monitor/history",
+  verifyProject,
+  (req: Request<ProjectParams>, res) => {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const messages = getMonitorMessages(req.params.projectId, limit);
+    // Reverse to return oldest first (chronological order)
+    res.json(messages.reverse());
+  },
+);
 
 // GET /chat/sessions — list sessions (newest first)
 router.get(

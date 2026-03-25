@@ -100,7 +100,7 @@
 				<span class="text-xs font-mono text-purple">Monitor</span>
 			</div>
 			<div class="flex-1 min-h-0">
-				<MonitorPanel {ws} />
+				<MonitorPanel {ws} {projectId} />
 			</div>
 		</div>
 	</div>

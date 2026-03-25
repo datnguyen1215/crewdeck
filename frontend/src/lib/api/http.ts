@@ -430,6 +430,15 @@ export function clearChatHistory(projectId: string) {
   return request<void>("DELETE", `/projects/${e(projectId)}/chat`);
 }
 
+// Monitor history
+export function getMonitorHistory(projectId: string, limit?: number) {
+  const query = limit ? `?limit=${limit}` : "";
+  return request<ChatMessage[]>(
+    "GET",
+    `/projects/${e(projectId)}/monitor/history${query}`,
+  );
+}
+
 // Captain dispatch
 export function dispatchAgent(
   projectId: string,
