@@ -90,33 +90,33 @@ Open → In Progress → PR Created → Done
 
 ### States
 
-| State | Description |
-|-------|-------------|
-| **Open** | Issue is in the queue, ready to be worked on. |
-| **In Progress** | An agent is actively working (or has worked) on the issue. Set automatically when an agent is spawned. |
-| **PR Created** | A pull request has been created. Set via the "Mark as PR Created" button, automatically by Admiral after creating a PR with `gh pr create`, or auto-detected when a PR URL is posted in a comment. |
-| **PR Conflict** | The PR has merge conflicts detected by GitHub. Transitions back to `pr_created` after conflicts are resolved. |
-| **PR Failed Actions** | The PR has failing CI checks. Transitions back to `pr_created` after checks pass. |
-| **PR Ready to Merge** | The PR passes all checks and has no conflicts. Ready to be merged. |
-| **Done** | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running), or automatically when a linked PR is merged. |
+| State                 | Description                                                                                                                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Open**              | Issue is in the queue, ready to be worked on.                                                                                                                                                      |
+| **In Progress**       | An agent is actively working (or has worked) on the issue. Set automatically when an agent is spawned.                                                                                             |
+| **PR Created**        | A pull request has been created. Set via the "Mark as PR Created" button, automatically by Admiral after creating a PR with `gh pr create`, or auto-detected when a PR URL is posted in a comment. |
+| **PR Conflict**       | The PR has merge conflicts detected by GitHub. Transitions back to `pr_created` after conflicts are resolved.                                                                                      |
+| **PR Failed Actions** | The PR has failing CI checks. Transitions back to `pr_created` after checks pass.                                                                                                                  |
+| **PR Ready to Merge** | The PR passes all checks and has no conflicts. Ready to be merged.                                                                                                                                 |
+| **Done**              | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running), or automatically when a linked PR is merged.                                                          |
 
 Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) or `done` issue automatically regresses it to `in_progress`.
 
 ## Technology Decisions
 
-| Component | Choice | Rationale |
-|-----------|--------|-----------|
-| **Backend language** | TypeScript | Type safety, shared types with frontend |
-| **HTTP framework** | Express | Widely adopted, mature ecosystem |
-| **Database** | SQLite via `better-sqlite3` | Synchronous API (performance advantage for SQLite), no async overhead, raw SQL for full control |
-| **Request validation** | Zod | Strict schema validation, self-documenting, TypeScript integration |
-| **WebSocket** | `ws` | Minimal, no abstraction overhead |
-| **Testing** | Vitest + supertest | Vitest for unit tests; supertest for HTTP integration tests |
-| **Logging** | pino | Fast structured JSON logging |
-| **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate |
-| **CSS** | Tailwind CSS | Utility-first, dark theme, no component library |
-| **Configuration** | Environment variables (`.env`) | Simple, standard approach |
-| **Agent spawning** | `claude -p` (print mode) | One-shot process per mention; no persistent sessions to manage |
+| Component              | Choice                          | Rationale                                                                                       |
+| ---------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Backend language**   | TypeScript                      | Type safety, shared types with frontend                                                         |
+| **HTTP framework**     | Express                         | Widely adopted, mature ecosystem                                                                |
+| **Database**           | SQLite via `better-sqlite3`     | Synchronous API (performance advantage for SQLite), no async overhead, raw SQL for full control |
+| **Request validation** | Zod                             | Strict schema validation, self-documenting, TypeScript integration                              |
+| **WebSocket**          | `ws`                            | Minimal, no abstraction overhead                                                                |
+| **Testing**            | Vitest + supertest              | Vitest for unit tests; supertest for HTTP integration tests                                     |
+| **Logging**            | pino                            | Fast structured JSON logging                                                                    |
+| **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate                                                    |
+| **CSS**                | Tailwind CSS                    | Utility-first, dark theme, no component library                                                 |
+| **Configuration**      | Environment variables (`.env`)  | Simple, standard approach                                                                       |
+| **Agent spawning**     | `claude -p` (print mode)        | One-shot process per mention; no persistent sessions to manage                                  |
 
 ## Project Structure
 
@@ -174,14 +174,16 @@ The frontend and backend are separate directories. Each has its own `package.jso
 ### Component Responsibilities
 
 **Frontend (Svelte)**
+
 - Renders project dashboard, issue board, crew (read-only), activity log.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
-- Issue detail page shows a unified Timeline view merging comments, activity, and agent run summaries chronologically.
+- Issue detail page shows a unified Timeline view merging comments, activity, and agent run summaries chronologically. Both `mention.spawned` and `mention.completed` entries are matched to `AgentRun` records (by `agent_id` + `started_at` or `completed_at` timestamp within 60s tolerance) and display colored status dots (green = running, amber = queued, red = failed, cyan = completed) and a "View" link that opens a modal with the run's full event log, live-updated via WebSocket.
 - Provides autocomplete for `/dispatch` commands and `@mentions` in comment input.
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
 
 **Backend (Node.js + TypeScript)**
+
 - Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, issues, comments; crew is read-only (fixed constants).
 - All request validation via Zod schemas.
 - Centralized error handling middleware (all errors formatted as `{ error: { code, message, details } }`).
@@ -192,6 +194,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Structured JSON logging via pino.
 
 **MentionHandler**
+
 - Subscribes to `comment.added` events.
 - Parses `/dispatch` commands from comment text via MentionParser.
 - Enforces chain depth and concurrency limits.
@@ -201,11 +204,13 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - See [Agent Runtime](agent-runtime.md) for the full specification.
 
 **ProcessAdapter**
+
 - Spawns `claude -p` as a child process.
 - Captures stdout (JSON output format) and resolves on process exit.
 - Enforces 10-minute timeout per process.
 
 **PR Detector**
+
 - Subscribes to `comment.added` events.
 - Parses GitHub PR URLs from comment text.
 - Matches URLs against repos linked to the project.
@@ -213,6 +218,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Emits `pr.created` for each newly linked PR.
 
 **PR Poller**
+
 - Runs every 60 seconds (started at startup, stopped on shutdown).
 - Queries all open `IssuePR` records with their project/repo context.
 - Fetches current PR state from the GitHub API using the project's OAuth token.
@@ -226,6 +232,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Exports `pollPRs()` for external callers (e.g., Admiral) to trigger immediate polling.
 
 **Admiral**
+
 - LLM-powered auto-pilot orchestrator that manages the project automatically.
 - Only acts on projects with `admiral_enabled = true`.
 - Background service that is not dispatchable via `/dispatch` (unlike other agents).
@@ -255,6 +262,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Uses OAuth token from the project's linked GitHub account for merging and PR creation.
 
 **Event Bus**
+
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than calling each other directly.
 - Producers: REST API handlers, MentionHandler, PR Detector, PR Poller.
@@ -262,6 +270,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
 **SQLite Database**
+
 - Stores all persistent state: projects, issues, comments, activity logs. (Agents are fixed constants in code, not persisted.)
 - Accessed via `better-sqlite3` with raw SQL (synchronous API).
 - Single `schema.sql` file executed on startup for migrations.
