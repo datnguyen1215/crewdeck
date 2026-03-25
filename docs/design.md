@@ -177,7 +177,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 - Renders project dashboard, issue board, crew (read-only), activity log.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
-- Issue detail page shows a unified Timeline view merging comments, activity, and agent run summaries chronologically.
+- Issue detail page shows a unified Timeline view merging comments, activity, and agent run summaries chronologically. Both `mention.spawned` and `mention.completed` entries are matched to `AgentRun` records (by `agent_id` + `started_at` or `completed_at` timestamp within 60s tolerance) and display colored status dots (green = running, amber = queued, red = failed, cyan = completed) and a "View" link that opens a modal with the run's full event log, live-updated via WebSocket.
 - Provides autocomplete for `/dispatch` commands and `@mentions` in comment input.
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
