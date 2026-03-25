@@ -242,7 +242,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 **Captain (Chat + Monitor)**
 
-Captain is split into two independent services that run concurrently per project. Both only act on projects with `captain_enabled = true`. Captain is a background service and is not dispatchable via `/dispatch`.
+Captain is split into two independent services that run concurrently per project. Captain always runs for all projects — there is no on/off toggle. The `auto_start` and `auto_merge` settings control what Captain can do autonomously. Captain is a background service and is not dispatchable via `/dispatch`.
 
 **Chat Service** (`backend/src/orchestration/captain/chat-service.ts` + `chat-agent.ts`)
 
@@ -271,12 +271,13 @@ Captain is split into two independent services that run concurrently per project
 - Uses `claude -p --output-format json` (batch, non-streaming) for orchestration decisions.
 - Maintains its own conversation history (last 100 sessionless messages in ChatMessage table, i.e. `session_id IS NULL`), separate from chat session history.
 - Available actions via curl to the internal API: merge PR, dispatch agent, create/update/list/get issues, add comments, scan codebase, manage knowledge.
-- Decision priorities (encoded in system prompt, conditional on `auto_merge_enabled`):
-  1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status (when `auto_merge_enabled` is true); otherwise, **Report ready PRs** — note they are ready for manual merge
+- Decision priorities (encoded in system prompt, conditional on `auto_merge` and `auto_start` settings):
+  1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status (when `auto_merge` is true); otherwise, **Report ready PRs** — note they are ready for manual merge
   2. **Fix broken PRs** — dispatch engineer for `pr_conflict` or `pr_failed_actions`
   3. **Update knowledge** — after a PR is merged, evaluate whether the changes warrant a librarian rescan (e.g., new files/modules, API changes, restructuring). Skip for bug fixes, style changes, dependency updates, or docs-only changes.
-  4. **Start new work** — dispatch appropriate agent on open issues when capacity allows (skipping issues blocked by unfinished dependencies)
-- When `auto_merge_enabled` is false, the merge action is excluded and a constraint is added preventing merge attempts.
+  4. **Start new work** — dispatch appropriate agent on open issues when capacity allows (when `auto_start` is true, skipping issues blocked by unfinished dependencies)
+- When `auto_merge` is false, the merge action is excluded and a constraint is added preventing merge attempts.
+- When `auto_start` is false, Captain will not automatically dispatch agents on new issues — the user must explicitly trigger dispatch.
 - **Dependency awareness**: Before dispatching work on an issue, Monitor checks its description for dependency references (e.g., "depends on #12", "blocked by #14", "requires #", "after #", "waiting on #"). If a blocking issue is not yet in `done` or `pr_created` status, Monitor skips the blocked issue and works on unblocked ones instead. Blocked issues are re-evaluated when completion or merge events arrive for their blockers.
 - Task-type reasoning: Monitor analyzes each issue and decides which agents to dispatch based on task type (research → librarian, docs-only → docs, code change → engineer then lead, etc.).
 
