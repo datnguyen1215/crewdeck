@@ -8,6 +8,7 @@
 	import type { WsEventMap } from '$lib/api/types.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { createFormState } from '$lib/utils/form.svelte.js';
+	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
 	import ActivityDetails from '$lib/components/ActivityDetails.svelte';
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
@@ -163,35 +164,30 @@
 		}
 	});
 
-	$effect(() => {
-		let cancelled = false;
-		loading = true;
-		Promise.all([getIssue(projectId, issueId), getProject(projectId)])
-			.then(([d, p]) => { if (!cancelled) { issue = d; project = p; } })
-			.catch(() => { if (!cancelled) issue = null; })
-			.finally(() => { if (!cancelled) loading = false; });
-		return () => { cancelled = true; };
-	});
+	fetchEffect(
+		() => Promise.all([getIssue(projectId, issueId), getProject(projectId)]),
+		{
+			onData: ([d, p]) => { issue = d; project = p; },
+			onError: () => { issue = null; },
+			onLoading: (v) => { loading = v; },
+		}
+	);
 
-	$effect(() => {
-		activityLoading = true;
-		let cancelled = false;
-		listActivity(projectId, { issue_id: issueId, limit: 200 })
-			.then((entries) => { if (!cancelled) activityEntries = entries; })
-			.catch(() => {})
-			.finally(() => { if (!cancelled) activityLoading = false; });
-		return () => { cancelled = true; };
-	});
+	fetchEffect(
+		() => listActivity(projectId, { issue_id: issueId, limit: 200 }),
+		{
+			onData: (entries) => { activityEntries = entries; },
+			onLoading: (v) => { activityLoading = v; },
+		}
+	);
 
-	$effect(() => {
-		runsLoading = true;
-		let cancelled = false;
-		listIssueRuns(projectId, issueId)
-			.then((r) => { if (!cancelled) runs = r; })
-			.catch(() => {})
-			.finally(() => { if (!cancelled) runsLoading = false; });
-		return () => { cancelled = true; };
-	});
+	fetchEffect(
+		() => listIssueRuns(projectId, issueId),
+		{
+			onData: (r) => { runs = r; },
+			onLoading: (v) => { runsLoading = v; },
+		}
+	);
 
 	$effect(() => {
 		const ws = getWs();

@@ -8,6 +8,7 @@
 	import { md } from '$lib/utils/markdown.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
 	import { mapMessageToEntry } from '$lib/utils/monitor.js';
+	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 
 	// Captain monitor state
 	let monitorEntries = $state<MonitorEntry[]>([]);
@@ -24,19 +25,13 @@
 	let loading = $state(true);
 
 	// Load active runs and project info
-	$effect(() => {
-		loading = true;
-		let cancelled = false;
-		Promise.all([listActiveRuns(projectId), getProject(projectId)])
-			.then(([r, p]) => {
-				if (cancelled) return;
-				runs = r;
-				project = p;
-			})
-			.catch(() => {})
-			.finally(() => { if (!cancelled) loading = false; });
-		return () => { cancelled = true; };
-	});
+	fetchEffect(
+		() => Promise.all([listActiveRuns(projectId), getProject(projectId)]),
+		{
+			onData: ([r, p]) => { runs = r; project = p; },
+			onLoading: (v) => { loading = v; },
+		}
+	);
 
 	// Load monitor history on mount
 	onMount(async () => {
