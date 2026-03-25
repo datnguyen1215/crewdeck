@@ -6,6 +6,282 @@ import { config } from "../config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+type Migration = {
+  name: string;
+  run: (db: Database.Database) => void;
+};
+
+const migrations: Migration[] = [
+  {
+    name: "001_add_github_account_id_to_project",
+    run(db) {
+      const cols = db.pragma("table_info(Project)") as { name: string }[];
+      if (!cols.some((c) => c.name === "github_account_id")) {
+        db.exec(
+          `ALTER TABLE Project ADD COLUMN github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL`,
+        );
+      }
+    },
+  },
+  {
+    name: "002_add_chain_depth_to_issue",
+    run(db) {
+      const cols = db.pragma("table_info(Issue)") as { name: string }[];
+      if (!cols.some((c) => c.name === "chain_depth")) {
+        db.exec(
+          "ALTER TABLE Issue ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0",
+        );
+      }
+    },
+  },
+  {
+    name: "003_add_memory_to_project",
+    run(db) {
+      const cols = db.pragma("table_info(Project)") as { name: string }[];
+      if (!cols.some((c) => c.name === "memory")) {
+        db.exec("ALTER TABLE Project ADD COLUMN memory TEXT");
+      }
+    },
+  },
+  {
+    name: "004_add_admiral_enabled_to_project",
+    run(db) {
+      const cols = db.pragma("table_info(Project)") as { name: string }[];
+      if (!cols.some((c) => c.name === "admiral_enabled")) {
+        db.exec(
+          "ALTER TABLE Project ADD COLUMN admiral_enabled INTEGER NOT NULL DEFAULT 1",
+        );
+      }
+    },
+  },
+  {
+    name: "005_add_max_chain_depth_to_project",
+    run(db) {
+      const cols = db.pragma("table_info(Project)") as { name: string }[];
+      if (!cols.some((c) => c.name === "max_chain_depth")) {
+        db.exec(
+          "ALTER TABLE Project ADD COLUMN max_chain_depth INTEGER NOT NULL DEFAULT 20",
+        );
+      }
+    },
+  },
+  {
+    name: "006_add_agent_timeout_minutes_to_project",
+    run(db) {
+      const cols = db.pragma("table_info(Project)") as { name: string }[];
+      if (!cols.some((c) => c.name === "agent_timeout_minutes")) {
+        db.exec(
+          "ALTER TABLE Project ADD COLUMN agent_timeout_minutes INTEGER NOT NULL DEFAULT 10",
+        );
+      }
+    },
+  },
+  {
+    name: "007_add_admiral_idle_timeout_ms_to_project",
+    run(db) {
+      const cols = db.pragma("table_info(Project)") as { name: string }[];
+      if (!cols.some((c) => c.name === "admiral_idle_timeout_ms")) {
+        db.exec(
+          "ALTER TABLE Project ADD COLUMN admiral_idle_timeout_ms INTEGER",
+        );
+      }
+    },
+  },
+  {
+    name: "008_rename_admiral_to_captain_columns",
+    run(db) {
+      const cols = db.pragma("table_info(Project)") as { name: string }[];
+      if (
+        cols.some((c) => c.name === "admiral_enabled") &&
+        !cols.some((c) => c.name === "captain_enabled")
+      ) {
+        db.exec(
+          "ALTER TABLE Project RENAME COLUMN admiral_enabled TO captain_enabled",
+        );
+      }
+      if (
+        cols.some((c) => c.name === "admiral_idle_timeout_ms") &&
+        !cols.some((c) => c.name === "captain_idle_timeout_ms")
+      ) {
+        db.exec(
+          "ALTER TABLE Project RENAME COLUMN admiral_idle_timeout_ms TO captain_idle_timeout_ms",
+        );
+      }
+    },
+  },
+  {
+    name: "009_rename_admiral_to_captain_data",
+    run(db) {
+      db.exec(
+        "UPDATE Comment SET author_id = 'captain' WHERE author_id = 'admiral'",
+      );
+      db.exec(
+        "UPDATE AgentRun SET agent_id = 'captain' WHERE agent_id = 'admiral'",
+      );
+    },
+  },
+  {
+    name: "010_add_agent_id_to_issue",
+    run(db) {
+      const cols = db.pragma("table_info(Issue)") as { name: string }[];
+      if (!cols.some((c) => c.name === "agent_id")) {
+        db.exec("ALTER TABLE Issue ADD COLUMN agent_id TEXT");
+      }
+    },
+  },
+  {
+    name: "011_drop_agent_table",
+    run(db) {
+      db.pragma("foreign_keys = OFF");
+      try {
+        db.exec("DROP TABLE IF EXISTS Agent");
+        db.exec("DROP INDEX IF EXISTS idx_agent_project");
+      } finally {
+        db.pragma("foreign_keys = ON");
+      }
+    },
+  },
+  {
+    name: "012_recreate_github_account_schema",
+    run(db) {
+      const cols = db.pragma("table_info(GitHubAccount)") as {
+        name: string;
+      }[];
+      if (!cols.some((c) => c.name === "oauth_token")) return;
+
+      db.pragma("foreign_keys = OFF");
+      try {
+        db.transaction(() => {
+          db.exec(`
+            CREATE TABLE GitHubAccount_new (
+              id TEXT PRIMARY KEY,
+              account_name TEXT NOT NULL,
+              github_username TEXT NOT NULL,
+              gh_token TEXT NOT NULL,
+              ssh_private_key TEXT NOT NULL,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO GitHubAccount_new (id, account_name, github_username, gh_token, ssh_private_key, created_at)
+              SELECT id, account_name, github_username, oauth_token, '', created_at FROM GitHubAccount;
+            DROP TABLE GitHubAccount;
+            ALTER TABLE GitHubAccount_new RENAME TO GitHubAccount;
+          `);
+        })();
+      } finally {
+        db.pragma("foreign_keys = ON");
+      }
+    },
+  },
+  {
+    name: "013_add_auto_merge_enabled_to_project",
+    run(db) {
+      const cols = db.pragma("table_info(Project)") as { name: string }[];
+      if (!cols.some((c) => c.name === "auto_merge_enabled")) {
+        db.exec(
+          "ALTER TABLE Project ADD COLUMN auto_merge_enabled INTEGER NOT NULL DEFAULT 0",
+        );
+      }
+    },
+  },
+  {
+    name: "014_add_message_type_and_images_to_chat_message",
+    run(db) {
+      try {
+        const cols = db.pragma("table_info(ChatMessage)") as {
+          name: string;
+        }[];
+        if (cols.length > 0 && !cols.some((c) => c.name === "message_type")) {
+          db.exec(
+            "ALTER TABLE ChatMessage ADD COLUMN message_type TEXT NOT NULL DEFAULT 'chat'",
+          );
+        }
+        if (cols.length > 0 && !cols.some((c) => c.name === "images")) {
+          db.exec("ALTER TABLE ChatMessage ADD COLUMN images TEXT");
+        }
+      } catch {
+        // Table may not exist yet in fresh DBs — schema.sql will create it
+      }
+    },
+  },
+  {
+    name: "015_fix_agent_run_event_types",
+    run(db) {
+      db.exec(`
+        UPDATE AgentRunEvent
+        SET type = json_extract(data, '$.type')
+        WHERE type = 'system'
+          AND json_extract(data, '$.type') = 'user'
+      `);
+    },
+  },
+  {
+    name: "016_make_agent_run_issue_id_nullable",
+    run(db) {
+      const cols = db.pragma("table_info(AgentRun)") as {
+        name: string;
+        notnull: number;
+      }[];
+      const issueIdCol = cols.find((c) => c.name === "issue_id");
+      if (!issueIdCol || issueIdCol.notnull !== 1) return;
+
+      db.transaction(() => {
+        db.exec(`
+          CREATE TABLE AgentRun_new (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES Project(id),
+            issue_id TEXT REFERENCES Issue(id),
+            agent_id TEXT NOT NULL,
+            pid INTEGER,
+            status TEXT NOT NULL DEFAULT 'queued',
+            exit_code INTEGER,
+            cost_usd REAL,
+            duration_ms INTEGER,
+            started_at DATETIME,
+            completed_at DATETIME,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          INSERT INTO AgentRun_new SELECT * FROM AgentRun;
+          DROP TABLE AgentRun;
+          ALTER TABLE AgentRun_new RENAME TO AgentRun;
+          CREATE INDEX IF NOT EXISTS idx_agent_run_project ON AgentRun(project_id);
+          CREATE INDEX IF NOT EXISTS idx_agent_run_issue ON AgentRun(issue_id);
+          CREATE INDEX IF NOT EXISTS idx_agent_run_status ON AgentRun(project_id, status);
+          CREATE INDEX IF NOT EXISTS idx_agent_run_created ON AgentRun(project_id, created_at);
+        `);
+      })();
+    },
+  },
+];
+
+function runMigrations(db: Database.Database): void {
+  const applied = new Set(
+    (
+      db.prepare("SELECT name FROM _migrations").all() as { name: string }[]
+    ).map((r) => r.name),
+  );
+
+  // Fresh DB: schema.sql already defines the final schema, so all migrations
+  // are effectively applied. Seed the table to avoid running stale migrations
+  // (e.g., adding intermediate columns that no longer exist).
+  if (applied.size === 0) {
+    const seed = db.transaction(() => {
+      for (const m of migrations) {
+        db.prepare("INSERT INTO _migrations (name) VALUES (?)").run(m.name);
+      }
+    });
+    seed();
+    return;
+  }
+
+  const record = db.prepare("INSERT INTO _migrations (name) VALUES (?)");
+
+  for (const migration of migrations) {
+    if (applied.has(migration.name)) continue;
+    migration.run(db);
+    record.run(migration.name);
+  }
+}
+
 export function createDb(path: string): Database.Database {
   if (path !== ":memory:") {
     mkdirSync(dirname(path), { recursive: true });
@@ -18,180 +294,7 @@ export function createDb(path: string): Database.Database {
   const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
 
-  // Migration: add github_account_id column to Project if missing.
-  const projectCols = db.pragma("table_info(Project)") as { name: string }[];
-  if (!projectCols.some((c) => c.name === "github_account_id")) {
-    db.exec(
-      `ALTER TABLE Project ADD COLUMN github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL`,
-    );
-  }
-
-  // Migration: add chain_depth column to Issue if missing (from legacy schema).
-  const issueCols = db.pragma("table_info(Issue)") as { name: string }[];
-  if (!issueCols.some((c) => c.name === "chain_depth")) {
-    db.exec(
-      "ALTER TABLE Issue ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0",
-    );
-  }
-
-  // Migration: add memory column to Project if missing.
-  if (!projectCols.some((c) => c.name === "memory")) {
-    db.exec("ALTER TABLE Project ADD COLUMN memory TEXT");
-  }
-
-  // Migration: add admiral_enabled column to Project if missing.
-  if (!projectCols.some((c) => c.name === "admiral_enabled")) {
-    db.exec(
-      "ALTER TABLE Project ADD COLUMN admiral_enabled INTEGER NOT NULL DEFAULT 1",
-    );
-  }
-
-  // Migration: add max_chain_depth column to Project if missing.
-  if (!projectCols.some((c) => c.name === "max_chain_depth")) {
-    db.exec(
-      "ALTER TABLE Project ADD COLUMN max_chain_depth INTEGER NOT NULL DEFAULT 20",
-    );
-  }
-
-  // Migration: add agent_timeout_minutes column to Project if missing.
-  if (!projectCols.some((c) => c.name === "agent_timeout_minutes")) {
-    db.exec(
-      "ALTER TABLE Project ADD COLUMN agent_timeout_minutes INTEGER NOT NULL DEFAULT 10",
-    );
-  }
-
-  // Migration: add admiral_idle_timeout_ms column to Project if missing.
-  if (!projectCols.some((c) => c.name === "admiral_idle_timeout_ms")) {
-    db.exec("ALTER TABLE Project ADD COLUMN admiral_idle_timeout_ms INTEGER");
-  }
-
-  // Migration: rename admiral_enabled → captain_enabled.
-  if (
-    projectCols.some((c) => c.name === "admiral_enabled") &&
-    !projectCols.some((c) => c.name === "captain_enabled")
-  ) {
-    db.exec(
-      "ALTER TABLE Project RENAME COLUMN admiral_enabled TO captain_enabled",
-    );
-  }
-
-  // Migration: rename admiral_idle_timeout_ms → captain_idle_timeout_ms.
-  if (
-    projectCols.some((c) => c.name === "admiral_idle_timeout_ms") &&
-    !projectCols.some((c) => c.name === "captain_idle_timeout_ms")
-  ) {
-    db.exec(
-      "ALTER TABLE Project RENAME COLUMN admiral_idle_timeout_ms TO captain_idle_timeout_ms",
-    );
-  }
-
-  // Migration: rename stored 'admiral' agent IDs to 'captain'.
-  db.exec(
-    "UPDATE Comment SET author_id = 'captain' WHERE author_id = 'admiral'",
-  );
-  db.exec(
-    "UPDATE AgentRun SET agent_id = 'captain' WHERE agent_id = 'admiral'",
-  );
-
-  // Migration: add agent_id column to Issue if missing.
-  if (!issueCols.some((c) => c.name === "agent_id")) {
-    db.exec("ALTER TABLE Issue ADD COLUMN agent_id TEXT");
-  }
-
-  // Migration: drop Agent table — agents are now fixed constants in code.
-  db.pragma("foreign_keys = OFF");
-  db.exec("DROP TABLE IF EXISTS Agent");
-  db.exec("DROP INDEX IF EXISTS idx_agent_project");
-  db.pragma("foreign_keys = ON");
-
-  // Migration: replace oauth_token/scopes with gh_token/ssh_private_key in GitHubAccount.
-  const ghCols = db.pragma("table_info(GitHubAccount)") as { name: string }[];
-  if (ghCols.some((c) => c.name === "oauth_token")) {
-    db.pragma("foreign_keys = OFF");
-    db.exec(`
-      CREATE TABLE GitHubAccount_new (
-        id TEXT PRIMARY KEY,
-        account_name TEXT NOT NULL,
-        github_username TEXT NOT NULL,
-        gh_token TEXT NOT NULL,
-        ssh_private_key TEXT NOT NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      INSERT INTO GitHubAccount_new (id, account_name, github_username, gh_token, ssh_private_key, created_at)
-        SELECT id, account_name, github_username, oauth_token, '', created_at FROM GitHubAccount;
-      DROP TABLE GitHubAccount;
-      ALTER TABLE GitHubAccount_new RENAME TO GitHubAccount;
-    `);
-    db.pragma("foreign_keys = ON");
-  }
-
-  // Migration: add auto_merge_enabled column to Project if missing.
-  if (!projectCols.some((c) => c.name === "auto_merge_enabled")) {
-    db.exec(
-      "ALTER TABLE Project ADD COLUMN auto_merge_enabled INTEGER NOT NULL DEFAULT 0",
-    );
-  }
-
-  // Migration: add message_type column to ChatMessage if missing (for older DBs without the column).
-  // Only runs if ChatMessage table exists and lacks the column.
-  try {
-    const chatCols = db.pragma("table_info(ChatMessage)") as { name: string }[];
-    if (
-      chatCols.length > 0 &&
-      !chatCols.some((c) => c.name === "message_type")
-    ) {
-      db.exec(
-        "ALTER TABLE ChatMessage ADD COLUMN message_type TEXT NOT NULL DEFAULT 'chat'",
-      );
-    }
-    // Migration: add images column to ChatMessage if missing.
-    if (chatCols.length > 0 && !chatCols.some((c) => c.name === "images")) {
-      db.exec("ALTER TABLE ChatMessage ADD COLUMN images TEXT");
-    }
-  } catch {
-    // Table may not exist yet in fresh DBs - schema.sql will create it
-  }
-
-  // Migration: fix agent run events where type was mapped to 'system' but data contains 'user' type.
-  // This restores the original event type from the stored data.
-  db.exec(`
-    UPDATE AgentRunEvent
-    SET type = json_extract(data, '$.type')
-    WHERE type = 'system'
-      AND json_extract(data, '$.type') = 'user'
-  `);
-
-  // Migration: make AgentRun.issue_id nullable (was NOT NULL in older schema).
-  const arCols = db.pragma("table_info(AgentRun)") as {
-    name: string;
-    notnull: number;
-  }[];
-  const issueIdCol = arCols.find((c) => c.name === "issue_id");
-  if (issueIdCol && issueIdCol.notnull === 1) {
-    db.exec(`
-      CREATE TABLE AgentRun_new (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL REFERENCES Project(id),
-        issue_id TEXT REFERENCES Issue(id),
-        agent_id TEXT NOT NULL,
-        pid INTEGER,
-        status TEXT NOT NULL DEFAULT 'queued',
-        exit_code INTEGER,
-        cost_usd REAL,
-        duration_ms INTEGER,
-        started_at DATETIME,
-        completed_at DATETIME,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      INSERT INTO AgentRun_new SELECT * FROM AgentRun;
-      DROP TABLE AgentRun;
-      ALTER TABLE AgentRun_new RENAME TO AgentRun;
-      CREATE INDEX IF NOT EXISTS idx_agent_run_project ON AgentRun(project_id);
-      CREATE INDEX IF NOT EXISTS idx_agent_run_issue ON AgentRun(issue_id);
-      CREATE INDEX IF NOT EXISTS idx_agent_run_status ON AgentRun(project_id, status);
-      CREATE INDEX IF NOT EXISTS idx_agent_run_created ON AgentRun(project_id, created_at);
-    `);
-  }
+  runMigrations(db);
 
   return db;
 }

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS Project (
   captain_enabled INTEGER NOT NULL DEFAULT 1,
   auto_merge_enabled INTEGER NOT NULL DEFAULT 0,
   captain_idle_timeout_ms INTEGER,
+  memory TEXT,
   github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -166,3 +167,10 @@ CREATE TABLE IF NOT EXISTS ChatMessage (
 
 CREATE INDEX IF NOT EXISTS idx_chat_message_project ON ChatMessage(project_id);
 CREATE INDEX IF NOT EXISTS idx_chat_message_created ON ChatMessage(project_id, created_at DESC);
+
+-- Migration version tracking
+CREATE TABLE IF NOT EXISTS _migrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
