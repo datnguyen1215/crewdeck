@@ -101,6 +101,12 @@ function executeComment(
 
 /**
  * Execute a create-issue action.
+ *
+ * Note: Issues created here use created_by: "agent" which is filtered out
+ * by monitor-service.ts handleIssueCreated. This prevents chain reactions
+ * where Monitor sees its own issue creations. The mutex is also held during
+ * plan execution, so any events emitted here won't trigger a new Monitor
+ * invocation until after this one completes.
  */
 function executeCreateIssue(
   projectId: string,
@@ -141,8 +147,8 @@ function executeUpdateIssue(
       return { action, success: false, message: "Issue belongs to a different project" };
     }
     const updates: { status?: string; title?: string } = {};
-    if (action.status) updates.status = action.status;
-    if (action.title) updates.title = action.title;
+    if (action.status !== undefined) updates.status = action.status;
+    if (action.title !== undefined) updates.title = action.title;
     if (Object.keys(updates).length === 0) {
       return { action, success: false, message: "No updates provided" };
     }
