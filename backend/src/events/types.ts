@@ -1,4 +1,9 @@
-import type { Issue, Comment, IssuePR, AgentRunStatus } from "../types/entities.js";
+import type {
+  Issue,
+  Comment,
+  IssuePR,
+  AgentRunStatus,
+} from "../types/entities.js";
 
 export interface EventMap {
   "issue.created": { issue: Issue };
@@ -95,7 +100,7 @@ export interface EventMap {
     duration_ms: number | null;
     completed_at: string;
   };
-  // Admiral chat events
+  // Captain chat events
   "chat.stream": {
     project_id: string;
     token: string;
@@ -104,36 +109,36 @@ export interface EventMap {
     project_id: string;
     message_id: string | null;
   };
-  // User chat message (triggers Admiral processing)
+  // User chat message (triggers Captain processing)
   "chat.message": {
     project_id: string;
     content: string;
     images?: Array<{ data: string; mediaType: string }>;
   };
-  // Admiral LLM agent events
-  "admiral.event_received": {
+  // Captain LLM agent events
+  "captain.event_received": {
     project_id: string;
     event_type: string;
     description: string;
   };
-  "admiral.thinking": {
+  "captain.thinking": {
     project_id: string;
   };
-  "admiral.message": {
+  "captain.message": {
     project_id: string;
     content: string;
   };
-  "admiral.tool_call": {
+  "captain.tool_call": {
     project_id: string;
     tool_name: string;
     tool_input: unknown;
   };
-  "admiral.tool_result": {
+  "captain.tool_result": {
     project_id: string;
     tool_name: string;
     result: unknown;
   };
-  "admiral.complete": {
+  "captain.complete": {
     project_id: string;
     response: string;
   };

@@ -4,12 +4,15 @@ import { db } from "./db/index.js";
 import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { initActivityLogger } from "./events/activity-logger.js";
-import { initMentionHandler, shutdownMentionHandler } from "./orchestration/handler.js";
+import {
+  initMentionHandler,
+  shutdownMentionHandler,
+} from "./orchestration/handler.js";
 import { recoverOnStartup } from "./orchestration/recovery.js";
 import { createApp } from "./app.js";
 import { initPRDetector } from "./pr/detector.js";
 import { startPRPoller, stopPRPoller } from "./pr/poller.js";
-import { initAdmiral, shutdownAdmiral } from "./orchestration/admiral.js";
+import { initCaptain, shutdownCaptain } from "./orchestration/captain.js";
 
 const app = createApp();
 
@@ -22,8 +25,8 @@ async function main(): Promise<void> {
   initPRDetector();
   startPRPoller();
 
-  // Initialize Admiral auto-pilot orchestrator
-  initAdmiral();
+  // Initialize Captain auto-pilot orchestrator
+  initCaptain();
 
   const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const s = app.listen(config.port, config.host, () => {
@@ -48,13 +51,17 @@ async function main(): Promise<void> {
   async function shutdown() {
     shutdownWebSocket(wss);
     shutdownMentionHandler();
-    shutdownAdmiral();
+    shutdownCaptain();
     stopPRPoller();
     db.close();
     process.exit(0);
   }
-  process.on("SIGTERM", () => { void shutdown(); });
-  process.on("SIGINT", () => { void shutdown(); });
+  process.on("SIGTERM", () => {
+    void shutdown();
+  });
+  process.on("SIGINT", () => {
+    void shutdown();
+  });
 }
 
 main().catch((err) => {

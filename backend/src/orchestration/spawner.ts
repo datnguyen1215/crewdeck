@@ -356,7 +356,7 @@ export const spawnAgent = async (
 
   const comments = commentRepo.listComments(issueId);
 
-  // Project issues (currently unused since Captain was removed — Admiral orchestrates directly)
+  // Project issues (currently unused — Captain orchestrates directly)
   const projectIssues = undefined;
 
   const projectKnowledge = knowledgeRepo.listForAgent(projectId, agent.id);

@@ -11,12 +11,12 @@
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
-	let pageTitle = $derived(project?.name ? `Admiral Terminal - ${project.name} - CrewDeck` : 'Admiral Terminal - CrewDeck');
+	let pageTitle = $derived(project?.name ? `Captain Terminal - ${project.name} - CrewDeck` : 'Captain Terminal - CrewDeck');
 
 	// Terminal entries: events, messages, tool calls
 	interface TerminalEntry {
 		id: string;
-		type: 'system' | 'admiral' | 'user' | 'tool_call' | 'tool_result';
+		type: 'system' | 'captain' | 'user' | 'tool_call' | 'tool_result';
 		content: string;
 		timestamp: Date;
 		toolName?: string;
@@ -51,7 +51,7 @@
 				// Convert chat messages to terminal entries
 				entries = hist.map((m: ChatMessage) => ({
 					id: m.id,
-					type: m.role === 'user' ? 'user' : 'admiral',
+					type: m.role === 'user' ? 'user' : 'captain',
 					content: m.content,
 					timestamp: new Date(m.created_at),
 				}));
@@ -69,7 +69,7 @@
 		return () => { cancelled = true; };
 	});
 
-	// WebSocket handlers for Admiral terminal events
+	// WebSocket handlers for Captain terminal events
 	$effect(() => {
 		const ws = getWs();
 		if (!ws) return;
@@ -86,17 +86,17 @@
 			scrollToBottom();
 		};
 
-		// Admiral is thinking
+		// Captain is thinking
 		const handleThinking = () => {
 			isThinking = true;
 		};
 
-		// Admiral message
+		// Captain message
 		const handleMessage = (data: Record<string, unknown>) => {
 			isThinking = false;
 			const entry: TerminalEntry = {
 				id: crypto.randomUUID(),
-				type: 'admiral',
+				type: 'captain',
 				content: data.content as string,
 				timestamp: new Date(),
 			};
@@ -104,7 +104,7 @@
 			scrollToBottom();
 		};
 
-		// Admiral tool call
+		// Captain tool call
 		const handleToolCall = (data: Record<string, unknown>) => {
 			const entry: TerminalEntry = {
 				id: crypto.randomUUID(),
@@ -118,7 +118,7 @@
 			scrollToBottom();
 		};
 
-		// Admiral tool result
+		// Captain tool result
 		const handleToolResult = (data: Record<string, unknown>) => {
 			const result = data.result as { success: boolean; message: string; data?: unknown };
 			const entry: TerminalEntry = {
@@ -133,7 +133,7 @@
 			scrollToBottom();
 		};
 
-		// Admiral complete
+		// Captain complete
 		const handleComplete = () => {
 			isThinking = false;
 			sending = false;
@@ -141,12 +141,12 @@
 		};
 
 		const unsubs = [
-			ws.on('admiral.event_received', handleEventReceived),
-			ws.on('admiral.thinking', handleThinking),
-			ws.on('admiral.message', handleMessage),
-			ws.on('admiral.tool_call', handleToolCall),
-			ws.on('admiral.tool_result', handleToolResult),
-			ws.on('admiral.complete', handleComplete),
+			ws.on('captain.event_received', handleEventReceived),
+			ws.on('captain.thinking', handleThinking),
+			ws.on('captain.message', handleMessage),
+			ws.on('captain.tool_call', handleToolCall),
+			ws.on('captain.tool_result', handleToolResult),
+			ws.on('captain.complete', handleComplete),
 			// Legacy fallback for streaming
 			ws.on('chat.complete', handleComplete),
 		];
@@ -262,7 +262,7 @@
 		<Breadcrumb segments={[
 			{ label: 'Projects', href: '/' },
 			{ label: project?.name ?? 'Project', href: `/projects/${projectId}` },
-			{ label: 'Admiral Terminal' }
+			{ label: 'Captain Terminal' }
 		]} />
 		<div class="mt-3 flex items-center gap-3">
 			<div class="w-8 h-8 rounded-full bg-cyan/20 flex items-center justify-center flex-shrink-0">
@@ -274,7 +274,7 @@
 				</svg>
 			</div>
 			<div class="min-w-0">
-				<h1 class="text-base md:text-lg font-bold text-primary truncate">Admiral Terminal</h1>
+				<h1 class="text-base md:text-lg font-bold text-primary truncate">Captain Terminal</h1>
 				<p class="text-xs text-muted">Event-driven project orchestrator</p>
 			</div>
 		</div>
@@ -296,7 +296,7 @@
 			</div>
 		{:else if entries.length === 0}
 			<div class="text-muted py-8 text-center">
-				<p class="mb-2">Admiral Terminal ready.</p>
+				<p class="mb-2">Captain Terminal ready.</p>
 				<p class="text-xs">System events and your messages appear here.</p>
 			</div>
 		{:else}
@@ -310,18 +310,18 @@
 						{:else if entry.type === 'user'}
 							<span class="text-green flex-shrink-0">[you]</span>
 							<span class="text-primary break-words min-w-0">{entry.content}</span>
-						{:else if entry.type === 'admiral'}
-							<span class="text-cyan flex-shrink-0">[admiral]</span>
+						{:else if entry.type === 'captain'}
+							<span class="text-cyan flex-shrink-0">[captain]</span>
 							<span class="text-primary prose prose-sm prose-invert max-w-none inline break-words min-w-0">
 								{@html md(entry.content)}
 							</span>
 						{:else if entry.type === 'tool_call'}
-							<span class="text-cyan flex-shrink-0">[admiral]</span>
+							<span class="text-cyan flex-shrink-0">[captain]</span>
 							<span class="text-purple break-words min-w-0">
 								<span class="text-muted/50">-></span> {entry.toolName}({formatToolInput(entry.toolInput)})
 							</span>
 						{:else if entry.type === 'tool_result'}
-							<span class="text-cyan flex-shrink-0">[admiral]</span>
+							<span class="text-cyan flex-shrink-0">[captain]</span>
 							<span class="text-muted/50 flex-shrink-0">-></span>
 							<span class="{entry.success ? 'text-green' : 'text-red'} min-w-0">
 								{entry.success ? 'ok' : 'err'}:
@@ -337,7 +337,7 @@
 		{#if isThinking}
 			<div class="flex gap-2 mt-2">
 				<span class="text-muted/50">[{formatTime(new Date())}]</span>
-				<span class="text-cyan">[admiral]</span>
+				<span class="text-cyan">[captain]</span>
 				<span class="text-muted animate-pulse">thinking...</span>
 			</div>
 		{/if}
@@ -346,7 +346,7 @@
 		{#if sending && !isThinking}
 			<div class="flex gap-2 mt-2">
 				<span class="text-muted/50">[{formatTime(new Date())}]</span>
-				<span class="text-cyan">[admiral]</span>
+				<span class="text-cyan">[captain]</span>
 				<span class="text-muted animate-pulse">processing...</span>
 			</div>
 		{/if}
@@ -379,7 +379,7 @@
 					bind:value={inputValue}
 					onkeydown={handleKeydown}
 					onpaste={handlePaste}
-					placeholder="Message Admiral..."
+					placeholder="Message Captain..."
 					disabled={sending}
 					rows="1"
 					class="flex-1 bg-transparent text-sm text-primary font-mono placeholder:text-muted outline-none disabled:opacity-50 resize-none min-h-[1.5rem] max-h-32 overflow-y-auto"

@@ -29,7 +29,11 @@ function removeSubscriber(projectId: string, ws: WebSocket): void {
 function broadcast(projectId: string, event: string, data: unknown): void {
   const clients = subscribers.get(projectId);
   if (!clients?.size) return;
-  const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
+  const message = JSON.stringify({
+    event,
+    data,
+    timestamp: new Date().toISOString(),
+  });
   for (const ws of [...clients]) {
     if (ws.readyState !== WebSocket.OPEN) continue;
     try {
@@ -90,17 +94,20 @@ function subscribeEvents(bus: EventBus): void {
     });
   });
 
-  bus.on("mention.completed", ({ project_id, issue_id, agent_id, exit_code }) => {
-    const agent = getCrewMember(agent_id);
-    const issue = issue_id ? getIssue(issue_id) : null;
-    broadcast(project_id, "mention.completed", {
-      issue_id,
-      agent_id,
-      agent_name: agent?.name,
-      issue_title: issue?.title,
-      exit_code,
-    });
-  });
+  bus.on(
+    "mention.completed",
+    ({ project_id, issue_id, agent_id, exit_code }) => {
+      const agent = getCrewMember(agent_id);
+      const issue = issue_id ? getIssue(issue_id) : null;
+      broadcast(project_id, "mention.completed", {
+        issue_id,
+        agent_id,
+        agent_name: agent?.name,
+        issue_title: issue?.title,
+        exit_code,
+      });
+    },
+  );
 
   bus.on("mention.error", ({ project_id, issue_id, agent_id, message }) => {
     const agent = getCrewMember(agent_id);
@@ -157,7 +164,7 @@ function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "run.completed", data),
   );
 
-  // Admiral chat events
+  // Captain chat events
   bus.on("chat.stream", ({ project_id, token }) =>
     broadcast(project_id, "chat.stream", { token }),
   );
@@ -166,29 +173,32 @@ function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "chat.complete", { message_id }),
   );
 
-  // Admiral terminal events
-  bus.on("admiral.event_received", ({ project_id, event_type, description }) =>
-    broadcast(project_id, "admiral.event_received", { event_type, description }),
+  // Captain terminal events
+  bus.on("captain.event_received", ({ project_id, event_type, description }) =>
+    broadcast(project_id, "captain.event_received", {
+      event_type,
+      description,
+    }),
   );
 
-  bus.on("admiral.thinking", ({ project_id }) =>
-    broadcast(project_id, "admiral.thinking", {}),
+  bus.on("captain.thinking", ({ project_id }) =>
+    broadcast(project_id, "captain.thinking", {}),
   );
 
-  bus.on("admiral.message", ({ project_id, content }) =>
-    broadcast(project_id, "admiral.message", { content }),
+  bus.on("captain.message", ({ project_id, content }) =>
+    broadcast(project_id, "captain.message", { content }),
   );
 
-  bus.on("admiral.tool_call", ({ project_id, tool_name, tool_input }) =>
-    broadcast(project_id, "admiral.tool_call", { tool_name, tool_input }),
+  bus.on("captain.tool_call", ({ project_id, tool_name, tool_input }) =>
+    broadcast(project_id, "captain.tool_call", { tool_name, tool_input }),
   );
 
-  bus.on("admiral.tool_result", ({ project_id, tool_name, result }) =>
-    broadcast(project_id, "admiral.tool_result", { tool_name, result }),
+  bus.on("captain.tool_result", ({ project_id, tool_name, result }) =>
+    broadcast(project_id, "captain.tool_result", { tool_name, result }),
   );
 
-  bus.on("admiral.complete", ({ project_id }) =>
-    broadcast(project_id, "admiral.complete", {}),
+  bus.on("captain.complete", ({ project_id }) =>
+    broadcast(project_id, "captain.complete", {}),
   );
 }
 
@@ -223,9 +233,15 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
     try {
       const url = new URL(req.url ?? "", "http://localhost");
       const projectId = url.searchParams.get("projectId");
-      if (!projectId) { ws.close(4004, "Missing projectId"); return; }
+      if (!projectId) {
+        ws.close(4004, "Missing projectId");
+        return;
+      }
       const project = getProject(projectId);
-      if (!project) { ws.close(4004, "Project not found"); return; }
+      if (!project) {
+        ws.close(4004, "Project not found");
+        return;
+      }
 
       ws.isAlive = true;
       addSubscriber(projectId, ws);

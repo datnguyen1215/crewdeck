@@ -1,5 +1,5 @@
 /**
- * Admiral LLM Agent
+ * Captain LLM Agent
  *
  * Uses `claude -p` CLI to make project management decisions.
  * Maintains a persistent conversation per project.
@@ -11,12 +11,12 @@ import { getActiveProcessCount } from "../processes.js";
 import { spawnClaude, spawnClaudeMultimodal } from "../process.js";
 
 import * as chatRepo from "../../db/repositories/chat-messages.js";
-import type { AdmiralEvent, ChatImage } from "./queue.js";
+import type { CaptainEvent, ChatImage } from "./queue.js";
 
 const MAX_CONTEXT_MESSAGES = 100;
 
 /**
- * Build the system prompt for Admiral, including tool docs as curl commands.
+ * Build the system prompt for Captain, including tool docs as curl commands.
  */
 const buildSystemPrompt = (projectId: string): string => {
   const project = getProject(projectId);
@@ -26,7 +26,7 @@ const buildSystemPrompt = (projectId: string): string => {
 
   const canMerge = project.auto_merge_enabled;
 
-  return `You are Admiral, the autonomous project orchestrator for CrewDeck.
+  return `You are Captain, the autonomous project orchestrator for CrewDeck.
 
 ## Role
 You manage a software development project by reacting to events and making decisions.
@@ -54,7 +54,7 @@ ${
     ? `
 ### Merge a PR
 \`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/merge-pr" \\
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/merge-pr" \\
   -H "Content-Type: application/json" \\
   -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>"}'
 \`\`\``
@@ -63,7 +63,7 @@ curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/merge-pr" \\
 
 ### Dispatch an agent to work on an issue
 \`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/dispatch-agent" \\
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/dispatch-agent" \\
   -H "Content-Type: application/json" \\
   -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>","agent_id":"<AGENT_ID>","instructions":"optional instructions"}'
 \`\`\`
@@ -101,12 +101,12 @@ curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues"
 \`\`\`bash
 curl -X POST "$CREWDECK_API_URL/api/v1/internal/comment" \\
   -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>","agent_id":"admiral","content":"Comment text"}'
+  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>","agent_id":"captain","content":"Comment text"}'
 \`\`\`
 
 ### Scan codebase (Librarian)
 \`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/scan-codebase" \\
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/scan-codebase" \\
   -H "Content-Type: application/json" \\
   -d '{"project_id":"'$CREWDECK_PROJECT_ID'"}'
 \`\`\`
@@ -248,7 +248,7 @@ The response includes \`issue_prs\` array. If non-empty, a PR exists.
 /**
  * Format events for the LLM.
  */
-const formatEvents = (events: AdmiralEvent[]): string => {
+const formatEvents = (events: CaptainEvent[]): string => {
   if (events.length === 0) return "";
 
   return events
@@ -307,7 +307,7 @@ const getConversationHistory = (projectId: string): string => {
             : "";
         return `User:\n<user_message>\n${m.content}${imageNote}\n</user_message>`;
       }
-      return `Admiral: ${m.content}`;
+      return `Captain: ${m.content}`;
     })
     .join("\n\n");
 };
@@ -315,7 +315,7 @@ const getConversationHistory = (projectId: string): string => {
 /**
  * Collect images from events (only chat.message events have images).
  */
-const collectImages = (events: AdmiralEvent[]): ChatImage[] => {
+const collectImages = (events: CaptainEvent[]): ChatImage[] => {
   const images: ChatImage[] = [];
   for (const event of events) {
     if (event.type === "chat.message" && event.images) {
@@ -326,12 +326,12 @@ const collectImages = (events: AdmiralEvent[]): ChatImage[] => {
 };
 
 /**
- * Process events with the Admiral LLM via claude -p.
+ * Process events with the Captain LLM via claude -p.
  * Returns the assistant's text response.
  */
 export const processWithLLM = async (
   projectId: string,
-  events: AdmiralEvent[],
+  events: CaptainEvent[],
 ): Promise<string> => {
   const systemPrompt = buildSystemPrompt(projectId);
   if (!systemPrompt) return "Error: Project not found";
@@ -354,30 +354,30 @@ export const processWithLLM = async (
   // Save event message to DB (as 'event' type so it's not loaded in history)
   chatRepo.create(projectId, "user", eventSection, "event");
 
-  // Emit admiral.event_received for each event so frontend can show them
+  // Emit captain.event_received for each event so frontend can show them
   for (const event of events) {
     const description = formatEvents([event]).replace(
       /^\[\d{2}:\d{2}:\d{2}\]\s*/,
       "",
     );
-    eventBus.emit("admiral.event_received", {
+    eventBus.emit("captain.event_received", {
       project_id: projectId,
       event_type: event.type,
       description,
     });
   }
 
-  // Emit that Admiral is thinking
-  eventBus.emit("admiral.thinking", { project_id: projectId });
+  // Emit that Captain is thinking
+  eventBus.emit("captain.thinking", { project_id: projectId });
 
   const project = getProject(projectId);
   const env: Record<string, string> = {
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
     CREWDECK_PROJECT_ID: projectId,
-    CREWDECK_AGENT_ID: "admiral",
+    CREWDECK_AGENT_ID: "captain",
   };
 
-  // Admiral needs GH_TOKEN for API/gh CLI and SSH for git operations
+  // Captain needs GH_TOKEN for API/gh CLI and SSH for git operations
   let sshKeyPath: string | undefined;
   if (project?.github_account_id) {
     const { getGitHubAccount } =
@@ -425,7 +425,7 @@ export const processWithLLM = async (
     }
 
     if (code !== 0) {
-      logger.warn({ projectId, code }, "Admiral claude -p exited non-zero");
+      logger.warn({ projectId, code }, "Captain claude -p exited non-zero");
     }
 
     // Parse the JSON output from claude -p --output-format json
@@ -443,7 +443,7 @@ export const processWithLLM = async (
       finalResponse = stdout;
     }
   } catch (err) {
-    logger.error({ err }, "Admiral claude -p call failed");
+    logger.error({ err }, "Captain claude -p call failed");
     finalResponse = "Error: Failed to process events";
   } finally {
     if (sshKeyPath) {
@@ -454,7 +454,7 @@ export const processWithLLM = async (
 
   // Emit final message
   if (finalResponse) {
-    eventBus.emit("admiral.message", {
+    eventBus.emit("captain.message", {
       project_id: projectId,
       content: finalResponse,
     });
@@ -462,7 +462,7 @@ export const processWithLLM = async (
   }
 
   // Emit completion
-  eventBus.emit("admiral.complete", {
+  eventBus.emit("captain.complete", {
     project_id: projectId,
     response: finalResponse,
   });

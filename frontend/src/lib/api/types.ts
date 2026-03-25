@@ -5,7 +5,7 @@ export interface Project {
   max_concurrency: number;
   max_chain_depth: number;
   agent_timeout_minutes: number;
-  admiral_enabled: boolean;
+  captain_enabled: boolean;
   auto_merge_enabled: boolean;
   github_account_id: string | null;
   created_at: string;
@@ -176,7 +176,7 @@ export interface LibrarianStatus {
   completed_at: string | null;
 }
 
-// Admiral chat types
+// Captain chat types
 export type ChatMessageRole = "user" | "assistant";
 
 export interface ChatMessage {

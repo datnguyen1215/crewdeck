@@ -1,11 +1,19 @@
-import type { Issue, Comment, Repo, ProjectKnowledge } from "../types/entities.js";
+import type {
+  Issue,
+  Comment,
+  Repo,
+  ProjectKnowledge,
+} from "../types/entities.js";
 import { escapeXml } from "../utils/xml.js";
 
 function formatComments(comments: Comment[]): string {
   return comments
     .map((c) => {
       const time = c.created_at.replace("T", " ").slice(0, 19);
-      const author = c.author_type === "agent" ? `agent:${c.author_id ?? "unknown"}` : c.author_type;
+      const author =
+        c.author_type === "agent"
+          ? `agent:${c.author_id ?? "unknown"}`
+          : c.author_type;
       return `[${time}] (${author}) ${c.content}`;
     })
     .join("\n\n");
@@ -19,7 +27,7 @@ function formatIssueSummary(issue: Issue): string {
  * Agents with full API access (issues CRUD, status management, comments, activity, crew list).
  * Enforcement is via system prompts only — no server-side per-agent auth since the API is
  * localhost-only. The system prompt is the contract (see #321 "API Access Matrix").
- * Note: Captain has been removed — Admiral now orchestrates directly.
+ * Note: Captain orchestrates directly.
  */
 const FULL_ACCESS_AGENTS = new Set<string>();
 
@@ -81,7 +89,10 @@ function buildApiSection(agentId: string): string {
 export interface BuildPromptOptions {
   issue: Issue;
   comments: Comment[];
-  repo: Repo | { local_path: string; default_branch: string; name: string } | null;
+  repo:
+    | Repo
+    | { local_path: string; default_branch: string; name: string }
+    | null;
   worktreePath: string;
   agentId: string;
   /** All open/in-progress issues for the project (injected for captain). */
@@ -97,7 +108,15 @@ export interface BuildScanPromptOptions {
 }
 
 export function buildPrompt(opts: BuildPromptOptions): string {
-  const { issue, comments, repo, worktreePath, agentId, projectIssues, projectKnowledge } = opts;
+  const {
+    issue,
+    comments,
+    repo,
+    worktreePath,
+    agentId,
+    projectIssues,
+    projectKnowledge,
+  } = opts;
   const parts: string[] = [];
 
   parts.push(
@@ -113,12 +132,16 @@ export function buildPrompt(opts: BuildPromptOptions): string {
   }
 
   if (repo)
-    parts.push(`## Repository\n${escapeXml("name" in repo ? repo.name : "repo")} at ${escapeXml(worktreePath)}`);
+    parts.push(
+      `## Repository\n${escapeXml("name" in repo ? repo.name : "repo")} at ${escapeXml(worktreePath)}`,
+    );
 
-  // Project issues section (currently unused since Captain was removed — Admiral orchestrates directly)
+  // Project issues section (currently unused — Captain orchestrates directly)
 
   if (comments.length > 0)
-    parts.push(`## Comment History\n<comments>\n${formatComments(comments)}\n</comments>`);
+    parts.push(
+      `## Comment History\n<comments>\n${formatComments(comments)}\n</comments>`,
+    );
 
   // Diff instructions
   const safeBranch = /^[a-zA-Z0-9._/-]+$/.test(issue.base_branch ?? "")
@@ -151,7 +174,9 @@ export function buildScanPrompt(opts: BuildScanPromptOptions): string {
   const { repo, repoPath, projectKnowledge } = opts;
   const parts: string[] = [];
 
-  parts.push("## Task\nScan the codebase and update knowledge entries for this project.");
+  parts.push(
+    "## Task\nScan the codebase and update knowledge entries for this project.",
+  );
 
   if (projectKnowledge && projectKnowledge.length > 0) {
     const entries = projectKnowledge
@@ -161,7 +186,9 @@ export function buildScanPrompt(opts: BuildScanPromptOptions): string {
   }
 
   if (repo)
-    parts.push(`## Repository\n${escapeXml("name" in repo ? repo.name : "repo")} at ${escapeXml(repoPath)}`);
+    parts.push(
+      `## Repository\n${escapeXml("name" in repo ? repo.name : "repo")} at ${escapeXml(repoPath)}`,
+    );
 
   // Librarian-specific API section
   parts.push(`## API Reference
