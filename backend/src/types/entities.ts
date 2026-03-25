@@ -303,7 +303,7 @@ export interface UpdateKnowledgeInput {
 
 // Chat message types
 export type ChatMessageRole = "user" | "assistant";
-export type ChatMessageType = "chat" | "event";
+export type ChatMessageType = "chat" | "event" | "monitor";
 
 export interface ChatMessage {
   id: string;

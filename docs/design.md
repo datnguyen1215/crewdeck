@@ -159,6 +159,11 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │  (comment.added → claude -p → comment)      │ │
 │  └──────────────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
+│  │  Captain (Chat + Monitor)                   │ │
+│  │  Chat:  chat.message → stream-json → WS     │ │
+│  │  Monitor: events → claude -p → actions       │ │
+│  └──────────────────────────────────────────────┘ │
+│  ┌──────────────────────────────────────────────┐ │
 │  │  Centralized Error Handler + Zod Validation  │ │
 │  └──────────────────────────────────────────────┘ │
 └────────────────────┬────────────────────────────┘
@@ -231,46 +236,56 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
 - Exports `pollPRs()` for external callers to trigger immediate polling.
 
-**Captain**
+**Captain (Chat + Monitor)**
 
-- LLM-powered auto-pilot orchestrator that manages the project automatically.
-- Only acts on projects with `captain_enabled = true`.
-- Background service that is not dispatchable via `/dispatch` (unlike other agents).
-- Event-driven architecture — no polling. Wakes only when events occur:
+Captain is split into two independent services that run concurrently per project. Both only act on projects with `captain_enabled = true`. Captain is a background service and is not dispatchable via `/dispatch`.
+
+**Chat Service** (`backend/src/orchestration/captain/chat-service.ts` + `chat-agent.ts`)
+
+- Handles interactive user conversations from the Captain chat UI.
+- Subscribes to `chat.message` events only.
+- Uses `claude -p --output-format stream-json` for real-time token streaming to the frontend via `chat.stream` WebSocket events. Falls back to `spawnClaudeMultimodal` for image-attached messages.
+- Each message is a one-shot `claude -p` call with conversation history (last 100 `chat`-type messages) as context.
+- Has its own queue namespace (`chat:{projectId}`) so user messages are never blocked by monitor processing.
+- Processes each queued message individually (iterates sequentially) so no messages are dropped.
+- Saves assistant responses to ChatMessage table with `message_type: 'chat'`.
+
+**Monitor Service** (`backend/src/orchestration/captain/monitor-service.ts` + `monitor-agent.ts`)
+
+- Automated event-driven orchestrator — no polling. Wakes only when events occur:
   - `issue.created`, `issue.updated`, `issue.status_changed`
   - `run.completed` (agent finished)
   - `run.recovered` (issue needs attention after server restart)
   - `pr.status_changed` (from PR poller)
-  - `comment.added` (user comments only — e.g., "Start work" button posts a comment that Captain picks up)
-  - `chat.message` (user message from Captain Terminal)
+  - `comment.added` (user comments only)
   - `idle.check` (configurable per-project idle timeout)
+- Has its own queue namespace (`monitor:{projectId}`) — a long monitor batch won't block user chat, and vice versa.
 - Event batching: accumulates events while processing, drains all pending events at once.
-- Persistent conversation per project (last 100 messages stored in ChatMessage table).
-- Uses Claude API with tool calling for intelligent decision-making.
-- Directly dispatches sub-agents (engineer, lead, docs, librarian) based on task type — no fixed workflow.
-- Available tools:
-  - `merge_pr(issue_id)` — merge PR and delete branch
-  - `dispatch_agent(issue_id, agent_id, instructions?)` — dispatch engineer, lead, docs, or librarian
-  - `create_issue(title, description)`, `update_issue(issue_id, fields)`, `list_issues(filters?)`, `get_issue(issue_id)`
-  - `add_comment(issue_id, content)`
-  - `scan_codebase()` — trigger librarian
-  - `list_knowledge()`, `create_knowledge()`, `update_knowledge()`, `delete_knowledge()`
+- Uses `claude -p --output-format json` (batch, non-streaming) for orchestration decisions.
+- Maintains its own conversation history (last 100 `monitor`-type messages in ChatMessage table), separate from chat history.
+- Available actions via curl to the internal API: merge PR, dispatch agent, create/update/list/get issues, add comments, scan codebase, manage knowledge.
 - Decision priorities (encoded in system prompt, conditional on `auto_merge_enabled`):
   1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status (when `auto_merge_enabled` is true); otherwise, **Report ready PRs** — note they are ready for manual merge
   2. **Fix broken PRs** — dispatch engineer for `pr_conflict` or `pr_failed_actions`
   3. **Update knowledge** — after a PR is merged, evaluate whether the changes warrant a librarian rescan (e.g., new files/modules, API changes, restructuring). Skip for bug fixes, style changes, dependency updates, or docs-only changes.
   4. **Start new work** — dispatch appropriate agent on open issues when capacity allows (skipping issues blocked by unfinished dependencies)
-- When `auto_merge_enabled` is false, the merge tool is excluded from Captain's available actions and a constraint is added preventing merge attempts.
-- **Dependency awareness**: Before dispatching work on an issue, Captain checks its description for dependency references (e.g., "depends on #12", "blocked by #14", "requires #", "after #", "waiting on #"). If a blocking issue is not yet in `done` or `pr_created` status, Captain skips the blocked issue and works on unblocked ones instead. Blocked issues are re-evaluated when completion or merge events arrive for their blockers.
-- Task-type reasoning: Captain analyzes each issue and decides which agents to dispatch based on task type (research → librarian, docs-only → docs, code change → engineer then lead, etc.).
+- When `auto_merge_enabled` is false, the merge action is excluded and a constraint is added preventing merge attempts.
+- **Dependency awareness**: Before dispatching work on an issue, Monitor checks its description for dependency references (e.g., "depends on #12", "blocked by #14", "requires #", "after #", "waiting on #"). If a blocking issue is not yet in `done` or `pr_created` status, Monitor skips the blocked issue and works on unblocked ones instead. Blocked issues are re-evaluated when completion or merge events arrive for their blockers.
+- Task-type reasoning: Monitor analyzes each issue and decides which agents to dispatch based on task type (research → librarian, docs-only → docs, code change → engineer then lead, etc.).
+
+**Captain Wrapper** (`backend/src/orchestration/captain.ts`)
+
+- Thin wrapper that initializes and shuts down both Chat and Monitor services together.
+- `initCaptain()` starts both services for all captain-enabled projects.
+- `startCaptainForProject(projectId)` / `stopCaptainForProject(projectId)` control both services per project.
 - Uses OAuth token from the project's linked GitHub account for merging and PR creation.
 
 **Event Bus**
 
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than calling each other directly.
-- Producers: REST API handlers, MentionHandler, PR Detector, PR Poller.
-- Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger.
+- Producers: REST API handlers, MentionHandler, PR Detector, PR Poller, Chat Service, Monitor Service.
+- Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger, Chat Service, Monitor Service.
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
 **SQLite Database**
@@ -297,8 +312,10 @@ The backend uses an in-process typed EventEmitter as the central communication b
 │  Producers:                    Consumers:                │
 │  ├── REST API handlers    ──→  MentionHandler            │
 │  ├── MentionHandler       ──→  WebSocket broadcaster     │
-│  └── PR Detector/Poller   ──→  Activity Logger           │
-│                           ──→  PR Detector               │
+│  ├── PR Detector/Poller   ──→  Activity Logger           │
+│  ├── Chat Service         ──→  PR Detector               │
+│  └── Monitor Service      ──→  Chat Service (chat.message)│
+│                           ──→  Monitor Service (events)   │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -329,7 +346,8 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued.
 - **PR events** — PR created, status updated.
-- **Orchestrator events** — event received, thinking, message, tool call, tool result, complete.
+- **Captain events** — event received, thinking, message, tool call, tool result, complete.
+- **Chat events** — stream (token-by-token streaming from Chat service), complete.
 
 The frontend subscribes to events scoped by project.
 
@@ -390,7 +408,7 @@ On startup, the backend:
 4. Initializes the MentionHandler (subscribes to `comment.added`).
 5. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 6. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
-7. Initializes Captain service (subscribes to event bus for all captain-enabled projects).
+7. Initializes Captain services — both Chat and Monitor subscribe to the event bus for all captain-enabled projects.
 8. Starts the Express HTTP server.
 9. Starts the WebSocket server.
 10. Logs startup complete via pino.
@@ -403,7 +421,7 @@ On SIGTERM or SIGINT, the backend:
 
 1. Stops accepting new HTTP connections.
 2. Sends SIGTERM to all active agent processes (via `shutdownMentionHandler()`).
-3. Shuts down Captain service (unsubscribes from events, clears idle timeouts).
+3. Shuts down Captain services — both Chat and Monitor unsubscribe from events; Monitor clears idle timeouts.
 4. Stops the PR poller.
 5. Closes the SQLite database connection.
 6. Exits the process.

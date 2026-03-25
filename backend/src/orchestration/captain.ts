@@ -1,28 +1,52 @@
 /**
- * Captain: Auto-pilot orchestrator that manages the project automatically.
+ * Captain: Split into Chat and Monitor services.
  *
- * This module is now a thin wrapper that delegates to the event-driven
- * Captain service in ./captain/service.ts
+ * Chat — interactive conversation with the user, streams responses via WebSocket.
+ * Monitor — automated event-driven orchestration (issue lifecycle, agent dispatch, PR management).
+ *
+ * Both run independently per project.
  */
 import {
-  initCaptainService,
-  shutdownCaptainService,
-} from "./captain/service.js";
-export {
-  startCaptainForProject,
-  stopCaptainForProject,
-} from "./captain/service.js";
+  initChatService,
+  shutdownChatService,
+  startChatForProject,
+  stopChatForProject,
+} from "./captain/chat-service.js";
+import {
+  initMonitorService,
+  shutdownMonitorService,
+  startMonitorForProject,
+  stopMonitorForProject,
+} from "./captain/monitor-service.js";
 
 /**
- * Initialize the Captain background service.
+ * Start both Chat and Monitor for a project.
  */
-export function initCaptain(): void {
-  initCaptainService();
+export function startCaptainForProject(projectId: string): void {
+  startChatForProject(projectId);
+  startMonitorForProject(projectId);
 }
 
 /**
- * Shutdown the Captain service.
+ * Stop both Chat and Monitor for a project.
+ */
+export function stopCaptainForProject(projectId: string): void {
+  stopChatForProject(projectId);
+  stopMonitorForProject(projectId);
+}
+
+/**
+ * Initialize both services for all captain-enabled projects.
+ */
+export function initCaptain(): void {
+  initChatService();
+  initMonitorService();
+}
+
+/**
+ * Shutdown both services.
  */
 export function shutdownCaptain(): void {
-  shutdownCaptainService();
+  shutdownChatService();
+  shutdownMonitorService();
 }
