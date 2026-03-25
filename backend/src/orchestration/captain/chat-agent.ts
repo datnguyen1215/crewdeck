@@ -202,14 +202,30 @@ export const processChat = async (
   const systemPrompt = buildSystemPrompt(projectId);
   if (!systemPrompt) return "Error: Project not found";
 
-  // Extract the user message from events
-  const chatEvent = events.find((e) => e.type === "chat.message");
-  const userContent = chatEvent
-    ? (chatEvent.data as { content: string }).content
-    : "";
+  // Process each chat.message event individually so none are dropped
+  const chatEvents = events.filter((e) => e.type === "chat.message");
+  if (chatEvents.length === 0) return "";
 
+  let lastResponse = "";
+
+  for (const chatEvent of chatEvents) {
+    lastResponse = await processSingleChat(projectId, chatEvent, systemPrompt);
+  }
+
+  return lastResponse;
+};
+
+/**
+ * Process a single chat message event.
+ */
+const processSingleChat = async (
+  projectId: string,
+  chatEvent: CaptainEvent,
+  systemPrompt: string,
+): Promise<string> => {
+  const userContent = (chatEvent.data as { content: string }).content;
   const history = getChatHistory(projectId);
-  const images = collectImages(events);
+  const images = chatEvent.images ?? [];
 
   // Build prompt with history
   const sections = [];
