@@ -989,7 +989,7 @@ Returns all messages in a session, in chronological order.
 POST /projects/:projectId/chat/sessions/:sessionId/messages
 ```
 
-Sends a message in a session, which triggers a Captain response via `claude -p`. The response is delivered asynchronously via WebSocket `chat.stream` and `chat.complete` events.
+Sends a message in a session, which triggers a Captain response via `claude -p`. The response is delivered asynchronously via WebSocket `captain.chat.chunk`, `captain.chat.tool_call`, `captain.chat.tool_result`, and `captain.chat.complete` events. Legacy `chat.stream` and `chat.complete` events are also emitted for backward compatibility.
 
 **Request Body:**
 
@@ -1026,7 +1026,29 @@ Sends a message in a session, which triggers a Captain response via `claude -p`.
 
 **Error:** `400 SESSION_ARCHIVED` — Cannot add messages to an archived session.
 
+**Error:** `409 SESSION_BUSY` — Session already has an in-flight message. Wait for completion or abort.
+
 **Side effects:** Emits `chat.message` event with `session_id` for Captain processing.
+
+#### Abort In-Flight Message
+
+```
+POST /projects/:projectId/chat/sessions/:sessionId/abort
+```
+
+Aborts the in-flight message for a session. The spawned `claude -p` process is killed (SIGTERM → SIGKILL after 5s) and the partial response is discarded (not saved to DB).
+
+**Response:** `200 OK`
+
+```json
+{
+  "status": "abort_requested"
+}
+```
+
+**Error:** `404 Not Found` — Session does not exist or does not belong to the project.
+
+**Side effects:** Emits `chat.abort` event. The Chat service kills the in-flight process and discards partial output.
 
 #### Clear Chat History
 
@@ -1390,11 +1412,15 @@ All events follow this structure:
 
 #### Captain Events (Chat)
 
-| Event              | Description                          | Data                       |
-| ------------------ | ------------------------------------ | -------------------------- |
-| `captain.thinking` | Captain chat is processing a message | `{ project_id }`           |
-| `captain.message`  | Captain chat text response           | `{ project_id, content }`  |
-| `captain.complete` | Captain chat finished processing     | `{ project_id, response }` |
+| Event                      | Description                            | Data                                    |
+| -------------------------- | -------------------------------------- | --------------------------------------- |
+| `captain.thinking`         | Captain chat is processing a message   | `{ project_id }`                        |
+| `captain.message`          | Captain chat text response (legacy)    | `{ project_id, content }`               |
+| `captain.complete`         | Captain chat finished processing       | `{ project_id, response }`              |
+| `captain.chat.chunk`       | Streaming text chunk from Chat service | `{ session_id, text }`                  |
+| `captain.chat.tool_call`   | Chat invoked a tool during response    | `{ session_id, tool_name, tool_input }` |
+| `captain.chat.tool_result` | Chat tool execution completed          | `{ session_id, tool_name, result }`     |
+| `captain.chat.complete`    | Chat response finished, message saved  | `{ session_id, message_id }`            |
 
 #### Monitor Events
 
@@ -1407,12 +1433,14 @@ All events follow this structure:
 | `monitor.tool_result`    | Monitor tool execution completed           | `{ project_id, tool_name, result }`       |
 | `monitor.complete`       | Monitor finished processing                | `{ project_id, response }`                |
 
-#### Chat Events
+#### Chat Events (Legacy)
 
-| Event           | Description                                  | Data                                     |
-| --------------- | -------------------------------------------- | ---------------------------------------- |
-| `chat.stream`   | Token streamed from Chat service (real-time) | `{ project_id, session_id, token }`      |
-| `chat.complete` | Chat service finished processing a message   | `{ project_id, session_id, message_id }` |
+These events are emitted for backward compatibility. Prefer the `captain.chat.*` events above.
+
+| Event           | Description                               | Data                                     |
+| --------------- | ----------------------------------------- | ---------------------------------------- |
+| `chat.stream`   | Token streamed from Chat service (legacy) | `{ project_id, session_id, token }`      |
+| `chat.complete` | Chat service finished processing (legacy) | `{ project_id, session_id, message_id }` |
 
 ---
 
@@ -1438,6 +1466,7 @@ All error responses follow this structure:
 | VALIDATION_ERROR   | 400         | Request body fails validation.                                                        |
 | INVALID_TRANSITION | 400         | Invalid status transition.                                                            |
 | SESSION_ARCHIVED   | 400         | Cannot add messages to an archived chat session.                                      |
+| SESSION_BUSY       | 409         | Session already has an in-flight message. Wait for completion or abort.               |
 | CONFLICT           | 409         | Operation conflicts with current state (e.g., marking done while agents are running). |
 | FORBIDDEN          | 403         | Action not allowed (e.g., editing agent comments).                                    |
 | INTERNAL_ERROR     | 500         | Unexpected server error.                                                              |
