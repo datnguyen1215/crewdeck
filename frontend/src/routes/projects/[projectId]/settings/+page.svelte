@@ -11,6 +11,7 @@
 		type EnvironmentVariable
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
 	let projectId = $derived($page.params.projectId!);
@@ -43,14 +44,10 @@
 	let deletingEnvId = $state<string | null>(null);
 	let confirmingDeleteEnvId = $state<string | null>(null);
 
-	$effect(() => {
-		loading = true;
-		envLoading = true;
-		let cancelled = false;
-
-		getProject(projectId)
-			.then((p) => {
-				if (cancelled) return;
+	fetchEffect(
+		() => getProject(projectId),
+		{
+			onData: (p) => {
 				project = p;
 				name = p.name;
 				description = p.description ?? '';
@@ -60,17 +57,20 @@
 				autoStart = p.auto_start;
 				autoMerge = p.auto_merge;
 				model = p.model ?? 'sonnet';
-			})
-			.catch(() => { if (!cancelled) toastStore.add('Failed to load project', 'error'); })
-			.finally(() => { if (!cancelled) loading = false; });
+			},
+			onError: 'Failed to load project',
+			onLoading: (v) => { loading = v; },
+		}
+	);
 
-		listEnvironmentVariables(projectId)
-			.then((vars) => { if (!cancelled) envVars = vars; })
-			.catch(() => { if (!cancelled) toastStore.add('Failed to load environment variables', 'error'); })
-			.finally(() => { if (!cancelled) envLoading = false; });
-
-		return () => { cancelled = true; };
-	});
+	fetchEffect(
+		() => listEnvironmentVariables(projectId),
+		{
+			onData: (vars) => { envVars = vars; },
+			onError: 'Failed to load environment variables',
+			onLoading: (v) => { envLoading = v; },
+		}
+	);
 
 	async function confirmDeleteEnvVar(envVarId: string) {
 		deletingEnvId = envVarId;

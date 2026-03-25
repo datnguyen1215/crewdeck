@@ -9,6 +9,7 @@
 	import { parseUTC, relTimeDiff } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { createFormState } from '$lib/utils/form.svelte.js';
+	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	const getAgents = getContext<() => Agent[]>('agents');
@@ -34,26 +35,14 @@
 	// Modal state
 	const form = createFormState({ title: '', description: '' });
 
-	$effect(() => {
-		loading = true;
-		let cancelled = false;
-		Promise.all([listIssues(projectId), getProject(projectId)])
-			.then(([i, p]) => {
-				if (cancelled) return; // discard stale response if projectId changed
-				issues = i;
-				project = p;
-				loading = false;
-			})
-			.catch(() => {
-				if (!cancelled) {
-					loading = false;
-					toastStore.add('Failed to load issues', 'error');
-				}
-			});
-		return () => {
-			cancelled = true;
-		};
-	});
+	fetchEffect(
+		() => Promise.all([listIssues(projectId), getProject(projectId)]),
+		{
+			onData: ([i, p]) => { issues = i; project = p; },
+			onError: 'Failed to load issues',
+			onLoading: (v) => { loading = v; },
+		}
+	);
 
 	$effect(() => {
 		const ws = getWs();

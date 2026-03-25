@@ -16,6 +16,7 @@
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { relTime } from '$lib/utils/time.js';
+	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
@@ -56,26 +57,14 @@
 		librarianStatus = status;
 	}
 
-	$effect(() => {
-		loading = true;
-		let cancelled = false;
-
-		Promise.all([listKnowledge(projectId), getProject(projectId), getLibrarianStatus(projectId)])
-			.then(([k, p, status]) => {
-				if (cancelled) return;
-				knowledge = k;
-				project = p;
-				librarianStatus = status;
-			})
-			.catch(() => {
-				if (!cancelled) toastStore.add('Failed to load knowledge', 'error');
-			})
-			.finally(() => {
-				if (!cancelled) loading = false;
-			});
-
-		return () => { cancelled = true; };
-	});
+	fetchEffect(
+		() => Promise.all([listKnowledge(projectId), getProject(projectId), getLibrarianStatus(projectId)]),
+		{
+			onData: ([k, p, status]) => { knowledge = k; project = p; librarianStatus = status; },
+			onError: 'Failed to load knowledge',
+			onLoading: (v) => { loading = v; },
+		}
+	);
 
 	// Subscribe to WebSocket for run completion events
 	$effect(() => {
