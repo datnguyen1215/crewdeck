@@ -54,7 +54,7 @@ claude -p <prompt> \
 
 ### spawnClaudeStream
 
-Spawns `claude -p` with streaming JSON output for real-time token delivery. Used by the Captain Chat service.
+Spawns `claude -p` with streaming JSON output for real-time token delivery. Used by the Captain Chat service and Monitor service.
 
 ```
 spawnClaudeStream(opts: SpawnOpts) → Promise<StreamSpawnResult>
@@ -91,6 +91,57 @@ spawnClaudeMultimodal(opts: MultimodalOpts) → Promise<SpawnResult>
 ```
 
 Uses `--output-format json` (non-streaming) and passes image data via stdin alongside the text prompt.
+
+## Monitor Action Plans
+
+`backend/src/orchestration/captain/action-schema.ts` + `plan-executor.ts`
+
+The Monitor service uses structured action plans instead of curl calls for write operations. This enables parallel dispatch execution and faster mutex release.
+
+### Flow
+
+```
+events arrive (issue.created, run.completed, etc.)
+    │
+    ├── Monitor service batches events
+    │
+    ├── spawnClaudeStream with system prompt
+    │       └── LLM can use curl for READ operations (list issues, get issue, list knowledge)
+    │
+    ├── LLM outputs JSON action plan as final response
+    │
+    └── Backend executes plan via plan-executor.ts
+            ├── Validate action plan with Zod schemas
+            ├── Execute dispatch actions in parallel (Promise.all)
+            └── Execute other actions sequentially
+```
+
+### Action Types
+
+| Type         | Fields                            | Description                              |
+| ------------ | --------------------------------- | ---------------------------------------- |
+| dispatch     | issue_id, agent_id, instructions? | Dispatch agent to work on issue          |
+| merge        | issue_id                          | Merge PR for issue                       |
+| scan         | (none)                            | Trigger librarian codebase scan          |
+| comment      | issue_id, content                 | Add comment to issue                     |
+| create-issue | title, description?               | Create new issue                         |
+| update-issue | issue_id, status?, title?         | Update issue status/title                |
+| skip         | issue_id, reason                  | Skip issue (logged for observability)    |
+
+### Action Plan Format
+
+```json
+{
+  "reasoning": "Brief explanation of decisions",
+  "actions": [
+    { "type": "dispatch", "issue_id": "abc", "agent_id": "engineer" },
+    { "type": "dispatch", "issue_id": "def", "agent_id": "lead" },
+    { "type": "merge", "issue_id": "ghi" }
+  ]
+}
+```
+
+The executor validates the plan using Zod schemas and executes dispatches in parallel. If multiple issues need work and slots are available, they all start simultaneously.
 
 ## MentionHandler
 
