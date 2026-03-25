@@ -217,6 +217,7 @@
 				if (r.id !== runId) return r;
 				return { ...r, events: [...r.events.slice(-49), event] };
 			});
+			scrollRunToBottom(runId);
 		};
 
 		const handleRunCompleted = (data: Record<string, unknown>) => {
@@ -329,6 +330,10 @@
 		if (!atBottom.has(runId)) {
 			atBottom = new Map(atBottom).set(runId, true);
 		}
+		// Scroll to bottom on mount for pre-loaded events
+		tick().then(() => {
+			el.scrollTop = el.scrollHeight;
+		});
 		return {
 			destroy() {
 				const newContainers = new Map(scrollContainers);
@@ -341,24 +346,14 @@
 		};
 	}
 
-	// Derive total event count to ensure reactive dependency on event changes
-	let totalEventCount = $derived(runs.reduce((sum, r) => sum + r.events.length, 0));
-
-	// Auto-scroll when events change
-	$effect(() => {
-		// Access derived value to establish dependency
-		void totalEventCount;
-		// Scroll after DOM updates
-		tick().then(() => {
-			for (const run of runs) {
-				const container = scrollContainers.get(run.id);
-				const shouldScroll = atBottom.get(run.id) ?? true;
-				if (container && shouldScroll) {
-					container.scrollTop = container.scrollHeight;
-				}
-			}
-		});
-	});
+	async function scrollRunToBottom(runId: string) {
+		await tick();
+		const container = scrollContainers.get(runId);
+		const shouldScroll = atBottom.get(runId) ?? true;
+		if (container && shouldScroll) {
+			container.scrollTop = container.scrollHeight;
+		}
+	}
 
 	function formatElapsed(startedAt: string | null): string {
 		if (!startedAt) return '0s';
