@@ -6,10 +6,9 @@ CREATE TABLE IF NOT EXISTS Project (
   max_chain_depth INTEGER NOT NULL DEFAULT 20,
   agent_timeout_minutes INTEGER NOT NULL DEFAULT 10,
   admiral_enabled INTEGER NOT NULL DEFAULT 1,
-  auto_merge_enabled INTEGER NOT NULL DEFAULT 1,
+  auto_merge_enabled INTEGER NOT NULL DEFAULT 0,
   admiral_idle_timeout_ms INTEGER,
   github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
-  auto_merge_enabled INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
