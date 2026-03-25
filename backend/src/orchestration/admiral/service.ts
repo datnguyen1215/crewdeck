@@ -253,6 +253,7 @@ function createProjectHandlers(projectId: string): () => void {
     project_id: string;
   }) => {
     if (data.project_id !== projectId) return;
+    if (data.comment.author_type !== "user") return;
     const event: AdmiralEvent = {
       type: "comment.added",
       projectId,
