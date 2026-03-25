@@ -6,10 +6,7 @@ import {
   deleteIssue,
 } from "../db/repositories/issues.js";
 import { validate } from "../middleware/validate.js";
-import {
-  InvalidTransitionError,
-  ConflictError,
-} from "../middleware/errors.js";
+import { InvalidTransitionError, ConflictError } from "../middleware/errors.js";
 import {
   verifyProject,
   verifyIssueOwnership,
@@ -18,20 +15,12 @@ import {
 import { CreateIssueSchema, UpdateIssueSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
 import { hasActiveProcesses } from "../orchestration/processes.js";
+import { TRANSITIONS, IssueStatus } from "../constants/statuses.js";
 import type { IssueFilters } from "../types/entities.js";
 
-const TRANSITIONS: Record<string, string[]> = {
-  open: ["in_progress", "done"],
-  in_progress: ["pr_created", "done"],
-  pr_created: ["in_progress", "done", "pr_conflict", "pr_failed_actions", "pr_ready_to_merge"],
-  pr_conflict: ["pr_created", "in_progress"],
-  pr_failed_actions: ["pr_created", "in_progress"],
-  pr_ready_to_merge: ["done", "pr_conflict", "in_progress"],
-};
-
 function assertTransition(from: string, to: string): void {
-  const allowed = TRANSITIONS[from] ?? [];
-  if (to !== "done" && !allowed.includes(to)) {
+  const allowed = TRANSITIONS[from as keyof typeof TRANSITIONS] ?? [];
+  if (to !== IssueStatus.DONE && !(allowed as string[]).includes(to)) {
     throw new InvalidTransitionError(from, to);
   }
 }
@@ -40,13 +29,15 @@ const router = Router({ mergeParams: true });
 
 router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
-  const { status, created_by, sort, order } = req.query as Record<string, string>;
+  const { status, created_by, sort, order } = req.query as Record<
+    string,
+    string
+  >;
 
   const filters: IssueFilters = {};
   if (status) filters.status = status.split(",");
   if (created_by) filters.created_by = created_by;
-  if (sort === "created_at" || sort === "updated_at")
-    filters.sort = sort;
+  if (sort === "created_at" || sort === "updated_at") filters.sort = sort;
   if (order === "asc" || order === "desc") filters.order = order;
 
   res.json(listIssues(projectId, filters));
@@ -78,7 +69,7 @@ router.patch(
 
     if (req.body.status && req.body.status !== existing.status) {
       assertTransition(existing.status, req.body.status);
-      if (req.body.status === "done") {
+      if (req.body.status === IssueStatus.DONE) {
         if (hasActiveProcesses(existing.id, excludeAgentId)) {
           throw new ConflictError(
             "Cannot mark as done — agents are still running on this issue",

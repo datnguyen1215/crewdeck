@@ -8,6 +8,7 @@ import type {
 import { ensureCloned, insertRepo } from "./repos.js";
 import { getGitHubAccount } from "./github-accounts.js";
 import { buildAndRunUpdate } from "./utils.js";
+import { IssueStatus } from "../../constants/statuses.js";
 
 function fromRow(row: Record<string, unknown>): Project {
   return {
@@ -41,20 +42,28 @@ export function listProjectsWithStats(): ProjectWithStats[] {
       `SELECT
         p.*,
         COUNT(DISTINCT r.id) AS repo_count,
-        SUM(i.status = 'open')              AS issue_open,
-        SUM(i.status = 'in_progress')       AS issue_in_progress,
-        SUM(i.status = 'pr_created')        AS issue_pr_created,
-        SUM(i.status = 'pr_conflict')       AS issue_pr_conflict,
-        SUM(i.status = 'pr_failed_actions') AS issue_pr_failed_actions,
-        SUM(i.status = 'pr_ready_to_merge') AS issue_pr_ready_to_merge,
-        SUM(i.status = 'done')              AS issue_done
+        SUM(i.status = ?)              AS issue_open,
+        SUM(i.status = ?)       AS issue_in_progress,
+        SUM(i.status = ?)        AS issue_pr_created,
+        SUM(i.status = ?)       AS issue_pr_conflict,
+        SUM(i.status = ?) AS issue_pr_failed_actions,
+        SUM(i.status = ?) AS issue_pr_ready_to_merge,
+        SUM(i.status = ?)              AS issue_done
       FROM Project p
       LEFT JOIN Repo  r ON r.project_id = p.id
       LEFT JOIN Issue i ON i.project_id = p.id
       GROUP BY p.id
       ORDER BY p.created_at DESC`,
     )
-    .all() as StatsRow[];
+    .all(
+      IssueStatus.OPEN,
+      IssueStatus.IN_PROGRESS,
+      IssueStatus.PR_CREATED,
+      IssueStatus.PR_CONFLICT,
+      IssueStatus.PR_FAILED_ACTIONS,
+      IssueStatus.PR_READY_TO_MERGE,
+      IssueStatus.DONE,
+    ) as StatsRow[];
 
   return rows.map((row) => ({
     ...fromRow(row),

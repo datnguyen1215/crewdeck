@@ -8,6 +8,7 @@ import {
   createIssuePR,
   getIssuePRByRepoAndNumber,
 } from "../db/repositories/issue-prs.js";
+import { PRStatus } from "../constants/statuses.js";
 import {
   listByProject as listKnowledge,
   getById as getKnowledge,
@@ -142,7 +143,7 @@ router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
     repo_id: repo.id,
     pr_number: pr.prNumber,
     pr_url: pr.url,
-    status: "open",
+    status: PRStatus.OPEN,
   });
 
   eventBus.emit("pr.created", { issue_pr: issuePR, project_id });

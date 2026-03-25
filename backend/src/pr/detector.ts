@@ -7,6 +7,7 @@
 import { eventBus } from "../events/bus.js";
 import { listRepos } from "../db/repositories/repos.js";
 import { getIssue } from "../db/repositories/issues.js";
+import { PRStatus } from "../constants/statuses.js";
 import {
   createIssuePR,
   getIssuePRByRepoAndNumber,
@@ -51,7 +52,10 @@ export function initPRDetector(): void {
 
       const issue = getIssue(comment.issue_id);
       if (!issue) {
-        logger.warn({ issue_id: comment.issue_id }, "Issue not found for PR detection");
+        logger.warn(
+          { issue_id: comment.issue_id },
+          "Issue not found for PR detection",
+        );
         return;
       }
 
@@ -62,14 +66,15 @@ export function initPRDetector(): void {
       for (const pr of parsedPRs) {
         // Find matching repo by owner/name
         const repo = repos.find(
-          (r) => r.owner.toLowerCase() === pr.owner.toLowerCase() &&
-                 r.name.toLowerCase() === pr.name.toLowerCase()
+          (r) =>
+            r.owner.toLowerCase() === pr.owner.toLowerCase() &&
+            r.name.toLowerCase() === pr.name.toLowerCase(),
         );
 
         if (!repo) {
           logger.debug(
             { owner: pr.owner, name: pr.name },
-            "PR URL does not match any project repo"
+            "PR URL does not match any project repo",
           );
           continue;
         }
@@ -79,7 +84,7 @@ export function initPRDetector(): void {
         if (existing) {
           logger.debug(
             { pr_number: pr.prNumber, repo_id: repo.id },
-            "PR already linked to an issue"
+            "PR already linked to an issue",
           );
           continue;
         }
@@ -90,19 +95,26 @@ export function initPRDetector(): void {
           repo_id: repo.id,
           pr_number: pr.prNumber,
           pr_url: pr.url,
-          status: "open",
+          status: PRStatus.OPEN,
         });
 
         logger.info(
-          { pr_number: pr.prNumber, issue_id: issue.id, repo: `${pr.owner}/${pr.name}` },
-          "Auto-linked PR from comment"
+          {
+            pr_number: pr.prNumber,
+            issue_id: issue.id,
+            repo: `${pr.owner}/${pr.name}`,
+          },
+          "Auto-linked PR from comment",
         );
 
         // Emit event for frontend updates
         eventBus.emit("pr.created", { issue_pr: issuePR, project_id });
       }
     } catch (err) {
-      logger.error({ err, comment_id: comment.id }, "Failed to detect PR URLs in comment");
+      logger.error(
+        { err, comment_id: comment.id },
+        "Failed to detect PR URLs in comment",
+      );
     }
   });
 

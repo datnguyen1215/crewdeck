@@ -7,13 +7,17 @@ import type {
   UpdateIssueInput,
   IssueFilters,
 } from "../../types/entities.js";
+import { IssueStatus } from "../../constants/statuses.js";
 import { listComments } from "./comments.js";
 import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
 import { buildAndRunUpdate } from "./utils.js";
 
-export function listIssues(projectId: string, filters: IssueFilters = {}): IssueWithRunningAgent[] {
+export function listIssues(
+  projectId: string,
+  filters: IssueFilters = {},
+): IssueWithRunningAgent[] {
   const conditions: string[] = ["i.project_id = ?"];
   const values: unknown[] = [projectId];
 
@@ -56,7 +60,9 @@ export function listIssues(projectId: string, filters: IssueFilters = {}): Issue
 }
 
 export function getIssue(id: string): Issue | null {
-  return (db.prepare("SELECT * FROM Issue WHERE id = ?").get(id) as Issue) ?? null;
+  return (
+    (db.prepare("SELECT * FROM Issue WHERE id = ?").get(id) as Issue) ?? null
+  );
 }
 
 export function getIssueWithDetails(id: string): IssueWithDetails | null {
@@ -86,7 +92,7 @@ export function createIssue(projectId: string, input: CreateIssueInput): Issue {
     input.title,
     input.description,
     input.created_by ?? "user",
-    input.status ?? "open",
+    input.status ?? IssueStatus.OPEN,
     input.agent_id ?? null,
   );
   return getIssue(id)!;

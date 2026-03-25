@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ISSUE_STATUSES, PR_STATUSES } from "../constants/statuses.js";
 
 const githubUrl = z
   .string()
@@ -51,7 +52,7 @@ export const CreateIssueSchema = z.object({
 export const UpdateIssueSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
-  status: z.string().optional(),
+  status: z.enum(ISSUE_STATUSES as [string, ...string[]]).optional(),
   chain_depth: z.number().int().nonnegative().optional(),
   branch_name: z.string().nullable().optional(),
   worktree_path: z.string().nullable().optional(),
@@ -70,11 +71,11 @@ export const CreateIssuePRSchema = z.object({
   repo_id: z.string(),
   pr_number: z.number().int().positive(),
   pr_url: z.string().url(),
-  status: z.string().optional(),
+  status: z.enum(PR_STATUSES as [string, ...string[]]).optional(),
 });
 
 export const UpdateIssuePRSchema = z.object({
-  status: z.string().optional(),
+  status: z.enum(PR_STATUSES as [string, ...string[]]).optional(),
   pr_url: z.string().url().optional(),
 });
 
