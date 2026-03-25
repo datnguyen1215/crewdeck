@@ -48,7 +48,7 @@ function cloneIfNeeded(
 
   const ssh = sshPrivateKey ? createGitSshEnv(sshPrivateKey) : null;
   try {
-    const env = ssh ? { ...process.env, ...ssh.env } : undefined;
+    const env = { ...process.env, ...ssh?.env, GIT_TERMINAL_PROMPT: "0" };
     execFileSync("git", ["clone", sshUrl, diskPath], { stdio: "pipe", env });
   } catch (err: unknown) {
     const stderr =

@@ -32,7 +32,7 @@ export async function createWorktree(
   let fetchSucceeded = false;
   const ssh = sshPrivateKey ? createGitSshEnv(sshPrivateKey) : null;
   try {
-    const fetchEnv = ssh ? { ...process.env, ...ssh.env } : process.env;
+    const fetchEnv = { ...process.env, ...ssh?.env, GIT_TERMINAL_PROMPT: "0" };
     await execAsync(`git -C ${shellQuote(repoPath)} fetch origin`, {
       env: fetchEnv,
     });
