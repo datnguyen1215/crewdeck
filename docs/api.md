@@ -858,6 +858,139 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 
 ---
 
+### Chat Sessions
+
+Session-based conversational interface to the Captain. Each project can have one active session at a time. Creating a new session atomically archives the current active one.
+
+#### List Sessions
+
+```
+GET /projects/:projectId/chat/sessions
+```
+
+Returns all chat sessions for the project, newest first.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "title": "Session title or null",
+    "summary": null,
+    "status": "active",
+    "created_at": "ISO 8601",
+    "updated_at": "ISO 8601"
+  }
+]
+```
+
+#### Create Session
+
+```
+POST /projects/:projectId/chat/sessions
+```
+
+Creates a new chat session. If an active session exists, it is archived atomically.
+
+**Request Body:**
+
+```json
+{
+  "title": "Optional session title"
+}
+```
+
+| Field | Required | Description                         |
+| ----- | -------- | ----------------------------------- |
+| title | No       | Session title (max 200 characters). |
+
+**Response:** `201 Created` — The created session object.
+
+#### Get Session Messages
+
+```
+GET /projects/:projectId/chat/sessions/:sessionId/messages
+```
+
+Returns all messages in a session, in chronological order.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "session_id": "uuid",
+    "role": "user",
+    "content": "Message text",
+    "images": null,
+    "created_at": "ISO 8601"
+  }
+]
+```
+
+**Error:** `404 Not Found` — Session does not exist or does not belong to the project.
+
+#### Send Message
+
+```
+POST /projects/:projectId/chat/sessions/:sessionId/messages
+```
+
+Sends a message in a session, which triggers a Captain response via `claude -p`. The response is delivered asynchronously via WebSocket `chat.stream` and `chat.complete` events.
+
+**Request Body:**
+
+```json
+{
+  "message": "Your message text",
+  "images": [{ "data": "base64...", "mediaType": "image/png" }]
+}
+```
+
+| Field   | Required | Description                                     |
+| ------- | -------- | ----------------------------------------------- |
+| message | Yes      | Message content (non-empty).                    |
+| images  | No       | Array of base64-encoded images with media type. |
+
+**Response:** `202 Accepted` — Message queued for Captain processing.
+
+```json
+{
+  "user_message": {
+    "id": "uuid",
+    "project_id": "uuid",
+    "session_id": "uuid",
+    "role": "user",
+    "content": "...",
+    "images": null,
+    "created_at": "ISO 8601"
+  },
+  "status": "queued"
+}
+```
+
+**Error:** `404 Not Found` — Session does not exist or does not belong to the project.
+
+**Error:** `400 SESSION_ARCHIVED` — Cannot add messages to an archived session.
+
+**Side effects:** Emits `chat.message` event with `session_id` for Captain processing.
+
+#### Clear Chat History
+
+```
+DELETE /projects/:projectId/chat
+```
+
+Deletes all chat messages for the project. Kept for backward compatibility.
+
+**Response:** `204 No Content`
+
+---
+
 ### Internal API
 
 These endpoints are used by agent processes (`claude -p` subprocesses) spawned by the MentionHandler. They are not intended for frontend or external use. See [Agent Orchestration](agent-cli.md) for details on how agents are spawned and use these endpoints.
@@ -1227,10 +1360,10 @@ All events follow this structure:
 
 #### Chat Events
 
-| Event           | Description                                  | Data                         |
-| --------------- | -------------------------------------------- | ---------------------------- |
-| `chat.stream`   | Token streamed from Chat service (real-time) | `{ project_id, token }`      |
-| `chat.complete` | Chat service finished processing a message   | `{ project_id, message_id }` |
+| Event           | Description                                  | Data                                     |
+| --------------- | -------------------------------------------- | ---------------------------------------- |
+| `chat.stream`   | Token streamed from Chat service (real-time) | `{ project_id, session_id, token }`      |
+| `chat.complete` | Chat service finished processing a message   | `{ project_id, session_id, message_id }` |
 
 ---
 
@@ -1255,6 +1388,7 @@ All error responses follow this structure:
 | NOT_FOUND          | 404         | Resource does not exist.                                                              |
 | VALIDATION_ERROR   | 400         | Request body fails validation.                                                        |
 | INVALID_TRANSITION | 400         | Invalid status transition.                                                            |
+| SESSION_ARCHIVED   | 400         | Cannot add messages to an archived chat session.                                      |
 | CONFLICT           | 409         | Operation conflicts with current state (e.g., marking done while agents are running). |
 | FORBIDDEN          | 403         | Action not allowed (e.g., editing agent comments).                                    |
 | INTERNAL_ERROR     | 500         | Unexpected server error.                                                              |

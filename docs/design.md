@@ -245,10 +245,11 @@ Captain is split into two independent services that run concurrently per project
 - Handles interactive user conversations from the Captain chat UI.
 - Subscribes to `chat.message` events only.
 - Uses `claude -p --output-format stream-json` for real-time token streaming to the frontend via `chat.stream` WebSocket events. Falls back to `spawnClaudeMultimodal` for image-attached messages.
-- Each message is a one-shot `claude -p` call with conversation history (last 100 `chat`-type messages) as context.
+- Messages are organized into sessions (ChatSession). Only one active session per project at a time; creating a new session archives the current active one.
+- Each message is a one-shot `claude -p` call with conversation history from the active session as context.
 - Has its own queue namespace (`chat:{projectId}`) so user messages are never blocked by monitor processing.
 - Processes each queued message individually (iterates sequentially) so no messages are dropped.
-- Saves assistant responses to ChatMessage table with `message_type: 'chat'`.
+- Saves assistant responses to ChatMessage table linked to the active session via `session_id`.
 
 **Monitor Service** (`backend/src/orchestration/captain/monitor-service.ts` + `monitor-agent.ts`)
 
@@ -262,7 +263,7 @@ Captain is split into two independent services that run concurrently per project
 - Has its own queue namespace (`monitor:{projectId}`) — a long monitor batch won't block user chat, and vice versa.
 - Event batching: accumulates events while processing, drains all pending events at once.
 - Uses `claude -p --output-format json` (batch, non-streaming) for orchestration decisions.
-- Maintains its own conversation history (last 100 `monitor`-type messages in ChatMessage table), separate from chat history.
+- Maintains its own conversation history (last 100 sessionless messages in ChatMessage table, i.e. `session_id IS NULL`), separate from chat session history.
 - Available actions via curl to the internal API: merge PR, dispatch agent, create/update/list/get issues, add comments, scan codebase, manage knowledge.
 - Decision priorities (encoded in system prompt, conditional on `auto_merge_enabled`):
   1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status (when `auto_merge_enabled` is true); otherwise, **Report ready PRs** — note they are ready for manual merge
