@@ -225,3 +225,27 @@ export function listAgentRunEvents(agentRunId: string): AgentRunEvent[] {
     created_at: row.created_at,
   }));
 }
+
+export function listRecentAgentRunEvents(
+  agentRunId: string,
+  limit: number = 50,
+): AgentRunEvent[] {
+  const rows = db
+    .prepare(
+      "SELECT * FROM (SELECT * FROM AgentRunEvent WHERE agent_run_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC",
+    )
+    .all(agentRunId, limit) as {
+    id: string;
+    agent_run_id: string;
+    type: string;
+    data: string;
+    created_at: string;
+  }[];
+  return rows.map((row) => ({
+    id: row.id,
+    agent_run_id: row.agent_run_id,
+    type: row.type as AgentRunEvent["type"],
+    data: JSON.parse(row.data),
+    created_at: row.created_at,
+  }));
+}

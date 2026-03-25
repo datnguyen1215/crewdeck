@@ -40,7 +40,7 @@
 		};
 
 		const handleRunEvent = (data: Record<string, unknown>) => {
-			const runId = data.run_id as string;
+			const runId = data.agent_run_id as string;
 			if (!runId) return;
 			const event = { id: crypto.randomUUID(), agent_run_id: runId, type: data.type as string, data: data.data, created_at: new Date().toISOString() };
 			runs = runs.map((r) => {
@@ -50,7 +50,7 @@
 		};
 
 		const handleRunCompleted = (data: Record<string, unknown>) => {
-			const runId = data.run_id as string;
+			const runId = data.agent_run_id as string;
 			runs = runs.filter((r) => r.id !== runId);
 		};
 

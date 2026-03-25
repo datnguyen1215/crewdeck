@@ -4,7 +4,7 @@ import {
   listAgentRunsForProject,
   getAgentRunWithEvents,
   listActiveRunsForProject,
-  listAgentRunEvents,
+  listRecentAgentRunEvents,
 } from "../db/repositories/agent-runs.js";
 import { getCrewMember } from "../orchestration/crew.js";
 import { getIssue } from "../db/repositories/issues.js";
@@ -40,9 +40,7 @@ router.get(
     const result = runs.map((run) => {
       const agent = getCrewMember(run.agent_id);
       const issue = run.issue_id ? getIssue(run.issue_id) : null;
-      const events = listAgentRunEvents(run.id);
-      // Return last 50 events to keep payload reasonable
-      const recentEvents = events.slice(-50);
+      const recentEvents = listRecentAgentRunEvents(run.id, 50);
       return {
         ...run,
         agent_name: agent?.name ?? run.agent_id,
