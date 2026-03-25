@@ -74,6 +74,7 @@ async function processQueue(
 function createProjectHandler(projectId: string): () => void {
   const handleChatMessage = (data: {
     project_id: string;
+    session_id: string;
     content: string;
     images?: Array<{ data: string; mediaType: string }>;
   }) => {

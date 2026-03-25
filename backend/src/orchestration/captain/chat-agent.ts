@@ -133,13 +133,10 @@ curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/delete" \\
 };
 
 /**
- * Get chat conversation history from DB.
- * Only loads chat-type messages (not monitor event batches).
+ * Get chat conversation history from DB for the given session.
  */
-const getChatHistory = (projectId: string): string => {
-  const messages = chatRepo
-    .getChatOnly(projectId, MAX_CONTEXT_MESSAGES)
-    .reverse();
+const getChatHistory = (sessionId: string): string => {
+  const messages = chatRepo.getBySession(sessionId, MAX_CONTEXT_MESSAGES);
   if (messages.length === 0) return "";
 
   return messages
@@ -196,7 +193,13 @@ export const processChat = async (
   let lastResponse = "";
 
   for (const chatEvent of chatEvents) {
-    lastResponse = await processSingleChat(projectId, chatEvent, systemPrompt);
+    const sessionId = (chatEvent.data as { session_id?: string }).session_id;
+    lastResponse = await processSingleChat(
+      projectId,
+      chatEvent,
+      systemPrompt,
+      sessionId,
+    );
   }
 
   return lastResponse;
@@ -209,9 +212,10 @@ const processSingleChat = async (
   projectId: string,
   chatEvent: CaptainEvent,
   systemPrompt: string,
+  sessionId?: string,
 ): Promise<string> => {
   const userContent = (chatEvent.data as { content: string }).content;
-  const history = getChatHistory(projectId);
+  const history = sessionId ? getChatHistory(sessionId) : "";
   const images = chatEvent.images ?? [];
 
   // Build prompt with history
@@ -351,7 +355,7 @@ const processSingleChat = async (
 
   // Save assistant response to DB
   if (fullResponse) {
-    chatRepo.create(projectId, "assistant", fullResponse, "chat");
+    chatRepo.create(projectId, "assistant", fullResponse, sessionId ?? null);
   }
 
   // Emit completion

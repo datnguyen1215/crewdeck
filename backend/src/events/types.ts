@@ -114,6 +114,7 @@ export interface EventMap {
   // User chat message (triggers Captain processing)
   "chat.message": {
     project_id: string;
+    session_id: string;
     content: string;
     images?: Array<{ data: string; mediaType: string }>;
   };
