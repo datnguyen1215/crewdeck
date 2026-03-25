@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, listAgents, createIssue, addComment, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
+	import { listIssues, createIssue, addComment, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
@@ -10,9 +10,10 @@
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+	const getAgents = getContext<() => Agent[]>('agents');
 
 	let issues = $state<IssueWithRunningAgent[]>([]);
-	let agents = $state<Agent[]>([]);
+	let agents = $derived(getAgents());
 	let project = $state<Project | null>(null);
 	let loading = $state(true);
 
@@ -38,11 +39,10 @@
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
-		Promise.all([listIssues(projectId), listAgents(), getProject(projectId)])
-			.then(([i, a, p]) => {
+		Promise.all([listIssues(projectId), getProject(projectId)])
+			.then(([i, p]) => {
 				if (cancelled) return; // discard stale response if projectId changed
 				issues = i;
-				agents = a;
 				project = p;
 				loading = false;
 			})
@@ -61,8 +61,8 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
-			Promise.all([listIssues(projectId), listAgents()])
-				.then(([i, a]) => { issues = i; agents = a; })
+			listIssues(projectId)
+				.then((i) => { issues = i; })
 				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
 		};
 		const unsubs = [

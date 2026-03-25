@@ -11,9 +11,10 @@
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
-	import { addComment, editComment, deleteComment, listAgents, type Agent } from '$lib/api/http.js';
+	import { addComment, editComment, deleteComment, type Agent } from '$lib/api/http.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+	const getAgents = getContext<() => Agent[]>('agents');
 
 	let issue = $state<IssueWithDetails | null>(null);
 	let project = $state<Project | null>(null);
@@ -54,7 +55,7 @@
 	let commentWorking = $state(false);
 
 	// /dispatch autocomplete
-	let agents = $state<Agent[]>([]);
+	let agents = $derived(getAgents());
 	let showMentions = $state(false);
 	let mentionFilter = $state('');
 	let mentionIdx = $state(0);
@@ -206,11 +207,6 @@
 			.catch(() => {})
 			.finally(() => { if (!cancelled) runsLoading = false; });
 		return () => { cancelled = true; };
-	});
-
-	// Load agents for autocomplete
-	$effect(() => {
-		listAgents().then(a => { agents = a; }).catch(() => toastStore.add('Failed to load agents', 'error'));
 	});
 
 	$effect(() => {

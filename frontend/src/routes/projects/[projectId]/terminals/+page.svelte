@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext, tick, onMount } from 'svelte';
-	import { listActiveRuns, listAgents, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project, type ChatMessage } from '$lib/api/http.js';
+	import { listActiveRuns, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project, type ChatMessage } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import { md } from '$lib/utils/markdown.js';
@@ -29,23 +29,23 @@
 	let isAnalyzing = $state(false);
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+	const getAgents = getContext<() => Agent[]>('agents');
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
 	let runs = $state<ActiveRun[]>([]);
-	let agents = $state<Agent[]>([]);
+	let agents = $derived(getAgents());
 	let loading = $state(true);
 
 	// Load active runs and project info
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
-		Promise.all([listActiveRuns(projectId), getProject(projectId), listAgents()])
-			.then(([r, p, a]) => {
+		Promise.all([listActiveRuns(projectId), getProject(projectId)])
+			.then(([r, p]) => {
 				if (cancelled) return;
 				runs = r;
 				project = p;
-				agents = a;
 			})
 			.catch(() => {})
 			.finally(() => { if (!cancelled) loading = false; });
