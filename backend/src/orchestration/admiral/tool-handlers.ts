@@ -117,6 +117,12 @@ export const handleMergePR = async (
   const project = getProject(projectId);
   if (!project) return { success: false, message: "Project not found" };
 
+  if (!project.auto_merge_enabled)
+    return {
+      success: false,
+      message: "Auto-merge is disabled for this project",
+    };
+
   if (!project.github_account_id)
     return { success: false, message: "No GitHub account linked to project" };
 

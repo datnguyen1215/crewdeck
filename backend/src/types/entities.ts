@@ -23,6 +23,7 @@ export interface Project {
   agent_timeout_minutes: number;
   admiral_enabled: boolean;
   admiral_idle_timeout_ms: number | null;
+  auto_merge_enabled: boolean;
   github_account_id: string | null;
   auto_merge_enabled: boolean;
   created_at: string;
