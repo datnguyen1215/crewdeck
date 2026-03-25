@@ -890,7 +890,7 @@ Agent posts a comment on an issue.
 
 **Response:** `201 Created`
 
-**Side effects:** Emits `comment.added` on the event bus (which may trigger further `/dispatch` processing).
+**Side effects:** Emits `comment.added` on the event bus (which may trigger further `/dispatch` processing and Admiral evaluation for user-authored comments).
 
 #### Create Issue (Internal)
 
@@ -1081,7 +1081,7 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 POST /internal/admiral/dispatch-agent
 ```
 
-Admiral dispatches a sub-agent to work on an issue. This is used internally by Admiral to orchestrate work.
+Admiral dispatches a sub-agent to work on an issue. This is used exclusively by Admiral's tool handler to orchestrate work — the frontend does not call this endpoint.
 
 **Request Body:**
 
