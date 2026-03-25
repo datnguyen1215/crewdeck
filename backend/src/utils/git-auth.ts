@@ -20,7 +20,11 @@ export function createGitSshEnv(sshPrivateKey: string): {
 } {
   fs.mkdirSync(sshKeyDir, { recursive: true });
   const keyPath = path.join(sshKeyDir, `key-${crypto.randomUUID()}`);
-  fs.writeFileSync(keyPath, sshPrivateKey, { mode: 0o600 });
+  // OpenSSH requires key files to end with a newline
+  const normalizedKey = sshPrivateKey.endsWith("\n")
+    ? sshPrivateKey
+    : sshPrivateKey + "\n";
+  fs.writeFileSync(keyPath, normalizedKey, { mode: 0o600 });
   return {
     env: {
       // accept-new: TOFU for github.com — acceptable since we only connect to known hosts
