@@ -28,10 +28,10 @@ const KILL_ESCALATION_MS = 5000; // SIGTERM -> SIGKILL delay
 
 /** Tracks in-flight chat processes per session for abort support */
 interface InFlightChat {
-  process: ChildProcess;
-  pid: number;
+  process: ChildProcess | null; // null while pending (process not yet spawned)
+  pid: number | null;
   aborted: boolean;
-  timer: ReturnType<typeof setTimeout>;
+  timer: ReturnType<typeof setTimeout> | null;
 }
 
 const inFlightSessions = new Map<string, InFlightChat>();
@@ -54,19 +54,23 @@ export const abortSession = (sessionId: string): boolean => {
   flight.aborted = true;
   logger.info({ sessionId, pid: flight.pid }, "Aborting chat process");
 
-  try {
-    flight.process.kill("SIGTERM");
-  } catch {
-    /* already dead */
-  }
-
-  setTimeout(() => {
+  // Process may be null if still in pending state (not yet spawned)
+  if (flight.process) {
     try {
-      if (!flight.process.killed) flight.process.kill("SIGKILL");
+      flight.process.kill("SIGTERM");
     } catch {
       /* already dead */
     }
-  }, KILL_ESCALATION_MS);
+
+    const proc = flight.process;
+    setTimeout(() => {
+      try {
+        if (!proc.killed) proc.kill("SIGKILL");
+      } catch {
+        /* already dead */
+      }
+    }, KILL_ESCALATION_MS);
+  }
 
   return true;
 };
@@ -231,17 +235,38 @@ const setupGitHubAuth = async (
 };
 
 /**
- * Register an in-flight process for a session. Sets up timeout.
+ * Reserve a session slot synchronously before any async work.
+ * Prevents race conditions where two requests pass isSessionBusy() checks
+ * before either has spawned a process.
+ */
+function reserveSession(sessionId: string): InFlightChat {
+  const flight: InFlightChat = {
+    process: null,
+    pid: null,
+    aborted: false,
+    timer: null,
+  };
+  inFlightSessions.set(sessionId, flight);
+  return flight;
+}
+
+/**
+ * Register an in-flight process for an already-reserved session. Sets up timeout.
  */
 function trackProcess(
   sessionId: string,
   childProcess: ChildProcess,
   pid: number,
-): InFlightChat {
-  const timer = setTimeout(() => {
-    const flight = inFlightSessions.get(sessionId);
-    if (!flight) return;
-    flight.aborted = true;
+): void {
+  const flight = inFlightSessions.get(sessionId);
+  if (!flight) return;
+
+  flight.process = childProcess;
+  flight.pid = pid;
+  flight.timer = setTimeout(() => {
+    const current = inFlightSessions.get(sessionId);
+    if (!current) return;
+    current.aborted = true;
     logger.warn({ sessionId, pid }, "Chat process timed out (10 min)");
     try {
       childProcess.kill("SIGTERM");
@@ -256,15 +281,6 @@ function trackProcess(
       }
     }, KILL_ESCALATION_MS);
   }, CHAT_TIMEOUT_MS);
-
-  const flight: InFlightChat = {
-    process: childProcess,
-    pid,
-    aborted: false,
-    timer,
-  };
-  inFlightSessions.set(sessionId, flight);
-  return flight;
 }
 
 /**
@@ -273,7 +289,7 @@ function trackProcess(
 function untrackProcess(sessionId: string): void {
   const flight = inFlightSessions.get(sessionId);
   if (flight) {
-    clearTimeout(flight.timer);
+    if (flight.timer) clearTimeout(flight.timer);
     inFlightSessions.delete(sessionId);
   }
 }
@@ -320,6 +336,17 @@ const processSingleChat = async (
   const history = sessionId ? getChatHistory(sessionId) : "";
   const images = chatEvent.images ?? [];
 
+  // Reserve session slot synchronously before any async work to prevent
+  // race conditions with concurrent requests
+  let flight: InFlightChat | undefined;
+  if (sessionId) {
+    if (isSessionBusy(sessionId)) {
+      logger.warn({ projectId, sessionId }, "Chat: Session already reserved");
+      return "";
+    }
+    flight = reserveSession(sessionId);
+  }
+
   // Build prompt with history
   const sections = [];
   if (history) sections.push(`## Conversation History\n${history}`);
@@ -337,7 +364,6 @@ const processSingleChat = async (
 
   const sshKeyPath = await setupGitHubAuth(projectId, env);
   let fullResponse = "";
-  let flight: InFlightChat | undefined;
 
   try {
     if (images.length > 0) {
@@ -352,7 +378,7 @@ const processSingleChat = async (
       });
 
       if (sessionId) {
-        flight = trackProcess(sessionId, result.process, result.pid!);
+        trackProcess(sessionId, result.process, result.pid!);
       }
 
       const exitResult = await result.exitPromise;
@@ -411,7 +437,7 @@ const processSingleChat = async (
       });
 
       if (sessionId) {
-        flight = trackProcess(sessionId, result.process, result.pid);
+        trackProcess(sessionId, result.process, result.pid);
       }
 
       // Track current tool name for pairing tool_call with tool_result
