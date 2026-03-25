@@ -24,6 +24,7 @@ export interface Project {
   admiral_enabled: boolean;
   admiral_idle_timeout_ms: number | null;
   github_account_id: string | null;
+  auto_merge_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -200,6 +201,7 @@ export interface UpdateProjectInput {
   admiral_enabled?: boolean;
   admiral_idle_timeout_ms?: number | null;
   github_account_id?: string | null;
+  auto_merge_enabled?: boolean;
 }
 
 export interface CreateRepoInput {

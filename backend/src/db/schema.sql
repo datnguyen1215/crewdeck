@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS Project (
   admiral_enabled INTEGER NOT NULL DEFAULT 1,
   admiral_idle_timeout_ms INTEGER,
   github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
+  auto_merge_enabled INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

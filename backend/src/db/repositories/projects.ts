@@ -11,8 +11,9 @@ import { buildAndRunUpdate } from "./utils.js";
 
 function fromRow(row: Record<string, unknown>): Project {
   return {
-    ...(row as Omit<Project, "admiral_enabled">),
+    ...(row as Omit<Project, "admiral_enabled" | "auto_merge_enabled">),
     admiral_enabled: Boolean(row.admiral_enabled),
+    auto_merge_enabled: Boolean(row.auto_merge_enabled),
   };
 }
 
@@ -114,6 +115,9 @@ export function updateProject(id: string, input: UpdateProjectInput): Project {
   const overrides: Record<string, unknown> = {};
   if (input.admiral_enabled !== undefined) {
     overrides.admiral_enabled = input.admiral_enabled ? 1 : 0;
+  }
+  if (input.auto_merge_enabled !== undefined) {
+    overrides.auto_merge_enabled = input.auto_merge_enabled ? 1 : 0;
   }
   buildAndRunUpdate("Project", id, input, overrides);
   return getProject(id)!;
