@@ -26,7 +26,7 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - A name and description.
 - Knowledge entries for project context (conventions, structure notes, gotchas) injected into agent prompts.
 - One or more linked GitHub repositories.
-- A shared roster of 4 fixed agents (defined globally, not per-project).
+- A shared roster of 5 fixed agents (defined globally, not per-project; 4 dispatchable + Captain).
 - A concurrency limit (max simultaneous agent processes).
 - A chain depth limit (max agent dispatches per issue before requiring manual reset).
 
@@ -181,7 +181,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 **Frontend (Svelte)**
 
 - Renders project dashboard, issue board, crew (read-only), activity log, Terminals page, and Captain page (side-by-side Chat + Monitor).
-- Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
+- Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity). The project layout (`+layout.svelte`) establishes shared context for WebSocket and agents data, loaded once and shared to all child pages via Svelte `setContext`/`getContext`.
 - **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes and the Captain monitor feed. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each agent pane shows agent name, status badge, clickable issue link, an event feed with full content display, and elapsed time + cost. Events show their full content: assistant thinking/response text, user messages, tool call details (file paths, commands, patterns), and tool results. The feed auto-scrolls to new events when the user is at the bottom but preserves scroll position when the user has scrolled up to read history. The page also displays a **Captain monitor card** with cyan accent styling, which shows the automated orchestration feed. The monitor card loads history via `GET /projects/:projectId/monitor/history` on mount and subscribes to `monitor.event_received`, `monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.complete` WebSocket events for live updates. It displays "Analyzing..." during active processing and "Monitoring" when idle. Idle agents are shown when no runs are active.
 - **Captain page** (`/projects/:id/chat`) — full-width chat interface for interactive conversation with the Captain. The sidebar has a single "Captain" entry.
   - **Chat panel** (`ChatPanel.svelte`): interactive conversation with input area, session selector, markdown rendering, image paste support. Subscribes to `captain.chat.chunk` (token-by-token streaming), `captain.chat.tool_call`, `captain.chat.tool_result`, `captain.chat.complete`, and legacy `captain.thinking`/`captain.message`/`captain.complete` events. Includes a 60-second safety timeout that resets the sending state if no completion event arrives.
