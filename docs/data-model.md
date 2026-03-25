@@ -50,6 +50,7 @@ Represents a body of work tied to one or more GitHub repositories.
 | captain_idle_timeout_ms | INTEGER     | NULLABLE                                                     | Idle timeout in milliseconds for Captain stuck detection. NULL means disabled.                                                         |
 | github_account_id       | TEXT        | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations.                                                                        |
 | created_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                                                                        |
+| memory                  | TEXT        |                                                              | Legacy field for project memory/notes. Superseded by ProjectKnowledge.                                                                 |
 | updated_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                                                                        |
 
 ### GitHubAccount
@@ -270,6 +271,20 @@ Stores conversation history for the Captain LLM agent. Each project has its own 
 **Note:** The `message_type` field distinguishes actual conversation messages from synthetic event descriptions. When loading conversation history, only `chat` messages are included to avoid polluting the context with system event batches.
 
 **Note:** The `images` field stores file paths as a JSON string and is parsed to `string[] | null` at runtime. Images pasted into the Captain Terminal are saved to disk and their paths are stored here for multimodal processing.
+
+### \_migrations
+
+Internal table that tracks which database migrations have been applied. Used by the versioned migration system to ensure each migration runs exactly once.
+
+| Field      | Type     | Constraints                         | Description                                                   |
+| ---------- | -------- | ----------------------------------- | ------------------------------------------------------------- |
+| id         | INTEGER  | PRIMARY KEY AUTOINCREMENT           | Auto-incrementing identifier.                                 |
+| name       | TEXT     | NOT NULL, UNIQUE                    | Migration identifier (e.g., `001_add_agent_timeout_minutes`). |
+| applied_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the migration was applied.                               |
+
+**Note:** This is an internal system table. On fresh databases, all migrations are seeded as applied since `schema.sql` already contains the final schema. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF` to prevent cascading deletes.
+
+---
 
 ## Relationships Summary
 

@@ -277,7 +277,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 - Stores all persistent state: projects, issues, comments, activity logs. (Agents are fixed constants in code, not persisted.)
 - Accessed via `better-sqlite3` with raw SQL (synchronous API).
-- Single `schema.sql` file executed on startup for migrations.
+- `schema.sql` defines the full current schema and is executed on startup for fresh databases.
+- Versioned migration system (`_migrations` table) tracks which migrations have run. Each migration executes once and is recorded. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF`.
+- On fresh databases, all migrations are seeded as already applied (since `schema.sql` contains the final schema).
 - Single file, no external dependencies, suitable for local-first operation.
 - See [Data Model](data-model.md) for the full schema.
 
@@ -384,7 +386,7 @@ Each issue gets its own git worktree:
 On startup, the backend:
 
 1. Loads configuration from environment variables (`.env` file).
-2. Initializes SQLite database (runs `schema.sql` if tables don't exist).
+2. Initializes SQLite database (runs `schema.sql` for fresh databases, then runs any pending versioned migrations).
 3. Initializes the activity logger (registers event listeners).
 4. Initializes the MentionHandler (subscribes to `comment.added`).
 5. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
