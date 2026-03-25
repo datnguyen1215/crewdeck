@@ -141,8 +141,8 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │Dashboard │ │  Board   │ │  (@mention UI)   │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │Terminals │ │ Activity │ │    Captain       │ │
-│  │  (live)  │ │   Log    │ │   (chat UI)     │ │
+│  │Terminals │ │ Activity │ │ Captain (Chat +  │ │
+│  │  (live)  │ │   Log    │ │ Monitor split)   │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 └────────────────────┬────────────────────────────┘
                      │ WebSocket + REST
@@ -180,9 +180,12 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 **Frontend (Svelte)**
 
-- Renders project dashboard, issue board, crew (read-only), activity log, and Terminals page.
+- Renders project dashboard, issue board, crew (read-only), activity log, Terminals page, and Captain page (side-by-side Chat + Monitor).
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
 - **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each pane shows agent name, status badge, clickable issue link, a scrolling feed of human-readable event summaries (e.g., "Reading `src/file.ts`"), and elapsed time + cost. Empty state displays the crew roster in an idle state.
+- **Captain page** (`/projects/:id/chat`) — side-by-side layout with Chat panel (left) and Monitor panel (right). On desktop, both panels display simultaneously. On mobile, a tab bar ([Chat] [Monitor]) switches between full-width views. The sidebar has separate "Chat" and "Monitor" entries (Monitor links to `?panel=monitor` for mobile tab default).
+  - **Chat panel** (`ChatPanel.svelte`): interactive conversation with input area, session selector, markdown rendering, image paste support. Subscribes to `captain.chat.chunk` (token-by-token streaming), `captain.chat.tool_call`, `captain.chat.tool_result`, `captain.chat.complete`, and legacy `captain.thinking`/`captain.message`/`captain.complete` events. Includes a 60-second safety timeout that resets the sending state if no completion event arrives.
+  - **Monitor panel** (`MonitorPanel.svelte`): read-only event feed of automated orchestration decisions. Color-coded entries: events (yellow), monitor decisions (cyan), tool calls/results (purple). Subscribes to `monitor.event_received`, `monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.complete`. Auto-scrolls on new entries with timestamps.
 - Issue detail page shows a unified Timeline view merging comments, activity, and agent run summaries chronologically. Both `mention.spawned` and `mention.completed` entries are matched to `AgentRun` records (by `agent_id` + `started_at` or `completed_at` timestamp within 60s tolerance) and display colored status dots (green = running, amber = queued, red = failed, cyan = completed) and a "View" link that opens a modal with the run's full event log, live-updated via WebSocket.
 - Provides autocomplete for `/dispatch` commands and `@mentions` in comment input.
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
