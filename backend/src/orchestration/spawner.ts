@@ -29,7 +29,11 @@ import {
   getProjectCredentials,
 } from "../utils/git-auth.js";
 import type { Agent, AgentRunStatus } from "../types/entities.js";
-import { IssueStatus } from "../constants/statuses.js";
+import {
+  IssueStatus,
+  PR_RELATED_ISSUE_STATUSES,
+} from "../constants/statuses.js";
+import type { IssueStatusValue } from "../constants/statuses.js";
 
 const DEFAULT_MAX_CHAIN_DEPTH = 20;
 const DEFAULT_AGENT_TIMEOUT_MINUTES = 10;
@@ -320,7 +324,7 @@ export const spawnAgent = async (
   if (
     issue.status === IssueStatus.DONE ||
     issue.status === IssueStatus.OPEN ||
-    issue.status.startsWith("pr_")
+    PR_RELATED_ISSUE_STATUSES.has(issue.status as IssueStatusValue)
   ) {
     issueRepo.updateIssue(issueId, { status: IssueStatus.IN_PROGRESS });
     events.eventBus.emit("issue.status_changed", {

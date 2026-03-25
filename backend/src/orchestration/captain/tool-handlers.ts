@@ -13,6 +13,7 @@ import { getGitHubAccount } from "../../db/repositories/github-accounts.js";
 import { getProject } from "../../db/repositories/projects.js";
 import { getCrewMember } from "../crew.js";
 import { spawnAgent, spawnScan, postSystemComment } from "../spawner.js";
+import { IssueStatus, PRStatus } from "../../constants/statuses.js";
 
 const GITHUB_HEADERS = {
   Accept: "application/vnd.github.v3+json",
@@ -136,7 +137,7 @@ export const handleMergePR = async (
     return { success: false, message: "Issue belongs to a different project" };
 
   const prs = issuePRRepo.listIssuePRs(issue.id);
-  const openPR = prs.find((pr) => pr.status === "open");
+  const openPR = prs.find((pr) => pr.status === PRStatus.OPEN);
   if (!openPR)
     return { success: false, message: "No open PR found for this issue" };
 
@@ -151,10 +152,10 @@ export const handleMergePR = async (
   );
 
   if (result.success) {
-    issuePRRepo.updateIssuePR(openPR.id, { status: "merged" });
+    issuePRRepo.updateIssuePR(openPR.id, { status: PRStatus.MERGED });
 
     const oldStatus = issue.status;
-    issueRepo.updateIssue(issue.id, { status: "done" });
+    issueRepo.updateIssue(issue.id, { status: IssueStatus.DONE });
 
     if (issue.branch_name)
       await deleteBranchOnGitHub(
@@ -174,7 +175,7 @@ export const handleMergePR = async (
       issue_id: issue.id,
       project_id: projectId,
       from: oldStatus,
-      to: "done",
+      to: IssueStatus.DONE,
     });
 
     return {

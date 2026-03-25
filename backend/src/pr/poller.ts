@@ -15,8 +15,12 @@ import {
   updateIssuePR,
 } from "../db/repositories/issue-prs.js";
 import { logger } from "../logger.js";
-import { IssueStatus, PRStatus } from "../constants/statuses.js";
-import type { PRStatusValue } from "../constants/statuses.js";
+import {
+  IssueStatus,
+  PRStatus,
+  PR_RELATED_ISSUE_STATUSES,
+} from "../constants/statuses.js";
+import type { IssueStatusValue, PRStatusValue } from "../constants/statuses.js";
 
 const POLL_INTERVAL = 60_000; // 60 seconds
 
@@ -288,7 +292,11 @@ export async function pollPRs(): Promise<void> {
     // For open PRs, check CI status and mergeability
     if (newPRStatus === PRStatus.OPEN) {
       const issue = getIssue(pr.issue_id);
-      if (!issue?.status.startsWith("pr_")) continue;
+      if (
+        !issue ||
+        !PR_RELATED_ISSUE_STATUSES.has(issue.status as IssueStatusValue)
+      )
+        continue;
 
       // Fetch CI status (both modern check runs and legacy status)
       const [checkRuns, commitStatus] = await Promise.all([

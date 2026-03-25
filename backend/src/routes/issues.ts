@@ -19,7 +19,7 @@ import { TRANSITIONS, IssueStatus } from "../constants/statuses.js";
 import type { IssueFilters } from "../types/entities.js";
 
 function assertTransition(from: string, to: string): void {
-  const allowed = TRANSITIONS[from] ?? [];
+  const allowed = TRANSITIONS[from as keyof typeof TRANSITIONS] ?? [];
   if (to !== IssueStatus.DONE && !(allowed as string[]).includes(to)) {
     throw new InvalidTransitionError(from, to);
   }

@@ -24,8 +24,20 @@ export type PRStatusValue = (typeof PRStatus)[keyof typeof PRStatus];
 
 export const PR_STATUSES = Object.values(PRStatus);
 
+/** Issue statuses that represent a PR-related state. */
+export const PR_RELATED_ISSUE_STATUSES: ReadonlySet<IssueStatusValue> = new Set(
+  [
+    IssueStatus.PR_CREATED,
+    IssueStatus.PR_CONFLICT,
+    IssueStatus.PR_FAILED_ACTIONS,
+    IssueStatus.PR_READY_TO_MERGE,
+  ],
+);
+
 /** Valid issue status transitions. */
-export const TRANSITIONS: Record<string, IssueStatusValue[]> = {
+export const TRANSITIONS: Partial<
+  Record<IssueStatusValue, IssueStatusValue[]>
+> = {
   [IssueStatus.OPEN]: [IssueStatus.IN_PROGRESS, IssueStatus.DONE],
   [IssueStatus.IN_PROGRESS]: [IssueStatus.PR_CREATED, IssueStatus.DONE],
   [IssueStatus.PR_CREATED]: [
