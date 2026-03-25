@@ -25,6 +25,7 @@
 	let maxChainDepth = $state(20);
 	let agentTimeoutMinutes = $state(10);
 	let admiralEnabled = $state(true);
+	let autoMergeEnabled = $state(false);
 
 	// Environment variables state
 	let envVars = $state<EnvironmentVariable[]>([]);
@@ -56,6 +57,7 @@
 				maxChainDepth = p.max_chain_depth;
 				agentTimeoutMinutes = p.agent_timeout_minutes;
 				admiralEnabled = p.admiral_enabled;
+				autoMergeEnabled = p.auto_merge_enabled;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load project', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -148,7 +150,8 @@
 			maxConcurrency !== project.max_concurrency ||
 			maxChainDepth !== project.max_chain_depth ||
 			agentTimeoutMinutes !== project.agent_timeout_minutes ||
-			admiralEnabled !== project.admiral_enabled
+			admiralEnabled !== project.admiral_enabled ||
+			autoMergeEnabled !== project.auto_merge_enabled
 		)
 	);
 
@@ -163,6 +166,7 @@
 				max_chain_depth: Number(maxChainDepth),
 				agent_timeout_minutes: Number(agentTimeoutMinutes),
 				admiral_enabled: admiralEnabled,
+				auto_merge_enabled: autoMergeEnabled,
 			});
 			project = updated;
 			name = updated.name;
@@ -171,6 +175,7 @@
 			maxChainDepth = updated.max_chain_depth;
 			agentTimeoutMinutes = updated.agent_timeout_minutes;
 			admiralEnabled = updated.admiral_enabled;
+			autoMergeEnabled = updated.auto_merge_enabled;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -187,6 +192,7 @@
 		maxChainDepth = project.max_chain_depth;
 		agentTimeoutMinutes = project.agent_timeout_minutes;
 		admiralEnabled = project.admiral_enabled;
+		autoMergeEnabled = project.auto_merge_enabled;
 	}
 </script>
 
@@ -248,6 +254,16 @@
 					</label>
 					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Admiral automatically coordinates agents to work on issues</p>
 				</div>
+
+				{#if admiralEnabled}
+				<div>
+					<label class="flex items-center gap-3 cursor-pointer">
+						<input type="checkbox" bind:checked={autoMergeEnabled} class="accent-cyan w-4 h-4" />
+						<span class="text-sm text-primary">Auto-merge PRs</span>
+					</label>
+					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Admiral automatically merges PRs that pass all checks</p>
+				</div>
+				{/if}
 
 				<div class="flex gap-3 mt-2">
 					<button type="button" onclick={reset} disabled={!hasChanges || saving} class="px-4 py-2 border border-edge rounded text-sm text-secondary hover:text-primary hover:border-edge-hi transition-colors disabled:opacity-50">Reset</button>
