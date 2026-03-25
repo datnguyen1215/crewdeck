@@ -15,6 +15,7 @@
 		type LibrarianStatus
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { relTime } from '$lib/utils/time.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
@@ -45,21 +46,6 @@
 
 	// Computed: is a scan currently running?
 	let scanRunning = $derived(librarianStatus?.status === 'running' || librarianStatus?.status === 'queued');
-
-	// Relative time formatter
-	function formatRelativeTime(isoDate: string): string {
-		const now = Date.now();
-		const then = new Date(isoDate).getTime();
-		const diffMs = now - then;
-		const diffMin = Math.floor(diffMs / 60000);
-		const diffHour = Math.floor(diffMs / 3600000);
-		const diffDay = Math.floor(diffMs / 86400000);
-
-		if (diffMin < 1) return 'just now';
-		if (diffMin < 60) return `${diffMin} min ago`;
-		if (diffHour < 24) return `${diffHour} hour${diffHour === 1 ? '' : 's'} ago`;
-		return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
-	}
 
 	async function refreshData() {
 		const [k, status] = await Promise.all([
@@ -221,17 +207,17 @@
 				{#if scanRunning}
 					<span class="inline-block w-2 h-2 rounded-full bg-purple animate-pulse"></span>
 					<span class="text-purple">
-						Scanning... started {librarianStatus.started_at ? formatRelativeTime(librarianStatus.started_at) : ''}
+						Scanning... started {librarianStatus.started_at ? relTime(librarianStatus.started_at) : ''}
 					</span>
 				{:else if librarianStatus.status === 'completed'}
 					<span class="inline-block w-2 h-2 rounded-full bg-green"></span>
 					<span class="text-green">
-						Last scan completed {librarianStatus.completed_at ? formatRelativeTime(librarianStatus.completed_at) : ''}
+						Last scan completed {librarianStatus.completed_at ? relTime(librarianStatus.completed_at) : ''}
 					</span>
 				{:else}
 					<span class="inline-block w-2 h-2 rounded-full bg-red"></span>
 					<span class="text-red">
-						Last scan {librarianStatus.status} {librarianStatus.completed_at ? formatRelativeTime(librarianStatus.completed_at) : ''}
+						Last scan {librarianStatus.status} {librarianStatus.completed_at ? relTime(librarianStatus.completed_at) : ''}
 					</span>
 				{/if}
 			</div>
