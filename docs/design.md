@@ -26,7 +26,7 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - A name and description.
 - Knowledge entries for project context (conventions, structure notes, gotchas) injected into agent prompts.
 - One or more linked GitHub repositories.
-- A shared roster of 4 fixed agents (defined globally, not per-project).
+- A shared roster of 5 fixed agents (defined globally, not per-project). The crew page shows all 5 agents including Captain.
 - A concurrency limit (max simultaneous agent processes).
 - A chain depth limit (max agent dispatches per issue before requiring manual reset).
 
