@@ -30,6 +30,7 @@ spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 | systemPrompt | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`. |
 | workdir      | string                 | Yes      | Absolute path to the git worktree.                                                       |
 | env          | Record<string, string> | No       | Additional environment variables.                                                        |
+| model        | string                 | No       | Claude model to use (`sonnet` or `opus`). Passed as `--model <model>` to the CLI.        |
 
 **SpawnResult:**
 
@@ -45,12 +46,14 @@ spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 claude -p <prompt> \
        --system-prompt-file <tmpfile> \
        --output-format json \
+       --model <model> \
        --dangerously-skip-permissions
 ```
 
 - `--output-format json` causes Claude to return a JSON object with a `result` field containing the response text, plus cost and duration metadata.
 - The system prompt is written to a temp file and cleaned up after the process exits.
 - `--dangerously-skip-permissions` allows the agent to operate autonomously.
+- `--model <model>` is included when a model is specified (resolved via AgentConfig override → project default → `"sonnet"`).
 
 ### spawnClaudeStream
 
@@ -76,6 +79,7 @@ claude -p <prompt via stdin> \
        --verbose \
        --system-prompt-file <tmpfile> \
        --output-format stream-json \
+       --model <model> \
        --dangerously-skip-permissions
 ```
 
@@ -118,15 +122,15 @@ events arrive (issue.created, run.completed, etc.)
 
 ### Action Types
 
-| Type         | Fields                            | Description                              |
-| ------------ | --------------------------------- | ---------------------------------------- |
-| dispatch     | issue_id, agent_id, instructions? | Dispatch agent to work on issue          |
-| merge        | issue_id                          | Merge PR for issue                       |
-| scan         | (none)                            | Trigger librarian codebase scan          |
-| comment      | issue_id, content                 | Add comment to issue                     |
-| create-issue | title, description?               | Create new issue                         |
-| update-issue | issue_id, status?, title?         | Update issue status/title                |
-| skip         | issue_id, reason                  | Skip issue (logged for observability)    |
+| Type         | Fields                            | Description                           |
+| ------------ | --------------------------------- | ------------------------------------- |
+| dispatch     | issue_id, agent_id, instructions? | Dispatch agent to work on issue       |
+| merge        | issue_id                          | Merge PR for issue                    |
+| scan         | (none)                            | Trigger librarian codebase scan       |
+| comment      | issue_id, content                 | Add comment to issue                  |
+| create-issue | title, description?               | Create new issue                      |
+| update-issue | issue_id, status?, title?         | Update issue status/title             |
+| skip         | issue_id, reason                  | Skip issue (logged for observability) |
 
 ### Action Plan Format
 

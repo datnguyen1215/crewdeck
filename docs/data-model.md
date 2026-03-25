@@ -52,6 +52,7 @@ Represents a body of work tied to one or more GitHub repositories.
 | auto_start              | INTEGER     | NOT NULL, DEFAULT 0                                          | Whether Captain auto-dispatches agents on new issues. Stored as 0/1; exposed as boolean.                                               |
 | auto_merge              | INTEGER     | NOT NULL, DEFAULT 0                                          | Whether Captain can auto-merge PRs. When disabled, Captain reports ready PRs but cannot merge them. Stored as 0/1; exposed as boolean. |
 | captain_idle_timeout_ms | INTEGER     | NULLABLE                                                     | Idle timeout in milliseconds for Captain stuck detection. NULL means disabled.                                                         |
+| model                   | TEXT        | NOT NULL, DEFAULT 'sonnet'                                   | Default Claude model for agent spawning. One of: `sonnet`, `opus`.                                                                     |
 | github_account_id       | TEXT        | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations.                                                                        |
 | created_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                                                                        |
 | memory                  | TEXT        |                                                              | Legacy field for project memory/notes. Superseded by ProjectKnowledge.                                                                 |
@@ -120,13 +121,13 @@ The fundamental unit of work.
 
 A message on an issue from an agent, the system, or a human.
 
-| Field       | Type        | Constraints                         | Description                                                                                          |
-| ----------- | ----------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| id          | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                   |
-| issue_id    | TEXT        | NOT NULL, FOREIGN KEY → Issue.id    | The issue this comment belongs to.                                                                   |
-| author_type | TEXT        | NOT NULL                            | Who posted it. One of: `user`, `system`, `captain`, `engineer`, `lead`, `docs`, `librarian`.         |
-| content     | TEXT        | NOT NULL                            | Comment body (Markdown supported).                                                                   |
-| created_at  | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                      |
+| Field       | Type        | Constraints                         | Description                                                                                  |
+| ----------- | ----------- | ----------------------------------- | -------------------------------------------------------------------------------------------- |
+| id          | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                           |
+| issue_id    | TEXT        | NOT NULL, FOREIGN KEY → Issue.id    | The issue this comment belongs to.                                                           |
+| author_type | TEXT        | NOT NULL                            | Who posted it. One of: `user`, `system`, `captain`, `engineer`, `lead`, `docs`, `librarian`. |
+| content     | TEXT        | NOT NULL                            | Comment body (Markdown supported).                                                           |
+| created_at  | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                              |
 
 ### IssuePR
 
@@ -296,36 +297,59 @@ Stores conversation history for the Captain LLM agent. Messages belong to a chat
 
 **Note:** The `images` field stores file paths as a JSON string and is parsed to `string[] | null` at runtime. Images pasted into the Captain chat UI are saved to disk and their paths are stored here for multimodal processing.
 
+### AgentConfig
+
+Per-agent model override for a project. When set, the agent uses the specified model instead of the project default.
+
+| Field      | Type        | Constraints                                          | Description                                                               |
+| ---------- | ----------- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                        |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                           |
+| agent_id   | TEXT        | NOT NULL                                             | Agent identifier (e.g., `engineer`, `lead`, `captain`).                   |
+| model      | TEXT        | NULLABLE                                             | Model override. One of: `sonnet`, `opus`. NULL means use project default. |
+
+**Constraints:**
+
+- UNIQUE(project_id, agent_id) — one config entry per agent per project.
+
+**Model resolution order:** AgentConfig.model → Project.model → `"sonnet"` (hardcoded fallback).
+
+---
+
 ### \_migrations
 
 Internal table that tracks which database migrations have been applied. Used by the file-based migration system to ensure each migration runs exactly once.
 
-| Field      | Type     | Constraints                         | Description                                                             |
-| ---------- | -------- | ----------------------------------- | ----------------------------------------------------------------------- |
-| id         | INTEGER  | PRIMARY KEY AUTOINCREMENT           | Auto-incrementing identifier.                                           |
-| name       | TEXT     | NOT NULL, UNIQUE                    | Migration name derived from filename (e.g., `001_add_github_account`).  |
-| applied_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the migration was applied.                                         |
+| Field      | Type     | Constraints                         | Description                                                            |
+| ---------- | -------- | ----------------------------------- | ---------------------------------------------------------------------- |
+| id         | INTEGER  | PRIMARY KEY AUTOINCREMENT           | Auto-incrementing identifier.                                          |
+| name       | TEXT     | NOT NULL, UNIQUE                    | Migration name derived from filename (e.g., `001_add_github_account`). |
+| applied_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the migration was applied.                                        |
 
 **Migration System:**
 
 Migrations are stored in `backend/src/db/migrations/` as individual files:
+
 - `000_initial_schema.sql` — full schema for fresh databases
 - `001_*.ts`, `002_*.ts`, etc. — incremental migrations
 
 File types:
+
 - `.sql` files contain raw DDL statements executed directly
 - `.ts` files export a `run(db)` function for complex migrations (conditional logic, table recreation)
 
 Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored in `_migrations` matches the filename minus extension.
 
 **Commands:**
+
 - `npm run migrate` — run all pending migrations (standalone, does not start the server)
 - `npm run migrate:create -- description` — scaffold a new migration file
 
 **Behavior:**
+
 - Fresh databases: `000_initial_schema.sql` runs first, creating all tables. Subsequent migrations (001+) are no-ops due to defensive checks.
 - Existing databases: if any migration ≥ 001 exists in `_migrations`, migration 000 is marked applied without executing. Only new migrations run.
-- All existing migrations (001-019) include defensive checks (`IF NOT EXISTS`, column existence checks) to handle both fresh and upgraded databases safely.
+- All existing migrations (001-020) include defensive checks (`IF NOT EXISTS`, column existence checks) to handle both fresh and upgraded databases safely.
 - Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF` to prevent cascading deletes.
 
 ---
@@ -340,6 +364,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Project → ActivityLog         | One-to-Many | A project has many activity log entries.                                    |
 | Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes.     |
 | Project → ProjectKnowledge    | One-to-Many | A project has many knowledge entries for agent context.                     |
+| Project → AgentConfig         | One-to-Many | A project has many per-agent model override configs.                        |
 | Issue → Comment               | One-to-Many | An issue has many comments.                                                 |
 | Issue → IssuePR               | One-to-Many | An issue can have multiple PRs (across repos).                              |
 | Issue → ActivityLog           | One-to-Many | An issue has many activity log entries.                                     |
