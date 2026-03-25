@@ -254,7 +254,7 @@ function createProjectHandlers(projectId: string): () => void {
   }) => {
     if (data.project_id !== projectId) return;
     if (data.comment.author_type !== "user") return;
-    const event: AdmiralEvent = {
+    const event: CaptainEvent = {
       type: "comment.added",
       projectId,
       timestamp: new Date(),
