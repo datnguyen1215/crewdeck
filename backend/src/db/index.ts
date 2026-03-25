@@ -65,6 +65,34 @@ export function createDb(path: string): Database.Database {
     db.exec("ALTER TABLE Project ADD COLUMN admiral_idle_timeout_ms INTEGER");
   }
 
+  // Migration: rename admiral_enabled → captain_enabled.
+  if (
+    projectCols.some((c) => c.name === "admiral_enabled") &&
+    !projectCols.some((c) => c.name === "captain_enabled")
+  ) {
+    db.exec(
+      "ALTER TABLE Project RENAME COLUMN admiral_enabled TO captain_enabled",
+    );
+  }
+
+  // Migration: rename admiral_idle_timeout_ms → captain_idle_timeout_ms.
+  if (
+    projectCols.some((c) => c.name === "admiral_idle_timeout_ms") &&
+    !projectCols.some((c) => c.name === "captain_idle_timeout_ms")
+  ) {
+    db.exec(
+      "ALTER TABLE Project RENAME COLUMN admiral_idle_timeout_ms TO captain_idle_timeout_ms",
+    );
+  }
+
+  // Migration: rename stored 'admiral' agent IDs to 'captain'.
+  db.exec(
+    "UPDATE Comment SET author_id = 'captain' WHERE author_id = 'admiral'",
+  );
+  db.exec(
+    "UPDATE AgentRun SET agent_id = 'captain' WHERE agent_id = 'admiral'",
+  );
+
   // Migration: add agent_id column to Issue if missing.
   if (!issueCols.some((c) => c.name === "agent_id")) {
     db.exec("ALTER TABLE Issue ADD COLUMN agent_id TEXT");
