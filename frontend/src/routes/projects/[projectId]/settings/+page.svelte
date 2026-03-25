@@ -24,8 +24,8 @@
 	let maxConcurrency = $state(1);
 	let maxChainDepth = $state(20);
 	let agentTimeoutMinutes = $state(10);
-	let captainEnabled = $state(true);
-	let autoMergeEnabled = $state(false);
+	let autoStart = $state(false);
+	let autoMerge = $state(false);
 
 	// Environment variables state
 	let envVars = $state<EnvironmentVariable[]>([]);
@@ -56,8 +56,8 @@
 				maxConcurrency = p.max_concurrency;
 				maxChainDepth = p.max_chain_depth;
 				agentTimeoutMinutes = p.agent_timeout_minutes;
-				captainEnabled = p.captain_enabled;
-				autoMergeEnabled = p.auto_merge_enabled;
+				autoStart = p.auto_start;
+				autoMerge = p.auto_merge;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load project', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -150,8 +150,8 @@
 			maxConcurrency !== project.max_concurrency ||
 			maxChainDepth !== project.max_chain_depth ||
 			agentTimeoutMinutes !== project.agent_timeout_minutes ||
-			captainEnabled !== project.captain_enabled ||
-			autoMergeEnabled !== project.auto_merge_enabled
+			autoStart !== project.auto_start ||
+			autoMerge !== project.auto_merge
 		)
 	);
 
@@ -165,8 +165,8 @@
 				max_concurrency: Number(maxConcurrency),
 				max_chain_depth: Number(maxChainDepth),
 				agent_timeout_minutes: Number(agentTimeoutMinutes),
-				captain_enabled: captainEnabled,
-				auto_merge_enabled: autoMergeEnabled,
+				auto_start: autoStart,
+				auto_merge: autoMerge,
 			});
 			project = updated;
 			name = updated.name;
@@ -174,8 +174,8 @@
 			maxConcurrency = updated.max_concurrency;
 			maxChainDepth = updated.max_chain_depth;
 			agentTimeoutMinutes = updated.agent_timeout_minutes;
-			captainEnabled = updated.captain_enabled;
-			autoMergeEnabled = updated.auto_merge_enabled;
+			autoStart = updated.auto_start;
+			autoMerge = updated.auto_merge;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -191,8 +191,8 @@
 		maxConcurrency = project.max_concurrency;
 		maxChainDepth = project.max_chain_depth;
 		agentTimeoutMinutes = project.agent_timeout_minutes;
-		captainEnabled = project.captain_enabled;
-		autoMergeEnabled = project.auto_merge_enabled;
+		autoStart = project.auto_start;
+		autoMerge = project.auto_merge;
 	}
 </script>
 
@@ -249,21 +249,19 @@
 
 				<div>
 					<label class="flex items-center gap-3 cursor-pointer">
-						<input type="checkbox" bind:checked={captainEnabled} class="accent-cyan w-4 h-4" />
-						<span class="text-sm text-primary">Enable Captain (auto-pilot)</span>
+						<input type="checkbox" bind:checked={autoStart} class="accent-cyan w-4 h-4" />
+						<span class="text-sm text-primary">Auto-start issues</span>
 					</label>
-					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Captain automatically coordinates agents to work on issues</p>
+					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Captain automatically dispatches an agent when a new issue is created</p>
 				</div>
 
-				{#if captainEnabled}
 				<div>
 					<label class="flex items-center gap-3 cursor-pointer">
-						<input type="checkbox" bind:checked={autoMergeEnabled} class="accent-cyan w-4 h-4" />
+						<input type="checkbox" bind:checked={autoMerge} class="accent-cyan w-4 h-4" />
 						<span class="text-sm text-primary">Auto-merge PRs</span>
 					</label>
 					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Captain automatically merges PRs that pass all checks</p>
 				</div>
-				{/if}
 
 				<div class="flex gap-3 mt-2">
 					<button type="button" onclick={reset} disabled={!hasChanges || saving} class="px-4 py-2 border border-edge rounded text-sm text-secondary hover:text-primary hover:border-edge-hi transition-colors disabled:opacity-50">Reset</button>

@@ -83,7 +83,7 @@ const buildSystemPrompt = (projectId: string): string => {
   if (!project) return "";
 
   const runningAgents = getActiveProcessCount(projectId);
-  const canMerge = project.auto_merge_enabled;
+  const canMerge = project.auto_merge;
 
   return `You are Captain, the project assistant for CrewDeck.
 

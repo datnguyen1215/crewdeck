@@ -21,8 +21,8 @@ export interface Project {
   max_concurrency: number;
   max_chain_depth: number;
   agent_timeout_minutes: number;
-  captain_enabled: boolean;
-  auto_merge_enabled: boolean;
+  auto_start: boolean;
+  auto_merge: boolean;
   captain_idle_timeout_ms: number | null;
   github_account_id: string | null;
   created_at: string;
@@ -197,8 +197,8 @@ export interface UpdateProjectInput {
   max_concurrency?: number;
   max_chain_depth?: number;
   agent_timeout_minutes?: number;
-  captain_enabled?: boolean;
-  auto_merge_enabled?: boolean;
+  auto_start?: boolean;
+  auto_merge?: boolean;
   captain_idle_timeout_ms?: number | null;
   github_account_id?: string | null;
 }
