@@ -5,6 +5,7 @@
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import type { WsEventMap } from '$lib/api/types.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { createFormState } from '$lib/utils/form.js';
 	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
@@ -226,19 +227,19 @@
 			listIssueRuns(projectId, issueId).then((r) => { runs = r; }).catch(() => {});
 		};
 
-		const handleRunStarted = (data: Record<string, unknown>) => {
+		const handleRunStarted = (data: WsEventMap['run.started']) => {
 			if (data.issue_id !== issueId) return;
 			const newRun: AgentRun = {
-				id: data.agent_run_id as string,
+				id: data.agent_run_id,
 				project_id: projectId,
 				issue_id: issueId,
-				agent_id: data.agent_id as string,
+				agent_id: data.agent_id,
 				pid: null,
-				status: data.status as AgentRun['status'],
+				status: data.status,
 				exit_code: null,
 				cost_usd: null,
 				duration_ms: null,
-				started_at: data.started_at as string | null,
+				started_at: data.started_at,
 				completed_at: null,
 				created_at: new Date().toISOString()
 			};
@@ -246,17 +247,17 @@
 			liveEvents.set(newRun.id, []);
 		};
 
-		const handleRunEvent = (data: Record<string, unknown>) => {
-			const runId = data.agent_run_id as string;
+		const handleRunEvent = (data: WsEventMap['run.event']) => {
+			const runId = data.agent_run_id;
 			const run = runs.find(r => r.id === runId);
 			if (!run || run.issue_id !== issueId) return;
 
 			const event: AgentRunEvent = {
-				id: data.event_id as string,
+				id: data.event_id,
 				agent_run_id: runId,
-				type: data.type as AgentRunEvent['type'],
+				type: data.type,
 				data: data.data,
-				created_at: data.created_at as string
+				created_at: data.created_at
 			};
 
 			const existing = liveEvents.get(runId) ?? [];
@@ -268,17 +269,17 @@
 			}
 		};
 
-		const handleRunCompleted = (data: Record<string, unknown>) => {
-			const runId = data.agent_run_id as string;
+		const handleRunCompleted = (data: WsEventMap['run.completed']) => {
+			const runId = data.agent_run_id;
 			runs = runs.map(r => {
 				if (r.id !== runId) return r;
 				return {
 					...r,
-					status: data.status as AgentRun['status'],
-					exit_code: data.exit_code as number | null,
-					cost_usd: data.cost_usd as number | null,
-					duration_ms: data.duration_ms as number | null,
-					completed_at: data.completed_at as string
+					status: data.status,
+					exit_code: data.exit_code,
+					cost_usd: data.cost_usd,
+					duration_ms: data.duration_ms,
+					completed_at: data.completed_at
 				};
 			});
 		};
