@@ -13,6 +13,7 @@
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import { RUN_STATUS_DOT, RUN_STATUS_CFG } from '$lib/config/status.js';
 	import { addComment, editComment, deleteComment, type Agent } from '$lib/api/http.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
@@ -161,22 +162,6 @@
 			viewRunModalRun = updated;
 		}
 	});
-
-	const RUN_STATUS_DOT: Record<string, { dot: string; class: string; pulse?: boolean }> = {
-		queued: { dot: '●', class: 'text-amber', pulse: false },
-		running: { dot: '●', class: 'text-green', pulse: true },
-		completed: { dot: '●', class: 'text-cyan' },
-		failed: { dot: '●', class: 'text-red' },
-		timeout: { dot: '●', class: 'text-amber' }
-	};
-
-	const STATUS_CFG: Record<string, { label: string; class: string; pulse?: boolean }> = {
-		queued: { label: 'Queued', class: 'text-muted border-edge' },
-		running: { label: 'Running', class: 'text-green border-green', pulse: true },
-		completed: { label: 'Completed', class: 'text-cyan border-cyan' },
-		failed: { label: 'Failed', class: 'text-red border-red' },
-		timeout: { label: 'Timeout', class: 'text-amber border-amber' }
-	};
 
 	$effect(() => {
 		let cancelled = false;
@@ -797,7 +782,7 @@
 													{/if}
 													<!-- Agent run summary for mention.completed -->
 													{#if matchedRun}
-														{@const runCfg = STATUS_CFG[matchedRun.status] ?? STATUS_CFG.queued}
+														{@const runCfg = RUN_STATUS_CFG[matchedRun.status] ?? RUN_STATUS_CFG.queued}
 														<div class="mt-1.5 flex items-center gap-2 text-xs">
 															<span class="px-1.5 py-0.5 rounded border {runCfg.class}">{runCfg.label}</span>
 															<span class="text-muted">{formatDuration(matchedRun.duration_ms)} | {formatCost(matchedRun.cost_usd)}</span>
@@ -922,7 +907,7 @@
 
 <Modal open={viewRunModalOpen} onClose={() => { viewRunModalOpen = false; viewRunModalRun = null; viewRunModalEvents = []; }} label="View Run" maxWidth="max-w-2xl">
 	{#if viewRunModalRun}
-		{@const runCfg = STATUS_CFG[viewRunModalRun.status] ?? STATUS_CFG.queued}
+		{@const runCfg = RUN_STATUS_CFG[viewRunModalRun.status] ?? RUN_STATUS_CFG.queued}
 		<div class="flex items-center gap-3 mb-4">
 			<h2 class="text-lg font-semibold text-primary">Run Details</h2>
 			<span class="text-xs px-1.5 py-0.5 rounded border {runCfg.class}" class:animate-pulse={runCfg.pulse}>{runCfg.label}</span>
