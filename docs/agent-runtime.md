@@ -24,19 +24,19 @@ spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 
 **SpawnOpts:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| prompt | string | Yes | The task prompt (issue context + comments). |
-| systemPrompt | string | Yes | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`. |
-| workdir | string | Yes | Absolute path to the git worktree. |
-| env | Record<string, string> | No | Additional environment variables. |
+| Field        | Type                   | Required | Description                                                                              |
+| ------------ | ---------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| prompt       | string                 | Yes      | The task prompt (issue context + comments).                                              |
+| systemPrompt | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`. |
+| workdir      | string                 | Yes      | Absolute path to the git worktree.                                                       |
+| env          | Record<string, string> | No       | Additional environment variables.                                                        |
 
 **SpawnResult:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| pid | number | Process ID. |
-| process | ChildProcess | The spawned child process. |
+| Field       | Type                    | Description                      |
+| ----------- | ----------------------- | -------------------------------- |
+| pid         | number                  | Process ID.                      |
+| process     | ChildProcess            | The spawned child process.       |
 | exitPromise | Promise<{code, stdout}> | Resolves when the process exits. |
 
 **Command constructed:**
@@ -139,6 +139,13 @@ git -C <repoPath> worktree add -b <branchName> <worktreePath> origin/<defaultBra
 If the fetch fails (e.g. network error), the worktree is created from the local branch instead and a warning is logged.
 
 The worktree path and branch name are recorded on the issue and reused for subsequent agent invocations.
+
+### Rebase on Existing Branch
+
+When a worktree branch already exists (subsequent agent runs on the same issue), the backend rebases it onto `origin/<defaultBranch>` after fetching. This ensures the agent always works on top of the latest main, even if other PRs have merged since the last run.
+
+- Rebase only runs if the fetch succeeded (otherwise the local state is used as-is).
+- If the rebase fails (e.g. merge conflicts), it is automatically aborted and a warning is logged. The agent continues with its existing branch state.
 
 ## Prompt Construction
 
