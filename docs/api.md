@@ -627,6 +627,55 @@ GET /projects/:projectId/runs?limit=50&offset=0
 
 **Response:** `200 OK` — Array of AgentRun objects ordered by `created_at` descending.
 
+#### List Active Runs for a Project
+
+```
+GET /projects/:projectId/active-runs
+```
+
+Returns currently running or queued agent runs for a project, enriched with agent info, issue info, and the most recent events. Used by the Terminals page to display live agent panes.
+
+**Response:** `200 OK` — Array of enriched AgentRun objects ordered by `created_at` ascending.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "issue_id": "uuid | null",
+    "agent_id": "engineer",
+    "pid": 12345,
+    "status": "running",
+    "exit_code": null,
+    "cost_usd": null,
+    "duration_ms": null,
+    "started_at": "ISO 8601",
+    "completed_at": null,
+    "created_at": "ISO 8601",
+    "agent_name": "Engineer",
+    "agent_title": "Software Engineer",
+    "issue_title": "Fix login bug",
+    "events": [
+      {
+        "id": "uuid",
+        "agent_run_id": "uuid",
+        "type": "tool_use",
+        "data": { "tool": "Read", "input": { "file_path": "src/auth.ts" } },
+        "created_at": "ISO 8601"
+      }
+    ]
+  }
+]
+```
+
+Each run includes:
+
+- `agent_name` / `agent_title` — resolved from the crew roster.
+- `issue_title` — title of the associated issue (null for standalone runs).
+- `events` — the 50 most recent `AgentRunEvent` records, ordered by `created_at` ascending. Uses a SQL `LIMIT` subquery to avoid loading all events for long-running agents.
+
+Only runs with status `running` or `queued` are returned.
+
 ---
 
 ### Activity Log

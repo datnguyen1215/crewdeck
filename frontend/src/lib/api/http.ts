@@ -12,6 +12,7 @@ import type {
   EnvironmentVariable,
   AgentRun,
   AgentRunWithEvents,
+  ActiveRun,
   ProjectKnowledge,
   LibrarianStatus,
   ChatMessage,
@@ -33,6 +34,7 @@ export type {
   AgentRun,
   AgentRunEvent,
   AgentRunWithEvents,
+  ActiveRun,
   AgentRunStatus,
   AgentRunEventType,
   ProjectKnowledge,
@@ -303,6 +305,11 @@ export function listProjectRuns(
     "GET",
     `/projects/${e(projectId)}/runs${qs(filters)}`,
   );
+}
+
+// Active Runs (for Terminals page)
+export function listActiveRuns(projectId: string) {
+  return request<ActiveRun[]>("GET", `/projects/${e(projectId)}/active-runs`);
 }
 
 // Knowledge

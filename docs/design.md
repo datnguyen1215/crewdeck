@@ -141,8 +141,8 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │Dashboard │ │  Board   │ │  (@mention UI)   │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │   Crew   │ │ Activity │ │  Notifications   │ │
-│  │  (view)  │ │   Log    │ │                  │ │
+│  │Terminals │ │ Activity │ │    Captain       │ │
+│  │  (live)  │ │   Log    │ │   (chat UI)     │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 └────────────────────┬────────────────────────────┘
                      │ WebSocket + REST
@@ -180,8 +180,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 **Frontend (Svelte)**
 
-- Renders project dashboard, issue board, crew (read-only), activity log.
+- Renders project dashboard, issue board, crew (read-only), activity log, and Terminals page.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity).
+- **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each pane shows agent name, status badge, clickable issue link, a scrolling feed of human-readable event summaries (e.g., "Reading `src/file.ts`"), and elapsed time + cost. Empty state displays the crew roster in an idle state.
 - Issue detail page shows a unified Timeline view merging comments, activity, and agent run summaries chronologically. Both `mention.spawned` and `mention.completed` entries are matched to `AgentRun` records (by `agent_id` + `started_at` or `completed_at` timestamp within 60s tolerance) and display colored status dots (green = running, amber = queued, red = failed, cyan = completed) and a "View" link that opens a modal with the run's full event log, live-updated via WebSocket.
 - Provides autocomplete for `/dispatch` commands and `@mentions` in comment input.
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
@@ -344,7 +345,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 All state changes are broadcast to connected frontend clients via WebSocket:
 
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
-- **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued.
+- **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
 - **PR events** — PR created, status updated.
 - **Captain events** — event received, thinking, message, tool call, tool result, complete.
 - **Chat events** — stream (token-by-token streaming from Chat service), complete.
