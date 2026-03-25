@@ -242,6 +242,11 @@ function subscribeEvents(bus: EventBus): void {
   bus.on("monitor.complete", ({ project_id }) =>
     broadcast(project_id, "monitor.complete", {}),
   );
+
+  // Project settings changed
+  bus.on("project.settings_changed", ({ project_id, changes }) =>
+    broadcast(project_id, "project.settings_changed", { changes }),
+  );
 }
 
 interface ExtendedWebSocket extends WebSocket {

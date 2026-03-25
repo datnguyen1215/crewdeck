@@ -311,6 +311,13 @@ export const formatEvents = (events: CaptainEvent[]): string => {
         }
         case "idle.check":
           return `[${ts}] Idle check: checking for stuck issues`;
+        case "project.settings_changed": {
+          const data = e.data as { changes: Record<string, unknown> };
+          const formatted = Object.entries(data.changes || {})
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+          return `[${ts}] Project settings changed: ${formatted || "unknown changes"}`;
+        }
         default:
           return `[${ts}] Event: ${e.type}`;
       }

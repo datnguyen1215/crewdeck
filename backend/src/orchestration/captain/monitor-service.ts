@@ -255,6 +255,24 @@ function createProjectHandlers(projectId: string): () => void {
     });
   };
 
+  const handleProjectSettingsChanged = (data: {
+    project_id: string;
+    changes: Record<string, unknown>;
+  }) => {
+    if (data.project_id !== projectId) return;
+    queueAndProcess({
+      type: "project.settings_changed",
+      projectId,
+      timestamp: new Date(),
+      data,
+    }).catch((err) => {
+      logger.error(
+        { err, projectId },
+        "Monitor: Failed to queue project.settings_changed",
+      );
+    });
+  };
+
   // Subscribe to all automated events (not chat.message)
   eventBus.on("issue.created", handleIssueCreated);
   eventBus.on("issue.updated", handleIssueUpdated);
@@ -263,6 +281,7 @@ function createProjectHandlers(projectId: string): () => void {
   eventBus.on("pr.status_changed", handlePRStatusChanged);
   eventBus.on("comment.added", handleCommentAdded);
   eventBus.on("run.recovered", handleRunRecovered);
+  eventBus.on("project.settings_changed", handleProjectSettingsChanged);
 
   return () => {
     eventBus.off("issue.created", handleIssueCreated);
@@ -272,6 +291,7 @@ function createProjectHandlers(projectId: string): () => void {
     eventBus.off("pr.status_changed", handlePRStatusChanged);
     eventBus.off("comment.added", handleCommentAdded);
     eventBus.off("run.recovered", handleRunRecovered);
+    eventBus.off("project.settings_changed", handleProjectSettingsChanged);
 
     const timeout = idleTimeouts.get(projectId);
     if (timeout) {

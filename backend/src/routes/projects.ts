@@ -17,6 +17,7 @@ import {
   CreateProjectSchema,
   UpdateProjectSchema,
 } from "../schemas/validation.js";
+import { eventBus } from "../events/bus.js";
 
 const router = Router();
 
@@ -73,7 +74,14 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
 router.patch("/:id", validate(UpdateProjectSchema), (req, res) => {
   const existing = getProject(req.params.id);
   if (!existing) throw new NotFoundError("Project not found");
-  res.json(updateProject(req.params.id, req.body));
+  const updated = updateProject(req.params.id, req.body);
+  if (Object.keys(req.body).length > 0) {
+    eventBus.emit("project.settings_changed", {
+      project_id: req.params.id,
+      changes: req.body,
+    });
+  }
+  res.json(updated);
 });
 
 router.delete("/:id", (req, res) => {

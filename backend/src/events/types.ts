@@ -3,6 +3,7 @@ import type {
   Comment,
   IssuePR,
   AgentRunStatus,
+  Project,
 } from "../types/entities.js";
 
 export interface EventMap {
@@ -190,5 +191,10 @@ export interface EventMap {
     project_id: string;
     issue_id: string;
     failed_agent_id: string;
+  };
+  // Project settings changed
+  "project.settings_changed": {
+    project_id: string;
+    changes: Partial<Project>;
   };
 }

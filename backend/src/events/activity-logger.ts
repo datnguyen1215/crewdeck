@@ -130,4 +130,13 @@ export function initActivityLogger(): void {
       details: { agent_id },
     });
   });
+
+  eventBus.on("project.settings_changed", ({ project_id, changes }) => {
+    log({
+      project_id,
+      actor_type: "user",
+      action: "project.settings_changed",
+      details: { changes },
+    });
+  });
 }
