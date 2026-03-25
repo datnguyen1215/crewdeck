@@ -270,7 +270,7 @@ Stores conversation history for the Captain LLM agent. Each project has its own 
 
 **Note:** The `message_type` field separates Chat and Monitor conversation histories. The Chat service reads only `chat` messages for user conversation context. The Monitor service reads only `monitor` messages for its own decision-making context. This prevents automated event noise from polluting user conversations and vice versa.
 
-**Note:** The `images` field stores file paths as a JSON string and is parsed to `string[] | null` at runtime. Images pasted into the Captain Terminal are saved to disk and their paths are stored here for multimodal processing.
+**Note:** The `images` field stores file paths as a JSON string and is parsed to `string[] | null` at runtime. Images pasted into the Captain chat UI are saved to disk and their paths are stored here for multimodal processing.
 
 ### \_migrations
 
