@@ -44,7 +44,8 @@
 	});
 
 	$effect(() => {
-		if (!ws) return;
+		// Don't subscribe to WebSocket until history is loaded to prevent duplicates
+		if (!ws || loading) return;
 
 		const handleEventReceived = (data: Record<string, unknown>) => {
 			entries = [...entries, {
