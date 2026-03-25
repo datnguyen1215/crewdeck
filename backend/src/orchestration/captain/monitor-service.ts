@@ -26,7 +26,7 @@ async function queueAndProcess(event: CaptainEvent): Promise<void> {
   const queueKey = `${MONITOR_PREFIX}${projectId}`;
 
   const project = getProject(projectId);
-  if (!project?.captain_enabled) return;
+  if (!project) return;
 
   enqueue({ ...event, projectId: queueKey });
   resetIdleTimeout(projectId);
@@ -285,7 +285,7 @@ export function startMonitorForProject(projectId: string): void {
   if (projectSubscriptions.has(projectId)) return;
 
   const project = getProject(projectId);
-  if (!project?.captain_enabled) return;
+  if (!project) return;
 
   const unsubscribe = createProjectHandlers(projectId);
   projectSubscriptions.set(projectId, unsubscribe);
@@ -307,7 +307,7 @@ export function stopMonitorForProject(projectId: string): void {
 }
 
 export function initMonitorService(): void {
-  const projects = listProjects().filter((p) => p.captain_enabled);
+  const projects = listProjects();
   for (const project of projects) {
     startMonitorForProject(project.id);
   }

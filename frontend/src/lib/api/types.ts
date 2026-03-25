@@ -5,8 +5,8 @@ export interface Project {
   max_concurrency: number;
   max_chain_depth: number;
   agent_timeout_minutes: number;
-  captain_enabled: boolean;
-  auto_merge_enabled: boolean;
+  auto_start: boolean;
+  auto_merge: boolean;
   github_account_id: string | null;
   created_at: string;
   updated_at: string;

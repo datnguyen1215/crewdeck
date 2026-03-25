@@ -12,9 +12,9 @@ import { IssueStatus } from "../../constants/statuses.js";
 
 function fromRow(row: Record<string, unknown>): Project {
   return {
-    ...(row as Omit<Project, "captain_enabled" | "auto_merge_enabled">),
-    captain_enabled: Boolean(row.captain_enabled),
-    auto_merge_enabled: Boolean(row.auto_merge_enabled),
+    ...(row as Omit<Project, "auto_start" | "auto_merge">),
+    auto_start: Boolean(row.auto_start),
+    auto_merge: Boolean(row.auto_merge),
   };
 }
 
@@ -122,11 +122,11 @@ export function createProject(input: CreateProjectInput): Project {
 
 export function updateProject(id: string, input: UpdateProjectInput): Project {
   const overrides: Record<string, unknown> = {};
-  if (input.captain_enabled !== undefined) {
-    overrides.captain_enabled = input.captain_enabled ? 1 : 0;
+  if (input.auto_start !== undefined) {
+    overrides.auto_start = input.auto_start ? 1 : 0;
   }
-  if (input.auto_merge_enabled !== undefined) {
-    overrides.auto_merge_enabled = input.auto_merge_enabled ? 1 : 0;
+  if (input.auto_merge !== undefined) {
+    overrides.auto_merge = input.auto_merge ? 1 : 0;
   }
   buildAndRunUpdate("Project", id, input, overrides);
   return getProject(id)!;

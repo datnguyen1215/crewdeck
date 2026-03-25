@@ -96,7 +96,7 @@ export function startChatForProject(projectId: string): void {
   if (projectSubscriptions.has(projectId)) return;
 
   const project = getProject(projectId);
-  if (!project?.captain_enabled) return;
+  if (!project) return;
 
   const unsubscribe = createProjectHandler(projectId);
   projectSubscriptions.set(projectId, unsubscribe);
@@ -114,7 +114,7 @@ export function stopChatForProject(projectId: string): void {
 }
 
 export function initChatService(): void {
-  const projects = listProjects().filter((p) => p.captain_enabled);
+  const projects = listProjects();
   for (const project of projects) {
     startChatForProject(project.id);
   }

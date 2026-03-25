@@ -356,7 +356,6 @@ When deciding which PR to merge first:
 4. If unsure, merge oldest PR first
 
 ## Constraints
-- Only act on projects with \`captain_enabled = true\`
 - Never merge a PR that isn't in \`pr_ready_to_merge\` status
 - Never start more issues than the project's max_concurrency allows
 - Let the PR poller handle status transitions — don't poll manually`,

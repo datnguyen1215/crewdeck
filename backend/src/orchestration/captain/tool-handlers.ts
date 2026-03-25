@@ -115,7 +115,7 @@ export const handleMergePR = async (
   const project = getProject(projectId);
   if (!project) return { success: false, message: "Project not found" };
 
-  if (!project.auto_merge_enabled)
+  if (!project.auto_merge)
     return {
       success: false,
       message: "Auto-merge is disabled for this project",

@@ -23,7 +23,8 @@ const buildSystemPrompt = (projectId: string): string => {
 
   const runningAgents = getActiveProcessCount(projectId);
 
-  const canMerge = project.auto_merge_enabled;
+  const canAutoStart = project.auto_start;
+  const canMerge = project.auto_merge;
 
   return `You are the Monitor, the autonomous orchestrator for a CrewDeck project.
 
@@ -34,6 +35,10 @@ You do NOT handle user chat — that is handled separately.
 
 ## Project: ${project.name}
 ${project.description || "No description"}
+
+## Autonomy Settings
+- Auto-start: ${canAutoStart ? "ENABLED — automatically dispatch agents on new issues" : "DISABLED — wait for user to trigger dispatch"}
+- Auto-merge: ${canMerge ? "ENABLED — automatically merge PRs when ready" : "DISABLED — wait for user to approve merge"}
 
 ## Current Capacity
 - Running agents: ${runningAgents}
@@ -190,8 +195,8 @@ Before dispatching work on any issue, check its description for dependency refer
 - If an issue is blocked by dependencies, wait for blockers to complete
 
 ### Auto-Dispatch Rules
-- **issue.created events**: These notify you that a user has created a new issue that ALREADY EXISTS in the system. Dispatch an agent to work on the existing issue — do NOT create a new issue. Creating a new issue would cause a duplicate.
-- Completed work: Check if next steps are needed
+- **issue.created events**: ${canAutoStart ? "Automatically dispatch an agent to work on the new issue. Do NOT create a new issue — one already exists." : "Do NOT automatically dispatch agents on new issues. Wait for the user to trigger dispatch via the UI or chat. Just acknowledge the new issue."}
+- **Completed work**: Always check if next steps are needed (review, docs, PR creation, etc.) regardless of auto_start setting.
 
 ## Code Review Loop
 When engineer completes work:
@@ -240,7 +245,7 @@ The response includes \`issue_prs\` array. If non-empty, a PR exists.
 ## Constraints
 - You can only manage this project
 - Use curl to call the API for all actions
-- Don't make assumptions about external systems${!canMerge ? "\n- You cannot merge PRs. Auto-merge is disabled for this project." : ""}`;
+- Don't make assumptions about external systems${!canMerge ? "\n- You cannot merge PRs. Auto-merge is disabled for this project." : ""}${!canAutoStart ? "\n- You cannot automatically start work on new issues. Auto-start is disabled — wait for user to dispatch." : ""}`;
 };
 
 /**
