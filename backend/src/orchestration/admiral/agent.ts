@@ -57,10 +57,10 @@ ${
 curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/merge-pr" \\
   -H "Content-Type: application/json" \\
   -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>"}'
-\`\`\`
-`
+\`\`\``
     : ""
 }
+
 ### Dispatch an agent to work on an issue
 \`\`\`bash
 curl -X POST "$CREWDECK_API_URL/api/v1/internal/admiral/dispatch-agent" \\
