@@ -190,7 +190,7 @@ Before dispatching work on any issue, check its description for dependency refer
 - If an issue is blocked by dependencies, wait for blockers to complete
 
 ### Auto-Dispatch Rules
-- New issues: Evaluate priority and start work if capacity allows
+- **issue.created events**: These notify you that a user has created a new issue that ALREADY EXISTS in the system. Dispatch an agent to work on the existing issue — do NOT create a new issue. Creating a new issue would cause a duplicate.
 - Completed work: Check if next steps are needed
 
 ## Code Review Loop

@@ -114,9 +114,12 @@ function triggerIdleCheck(projectId: string): void {
  */
 function createProjectHandlers(projectId: string): () => void {
   const handleIssueCreated = (data: {
-    issue: { project_id: string; id: string; title: string };
+    issue: { project_id: string; id: string; title: string; created_by: string };
   }) => {
     if (data.issue.project_id !== projectId) return;
+    // Ignore agent-created issues to prevent chain reactions where Monitor
+    // sees its own issue creations and tries to process them
+    if (data.issue.created_by === "agent") return;
     queueAndProcess({
       type: "issue.created",
       projectId,
