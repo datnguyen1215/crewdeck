@@ -13,6 +13,7 @@ import * as issueRepo from "../db/repositories/issues.js";
 import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
+import { normalizeEvent } from "../db/repositories/agent-runs.js";
 import * as knowledgeRepo from "../db/repositories/knowledge.js";
 import * as envVarRepo from "../db/repositories/environment-variables.js";
 import * as repoRepo from "../db/repositories/repos.js";
@@ -84,13 +85,21 @@ export async function processAgentStream(
       event,
     );
 
-    // Broadcast via WebSocket
+    // Normalize event for frontend consumption and broadcast via WebSocket
+    const normalized = normalizeEvent({
+      id: savedEvent.id,
+      agent_run_id: agentRunId,
+      type: event.type,
+      data: event,
+      created_at: savedEvent.created_at,
+    });
+
     events.eventBus.emit("run.event", {
       agent_run_id: agentRunId,
       project_id: projectId,
       event_id: savedEvent.id,
-      type: event.type,
-      data: event,
+      type: normalized.type,
+      data: normalized.data,
       created_at: savedEvent.created_at,
     });
 
