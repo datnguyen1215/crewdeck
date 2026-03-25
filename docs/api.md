@@ -313,7 +313,7 @@ DELETE /projects/:projectId/repos/:repoId
 
 ### Crew / Agents
 
-The crew is a fixed set of 5 global agents (engineer, lead, docs, librarian, admiral). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, excluding non-dispatchable agents like Admiral.
+The crew is a fixed set of 5 global agents (engineer, lead, docs, librarian, captain). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, excluding non-dispatchable agents like Captain.
 
 #### List Crew
 
@@ -322,7 +322,7 @@ GET /crew
 GET /agents
 ```
 
-Both paths return the dispatchable agents (4 agents). Admiral is excluded because it is a background service, not a dispatchable agent. The `/crew` path is canonical; `/agents` is kept for compatibility.
+Both paths return the dispatchable agents (4 agents). Captain is excluded because it is a background service, not a dispatchable agent. The `/crew` path is canonical; `/agents` is kept for compatibility.
 
 **Response:** `200 OK` — Array of agent objects.
 
@@ -346,7 +346,7 @@ Both paths return the dispatchable agents (4 agents). Admiral is excluded becaus
 | title         | TEXT    | Agent role title.                                                                                                                                               |
 | description   | TEXT    | Brief description of the agent's purpose.                                                                                                                       |
 | system_prompt | TEXT    | System prompt injected into agent processes.                                                                                                                    |
-| dispatchable  | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. Background services (e.g., Admiral) have this set to false and are excluded from the list. |
+| dispatchable  | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. Background services (e.g., Captain) have this set to false and are excluded from the list. |
 
 ---
 
@@ -890,7 +890,7 @@ Agent posts a comment on an issue.
 
 **Response:** `201 Created`
 
-**Side effects:** Emits `comment.added` on the event bus (which may trigger further `/dispatch` processing and Admiral evaluation for user-authored comments).
+**Side effects:** Emits `comment.added` on the event bus (which may trigger further `/dispatch` processing and Captain evaluation for user-authored comments).
 
 #### Create Issue (Internal)
 
@@ -1078,10 +1078,10 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 #### Dispatch Agent (Internal)
 
 ```
-POST /internal/admiral/dispatch-agent
+POST /internal/captain/dispatch-agent
 ```
 
-Admiral dispatches a sub-agent to work on an issue. This is used exclusively by Admiral's tool handler to orchestrate work — the frontend does not call this endpoint.
+Captain dispatches a sub-agent to work on an issue. This is used exclusively by Captain's tool handler to orchestrate work — the frontend does not call this endpoint.
 
 **Request Body:**
 
@@ -1110,7 +1110,7 @@ Admiral dispatches a sub-agent to work on an issue. This is used exclusively by 
 }
 ```
 
-**Error:** `400 VALIDATION_ERROR` — Invalid agent_id (must be engineer, lead, docs, or librarian — not captain or admiral).
+**Error:** `400 VALIDATION_ERROR` — Invalid agent_id (must be engineer, lead, docs, or librarian — not captain).
 
 **Side effects:**
 
@@ -1206,16 +1206,16 @@ All events follow this structure:
 | `pr.created`        | PR recorded on an issue | Full IssuePR object + `issue_title?` |
 | `pr.status_changed` | PR status updated       | `{ pr_id, from, to }`                |
 
-#### Admiral Events
+#### Captain Events
 
 | Event                    | Description                                | Data                                      |
 | ------------------------ | ------------------------------------------ | ----------------------------------------- |
-| `admiral.event_received` | Admiral received a system event to process | `{ project_id, event_type, description }` |
-| `admiral.thinking`       | Admiral is processing events               | `{ project_id }`                          |
-| `admiral.message`        | Admiral text response                      | `{ project_id, content }`                 |
-| `admiral.tool_call`      | Admiral invoked a tool                     | `{ project_id, tool_name, tool_input }`   |
-| `admiral.tool_result`    | Tool execution completed                   | `{ project_id, tool_name, result }`       |
-| `admiral.complete`       | Admiral finished processing                | `{ project_id, response }`                |
+| `captain.event_received` | Captain received a system event to process | `{ project_id, event_type, description }` |
+| `captain.thinking`       | Captain is processing events               | `{ project_id }`                          |
+| `captain.message`        | Captain text response                      | `{ project_id, content }`                 |
+| `captain.tool_call`      | Captain invoked a tool                     | `{ project_id, tool_name, tool_input }`   |
+| `captain.tool_result`    | Tool execution completed                   | `{ project_id, tool_name, result }`       |
+| `captain.complete`       | Captain finished processing                | `{ project_id, response }`                |
 
 ---
 

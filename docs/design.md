@@ -32,9 +32,9 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 
 ### Agent
 
-The crew is a fixed set of 5 immutable agents defined in code (Engineer, Lead, Docs, Librarian, Admiral). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
+The crew is a fixed set of 5 immutable agents defined in code (Engineer, Lead, Docs, Librarian, Captain). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
-Agent names are used for `/dispatch` command matching. Admiral is a background service and is not dispatchable via `/dispatch`.
+Agent names are used for `/dispatch` command matching. Captain is a background service and is not dispatchable via `/dispatch`.
 
 ### Orchestration via /dispatch Commands
 
@@ -76,7 +76,7 @@ Pull requests are tracked in the `IssuePR` table. They can be linked to an issue
 
 - **Manual**: the user clicks "Mark as PR Created", which transitions the issue to `pr_created` and records the PR.
 - **Auto-link**: when a comment is posted containing a GitHub PR URL (e.g. `https://github.com/owner/repo/pull/123`), the PR detector automatically creates an `IssuePR` record linking it to the issue (deduped by repo + PR number).
-- **Agent registration**: Admiral can call `POST /internal/create-pr` after creating a PR with `gh pr create` to explicitly register the PR for tracking. This ensures the PR poller can auto-transition the issue to `done` when the PR is merged.
+- **Agent registration**: Captain can call `POST /internal/create-pr` after creating a PR with `gh pr create` to explicitly register the PR for tracking. This ensures the PR poller can auto-transition the issue to `done` when the PR is merged.
 
 ## Issue Lifecycle
 
@@ -94,7 +94,7 @@ Open → In Progress → PR Created → Done
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Open**              | Issue is in the queue, ready to be worked on.                                                                                                                                                      |
 | **In Progress**       | An agent is actively working (or has worked) on the issue. Set automatically when an agent is spawned.                                                                                             |
-| **PR Created**        | A pull request has been created. Set via the "Mark as PR Created" button, automatically by Admiral after creating a PR with `gh pr create`, or auto-detected when a PR URL is posted in a comment. |
+| **PR Created**        | A pull request has been created. Set via the "Mark as PR Created" button, automatically by Captain after creating a PR with `gh pr create`, or auto-detected when a PR URL is posted in a comment. |
 | **PR Conflict**       | The PR has merge conflicts detected by GitHub. Transitions back to `pr_created` after conflicts are resolved.                                                                                      |
 | **PR Failed Actions** | The PR has failing CI checks. Transitions back to `pr_created` after checks pass.                                                                                                                  |
 | **PR Ready to Merge** | The PR passes all checks and has no conflicts. Ready to be merged.                                                                                                                                 |
@@ -229,9 +229,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - **CI status** — via both GitHub check-runs API (modern) and commit status API (legacy). If any check failed, transitions issue to `pr_failed_actions`. If all checks pass and mergeable, transitions to `pr_ready_to_merge`.
 - Issues in intermediate states (`pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) are transitioned back to `pr_created` when conditions become pending (e.g., new commits pushed).
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
-- Exports `pollPRs()` for external callers (e.g., Admiral) to trigger immediate polling.
+- Exports `pollPRs()` for external callers (e.g., Captain) to trigger immediate polling.
 
-**Admiral**
+**Captain**
 
 - LLM-powered auto-pilot orchestrator that manages the project automatically.
 - Only acts on projects with `captain_enabled = true`.
@@ -241,8 +241,8 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - `run.completed` (agent finished)
   - `run.recovered` (issue needs attention after server restart)
   - `pr.status_changed` (from PR poller)
-  - `comment.added` (user comments only — e.g., "Start work" button posts a comment that Admiral picks up)
-  - `chat.message` (user message from Admiral Terminal)
+  - `comment.added` (user comments only — e.g., "Start work" button posts a comment that Captain picks up)
+  - `chat.message` (user message from Captain Terminal)
   - `idle.check` (configurable per-project idle timeout)
 - Event batching: accumulates events while processing, drains all pending events at once.
 - Persistent conversation per project (last 100 messages stored in ChatMessage table).
@@ -260,9 +260,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
   2. **Fix broken PRs** — dispatch engineer for `pr_conflict` or `pr_failed_actions`
   3. **Update knowledge** — after a PR is merged, evaluate whether the changes warrant a librarian rescan (e.g., new files/modules, API changes, restructuring). Skip for bug fixes, style changes, dependency updates, or docs-only changes.
   4. **Start new work** — dispatch appropriate agent on open issues when capacity allows (skipping issues blocked by unfinished dependencies)
-- When `auto_merge_enabled` is false, the merge tool is excluded from Admiral's available actions and a constraint is added preventing merge attempts.
-- **Dependency awareness**: Before dispatching work on an issue, Admiral checks its description for dependency references (e.g., "depends on #12", "blocked by #14", "requires #", "after #", "waiting on #"). If a blocking issue is not yet in `done` or `pr_created` status, Admiral skips the blocked issue and works on unblocked ones instead. Blocked issues are re-evaluated when completion or merge events arrive for their blockers.
-- Task-type reasoning: Admiral analyzes each issue and decides which agents to dispatch based on task type (research → librarian, docs-only → docs, code change → engineer then lead, etc.).
+- When `auto_merge_enabled` is false, the merge tool is excluded from Captain's available actions and a constraint is added preventing merge attempts.
+- **Dependency awareness**: Before dispatching work on an issue, Captain checks its description for dependency references (e.g., "depends on #12", "blocked by #14", "requires #", "after #", "waiting on #"). If a blocking issue is not yet in `done` or `pr_created` status, Captain skips the blocked issue and works on unblocked ones instead. Blocked issues are re-evaluated when completion or merge events arrive for their blockers.
+- Task-type reasoning: Captain analyzes each issue and decides which agents to dispatch based on task type (research → librarian, docs-only → docs, code change → engineer then lead, etc.).
 - Uses OAuth token from the project's linked GitHub account for merging and PR creation.
 
 **Event Bus**
@@ -328,7 +328,7 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued.
 - **PR events** — PR created, status updated.
-- **Admiral events** — event received, thinking, message, tool call, tool result, complete.
+- **Captain events** — event received, thinking, message, tool call, tool result, complete.
 
 The frontend subscribes to events scoped by project.
 
@@ -389,7 +389,7 @@ On startup, the backend:
 4. Initializes the MentionHandler (subscribes to `comment.added`).
 5. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 6. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
-7. Initializes Admiral service (subscribes to event bus for all captain-enabled projects).
+7. Initializes Captain service (subscribes to event bus for all captain-enabled projects).
 8. Starts the Express HTTP server.
 9. Starts the WebSocket server.
 10. Logs startup complete via pino.
@@ -402,7 +402,7 @@ On SIGTERM or SIGINT, the backend:
 
 1. Stops accepting new HTTP connections.
 2. Sends SIGTERM to all active agent processes (via `shutdownMentionHandler()`).
-3. Shuts down Admiral service (unsubscribes from events, clears idle timeouts).
+3. Shuts down Captain service (unsubscribes from events, clears idle timeouts).
 4. Stops the PR poller.
 5. Closes the SQLite database connection.
 6. Exits the process.
