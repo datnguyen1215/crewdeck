@@ -298,15 +298,35 @@ Stores conversation history for the Captain LLM agent. Messages belong to a chat
 
 ### \_migrations
 
-Internal table that tracks which database migrations have been applied. Used by the versioned migration system to ensure each migration runs exactly once.
+Internal table that tracks which database migrations have been applied. Used by the file-based migration system to ensure each migration runs exactly once.
 
-| Field      | Type     | Constraints                         | Description                                                   |
-| ---------- | -------- | ----------------------------------- | ------------------------------------------------------------- |
-| id         | INTEGER  | PRIMARY KEY AUTOINCREMENT           | Auto-incrementing identifier.                                 |
-| name       | TEXT     | NOT NULL, UNIQUE                    | Migration identifier (e.g., `001_add_agent_timeout_minutes`). |
-| applied_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the migration was applied.                               |
+| Field      | Type     | Constraints                         | Description                                                             |
+| ---------- | -------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| id         | INTEGER  | PRIMARY KEY AUTOINCREMENT           | Auto-incrementing identifier.                                           |
+| name       | TEXT     | NOT NULL, UNIQUE                    | Migration name derived from filename (e.g., `001_add_github_account`).  |
+| applied_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the migration was applied.                                         |
 
-**Note:** This is an internal system table. All migrations run idempotently on every startup — each migration checks whether its changes are already present before executing, so they are safe to run on both fresh and existing databases. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF` to prevent cascading deletes.
+**Migration System:**
+
+Migrations are stored in `backend/src/db/migrations/` as individual files:
+- `000_initial_schema.sql` — full schema for fresh databases
+- `001_*.ts`, `002_*.ts`, etc. — incremental migrations
+
+File types:
+- `.sql` files contain raw DDL statements executed directly
+- `.ts` files export a `run(db)` function for complex migrations (conditional logic, table recreation)
+
+Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored in `_migrations` matches the filename minus extension.
+
+**Commands:**
+- `npm run migrate` — run all pending migrations (standalone, does not start the server)
+- `npm run migrate:create -- description` — scaffold a new migration file
+
+**Behavior:**
+- Fresh databases: `000_initial_schema.sql` runs first, creating all tables. Subsequent migrations (001+) are no-ops due to defensive checks.
+- Existing databases: if any migration ≥ 001 exists in `_migrations`, migration 000 is marked applied without executing. Only new migrations run.
+- All existing migrations (001-019) include defensive checks (`IF NOT EXISTS`, column existence checks) to handle both fresh and upgraded databases safely.
+- Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF` to prevent cascading deletes.
 
 ---
 
