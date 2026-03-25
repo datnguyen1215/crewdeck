@@ -1206,16 +1206,24 @@ All events follow this structure:
 | `pr.created`        | PR recorded on an issue | Full IssuePR object + `issue_title?` |
 | `pr.status_changed` | PR status updated       | `{ pr_id, from, to }`                |
 
-#### Captain Events
+#### Captain Events (Chat)
+
+| Event              | Description                          | Data                       |
+| ------------------ | ------------------------------------ | -------------------------- |
+| `captain.thinking` | Captain chat is processing a message | `{ project_id }`           |
+| `captain.message`  | Captain chat text response           | `{ project_id, content }`  |
+| `captain.complete` | Captain chat finished processing     | `{ project_id, response }` |
+
+#### Monitor Events
 
 | Event                    | Description                                | Data                                      |
 | ------------------------ | ------------------------------------------ | ----------------------------------------- |
-| `captain.event_received` | Captain received a system event to process | `{ project_id, event_type, description }` |
-| `captain.thinking`       | Captain is processing events               | `{ project_id }`                          |
-| `captain.message`        | Captain text response                      | `{ project_id, content }`                 |
-| `captain.tool_call`      | Captain invoked a tool                     | `{ project_id, tool_name, tool_input }`   |
-| `captain.tool_result`    | Tool execution completed                   | `{ project_id, tool_name, result }`       |
-| `captain.complete`       | Captain finished processing                | `{ project_id, response }`                |
+| `monitor.event_received` | Monitor received a system event to process | `{ project_id, event_type, description }` |
+| `monitor.thinking`       | Monitor is processing events               | `{ project_id }`                          |
+| `monitor.message`        | Monitor text response                      | `{ project_id, content }`                 |
+| `monitor.tool_call`      | Monitor invoked a tool                     | `{ project_id, tool_name, tool_input }`   |
+| `monitor.tool_result`    | Monitor tool execution completed           | `{ project_id, tool_name, result }`       |
+| `monitor.complete`       | Monitor finished processing                | `{ project_id, response }`                |
 
 #### Chat Events
 

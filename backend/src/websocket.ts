@@ -173,14 +173,7 @@ function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "chat.complete", { message_id }),
   );
 
-  // Captain terminal events
-  bus.on("captain.event_received", ({ project_id, event_type, description }) =>
-    broadcast(project_id, "captain.event_received", {
-      event_type,
-      description,
-    }),
-  );
-
+  // Captain chat events (interactive conversations)
   bus.on("captain.thinking", ({ project_id }) =>
     broadcast(project_id, "captain.thinking", {}),
   );
@@ -189,16 +182,36 @@ function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "captain.message", { content }),
   );
 
-  bus.on("captain.tool_call", ({ project_id, tool_name, tool_input }) =>
-    broadcast(project_id, "captain.tool_call", { tool_name, tool_input }),
-  );
-
-  bus.on("captain.tool_result", ({ project_id, tool_name, result }) =>
-    broadcast(project_id, "captain.tool_result", { tool_name, result }),
-  );
-
   bus.on("captain.complete", ({ project_id }) =>
     broadcast(project_id, "captain.complete", {}),
+  );
+
+  // Monitor events (automated orchestration)
+  bus.on("monitor.event_received", ({ project_id, event_type, description }) =>
+    broadcast(project_id, "monitor.event_received", {
+      event_type,
+      description,
+    }),
+  );
+
+  bus.on("monitor.thinking", ({ project_id }) =>
+    broadcast(project_id, "monitor.thinking", {}),
+  );
+
+  bus.on("monitor.message", ({ project_id, content }) =>
+    broadcast(project_id, "monitor.message", { content }),
+  );
+
+  bus.on("monitor.tool_call", ({ project_id, tool_name, tool_input }) =>
+    broadcast(project_id, "monitor.tool_call", { tool_name, tool_input }),
+  );
+
+  bus.on("monitor.tool_result", ({ project_id, tool_name, result }) =>
+    broadcast(project_id, "monitor.tool_result", { tool_name, result }),
+  );
+
+  bus.on("monitor.complete", ({ project_id }) =>
+    broadcast(project_id, "monitor.complete", {}),
   );
 }
 

@@ -385,14 +385,14 @@ export const processWithLLM = async (
       /^\[\d{2}:\d{2}:\d{2}\]\s*/,
       "",
     );
-    eventBus.emit("captain.event_received", {
+    eventBus.emit("monitor.event_received", {
       project_id: projectId,
       event_type: event.type,
       description,
     });
   }
 
-  eventBus.emit("captain.thinking", { project_id: projectId });
+  eventBus.emit("monitor.thinking", { project_id: projectId });
 
   const env: Record<string, string> = {
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
@@ -444,14 +444,14 @@ export const processWithLLM = async (
   }
 
   if (finalResponse) {
-    eventBus.emit("captain.message", {
+    eventBus.emit("monitor.message", {
       project_id: projectId,
       content: finalResponse,
     });
     chatRepo.create(projectId, "assistant", finalResponse, "monitor");
   }
 
-  eventBus.emit("captain.complete", {
+  eventBus.emit("monitor.complete", {
     project_id: projectId,
     response: finalResponse,
   });
