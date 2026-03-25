@@ -4,15 +4,18 @@ import type { ChatSession, ChatSessionStatus } from "../../types/entities.js";
 export function create(projectId: string, title?: string | null): ChatSession {
   const id = crypto.randomUUID();
 
-  // Archive any currently active session for this project
-  db.prepare(
-    `UPDATE ChatSession SET status = 'archived', updated_at = CURRENT_TIMESTAMP
-     WHERE project_id = ? AND status = 'active'`,
-  ).run(projectId);
+  const insertSession = db.transaction(() => {
+    // Archive any currently active session for this project
+    db.prepare(
+      `UPDATE ChatSession SET status = 'archived', updated_at = CURRENT_TIMESTAMP
+       WHERE project_id = ? AND status = 'active'`,
+    ).run(projectId);
 
-  db.prepare(
-    `INSERT INTO ChatSession (id, project_id, title) VALUES (?, ?, ?)`,
-  ).run(id, projectId, title ?? null);
+    db.prepare(
+      `INSERT INTO ChatSession (id, project_id, title) VALUES (?, ?, ?)`,
+    ).run(id, projectId, title ?? null);
+  });
+  insertSession();
 
   return db
     .prepare("SELECT * FROM ChatSession WHERE id = ?")

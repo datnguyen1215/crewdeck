@@ -322,8 +322,7 @@ const MAX_CONTEXT_MESSAGES = 100;
 const getMonitorHistory = (projectId: string): string => {
   // Get recent messages without a session (monitor messages)
   const messages = chatRepo
-    .getByProject(projectId, MAX_CONTEXT_MESSAGES)
-    .filter((m) => !m.session_id)
+    .getByProjectWithoutSession(projectId, MAX_CONTEXT_MESSAGES)
     .reverse();
   if (messages.length === 0) return "";
 
