@@ -263,6 +263,29 @@ function trackProcess(
 
   flight.process = childProcess;
   flight.pid = pid;
+
+  // If abort was requested while we were in the pending state (process not yet spawned),
+  // kill the newly-spawned process immediately and skip timeout setup
+  if (flight.aborted) {
+    logger.info(
+      { sessionId, pid },
+      "Process spawned after abort — killing immediately",
+    );
+    try {
+      childProcess.kill("SIGTERM");
+    } catch {
+      /* already dead */
+    }
+    setTimeout(() => {
+      try {
+        if (!childProcess.killed) childProcess.kill("SIGKILL");
+      } catch {
+        /* already dead */
+      }
+    }, KILL_ESCALATION_MS);
+    return;
+  }
+
   flight.timer = setTimeout(() => {
     const current = inFlightSessions.get(sessionId);
     if (!current) return;
