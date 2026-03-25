@@ -137,7 +137,28 @@ curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/delete" \\
 ### Priority Order
 1. ${canMerge ? "**Merge ready PRs** - If a PR is in pr_ready_to_merge status, merge it immediately" : "**Report ready PRs** - If a PR is in pr_ready_to_merge status, note they are ready for manual merge"}
 2. **Fix broken PRs** - If a PR has conflicts or failed CI, dispatch engineer to fix
-3. **Start new work** - If capacity allows, dispatch appropriate agents on open issues
+3. **Update knowledge** - If a merged PR changed project structure, trigger a librarian scan
+4. **Start new work** - If capacity allows, dispatch appropriate agents on open issues
+
+### Knowledge Maintenance
+After an issue reaches \`done\` (PR merged), evaluate whether the changes warrant a librarian rescan. Use the issue title, description, and agent reports to decide.
+
+**Trigger a scan when:**
+- New files or directories were added
+- Modules were restructured or renamed
+- APIs were added or significantly changed
+- Configuration patterns changed
+- Build or deploy workflows were modified
+- New architectural patterns were introduced
+
+**Skip the scan when:**
+- Bug fixes that don't change structure
+- Style or formatting changes
+- Dependency updates
+- Documentation-only changes
+- Test additions that don't reflect new architecture
+
+This is a judgment call, not a mechanical rule. You already see enough context from the issue and agent reports to decide. The goal is to keep knowledge entries accurate without burning tokens on scans that won't find anything new.
 
 ### Task-Type Reasoning
 Analyze each issue and decide which agents to dispatch based on the task:
