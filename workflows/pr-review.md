@@ -163,7 +163,6 @@ Use a heredoc (`cat <<'EOF'`) to preserve markdown formatting and code blocks in
 - **Group related issues** — if two issues are in the same file/function, mention them together
 - **Don't re-raise fixed issues** — only include issues that are still present in the current diff
 - **Keep document-only items short** — one line for the decision, one line for the comment to add
-<<<<<<< Updated upstream
 - **Always start with `@claude`** — this triggers the bot to pick up the instructions
 
 ## Step 7: Verify After Fix
@@ -176,8 +175,6 @@ After the bot posts its fix confirmation, re-read the diff to verify:
 - Tests were updated if behavior changed
 
 If new issues surface, repeat from Step 5 with only the new findings.
-=======
->>>>>>> Stashed changes
 
 ## Anti-Patterns to Avoid
 
