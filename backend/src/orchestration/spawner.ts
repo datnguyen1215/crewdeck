@@ -402,6 +402,7 @@ export const spawnAgent = async (
       project_id: projectId,
       from: issue.status,
       to: IssueStatus.IN_PROGRESS,
+      actor_type: "system",
     });
   }
 
