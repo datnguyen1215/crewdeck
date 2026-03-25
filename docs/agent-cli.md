@@ -10,7 +10,7 @@ status: draft
 
 Agents are triggered by **`/dispatch` commands** in issue comments. When a user or another agent posts a comment containing `/dispatch agent-name` at the start of a line, the backend automatically spawns that agent as a `claude -p` subprocess. The agent's output is posted back to the issue as a comment.
 
-`@mentions` are cosmetic references only — they do NOT trigger agent spawns. Captain orchestrates work by directly dispatching sub-agents (engineer, lead, docs, librarian) via the internal API. All communication happens through the issue comment thread.
+`@mentions` are cosmetic references only — they do NOT trigger agent spawns. All orchestration happens through `/dispatch` commands in issue comments.
 
 ## How It Works
 
@@ -43,11 +43,11 @@ Chain depth is tracked per-issue and increments each time an agent is spawned on
 
 Dispatching an agent on an issue automatically regresses its status to `in_progress` if it was `open`, any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`), or `done`. Status transitions are:
 
-| Trigger                                                                      | Status change   |
-| ---------------------------------------------------------------------------- | --------------- |
-| Agent spawned on open/done/PR-related issue                                  | → `in_progress` |
-| User clicks "Mark as PR Created", or Captain creates a PR via `gh pr create` | → `pr_created`  |
-| User clicks "Mark as Done" (no active processes)                             | → `done`        |
+| Trigger                                                                   | Status change   |
+| ------------------------------------------------------------------------- | --------------- |
+| Agent spawned on open/done/PR-related issue                               | → `in_progress` |
+| User clicks "Mark as PR Created", or a PR is auto-detected from a comment | → `pr_created`  |
+| User clicks "Mark as Done" (no active processes)                          | → `done`        |
 
 ## Environment Variables
 

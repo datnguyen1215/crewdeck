@@ -890,7 +890,7 @@ Agent posts a comment on an issue.
 
 **Response:** `201 Created`
 
-**Side effects:** Emits `comment.added` on the event bus (which may trigger further `/dispatch` processing and Captain evaluation for user-authored comments).
+**Side effects:** Emits `comment.added` on the event bus (which may trigger further `/dispatch` processing).
 
 #### Create Issue (Internal)
 
@@ -1081,7 +1081,7 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 POST /internal/captain/dispatch-agent
 ```
 
-Captain dispatches a sub-agent to work on an issue. This is used exclusively by Captain's tool handler to orchestrate work — the frontend does not call this endpoint.
+Dispatches an agent to work on an issue. This is used by the orchestration tool handler — the frontend does not call this endpoint.
 
 **Request Body:**
 
@@ -1110,7 +1110,7 @@ Captain dispatches a sub-agent to work on an issue. This is used exclusively by 
 }
 ```
 
-**Error:** `400 VALIDATION_ERROR` — Invalid agent_id (must be engineer, lead, docs, or librarian — not captain).
+**Error:** `400 VALIDATION_ERROR` — Invalid agent_id (must be engineer, lead, docs, or librarian).
 
 **Side effects:**
 

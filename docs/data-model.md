@@ -230,7 +230,7 @@ Tracks each agent process spawn for crash recovery and observability.
 | started_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned.                                               |
 | completed_at | DATETIME    | NULLABLE                            | When the process finished. NULL if still running.                           |
 
-**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed`, posts system comments on affected issues (if associated with an issue), and emits `run.recovered` events for Captain to handle.
+**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed`, posts system comments on affected issues (if associated with an issue), and emits `run.recovered` events.
 
 ---
 
