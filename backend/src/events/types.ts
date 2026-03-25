@@ -115,12 +115,7 @@ export interface EventMap {
     content: string;
     images?: Array<{ data: string; mediaType: string }>;
   };
-  // Captain LLM agent events
-  "captain.event_received": {
-    project_id: string;
-    event_type: string;
-    description: string;
-  };
+  // Captain chat LLM events (interactive user conversations)
   "captain.thinking": {
     project_id: string;
   };
@@ -128,17 +123,34 @@ export interface EventMap {
     project_id: string;
     content: string;
   };
-  "captain.tool_call": {
+  "captain.complete": {
+    project_id: string;
+    response: string;
+  };
+  // Monitor LLM agent events (automated orchestration)
+  "monitor.event_received": {
+    project_id: string;
+    event_type: string;
+    description: string;
+  };
+  "monitor.thinking": {
+    project_id: string;
+  };
+  "monitor.message": {
+    project_id: string;
+    content: string;
+  };
+  "monitor.tool_call": {
     project_id: string;
     tool_name: string;
     tool_input: unknown;
   };
-  "captain.tool_result": {
+  "monitor.tool_result": {
     project_id: string;
     tool_name: string;
     result: unknown;
   };
-  "captain.complete": {
+  "monitor.complete": {
     project_id: string;
     response: string;
   };

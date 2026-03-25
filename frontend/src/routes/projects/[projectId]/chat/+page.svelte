@@ -141,14 +141,18 @@
 		};
 
 		const unsubs = [
-			ws.on('captain.event_received', handleEventReceived),
+			// Chat service events (interactive conversations)
 			ws.on('captain.thinking', handleThinking),
 			ws.on('captain.message', handleMessage),
-			ws.on('captain.tool_call', handleToolCall),
-			ws.on('captain.tool_result', handleToolResult),
 			ws.on('captain.complete', handleComplete),
-			// Legacy fallback for streaming
 			ws.on('chat.complete', handleComplete),
+			// Monitor service events (automated orchestration, read-only)
+			ws.on('monitor.event_received', handleEventReceived),
+			ws.on('monitor.thinking', handleThinking),
+			ws.on('monitor.message', handleMessage),
+			ws.on('monitor.tool_call', handleToolCall),
+			ws.on('monitor.tool_result', handleToolResult),
+			ws.on('monitor.complete', handleComplete),
 		];
 
 		return () => unsubs.forEach((fn) => fn());
