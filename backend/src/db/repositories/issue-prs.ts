@@ -79,8 +79,8 @@ export function listOpenPRsWithContext(): OpenPRWithContext[] {
     JOIN Repo r ON r.id = pr.repo_id
     JOIN Issue i ON i.id = pr.issue_id
     JOIN Project p ON p.id = i.project_id
-    WHERE pr.status = 'open'
+    WHERE pr.status = ?
   `,
     )
-    .all() as OpenPRWithContext[];
+    .all(PRStatus.OPEN) as OpenPRWithContext[];
 }

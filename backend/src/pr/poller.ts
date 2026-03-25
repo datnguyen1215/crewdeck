@@ -182,7 +182,7 @@ function combineCheckResults(
 function determineIssueStatus(
   mergeable: boolean | null,
   ciStatus: CheckResult,
-): string {
+): IssueStatusValue {
   // Merge conflict takes priority
   if (mergeable === false) return IssueStatus.PR_CONFLICT;
 
