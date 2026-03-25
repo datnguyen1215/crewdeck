@@ -8,6 +8,7 @@
 	import { STATUS_CFG } from '$lib/config/status.js';
 	import { parseUTC, relTimeDiff } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { createFormState } from '$lib/utils/form.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -30,10 +31,7 @@
 	let sortDesc = $state(true);
 
 	// Modal state
-	let showModal = $state(false);
-	let newTitle = $state('');
-	let newDescription = $state('');
-	let submitting = $state(false);
+	const form = createFormState({ title: '', description: '' });
 
 	$effect(() => {
 		loading = true;
@@ -116,19 +114,6 @@
 			: [...filterStatuses, status];
 	}
 
-	function resetForm() {
-		newTitle = '';
-		newDescription = '';
-	}
-
-	function closeModal() {
-		if (!submitting) {
-			showModal = false;
-			resetForm();
-		}
-	}
-
-	let formError = $state('');
 
 	// Track dispatching state per issue
 	let dispatchingIssues = $state<Set<string>>(new Set());
@@ -155,24 +140,14 @@
 
 	async function handleCreate(e: SubmitEvent) {
 		e.preventDefault();
-		// Guard against whitespace-only inputs that pass HTML `required` without trimming.
-		if (!newTitle.trim() || !newDescription.trim()) return;
-		submitting = true;
-		formError = '';
-		try {
+		if (!form.fields.title.trim() || !form.fields.description.trim()) return;
+		await form.submit(async (f) => {
 			const issue = await createIssue(projectId, {
-				title: newTitle.trim(),
-				description: newDescription.trim()
+				title: f.title.trim(),
+				description: f.description.trim()
 			});
-			// Newly created issue has no running agent
 			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null }];
-			showModal = false;
-			resetForm();
-		} catch (err) {
-			formError = err instanceof Error ? err.message : 'Failed to create issue';
-		} finally {
-			submitting = false;
-		}
+		});
 	}
 
 </script>
@@ -191,7 +166,7 @@
 			</p>
 		</div>
 		<button
-			onclick={() => (showModal = true)}
+			onclick={() => form.show()}
 			class="px-3 py-2 md:py-1.5 bg-surface border border-edge text-primary text-xs font-medium rounded hover:border-edge-hi hover:bg-surface-hi transition-colors uppercase tracking-wide flex-shrink-0 min-h-[44px] md:min-h-0"
 		>
 			+ New Issue
@@ -343,7 +318,7 @@
 				<p class="text-primary text-lg font-semibold mb-1">No issues yet</p>
 				<p class="text-muted text-sm mb-6">Create your first issue to get started</p>
 				<button
-					onclick={() => (showModal = true)}
+					onclick={() => form.show()}
 					class="px-4 py-3 md:py-2 bg-surface border border-edge text-primary text-sm rounded hover:border-edge-hi hover:bg-surface-hi transition-colors uppercase tracking-wide min-h-[44px]"
 				>
 					+ Create Issue
@@ -507,11 +482,11 @@
 </div>
 
 <!-- New Issue Modal -->
-<Modal open={showModal} onClose={closeModal} label="New Issue">
+<Modal open={form.open} onClose={() => form.close()} label="New Issue">
 	<div class="flex items-center justify-between mb-5">
 		<h2 class="text-primary font-bold uppercase tracking-wide text-sm">New Issue</h2>
 		<button
-			onclick={closeModal}
+			onclick={() => form.close()}
 			class="text-muted hover:text-primary transition-colors text-xl leading-none"
 			aria-label="Close modal"
 		>
@@ -526,7 +501,7 @@
 			</label>
 			<input
 				id="issue-title"
-				bind:value={newTitle}
+				bind:value={form.fields.title}
 				required
 				placeholder="e.g. Fix authentication bug"
 				class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors"
@@ -542,7 +517,7 @@
 			</label>
 			<textarea
 				id="issue-description"
-				bind:value={newDescription}
+				bind:value={form.fields.description}
 				required
 				rows="4"
 				placeholder="Describe the issue… (Markdown supported)"
@@ -550,22 +525,22 @@
 			></textarea>
 		</div>
 
-		{#if formError}
-			<p class="text-red text-xs">{formError}</p>
+		{#if form.error}
+			<p class="text-red text-xs">{form.error}</p>
 		{/if}
 
 		<div class="flex gap-3 pt-1">
 			<button
 				type="submit"
-				disabled={submitting}
+				disabled={form.submitting}
 				class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
 			>
-				{submitting ? 'Creating…' : 'Create Issue'}
+				{form.submitting ? 'Creating…' : 'Create Issue'}
 			</button>
 			<button
 				type="button"
-				onclick={closeModal}
-				disabled={submitting}
+				onclick={() => form.close()}
+				disabled={form.submitting}
 				class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors disabled:opacity-50"
 			>
 				Cancel

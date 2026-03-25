@@ -19,6 +19,7 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import { createFormState } from '$lib/utils/form.js';
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
@@ -28,14 +29,8 @@
 	let loading = $state(true);
 
 	// Modal state
-	let showModal = $state(false);
 	let editingEntry = $state<ProjectKnowledge | null>(null);
-	let formTitle = $state('');
-	let formCategory = $state('');
-	let formContent = $state('');
-	let formAgents = $state<string[]>([]);
-	let submitting = $state(false);
-	let formError = $state('');
+	const form = createFormState({ title: '', category: '', content: '', agents: [] as string[] });
 
 	// Delete confirmation
 	let confirmingDeleteId = $state<string | null>(null);
@@ -118,73 +113,58 @@
 
 	function openCreate() {
 		editingEntry = null;
-		formTitle = '';
-		formCategory = '';
-		formContent = '';
-		formAgents = [];
-		formError = '';
-		showModal = true;
+		form.show();
 	}
 
 	function openEdit(entry: ProjectKnowledge) {
 		editingEntry = entry;
-		formTitle = entry.title;
-		formCategory = entry.category;
-		formContent = entry.content;
-		formAgents = [...entry.agents];
-		formError = '';
-		showModal = true;
+		form.show({
+			title: entry.title,
+			category: entry.category,
+			content: entry.content,
+			agents: [...entry.agents]
+		});
 	}
 
 	function closeModal() {
-		if (!submitting) {
-			showModal = false;
-			editingEntry = null;
-		}
+		form.close();
+		if (!form.open) editingEntry = null;
 	}
 
 	function toggleAgent(agentId: string) {
-		if (formAgents.includes(agentId)) {
-			formAgents = formAgents.filter(id => id !== agentId);
+		if (form.fields.agents.includes(agentId)) {
+			form.fields = { ...form.fields, agents: form.fields.agents.filter(id => id !== agentId) };
 		} else {
-			formAgents = [...formAgents, agentId];
+			form.fields = { ...form.fields, agents: [...form.fields.agents, agentId] };
 		}
 	}
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
-		if (!formTitle.trim() || !formContent.trim()) return;
+		if (!form.fields.title.trim() || !form.fields.content.trim()) return;
 
-		submitting = true;
-		formError = '';
-
-		try {
+		await form.submit(async (f) => {
 			if (editingEntry) {
 				const updated = await updateKnowledge(projectId, editingEntry.id, {
-					title: formTitle.trim(),
-					category: formCategory.trim(),
-					content: formContent,
-					agents: formAgents
+					title: f.title.trim(),
+					category: f.category.trim(),
+					content: f.content,
+					agents: f.agents
 				});
 				knowledge = knowledge.map(k => k.id === updated.id ? updated : k);
 				toastStore.add('Knowledge entry updated', 'success');
 			} else {
 				const created = await createKnowledge(projectId, {
-					title: formTitle.trim(),
-					category: formCategory.trim(),
-					content: formContent,
-					agents: formAgents
+					title: f.title.trim(),
+					category: f.category.trim(),
+					content: f.content,
+					agents: f.agents
 				});
 				knowledge = [...knowledge, created];
 				toastStore.add('Knowledge entry created', 'success');
 			}
-			showModal = false;
 			editingEntry = null;
-		} catch (err) {
-			formError = err instanceof Error ? err.message : 'Failed to save';
-		} finally {
-			submitting = false;
-		}
+		});
 	}
 
 	async function handleDelete(id: string) {
@@ -402,7 +382,7 @@
 </div>
 
 <!-- Create/Edit Modal -->
-<Modal open={showModal} onClose={closeModal} label={editingEntry ? 'Edit Knowledge Entry' : 'New Knowledge Entry'}>
+<Modal open={form.open} onClose={closeModal} label={editingEntry ? 'Edit Knowledge Entry' : 'New Knowledge Entry'}>
 	<div class="flex items-center justify-between mb-5">
 		<h2 class="text-primary font-bold uppercase tracking-wide text-sm">
 			{editingEntry ? 'Edit Entry' : 'New Entry'}
@@ -423,7 +403,7 @@
 			</label>
 			<input
 				id="knowledge-title"
-				bind:value={formTitle}
+				bind:value={form.fields.title}
 				required
 				placeholder="e.g. API Authentication Guide"
 				class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors"
@@ -436,7 +416,7 @@
 			</label>
 			<input
 				id="knowledge-category"
-				bind:value={formCategory}
+				bind:value={form.fields.category}
 				placeholder="e.g. architecture, conventions, api"
 				class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors"
 			/>
@@ -448,7 +428,7 @@
 			</label>
 			<textarea
 				id="knowledge-content"
-				bind:value={formContent}
+				bind:value={form.fields.content}
 				required
 				rows="8"
 				placeholder="Enter knowledge content... (Markdown supported)"
@@ -466,7 +446,7 @@
 					<button
 						type="button"
 						onclick={() => toggleAgent(agent.id)}
-						class="px-2.5 py-1 text-xs rounded border transition-colors {formAgents.includes(agent.id)
+						class="px-2.5 py-1 text-xs rounded border transition-colors {form.fields.agents.includes(agent.id)
 							? 'bg-cyan/10 border-cyan text-cyan'
 							: 'border-edge text-muted hover:border-edge-hi hover:text-secondary'}"
 					>
@@ -476,22 +456,22 @@
 			</div>
 		</div>
 
-		{#if formError}
-			<p class="text-red text-xs">{formError}</p>
+		{#if form.error}
+			<p class="text-red text-xs">{form.error}</p>
 		{/if}
 
 		<div class="flex gap-3 pt-1">
 			<button
 				type="submit"
-				disabled={submitting}
+				disabled={form.submitting}
 				class="flex-1 py-2 bg-cyan/10 border border-cyan text-cyan text-sm font-medium rounded hover:bg-cyan/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
 			>
-				{submitting ? 'Saving...' : (editingEntry ? 'Update Entry' : 'Create Entry')}
+				{form.submitting ? 'Saving...' : (editingEntry ? 'Update Entry' : 'Create Entry')}
 			</button>
 			<button
 				type="button"
 				onclick={closeModal}
-				disabled={submitting}
+				disabled={form.submitting}
 				class="px-4 py-2 bg-surface border border-edge text-secondary text-sm rounded hover:border-edge-hi transition-colors disabled:opacity-50"
 			>
 				Cancel
