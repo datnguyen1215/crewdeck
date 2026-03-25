@@ -5,6 +5,7 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { WsEventMap } from '$lib/api/types.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { RUN_STATUS_CFG } from '$lib/config/status.js';
 
 	let { projectId, issueId }: { projectId: string; issueId: string } = $props();
 
@@ -18,14 +19,6 @@
 
 	// Live streaming events for active runs
 	let liveEvents = $state<Map<string, AgentRunEvent[]>>(new Map());
-
-	const STATUS_CFG: Record<string, { label: string; class: string; pulse?: boolean }> = {
-		queued: { label: 'Queued', class: 'text-muted border-edge' },
-		running: { label: 'Running', class: 'text-green border-green', pulse: true },
-		completed: { label: 'Completed', class: 'text-cyan border-cyan' },
-		failed: { label: 'Failed', class: 'text-red border-red' },
-		timeout: { label: 'Timeout', class: 'text-amber border-amber' }
-	};
 
 	$effect(() => {
 		loadRuns();
@@ -242,7 +235,7 @@
 {:else}
 	<div class="flex flex-col gap-2">
 		{#each runs as run (run.id)}
-			{@const cfg = STATUS_CFG[run.status] ?? STATUS_CFG.queued}
+			{@const cfg = RUN_STATUS_CFG[run.status] ?? RUN_STATUS_CFG.queued}
 			<div class="border border-edge rounded overflow-hidden">
 				<button
 					onclick={() => toggleExpand(run.id)}
