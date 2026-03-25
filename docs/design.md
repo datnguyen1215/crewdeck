@@ -265,6 +265,7 @@ Captain is split into two independent services that run concurrently per project
   - `run.recovered` (issue needs attention after server restart)
   - `pr.status_changed` (from PR poller)
   - `comment.added` (user comments only)
+  - `project.settings_changed` (project configuration updates — e.g., `auto_merge_enabled`, `max_concurrency`)
   - `idle.check` (configurable per-project idle timeout)
 - Has its own queue namespace (`monitor:{projectId}`) — a long monitor batch won't block user chat, and vice versa.
 - Event batching: accumulates events while processing, drains all pending events at once.

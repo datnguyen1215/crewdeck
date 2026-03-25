@@ -1478,6 +1478,12 @@ All events follow this structure:
 | `monitor.tool_result`    | Monitor tool execution completed           | `{ project_id, tool_name, result }`       |
 | `monitor.complete`       | Monitor finished processing                | `{ project_id, response }`                |
 
+#### Project Events
+
+| Event                      | Description               | Data          |
+| -------------------------- | ------------------------- | ------------- |
+| `project.settings_changed` | Project settings modified | `{ changes }` |
+
 #### Chat Events (Legacy)
 
 These events are emitted for backward compatibility. Prefer the `captain.chat.*` events above.
