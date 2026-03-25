@@ -254,10 +254,11 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - `add_comment(issue_id, content)`
   - `scan_codebase()` — trigger librarian
   - `list_knowledge()`, `create_knowledge()`, `update_knowledge()`, `delete_knowledge()`
-- Decision priorities (encoded in system prompt):
-  1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status and `auto_merge_enabled` is true
+- Decision priorities (encoded in system prompt, conditional on `auto_merge_enabled`):
+  1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status (when `auto_merge_enabled` is true); otherwise, **Report ready PRs** — note they are ready for manual merge
   2. **Fix broken PRs** — dispatch engineer for `pr_conflict` or `pr_failed_actions`
   3. **Start new work** — dispatch appropriate agent on open issues when capacity allows
+- When `auto_merge_enabled` is false, the merge tool is excluded from Admiral's available actions and a constraint is added preventing merge attempts.
 - Task-type reasoning: Admiral analyzes each issue and decides which agents to dispatch based on task type (research → librarian, docs-only → docs, code change → engineer then lead, etc.).
 - Uses OAuth token from the project's linked GitHub account for merging and PR creation.
 
