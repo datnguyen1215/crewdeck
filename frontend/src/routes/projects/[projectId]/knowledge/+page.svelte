@@ -19,7 +19,7 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
-	import { createFormState } from '$lib/utils/form.js';
+	import { createFormState } from '$lib/utils/form.svelte.js';
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);

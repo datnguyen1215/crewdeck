@@ -7,7 +7,7 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { WsEventMap } from '$lib/api/types.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
-	import { createFormState } from '$lib/utils/form.js';
+	import { createFormState } from '$lib/utils/form.svelte.js';
 	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
 	import ActivityDetails from '$lib/components/ActivityDetails.svelte';
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';

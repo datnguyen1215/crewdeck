@@ -8,7 +8,7 @@
 	import { STATUS_CFG } from '$lib/config/status.js';
 	import { parseUTC, relTimeDiff } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
-	import { createFormState } from '$lib/utils/form.js';
+	import { createFormState } from '$lib/utils/form.svelte.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	const getAgents = getContext<() => Agent[]>('agents');
