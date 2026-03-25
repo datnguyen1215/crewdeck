@@ -16,7 +16,7 @@ The backend exposes a REST API for CRUD operations and a WebSocket server for re
 
 **Configuration:** Port and other settings are configured via environment variables (`.env` file).
 
-**Validation:** All request bodies are validated with Zod schemas. Invalid requests return a `VALIDATION_ERROR` response.
+**Validation:** All request bodies are validated with Zod schemas. Issue and PR status fields are validated as enums against the centralized status constants defined in `backend/src/constants/statuses.ts`. Invalid requests return a `VALIDATION_ERROR` response.
 
 ## REST API
 
@@ -1122,7 +1122,7 @@ Captain dispatches a sub-agent to work on an issue. This is used exclusively by 
 
 ## Status Transition Rules
 
-Issue status changes are validated to ensure a valid lifecycle:
+Issue status changes are validated to ensure a valid lifecycle. All status values and the transition map are defined centrally in `backend/src/constants/statuses.ts` (`IssueStatus`, `PRStatus`, `TRANSITIONS`):
 
 | From              | Allowed Transitions                                                  |
 | ----------------- | -------------------------------------------------------------------- |

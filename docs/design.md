@@ -185,7 +185,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 **Backend (Node.js + TypeScript)**
 
 - Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, issues, comments; crew is read-only (fixed constants).
-- All request validation via Zod schemas.
+- All request validation via Zod schemas. Issue and PR status fields use Zod enum validation against centralized constants (`backend/src/constants/statuses.ts`).
 - Centralized error handling middleware (all errors formatted as `{ error: { code, message, details } }`).
 - Runs WebSocket server (`ws` library) to push real-time events to the frontend.
 - In-process event bus (typed EventEmitter) for decoupled internal communication between components.
