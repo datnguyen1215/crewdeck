@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getContext, tick, onMount } from 'svelte';
-	import { listActiveRuns, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project } from '$lib/api/http.js';
+	import { getContext, onMount } from 'svelte';
+	import { listActiveRuns, getProject, getMonitorHistory, type ActiveRun, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { MonitorEntry, WsEventMap } from '$lib/api/types.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -16,12 +16,9 @@
 	let isAnalyzing = $state(false);
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
-	const getAgents = getContext<() => Agent[]>('agents');
-
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
 	let runs = $state<ActiveRun[]>([]);
-	let agents = $derived(getAgents());
 	let loading = $state(true);
 
 	// Load active runs and project info
@@ -477,19 +474,6 @@
 				</div>
 			{/each}
 
-			<!-- Show idle agents when no runs -->
-			{#if runs.length === 0 && agents.length > 0}
-				{#each agents.filter(a => a.id !== 'captain' && a.id !== 'librarian') as agent (agent.id)}
-					<div class="bg-surface border border-edge rounded-lg px-4 py-3 text-left fade-up">
-						<div class="flex items-center gap-2 mb-1">
-							<span class="w-2 h-2 rounded-full bg-muted flex-shrink-0"></span>
-							<span class="text-sm font-medium text-secondary">{agent.name}</span>
-						</div>
-						<p class="text-xs text-muted">{agent.title}</p>
-						<span class="inline-block mt-2 text-[10px] uppercase tracking-wider text-muted border border-edge rounded px-1.5 py-0.5">Idle</span>
-					</div>
-				{/each}
-			{/if}
-		{/if}
+	{/if}
 	</div>
 </div>
