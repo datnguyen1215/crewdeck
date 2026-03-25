@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Comment, ActivityLog, AgentRun, AgentRunEvent } from '$lib/api/http.js';
 	import { getRun } from '$lib/api/http.js';
+	import { untrack } from 'svelte';
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
@@ -106,6 +107,8 @@
 		loadingEvents = true;
 		try {
 			const full = await getRun(projectId, runId);
+			// Guard against stale responses if the user clicked a different run before this resolved
+			if (expandedRun !== runId) return;
 			const apiEvents = full.events;
 			const live = liveEvents.get(runId) ?? [];
 			const apiEventIds = new Set(apiEvents.map(e => e.id));
@@ -118,6 +121,19 @@
 			loadingEvents = false;
 		}
 	}
+
+	// Live-update inline expanded run events when new run events stream in
+	$effect(() => {
+		if (!expandedRun) return;
+		const live = liveEvents.get(expandedRun) ?? [];
+		if (live.length === 0) return;
+		// Use untrack to read expandedEvents without creating a reactive dependency
+		const existingIds = new Set(untrack(() => expandedEvents).map(e => e.id));
+		const newEvents = live.filter(e => !existingIds.has(e.id));
+		if (newEvents.length > 0) {
+			expandedEvents = [...untrack(() => expandedEvents), ...newEvents];
+		}
+	});
 
 	function formatDuration(ms: number | null): string {
 		if (ms === null) return '-';
