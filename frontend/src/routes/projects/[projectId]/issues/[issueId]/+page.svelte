@@ -101,6 +101,75 @@
 		});
 	}
 
+	// Match runs to mention.spawned activity by agent_id and started_at timestamp
+	function findRunForSpawnedActivity(activity: ActivityLog): AgentRun | undefined {
+		if (activity.action !== 'mention.spawned') return undefined;
+		const details = activity.details as Record<string, unknown>;
+		const agentId = details.agent_id as string | undefined;
+		if (!agentId) return undefined;
+
+		const activityTime = parseUTC(activity.created_at).getTime();
+		return runs.find(r => {
+			if (r.agent_id !== agentId) return false;
+			if (!r.started_at) return false;
+			const runTime = parseUTC(r.started_at).getTime();
+			return Math.abs(runTime - activityTime) < 60000;
+		});
+	}
+
+	// Run detail modal state
+	let viewRunModalOpen = $state(false);
+	let viewRunModalRun = $state<AgentRun | null>(null);
+	let viewRunModalEvents = $state<AgentRunEvent[]>([]);
+	let viewRunModalLoading = $state(false);
+
+	async function openRunModal(run: AgentRun) {
+		viewRunModalRun = run;
+		viewRunModalOpen = true;
+		viewRunModalLoading = true;
+		try {
+			const full = await getRun(projectId, run.id);
+			const apiEvents = full.events;
+			const live = liveEvents.get(run.id) ?? [];
+			const apiEventIds = new Set(apiEvents.map(e => e.id));
+			const newLiveEvents = live.filter(e => !apiEventIds.has(e.id));
+			viewRunModalEvents = [...apiEvents, ...newLiveEvents];
+		} catch {
+			viewRunModalEvents = liveEvents.get(run.id) ?? [];
+		} finally {
+			viewRunModalLoading = false;
+		}
+	}
+
+	// Live-update modal events when new run events stream in
+	$effect(() => {
+		if (!viewRunModalOpen || !viewRunModalRun) return;
+		const live = liveEvents.get(viewRunModalRun.id) ?? [];
+		if (live.length === 0) return;
+		const existingIds = new Set(viewRunModalEvents.map(e => e.id));
+		const newEvents = live.filter(e => !existingIds.has(e.id));
+		if (newEvents.length > 0) {
+			viewRunModalEvents = [...viewRunModalEvents, ...newEvents];
+		}
+	});
+
+	// Keep modal run status in sync
+	$effect(() => {
+		if (!viewRunModalOpen || !viewRunModalRun) return;
+		const updated = runs.find(r => r.id === viewRunModalRun!.id);
+		if (updated && updated.status !== viewRunModalRun!.status) {
+			viewRunModalRun = updated;
+		}
+	});
+
+	const RUN_STATUS_DOT: Record<string, { dot: string; class: string; pulse?: boolean }> = {
+		queued: { dot: '●', class: 'text-amber', pulse: false },
+		running: { dot: '●', class: 'text-green', pulse: true },
+		completed: { dot: '●', class: 'text-cyan' },
+		failed: { dot: '●', class: 'text-red' },
+		timeout: { dot: '●', class: 'text-amber' }
+	};
+
 	const STATUS_CFG: Record<string, { label: string; class: string; pulse?: boolean }> = {
 		queued: { label: 'Queued', class: 'text-muted border-edge' },
 		running: { label: 'Running', class: 'text-green border-green', pulse: true },
@@ -700,6 +769,7 @@
 											{@const expandable = hasExpandableDetails(entry)}
 											{@const isExp = activityExpanded.has(entry.id)}
 											{@const matchedRun = findRunForActivity(entry)}
+											{@const spawnedRun = findRunForSpawnedActivity(entry)}
 											<div
 												class="flex gap-3 pb-4 relative"
 												style="animation: fade-up 0.2s ease both; animation-delay: {Math.min(i * 25, 200)}ms"
@@ -715,6 +785,10 @@
 												<div class="flex-1 min-w-0 pt-0.5">
 													<div class="flex items-center gap-2 mb-0.5 flex-wrap">
 														<span class="text-xs font-semibold {cfg.color}">{actorName(entry)}</span>
+														{#if spawnedRun}
+															{@const dotCfg = RUN_STATUS_DOT[spawnedRun.status] ?? RUN_STATUS_DOT.queued}
+															<span class="text-[10px] {dotCfg.class}" class:animate-pulse={dotCfg.pulse} title={spawnedRun.status}>{dotCfg.dot}</span>
+														{/if}
 														<span class="text-muted text-xs font-mono" title={parseUTC(entry.created_at).toLocaleString()}>
 															{relTime(entry.created_at)}
 														</span>
@@ -722,6 +796,17 @@
 
 													<p class="text-secondary text-sm">{actionLabel(entry)}</p>
 
+
+													<!-- View Run link for mention.spawned -->
+													{#if spawnedRun}
+														<button
+															onclick={() => openRunModal(spawnedRun)}
+															class="mt-1 text-xs text-muted hover:text-cyan transition-colors flex items-center gap-1"
+														>
+															<span class="font-mono text-[10px]">▸</span>
+															<span>View</span>
+														</button>
+													{/if}
 													<!-- Agent run summary for mention.completed -->
 													{#if matchedRun}
 														{@const runCfg = STATUS_CFG[matchedRun.status] ?? STATUS_CFG.queued}
@@ -845,6 +930,39 @@
 		<button onclick={() => deletingCommentId = null} class="px-4 py-2 text-sm border border-edge text-secondary rounded hover:text-primary transition-colors">Cancel</button>
 		<button onclick={confirmDeleteComment} disabled={commentWorking} class="px-4 py-2 text-sm bg-red text-white rounded hover:bg-red/80 transition-colors disabled:opacity-50">Delete</button>
 	</div>
+</Modal>
+
+<Modal open={viewRunModalOpen} onClose={() => { viewRunModalOpen = false; viewRunModalRun = null; viewRunModalEvents = []; }} label="View Run" maxWidth="max-w-2xl">
+	{#if viewRunModalRun}
+		{@const runCfg = STATUS_CFG[viewRunModalRun.status] ?? STATUS_CFG.queued}
+		<div class="flex items-center gap-3 mb-4">
+			<h2 class="text-lg font-semibold text-primary">Run Details</h2>
+			<span class="text-xs px-1.5 py-0.5 rounded border {runCfg.class}" class:animate-pulse={runCfg.pulse}>{runCfg.label}</span>
+			<span class="text-xs text-muted ml-auto">{formatDuration(viewRunModalRun.duration_ms)} | {formatCost(viewRunModalRun.cost_usd)}</span>
+		</div>
+		<div class="max-h-96 overflow-y-auto border border-edge rounded p-3 bg-base">
+			{#if viewRunModalLoading}
+				<div class="animate-pulse text-xs text-muted">Loading events...</div>
+			{:else if viewRunModalEvents.length === 0}
+				<p class="text-xs text-muted">No events recorded.</p>
+			{:else}
+				<div class="flex flex-col gap-2 text-xs">
+					{#each viewRunModalEvents as event (event.id)}
+						<div class="flex gap-2">
+							<span class="shrink-0 w-20 text-muted font-mono">{event.type}</span>
+							<span class="text-secondary break-all">{renderEventContent(event)}</span>
+						</div>
+					{/each}
+					{#if viewRunModalRun.status === 'running'}
+						<div class="flex gap-2 animate-pulse">
+							<span class="shrink-0 w-20 text-green font-mono">...</span>
+							<span class="text-green">Processing</span>
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	{/if}
 </Modal>
 
 <style>
