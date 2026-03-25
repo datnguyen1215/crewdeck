@@ -282,7 +282,7 @@ Internal table that tracks which database migrations have been applied. Used by 
 | name       | TEXT     | NOT NULL, UNIQUE                    | Migration identifier (e.g., `001_add_agent_timeout_minutes`). |
 | applied_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the migration was applied.                               |
 
-**Note:** This is an internal system table. On fresh databases, all migrations are seeded as applied since `schema.sql` already contains the final schema. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF` to prevent cascading deletes.
+**Note:** This is an internal system table. All migrations run idempotently on every startup — each migration checks whether its changes are already present before executing, so they are safe to run on both fresh and existing databases. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF` to prevent cascading deletes.
 
 ---
 
