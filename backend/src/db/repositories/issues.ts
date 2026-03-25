@@ -65,6 +65,23 @@ export function getIssue(id: string): Issue | null {
   );
 }
 
+/**
+ * Find an issue by ID prefix within a project.
+ * Used when the Monitor LLM outputs truncated issue IDs.
+ * Returns null if zero or multiple matches (ambiguous).
+ */
+export function getIssueByPrefix(
+  prefix: string,
+  projectId: string,
+): Issue | null {
+  const rows = db
+    .prepare(
+      "SELECT * FROM Issue WHERE id LIKE ? || '%' AND project_id = ? LIMIT 2",
+    )
+    .all(prefix, projectId) as Issue[];
+  return rows.length === 1 ? rows[0] : null;
+}
+
 export function getIssueWithDetails(id: string): IssueWithDetails | null {
   const issue = getIssue(id);
   if (!issue) return null;

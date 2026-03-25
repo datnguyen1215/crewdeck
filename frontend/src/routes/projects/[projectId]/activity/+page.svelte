@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listActivity, listIssues, listAgents, getProject, type ActivityLog, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
+	import { listActivity, listIssues, getProject, type ActivityLog, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { ACTOR_CFG, ACTION_DISPLAY } from '$lib/activity.js';
@@ -11,6 +11,7 @@
 	type ActivityEntry = ActivityLog;
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+	const getAgents = getContext<() => Agent[]>('agents');
 
 	// Client-side pagination over fetched entries.
 	const PAGE_SIZE = 50;
@@ -20,7 +21,7 @@
 	let pageTitle = $derived(project?.name ? `Activity - ${project.name} - CrewDeck` : 'Activity - CrewDeck');
 	let allEntries = $state<ActivityEntry[]>([]);
 	let issues = $state<IssueWithRunningAgent[]>([]);
-	let agents = $state<Agent[]>([]);
+	let agents = $derived(getAgents());
 	let loading = $state(true);
 	let visibleCount = $state(PAGE_SIZE);
 
@@ -54,8 +55,8 @@
 
 	$effect(() => {
 		let cancelled = false;
-		Promise.all([listAgents(), getProject(projectId)])
-			.then(([a, p]) => { if (!cancelled) { agents = a; project = p; } })
+		getProject(projectId)
+			.then((p) => { if (!cancelled) project = p; })
 			.catch(() => {});
 		return () => { cancelled = true; };
 	});

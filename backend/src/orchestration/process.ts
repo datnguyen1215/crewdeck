@@ -11,6 +11,7 @@ export interface SpawnOpts {
   systemPrompt: string;
   workdir: string;
   env?: Record<string, string>;
+  model?: string;
 }
 
 /** Image content for multimodal messages */
@@ -37,6 +38,7 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
     "json",
     "--dangerously-skip-permissions",
   ];
+  if (opts.model) args.push("--model", opts.model);
 
   const child = spawn("claude", args, {
     cwd: opts.workdir,
@@ -135,6 +137,7 @@ export async function spawnClaudeStream(
     "stream-json",
     "--dangerously-skip-permissions",
   ];
+  if (opts.model) args.push("--model", opts.model);
 
   const child = spawn("claude", args, {
     cwd: opts.workdir,
@@ -218,6 +221,7 @@ export interface MultimodalSpawnOpts {
   systemPrompt: string;
   workdir: string;
   env?: Record<string, string>;
+  model?: string;
 }
 
 /**
@@ -270,6 +274,7 @@ export async function spawnClaudeMultimodal(
     "json",
     "--dangerously-skip-permissions",
   ];
+  if (opts.model) args.push("--model", opts.model);
 
   const child = spawn("claude", args, {
     cwd: opts.workdir,

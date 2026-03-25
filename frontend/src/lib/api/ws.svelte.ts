@@ -1,3 +1,5 @@
+import type { WsEventMap } from "./types.js";
+
 function wsBase(): string {
   const backendUrl: string =
     import.meta.env.VITE_BACKEND_URL ||
@@ -7,47 +9,15 @@ function wsBase(): string {
   return `${protocol}//${location.host}`;
 }
 
-export type WsEvent =
-  | "issue.created"
-  | "issue.updated"
-  | "issue.status_changed"
-  | "comment.added"
-  | "comment.updated"
-  | "comment.deleted"
-  | "pr.created"
-  | "pr.status_changed"
-  | "mention.spawned"
-  | "mention.completed"
-  | "mention.error"
-  | "mention.chain_depth_reached"
-  | "dispatch.queued"
-  | "dispatch.dequeued"
-  | "run.started"
-  | "run.event"
-  | "run.completed"
-  | "chat.stream"
-  | "chat.complete"
-  | "captain.thinking"
-  | "captain.message"
-  | "captain.complete"
-  | "captain.chat.chunk"
-  | "captain.chat.tool_call"
-  | "captain.chat.tool_result"
-  | "captain.chat.complete"
-  | "monitor.event_received"
-  | "monitor.thinking"
-  | "monitor.message"
-  | "monitor.tool_call"
-  | "monitor.tool_result"
-  | "monitor.complete";
+export type WsEvent = keyof WsEventMap;
 
-export interface WsMessage {
-  event: WsEvent;
-  data: Record<string, unknown>;
+export interface WsMessage<E extends WsEvent = WsEvent> {
+  event: E;
+  data: WsEventMap[E];
   timestamp: string;
 }
 
-type Handler = (data: Record<string, unknown>) => void;
+type Handler = (data: any) => void;
 
 export type WsState =
   | "connecting"
@@ -88,7 +58,12 @@ export class ProjectWebSocket {
     this.state = "disconnected";
   }
 
-  on(event: WsEvent | "*", handler: Handler) {
+  on<E extends WsEvent>(
+    event: E,
+    handler: (data: WsEventMap[E]) => void,
+  ): () => void;
+  on(event: "*", handler: (data: Record<string, unknown>) => void): () => void;
+  on(event: string, handler: Handler) {
     let set = this.#listeners.get(event);
     if (!set) {
       set = new Set();
@@ -127,9 +102,13 @@ export class ProjectWebSocket {
     this.#ws = ws;
   }
 
-  #dispatch(event: WsEvent, data: Record<string, unknown>) {
+  #dispatch(event: WsEvent, data: WsEventMap[WsEvent]) {
     this.#listeners.get(event)?.forEach((h) => h(data));
-    this.#listeners.get("*")?.forEach((h) => h({ ...data, _event: event }));
+    this.#listeners
+      .get("*")
+      ?.forEach((h) =>
+        h({ ...(data as Record<string, unknown>), _event: event }),
+      );
   }
 
   #scheduleReconnect() {

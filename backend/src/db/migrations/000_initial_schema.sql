@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS Project (
   auto_merge INTEGER NOT NULL DEFAULT 0,
   captain_idle_timeout_ms INTEGER,
   memory TEXT,
+  model TEXT NOT NULL DEFAULT 'sonnet',
   github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -182,6 +183,15 @@ CREATE TABLE IF NOT EXISTS ChatMessage (
 CREATE INDEX IF NOT EXISTS idx_chat_message_project ON ChatMessage(project_id);
 CREATE INDEX IF NOT EXISTS idx_chat_message_session ON ChatMessage(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_message_created ON ChatMessage(project_id, created_at DESC);
+
+-- Per-agent model overrides
+CREATE TABLE IF NOT EXISTS AgentConfig (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
+  agent_id TEXT NOT NULL,
+  model TEXT,
+  UNIQUE(project_id, agent_id)
+);
 
 -- Migration version tracking
 CREATE TABLE IF NOT EXISTS _migrations (

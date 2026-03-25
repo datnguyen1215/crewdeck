@@ -30,6 +30,7 @@ spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 | systemPrompt | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`. |
 | workdir      | string                 | Yes      | Absolute path to the git worktree.                                                       |
 | env          | Record<string, string> | No       | Additional environment variables.                                                        |
+| model        | string                 | No       | Claude model to use (`sonnet` or `opus`). Passed as `--model <model>` to the CLI.        |
 
 **SpawnResult:**
 
@@ -45,12 +46,14 @@ spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 claude -p <prompt> \
        --system-prompt-file <tmpfile> \
        --output-format json \
+       --model <model> \
        --dangerously-skip-permissions
 ```
 
 - `--output-format json` causes Claude to return a JSON object with a `result` field containing the response text, plus cost and duration metadata.
 - The system prompt is written to a temp file and cleaned up after the process exits.
 - `--dangerously-skip-permissions` allows the agent to operate autonomously.
+- `--model <model>` is included when a model is specified (resolved via AgentConfig override → project default → `"sonnet"`).
 
 ### spawnClaudeStream
 
@@ -76,6 +79,7 @@ claude -p <prompt via stdin> \
        --verbose \
        --system-prompt-file <tmpfile> \
        --output-format stream-json \
+       --model <model> \
        --dangerously-skip-permissions
 ```
 
@@ -112,9 +116,21 @@ events arrive (issue.created, run.completed, etc.)
     │
     └── Backend executes plan via plan-executor.ts
             ├── Validate action plan with Zod schemas
+            ├── Resolve truncated issue IDs to full UUIDs (see below)
             ├── Execute dispatch actions in parallel (Promise.all)
             └── Execute other actions sequentially
 ```
+
+### Truncated Issue ID Resolution
+
+The Monitor LLM sometimes outputs truncated 8-character issue ID prefixes (e.g. `3d97b21f`) instead of full UUIDs, because it sees short ID references in event data and comments (e.g. `#3d97b21f`). The plan executor resolves these before executing any action:
+
+1. Try exact match via `getIssue(id)`.
+2. If no match and the ID is shorter than 36 characters (full UUID length) but at least 8 characters, try a `LIKE prefix%` query scoped to the project via `getIssueByPrefix(prefix, projectId)`.
+3. The prefix query returns a match only if exactly one issue matches (ambiguous prefixes return null).
+4. If resolution fails, the action is rejected with an error result.
+
+This resolution is applied to all action types that take an `issue_id` (dispatch, merge, comment, update-issue, skip).
 
 ### Action Types
 
@@ -276,5 +292,7 @@ Every invocation gets a complete, self-contained prompt from the database. The b
 ## Startup and Shutdown
 
 **Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed`, posts a system comment on each affected issue, and emits `run.recovered` events.
+
+**Spawn failure handling:** If `spawnClaudeStream()` throws during `spawnAndTrack()` (e.g., process cannot be created), the `AgentRun` record is immediately marked `failed` with a `completed_at` timestamp, `onComplete()` is called for cleanup (e.g., SSH key removal), and the error is re-thrown. This prevents runs from being permanently stuck in `running` with a null PID, which would block further work on the issue.
 
 **Shutdown:** `shutdownMentionHandler()` stops the batch cleanup interval, sends SIGTERM to all active processes, and clears the active-process and batch tracking maps.

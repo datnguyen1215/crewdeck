@@ -1,16 +1,17 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext, onMount } from 'svelte';
-	import { listProjectRuns, listAgents, listIssues, type AgentRun, type Agent, type Issue } from '$lib/api/http.js';
+	import { listProjectRuns, listIssues, type AgentRun, type Agent, type Issue } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { parseUTC } from '$lib/utils/time.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+	const getAgents = getContext<() => Agent[]>('agents');
 
 	let projectId = $derived($page.params.projectId!);
 	let open = $state(false);
 	let runs = $state<AgentRun[]>([]);
-	let agents = $state<Agent[]>([]);
+	let agents = $derived(getAgents());
 	let issues = $state<Issue[]>([]);
 	let loading = $state(true);
 
@@ -26,13 +27,11 @@
 
 	async function loadData() {
 		try {
-			const [r, a, i] = await Promise.all([
+			const [r, i] = await Promise.all([
 				listProjectRuns(projectId, { limit: 100 }),
-				listAgents(),
 				listIssues(projectId)
 			]);
 			runs = r;
-			agents = a;
 			issues = i;
 		} catch {
 			// Ignore errors

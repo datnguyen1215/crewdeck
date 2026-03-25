@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getContext, tick, onMount } from 'svelte';
-	import { listActiveRuns, listAgents, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project, type ChatMessage } from '$lib/api/http.js';
+	import { getContext, onMount } from 'svelte';
+	import { listActiveRuns, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project, type ChatMessage } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import type { WsEventMap } from '$lib/api/types.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import { md } from '$lib/utils/markdown.js';
+	import { autoscroll } from '$lib/utils/autoscroll.js';
 
 	// Monitor entry type for captain feed
 	interface MonitorEntry {
@@ -17,35 +19,29 @@
 		success?: boolean;
 	}
 
-	// Track scroll containers and their "at bottom" state (reactive maps)
-	let scrollContainers = $state<Map<string, HTMLElement>>(new Map());
-	let atBottom = $state<Map<string, boolean>>(new Map());
-
 	// Captain monitor state
 	let monitorEntries = $state<MonitorEntry[]>([]);
 	let monitorLoading = $state(true);
-	let monitorContainer: HTMLDivElement | undefined;
-	let monitorAtBottom = $state(true);
 	let isAnalyzing = $state(false);
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+	const getAgents = getContext<() => Agent[]>('agents');
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
 	let runs = $state<ActiveRun[]>([]);
-	let agents = $state<Agent[]>([]);
+	let agents = $derived(getAgents());
 	let loading = $state(true);
 
 	// Load active runs and project info
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
-		Promise.all([listActiveRuns(projectId), getProject(projectId), listAgents()])
-			.then(([r, p, a]) => {
+		Promise.all([listActiveRuns(projectId), getProject(projectId)])
+			.then(([r, p]) => {
 				if (cancelled) return;
 				runs = r;
 				project = p;
-				agents = a;
 			})
 			.catch(() => {})
 			.finally(() => { if (!cancelled) loading = false; });
@@ -67,7 +63,6 @@
 		try {
 			const history = await getMonitorHistory(projectId);
 			monitorEntries = history.map(mapMessageToEntry);
-			scrollMonitorToBottom();
 		} catch (err) {
 			console.error('Failed to load monitor history:', err);
 		} finally {
@@ -80,14 +75,13 @@
 		const ws = getWs();
 		if (!ws || monitorLoading) return;
 
-		const handleEventReceived = (data: Record<string, unknown>) => {
+		const handleEventReceived = (data: WsEventMap['monitor.event_received']) => {
 			monitorEntries = [...monitorEntries, {
 				id: crypto.randomUUID(),
 				type: 'event',
 				content: `${data.event_type} - ${data.description ?? ''}`,
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
 		const handleThinking = () => {
@@ -98,42 +92,38 @@
 				content: 'Analyzing...',
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
-		const handleMessage = (data: Record<string, unknown>) => {
+		const handleMessage = (data: WsEventMap['monitor.message']) => {
 			monitorEntries = [...monitorEntries, {
 				id: crypto.randomUUID(),
 				type: 'message',
-				content: data.content as string,
+				content: data.content,
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
-		const handleToolCall = (data: Record<string, unknown>) => {
+		const handleToolCall = (data: WsEventMap['monitor.tool_call']) => {
 			monitorEntries = [...monitorEntries, {
 				id: crypto.randomUUID(),
 				type: 'tool_call',
 				content: `${data.tool_name}`,
-				toolName: data.tool_name as string,
+				toolName: data.tool_name,
 				toolInput: data.tool_input,
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
-		const handleToolResult = (data: Record<string, unknown>) => {
+		const handleToolResult = (data: WsEventMap['monitor.tool_result']) => {
 			const result = data.result as { success: boolean; message: string } | undefined;
 			monitorEntries = [...monitorEntries, {
 				id: crypto.randomUUID(),
 				type: 'tool_result',
-				content: result?.message ?? String(data.message ?? ''),
-				toolName: data.tool_name as string,
+				content: result?.message ?? '',
+				toolName: data.tool_name,
 				success: result?.success ?? true,
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
 		const handleComplete = () => {
@@ -152,18 +142,6 @@
 
 		return () => unsubs.forEach((fn) => fn());
 	});
-
-	async function scrollMonitorToBottom() {
-		await tick();
-		if (monitorContainer && monitorAtBottom) {
-			monitorContainer.scrollTop = monitorContainer.scrollHeight;
-		}
-	}
-
-	function handleMonitorScroll(e: Event) {
-		const el = e.target as HTMLElement;
-		monitorAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
-	}
 
 	function formatMonitorTime(date: Date): string {
 		return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -204,23 +182,22 @@
 		const ws = getWs();
 		if (!ws) return;
 
-		const handleRunStarted = (data: Record<string, unknown>) => {
-			// Reload active runs when a new run starts
+		const handleRunStarted = () => {
 			listActiveRuns(projectId).then((r) => { runs = r; }).catch(() => {});
 		};
 
-		const handleRunEvent = (data: Record<string, unknown>) => {
-			const runId = data.agent_run_id as string;
+		const handleRunEvent = (data: WsEventMap['run.event']) => {
+			const runId = data.agent_run_id;
 			if (!runId) return;
-			const event = { id: crypto.randomUUID(), agent_run_id: runId, type: data.type as string, data: data.data, created_at: new Date().toISOString() };
+			const event = { id: crypto.randomUUID(), agent_run_id: runId, type: data.type, data: data.data, created_at: new Date().toISOString() };
 			runs = runs.map((r) => {
 				if (r.id !== runId) return r;
 				return { ...r, events: [...r.events.slice(-49), event] };
 			});
-		};
+			};
 
-		const handleRunCompleted = (data: Record<string, unknown>) => {
-			const runId = data.agent_run_id as string;
+		const handleRunCompleted = (data: WsEventMap['run.completed']) => {
+			const runId = data.agent_run_id;
 			runs = runs.filter((r) => r.id !== runId);
 		};
 
@@ -317,49 +294,6 @@
 		}
 	}
 
-	function handleScroll(runId: string, e: Event) {
-		const el = e.target as HTMLElement;
-		const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
-		atBottom = new Map(atBottom).set(runId, isAtBottom);
-	}
-
-	function scrollContainer(el: HTMLElement, runId: string) {
-		scrollContainers = new Map(scrollContainers).set(runId, el);
-		// Default to being at bottom for new containers
-		if (!atBottom.has(runId)) {
-			atBottom = new Map(atBottom).set(runId, true);
-		}
-		return {
-			destroy() {
-				const newContainers = new Map(scrollContainers);
-				newContainers.delete(runId);
-				scrollContainers = newContainers;
-				const newAtBottom = new Map(atBottom);
-				newAtBottom.delete(runId);
-				atBottom = newAtBottom;
-			}
-		};
-	}
-
-	// Derive total event count to ensure reactive dependency on event changes
-	let totalEventCount = $derived(runs.reduce((sum, r) => sum + r.events.length, 0));
-
-	// Auto-scroll when events change
-	$effect(() => {
-		// Access derived value to establish dependency
-		void totalEventCount;
-		// Scroll after DOM updates
-		tick().then(() => {
-			for (const run of runs) {
-				const container = scrollContainers.get(run.id);
-				const shouldScroll = atBottom.get(run.id) ?? true;
-				if (container && shouldScroll) {
-					container.scrollTop = container.scrollHeight;
-				}
-			}
-		});
-	});
-
 	function formatElapsed(startedAt: string | null): string {
 		if (!startedAt) return '0s';
 		const ms = Date.now() - new Date(startedAt).getTime();
@@ -440,8 +374,7 @@
 
 			<!-- Monitor feed -->
 			<div
-				bind:this={monitorContainer}
-				onscroll={handleMonitorScroll}
+				use:autoscroll
 				class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs bg-black/20"
 			>
 				{#if monitorLoading}
@@ -539,8 +472,7 @@
 					<!-- Live feed -->
 					<div
 						class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs space-y-2 bg-base"
-						use:scrollContainer={run.id}
-						onscroll={(e) => handleScroll(run.id, e)}
+						use:autoscroll
 					>
 						{#if run.events.length === 0}
 							<div class="text-muted italic py-8 text-center">

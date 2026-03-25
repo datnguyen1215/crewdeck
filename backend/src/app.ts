@@ -14,6 +14,7 @@ import environmentRouter from "./routes/environment.js";
 import runsRouter from "./routes/runs.js";
 import knowledgeRouter from "./routes/knowledge.js";
 import chatRouter from "./routes/chat.js";
+import agentConfigRouter from "./routes/agent-config.js";
 
 export interface CreateAppOpts {
   silent?: boolean;
@@ -44,6 +45,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/projects/:projectId/activity`, activityRouter);
   app.use(`${v1}/projects/:projectId/environment`, environmentRouter);
   app.use(`${v1}/projects/:projectId/knowledge`, knowledgeRouter);
+  app.use(`${v1}/projects/:projectId/agent-config`, agentConfigRouter);
   app.use(`${v1}/projects/:projectId`, chatRouter);
   app.use(`${v1}/internal`, internalRouter);
   app.use(`${v1}/github-accounts`, githubAccountsRouter);

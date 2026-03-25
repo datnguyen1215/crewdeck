@@ -49,6 +49,7 @@ Without `?stats`:
     "max_chain_depth": 20,
     "auto_start": false,
     "auto_merge": false,
+    "model": "sonnet",
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
@@ -68,6 +69,7 @@ With `?stats`:
     "max_chain_depth": 20,
     "auto_start": false,
     "auto_merge": false,
+    "model": "sonnet",
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601",
@@ -132,7 +134,11 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, auto_start, auto_merge, github_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, auto_start, auto_merge, model, github_account_id).
+
+| Field | Type | Description                                                        |
+| ----- | ---- | ------------------------------------------------------------------ |
+| model | TEXT | Default Claude model for agent spawning. One of: `sonnet`, `opus`. |
 
 **Response:** `200 OK` — The updated project object.
 
@@ -608,15 +614,15 @@ GET /projects/:projectId/runs/:runId
 
 Event `type` values are strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`, `system`, `error`). Events are **normalized** on retrieval — the nested Claude CLI format (`message.content[]` arrays) is flattened into a simpler structure:
 
-| Type          | Normalized `data` fields                                                                 |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| `assistant`   | `text` (string), `thinking` (string), `tool_use` (array of `{id, name, input}`)          |
-| `user`        | `text` (string), `tool_results` (array of `{tool_use_id, output, is_error?}`)            |
-| `tool_use`    | `tool_use` (array of `{id, name, input}`)                                                |
-| `tool_result` | `tool_results` (array of `{tool_use_id, output, is_error?}`)                             |
-| `system`      | `model` (string), `subtype` (string), `message` (string)                                 |
-| `result`      | `result` (string), `cost_usd` (number), `duration_ms` (number)                           |
-| `error`       | `error` (string)                                                                         |
+| Type          | Normalized `data` fields                                                        |
+| ------------- | ------------------------------------------------------------------------------- |
+| `assistant`   | `text` (string), `thinking` (string), `tool_use` (array of `{id, name, input}`) |
+| `user`        | `text` (string), `tool_results` (array of `{tool_use_id, output, is_error?}`)   |
+| `tool_use`    | `tool_use` (array of `{id, name, input}`)                                       |
+| `tool_result` | `tool_results` (array of `{tool_use_id, output, is_error?}`)                    |
+| `system`      | `model` (string), `subtype` (string), `message` (string)                        |
+| `result`      | `result` (string), `cost_usd` (number), `duration_ms` (number)                  |
+| `error`       | `error` (string)                                                                |
 
 Raw events are stored as-is in the database for debugging; normalization occurs only at retrieval time.
 
@@ -918,6 +924,69 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 
 ---
 
+### Agent Config
+
+Per-agent model overrides for a project. Allows configuring which Claude model (`sonnet` or `opus`) each agent uses, overriding the project default.
+
+#### List Agent Configs
+
+```
+GET /projects/:projectId/agent-config
+```
+
+**Response:** `200 OK` — Array of agent config objects.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "agent_id": "engineer",
+    "model": "opus"
+  }
+]
+```
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Set Agent Model Override
+
+```
+PUT /projects/:projectId/agent-config/:agentId
+```
+
+Creates or updates the model override for a specific agent in the project.
+
+**Request Body:**
+
+```json
+{
+  "model": "opus"
+}
+```
+
+| Field | Required | Description                                                                   |
+| ----- | -------- | ----------------------------------------------------------------------------- |
+| model | Yes      | Model to use. One of: `sonnet`, `opus`, or `null` (null clears the override). |
+
+**Response:** `200 OK` — The created or updated agent config object.
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Remove Agent Model Override
+
+```
+DELETE /projects/:projectId/agent-config/:agentId
+```
+
+Removes the model override for the agent, falling back to the project default.
+
+**Response:** `204 No Content`
+
+**Error:** `404 Not Found` — Project does not exist.
+
+---
+
 ### Chat Sessions
 
 Session-based conversational interface to the Captain. Each project can have one active session at a time. Creating a new session atomically archives the current active one.
@@ -1086,8 +1155,8 @@ Returns stored monitor messages (ChatMessage records with `session_id = null`), 
 
 **Query Parameters:**
 
-| Parameter | Type    | Description                              |
-| --------- | ------- | ---------------------------------------- |
+| Parameter | Type    | Description                                     |
+| --------- | ------- | ----------------------------------------------- |
 | limit     | INTEGER | Max messages to return. Default: 100. Max: 500. |
 
 **Response:** `200 OK`
@@ -1142,12 +1211,12 @@ Agent posts a comment on an issue.
 }
 ```
 
-| Field      | Required | Description                                                                        |
-| ---------- | -------- | ---------------------------------------------------------------------------------- |
-| issue_id   | Yes      | The issue to comment on.                                                           |
-| project_id | Yes      | The owning project.                                                                |
-| agent_id   | No       | The agent's ID (e.g., `engineer`, `lead`). Used directly as `author_type`.         |
-| content    | Yes      | Comment body.                                                                      |
+| Field      | Required | Description                                                                |
+| ---------- | -------- | -------------------------------------------------------------------------- |
+| issue_id   | Yes      | The issue to comment on.                                                   |
+| project_id | Yes      | The owning project.                                                        |
+| agent_id   | No       | The agent's ID (e.g., `engineer`, `lead`). Used directly as `author_type`. |
+| content    | Yes      | Comment body.                                                              |
 
 **Response:** `201 Created`
 
@@ -1411,6 +1480,10 @@ ws://localhost:<port>/ws?projectId=<uuid>
 
 Clients connect with a project ID to receive events scoped to that project. The server validates that the project exists on connection.
 
+### Type Safety
+
+The frontend defines a `WsEventMap` interface in `frontend/src/lib/api/types.ts` that maps every event name to its typed payload. `ProjectWebSocket.on()` uses generic overloads so handlers receive fully typed `data` parameters with IDE autocomplete — no manual casting required.
+
 ### Event Format
 
 All events follow this structure:
@@ -1427,30 +1500,30 @@ All events follow this structure:
 
 #### Issue Events
 
-| Event                  | Description          | Data                                             |
-| ---------------------- | -------------------- | ------------------------------------------------ |
-| `issue.created`        | New issue created    | Full issue object                                |
-| `issue.updated`        | Issue fields changed | `{ issue_id, changes }`                          |
-| `issue.status_changed` | Status transition    | `{ issue_id, from, to, actor_type?, actor_id? }` |
+| Event                  | Description          | Data                                                         |
+| ---------------------- | -------------------- | ------------------------------------------------------------ |
+| `issue.created`        | New issue created    | `{ issue }` — full Issue object                              |
+| `issue.updated`        | Issue fields changed | `{ issue_id, project_id, changes }`                          |
+| `issue.status_changed` | Status transition    | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
 
 #### Comment Events
 
-| Event             | Description              | Data                       |
-| ----------------- | ------------------------ | -------------------------- |
-| `comment.added`   | New comment on an issue  | Full comment object        |
-| `comment.updated` | User comment was edited  | Full comment object        |
-| `comment.deleted` | User comment was deleted | `{ comment_id, issue_id }` |
+| Event             | Description              | Data                                   |
+| ----------------- | ------------------------ | -------------------------------------- |
+| `comment.added`   | New comment on an issue  | `{ comment, project_id }`              |
+| `comment.updated` | User comment was edited  | `{ comment, project_id }`              |
+| `comment.deleted` | User comment was deleted | `{ comment_id, issue_id, project_id }` |
 
 #### Dispatch Events
 
-| Event                         | Description                                                               | Data                                                           |
-| ----------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `mention.spawned`             | Agent process started for a /dispatch command                             | `{ issue_id, agent_id, agent_name?, issue_title?, pid }`       |
-| `mention.completed`           | Agent process finished                                                    | `{ issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
-| `mention.error`               | Agent process failed                                                      | `{ issue_id, agent_id, agent_name?, issue_title?, message }`   |
-| `mention.chain_depth_reached` | Issue chain depth limit reached (per project's `max_chain_depth` setting) | `{ issue_id, issue_title? }`                                   |
-| `dispatch.queued`             | Agent dispatch queued (concurrency limit reached)                         | `{ issue_id, agent_id, agent_name?, issue_title?, position }`  |
-| `dispatch.dequeued`           | Agent dispatch dequeued and starting                                      | `{ issue_id, agent_id, agent_name?, issue_title? }`            |
+| Event                         | Description                                                               | Data                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `mention.spawned`             | Agent process started for a /dispatch command                             | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, pid }`       |
+| `mention.completed`           | Agent process finished                                                    | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
+| `mention.error`               | Agent process failed                                                      | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, message }`   |
+| `mention.chain_depth_reached` | Issue chain depth limit reached (per project's `max_chain_depth` setting) | `{ project_id, issue_id, issue_title? }`                                   |
+| `dispatch.queued`             | Agent dispatch queued (concurrency limit reached)                         | `{ project_id, issue_id, agent_id, position }`                             |
+| `dispatch.dequeued`           | Agent dispatch dequeued and starting                                      | `{ project_id, issue_id, agent_id }`                                       |
 
 #### Agent Run Events
 
@@ -1462,22 +1535,22 @@ All events follow this structure:
 
 #### PR Events
 
-| Event               | Description             | Data                                 |
-| ------------------- | ----------------------- | ------------------------------------ |
-| `pr.created`        | PR recorded on an issue | Full IssuePR object + `issue_title?` |
-| `pr.status_changed` | PR status updated       | `{ pr_id, from, to }`                |
+| Event               | Description             | Data                              |
+| ------------------- | ----------------------- | --------------------------------- |
+| `pr.created`        | PR recorded on an issue | `{ issue_pr, project_id }`        |
+| `pr.status_changed` | PR status updated       | `{ pr_id, project_id, from, to }` |
 
 #### Captain Events (Chat)
 
-| Event                      | Description                            | Data                                    |
-| -------------------------- | -------------------------------------- | --------------------------------------- |
-| `captain.thinking`         | Captain chat is processing a message   | `{ project_id }`                        |
-| `captain.message`          | Captain chat text response (legacy)    | `{ project_id, content }`               |
-| `captain.complete`         | Captain chat finished processing       | `{ project_id, response }`              |
-| `captain.chat.chunk`       | Streaming text chunk from Chat service | `{ session_id, text }`                  |
-| `captain.chat.tool_call`   | Chat invoked a tool during response    | `{ session_id, tool_name, tool_input }` |
-| `captain.chat.tool_result` | Chat tool execution completed          | `{ session_id, tool_name, result }`     |
-| `captain.chat.complete`    | Chat response finished, message saved  | `{ session_id, message_id }`            |
+| Event                      | Description                            | Data                                                |
+| -------------------------- | -------------------------------------- | --------------------------------------------------- |
+| `captain.thinking`         | Captain chat is processing a message   | `{ project_id }`                                    |
+| `captain.message`          | Captain chat text response (legacy)    | `{ project_id, content }`                           |
+| `captain.complete`         | Captain chat finished processing       | `{ project_id, response }`                          |
+| `captain.chat.chunk`       | Streaming text chunk from Chat service | `{ project_id, session_id, text }`                  |
+| `captain.chat.tool_call`   | Chat invoked a tool during response    | `{ project_id, session_id, tool_name, tool_input }` |
+| `captain.chat.tool_result` | Chat tool execution completed          | `{ project_id, session_id, tool_name, result }`     |
+| `captain.chat.complete`    | Chat response finished, message saved  | `{ project_id, session_id, message_id }`            |
 
 #### Monitor Events
 
@@ -1500,10 +1573,10 @@ All events follow this structure:
 
 These events are emitted for backward compatibility. Prefer the `captain.chat.*` events above.
 
-| Event           | Description                               | Data                                     |
-| --------------- | ----------------------------------------- | ---------------------------------------- |
-| `chat.stream`   | Token streamed from Chat service (legacy) | `{ project_id, session_id, token }`      |
-| `chat.complete` | Chat service finished processing (legacy) | `{ project_id, session_id, message_id }` |
+| Event           | Description                               | Data                         |
+| --------------- | ----------------------------------------- | ---------------------------- |
+| `chat.stream`   | Token streamed from Chat service (legacy) | `{ project_id, token }`      |
+| `chat.complete` | Chat service finished processing (legacy) | `{ project_id, message_id }` |
 
 ---
 

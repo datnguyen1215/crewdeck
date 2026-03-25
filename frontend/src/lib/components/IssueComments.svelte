@@ -1,9 +1,12 @@
 <script lang="ts">
-	import { addComment, editComment, deleteComment, listAgents, type Comment, type Agent } from '$lib/api/http.js';
+	import { addComment, editComment, deleteComment, type Comment, type Agent } from '$lib/api/http.js';
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { getContext } from 'svelte';
 	import Modal from './Modal.svelte';
+
+	const getAgents = getContext<() => Agent[]>('agents');
 
 	let {
 		comments,
@@ -29,7 +32,7 @@
 	let commentWorking = $state(false);
 
 	// /dispatch autocomplete
-	let agents = $state<Agent[]>([]);
+	let agents = $derived(getAgents());
 	let showMentions = $state(false);
 	let mentionFilter = $state('');
 	let mentionIdx = $state(0);
@@ -41,11 +44,6 @@
 			? agents.filter(a => a.name.toLowerCase().includes(mentionFilter.toLowerCase()))
 			: agents
 	);
-
-	// Load agents for autocomplete
-	$effect(() => {
-		listAgents().then(a => { agents = a; }).catch(() => toastStore.add('Failed to load agents', 'error'));
-	});
 
 	function commentStyle(authorType: string): { border: string; textColor: string } {
 		if (authorType === 'system') return { border: 'var(--color-muted)', textColor: 'text-muted' };

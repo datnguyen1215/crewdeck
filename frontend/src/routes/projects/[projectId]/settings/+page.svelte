@@ -26,6 +26,7 @@
 	let agentTimeoutMinutes = $state(10);
 	let autoStart = $state(false);
 	let autoMerge = $state(false);
+	let model = $state('sonnet');
 
 	// Environment variables state
 	let envVars = $state<EnvironmentVariable[]>([]);
@@ -58,6 +59,7 @@
 				agentTimeoutMinutes = p.agent_timeout_minutes;
 				autoStart = p.auto_start;
 				autoMerge = p.auto_merge;
+				model = p.model ?? 'sonnet';
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load project', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -151,7 +153,8 @@
 			maxChainDepth !== project.max_chain_depth ||
 			agentTimeoutMinutes !== project.agent_timeout_minutes ||
 			autoStart !== project.auto_start ||
-			autoMerge !== project.auto_merge
+			autoMerge !== project.auto_merge ||
+			model !== (project.model ?? 'sonnet')
 		)
 	);
 
@@ -167,6 +170,7 @@
 				agent_timeout_minutes: Number(agentTimeoutMinutes),
 				auto_start: autoStart,
 				auto_merge: autoMerge,
+				model,
 			});
 			project = updated;
 			name = updated.name;
@@ -176,6 +180,7 @@
 			agentTimeoutMinutes = updated.agent_timeout_minutes;
 			autoStart = updated.auto_start;
 			autoMerge = updated.auto_merge;
+			model = updated.model ?? 'sonnet';
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -193,6 +198,7 @@
 		agentTimeoutMinutes = project.agent_timeout_minutes;
 		autoStart = project.auto_start;
 		autoMerge = project.auto_merge;
+		model = project.model ?? 'sonnet';
 	}
 </script>
 
@@ -245,6 +251,15 @@
 					<label for="settings-agent-timeout" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Agent Timeout (minutes)</label>
 					<input id="settings-agent-timeout" type="number" bind:value={agentTimeoutMinutes} min="1" max="60" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
 					<p class="text-muted text-xs mt-1">Maximum time an agent can run before being terminated (1-60 minutes)</p>
+				</div>
+
+				<div>
+					<label for="settings-model" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Default Model</label>
+					<select id="settings-model" bind:value={model} class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors">
+						<option value="sonnet">Sonnet</option>
+						<option value="opus">Opus</option>
+					</select>
+					<p class="text-muted text-xs mt-1">Claude model used when spawning agents</p>
 				</div>
 
 				<div>

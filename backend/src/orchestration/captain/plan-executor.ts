@@ -28,6 +28,35 @@ import type {
   SkipAction,
 } from "./action-schema.js";
 
+/** Standard UUID length (32 hex + 4 hyphens) */
+const UUID_LENGTH = 36;
+
+/**
+ * Resolve a potentially truncated issue ID to a full UUID.
+ * If the ID is already a full UUID or found by exact match, returns it as-is.
+ * If it looks like a prefix (shorter than a full UUID), tries prefix matching
+ * scoped to the project. Returns null if not found or ambiguous.
+ */
+function resolveIssueId(issueId: string, projectId: string): string | null {
+  // Try exact match first
+  const exact = issueRepo.getIssue(issueId);
+  if (exact) return exact.id;
+
+  // If it looks like a truncated ID, try prefix match
+  if (issueId.length < UUID_LENGTH && issueId.length >= 8) {
+    const match = issueRepo.getIssueByPrefix(issueId, projectId);
+    if (match) {
+      logger.info(
+        { prefix: issueId, resolved: match.id },
+        "Monitor: Resolved truncated issue ID",
+      );
+      return match.id;
+    }
+  }
+
+  return null;
+}
+
 export interface ActionResult {
   action: Action;
   success: boolean;
@@ -233,12 +262,38 @@ function executeSkip(action: SkipAction): ActionResult {
 }
 
 /**
+ * Resolve any truncated issue_id on an action before execution.
+ * Mutates the action in place. Returns an error ActionResult if resolution fails.
+ */
+function resolveActionIssueId(
+  projectId: string,
+  action: Action,
+): ActionResult | null {
+  if (!("issue_id" in action) || !action.issue_id) return null;
+
+  const resolved = resolveIssueId(action.issue_id, projectId);
+  if (!resolved) {
+    return {
+      action,
+      success: false,
+      message: `Issue not found for ID "${action.issue_id}"`,
+    };
+  }
+  action.issue_id = resolved;
+  return null;
+}
+
+/**
  * Execute a single action.
  */
 async function executeAction(
   projectId: string,
   action: Action,
 ): Promise<ActionResult> {
+  // Resolve truncated issue IDs before executing
+  const resolveError = resolveActionIssueId(projectId, action);
+  if (resolveError) return resolveError;
+
   switch (action.type) {
     case "dispatch":
       return executeDispatch(projectId, action);
