@@ -4,12 +4,17 @@
  * Uses `claude -p` CLI to make automated orchestration decisions.
  * Handles events like issue creation, run completion, PR status changes.
  * Does not handle user chat messages — those go through chat-agent.ts.
+ *
+ * Outputs structured action plans that the backend executes deterministically.
  */
 import { logger } from "../../logger.js";
 import { eventBus } from "../../events/bus.js";
 import { getProject } from "../../db/repositories/projects.js";
 import { getActiveProcessCount } from "../processes.js";
-import { spawnClaude } from "../process.js";
+import { spawnClaudeStream } from "../process.js";
+import { parseActionPlan, extractJsonFromResponse } from "./action-schema.js";
+import { executePlan, formatResults } from "./plan-executor.js";
+import type { ActionPlan } from "./action-schema.js";
 
 import * as chatRepo from "../../db/repositories/chat-messages.js";
 import type { CaptainEvent } from "./queue.js";
@@ -43,53 +48,14 @@ ${project.description || "No description"}
 ## Current Capacity
 - Running agents: ${runningAgents}
 - Max concurrency: ${project.max_concurrency}
+- Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}
 
-## Getting Current State
-Use the curl tools below to fetch current data on-demand:
-- **List Issues** to see all issues and their statuses
-- **Get Issue Details** for specific issue information
-- **List Knowledge** to access project knowledge entries
+## Getting Current State (Read-Only)
+Use curl to fetch current data before making decisions:
 
-Always fetch current state before making decisions.
-
-## Available Actions
-Use curl to call the CrewDeck internal API. Environment variables $CREWDECK_API_URL and $CREWDECK_PROJECT_ID are set.
-${
-  canMerge
-    ? `
-### Merge a PR
+### List issues
 \`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/merge-pr" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>"}'
-\`\`\``
-    : ""
-}
-
-### Dispatch an agent to work on an issue
-\`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/dispatch-agent" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>","agent_id":"<AGENT_ID>","instructions":"optional instructions"}'
-\`\`\`
-Available agents:
-- \`engineer\` — writes and tests code
-- \`lead\` — reviews code for correctness, security, architecture
-- \`docs\` — updates documentation to match code changes
-- \`librarian\` — investigates codebases, maintains knowledge entries
-
-### Create an issue
-\`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/issues/create" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","title":"Issue title","description":"Description"}'
-\`\`\`
-
-### Update an issue
-\`\`\`bash
-curl -X PATCH "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>" \\
-  -H "Content-Type: application/json" \\
-  -d '{"status":"<new_status>","title":"optional new title"}'
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues"
 \`\`\`
 
 ### Get issue details
@@ -97,45 +63,47 @@ curl -X PATCH "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<IS
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
 \`\`\`
 
-### List issues
+### List knowledge
 \`\`\`bash
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues"
-\`\`\`
-
-### Add a comment
-\`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/comment" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>","agent_id":"captain","content":"Comment text"}'
-\`\`\`
-
-### Scan codebase (Librarian)
-\`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/scan-codebase" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'"}'
-\`\`\`
-
-### Knowledge Management
-\`\`\`bash
-# List
 curl "$CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID"
-
-# Create
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/create" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","title":"Title","category":"architecture","content":"Content"}'
-
-# Update
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/update" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","knowledge_id":"<ID>","content":"Updated content"}'
-
-# Delete
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/knowledge/delete" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","knowledge_id":"<ID>"}'
 \`\`\`
+
+## Action Plan Output
+
+After gathering information, output a JSON action plan. The system will execute all actions deterministically.
+
+**IMPORTANT**: Your final response MUST be a JSON object in this exact format:
+
+\`\`\`json
+{
+  "reasoning": "Brief explanation of your decisions",
+  "actions": [
+    { "type": "dispatch", "issue_id": "<id>", "agent_id": "engineer", "instructions": "optional instructions" },
+    { "type": "dispatch", "issue_id": "<id>", "agent_id": "lead" },
+    { "type": "merge", "issue_id": "<id>" },
+    { "type": "comment", "issue_id": "<id>", "content": "Comment text" },
+    { "type": "create-issue", "title": "Title", "description": "Description" },
+    { "type": "update-issue", "issue_id": "<id>", "status": "pr_created" },
+    { "type": "scan" },
+    { "type": "skip", "issue_id": "<id>", "reason": "Why skipping" }
+  ]
+}
+\`\`\`
+
+### Action Types
+| Type | Required Fields | Description |
+|------|-----------------|-------------|
+| dispatch | issue_id, agent_id | Dispatch agent (engineer/lead/docs/librarian) to work on issue |
+| merge | issue_id | Merge the PR for an issue |
+| comment | issue_id, content | Add a comment to an issue |
+| create-issue | title | Create a new issue (description optional) |
+| update-issue | issue_id | Update issue status/title |
+| scan | (none) | Trigger librarian codebase scan |
+| skip | issue_id, reason | Skip an issue (logged for observability) |
+
+### Parallel Execution
+List ALL dispatch actions needed. The system handles capacity limits and executes dispatches in parallel.
+If 3 issues need work and 5 slots are available, list all 3 dispatches — they'll run simultaneously.
 
 ## Decision Guidelines
 
@@ -182,17 +150,17 @@ Before dispatching work on any issue, check its description for dependency refer
 - If all available issues are blocked, wait rather than starting work that will conflict
 
 ### When to Dispatch
-- Only dispatch if running agents < max_concurrency
+- You can dispatch multiple agents if slots are available — list all needed dispatches
 - Don't dispatch if an agent is already running on that issue
 - Don't dispatch if the issue is blocked by unfinished dependencies (see above)
 - For conflicts/failures, include instructions about what to fix
 - After an agent completes, read their report and decide the next step
 
 ### When to Wait
-- If all agents are busy, wait for capacity
+- If all agents are busy, output an empty actions array with reasoning
 - If waiting for CI to run, don't take action yet
 - If waiting for review, let the process complete
-- If an issue is blocked by dependencies, wait for blockers to complete
+- If an issue is blocked by dependencies, use skip action with reason
 
 ### Auto-Dispatch Rules
 - **issue.created events**: ${canAutoStart ? "Automatically dispatch an agent to work on the new issue. Do NOT create a new issue — one already exists." : "Do NOT automatically dispatch agents on new issues. Wait for the user to trigger dispatch via the UI or chat. Just acknowledge the new issue."}
@@ -205,46 +173,21 @@ When engineer completes work:
 3. When engineer fixes: dispatch lead again for another full review
 4. Repeat until lead reports "No issues found"
 5. Then dispatch docs to update documentation
-6. Finally, create the PR
-
-## Creating Pull Requests
-When lead reports a clean review and docs has finished:
-1. Use the \`gh\` CLI to create the PR from the worktree directory. The worktree path is available from the issue details.
-2. Register the PR for tracking:
-\`\`\`bash
-curl -X POST "$CREWDECK_API_URL/api/v1/internal/create-pr" \\
-  -H "Content-Type: application/json" \\
-  -d '{"project_id":"'$CREWDECK_PROJECT_ID'","issue_id":"<ISSUE_ID>","pr_url":"<PR_URL>"}'
-\`\`\`
-3. Update the issue status to pr_created.
+6. Finally, update the issue status to pr_created
 
 ## Status Management
 You own all issue status transitions.
 
 ### Rules:
-1. **After creating a PR**: Set status to \`pr_created\`:
-\`\`\`bash
-curl -X PATCH "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>" \\
-  -H "Content-Type: application/json" \\
-  -d '{"status":"pr_created"}'
-\`\`\`
+1. **After creating a PR**: Use update-issue action with status \`pr_created\`
 2. **After fixing a PR** (conflicts, CI failures): Once fixes are pushed, set status back to \`pr_created\`.
-3. **Before deciding final status**: Query the issue to check for existing PRs:
-\`\`\`bash
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
-\`\`\`
-The response includes \`issue_prs\` array. If non-empty, a PR exists.
+3. **Before deciding final status**: Query the issue to check for existing PRs
 4. **Never leave status in \`in_progress\`** after completing work where a PR exists. Transition to \`pr_created\`.
-
-## Response Style
-- Be concise and action-oriented
-- When you take actions, briefly explain why
-- Use markdown for formatting
-- Show tool results clearly
 
 ## Constraints
 - You can only manage this project
-- Use curl to call the API for all actions
+- Use curl only for READ operations (list issues, get issue, list knowledge)
+- All WRITE operations must be in the action plan JSON
 - Don't make assumptions about external systems${!canMerge ? "\n- You cannot merge PRs. Auto-merge is disabled for this project." : ""}${!canAutoStart ? "\n- You cannot automatically start work on new issues. Auto-start is disabled — wait for user to dispatch." : ""}`;
 };
 
@@ -369,7 +312,29 @@ const setupGitHubAuth = async (
 };
 
 /**
- * Process monitor events with the LLM via claude -p.
+ * Extract action plan from Claude stream events.
+ * Looks for the final result message and parses JSON from it.
+ */
+function extractActionPlanFromEvents(
+  events: Array<{ type: string; [key: string]: unknown }>,
+): ActionPlan | null {
+  // Find the result event (final assistant message)
+  const resultEvent = events.find((e) => e.type === "result");
+  if (!resultEvent) return null;
+
+  const resultText =
+    typeof resultEvent.result === "string" ? resultEvent.result : null;
+  if (!resultText) return null;
+
+  const json = extractJsonFromResponse(resultText);
+  if (!json) return null;
+
+  return parseActionPlan(json);
+}
+
+/**
+ * Process monitor events with the LLM via claude -p with streaming.
+ * Returns the action plan execution results.
  */
 export const processWithLLM = async (
   projectId: string,
@@ -380,8 +345,8 @@ export const processWithLLM = async (
 
   const eventText = formatEvents(events);
   const eventSection = eventText
-    ? `## Events\n${eventText}\n\nProcess these events and take appropriate actions.`
-    : "Check current project state and take any needed actions.";
+    ? `## Events\n${eventText}\n\nProcess these events and output a JSON action plan.`
+    : "Check current project state and output a JSON action plan with any needed actions.";
 
   const history = getMonitorHistory(projectId);
   const sections = [];
@@ -415,14 +380,50 @@ export const processWithLLM = async (
 
   const sshKeyPath = await setupGitHubAuth(projectId, env);
   let finalResponse = "";
+  let actionPlan: ActionPlan | null = null;
 
   try {
-    const result = await spawnClaude({
+    const result = await spawnClaudeStream({
       prompt: userPrompt,
       systemPrompt,
       workdir: ".",
       env,
     });
+
+    // Collect all events for processing
+    const collectedEvents: Array<{ type: string; [key: string]: unknown }> = [];
+    let resultText = "";
+
+    for await (const event of result.events) {
+      collectedEvents.push(event);
+
+      // Emit streaming events for frontend visibility
+      if (event.type === "assistant") {
+        const content = event.message as { content?: Array<{ text?: string }> };
+        const text = content?.content?.[0]?.text;
+        if (text) {
+          eventBus.emit("monitor.message", {
+            project_id: projectId,
+            content: text,
+          });
+        }
+      } else if (event.type === "tool_use") {
+        eventBus.emit("monitor.tool_call", {
+          project_id: projectId,
+          tool_name: event.name as string,
+          tool_input: event.input,
+        });
+      } else if (event.type === "tool_result") {
+        eventBus.emit("monitor.tool_result", {
+          project_id: projectId,
+          tool_name: "bash",
+          result: event.content,
+        });
+      } else if (event.type === "result") {
+        resultText = typeof event.result === "string" ? event.result : "";
+      }
+    }
+
     const exitResult = await result.exitPromise;
 
     if (exitResult.code !== 0) {
@@ -432,19 +433,45 @@ export const processWithLLM = async (
       );
     }
 
-    // Parse the JSON output from claude -p --output-format json
-    try {
-      const parsed = JSON.parse(exitResult.stdout);
-      if (Array.isArray(parsed)) {
-        const resultObj = parsed.find(
-          (obj: { type: string }) => obj.type === "result",
-        );
-        finalResponse = resultObj?.result ?? exitResult.stdout;
-      } else {
-        finalResponse = parsed.result ?? exitResult.stdout;
+    // Try to extract action plan from result
+    if (resultText) {
+      const json = extractJsonFromResponse(resultText);
+      if (json) {
+        actionPlan = parseActionPlan(json);
       }
-    } catch {
-      finalResponse = exitResult.stdout;
+    }
+
+    // Fallback: try extracting from collected events
+    if (!actionPlan) {
+      actionPlan = extractActionPlanFromEvents(collectedEvents);
+    }
+
+    // If we have an action plan, execute it
+    if (actionPlan) {
+      logger.info(
+        {
+          projectId,
+          reasoning: actionPlan.reasoning,
+          actionCount: actionPlan.actions.length,
+        },
+        "Monitor: Executing action plan",
+      );
+
+      const results = await executePlan(projectId, actionPlan);
+      finalResponse = formatResults(results);
+
+      if (actionPlan.reasoning) {
+        finalResponse = `${actionPlan.reasoning}\n\n${finalResponse}`;
+      }
+    } else if (resultText) {
+      // No valid action plan, use raw response
+      finalResponse = resultText;
+      logger.warn(
+        { projectId, responsePreview: resultText.slice(0, 200) },
+        "Monitor: Could not parse action plan from response",
+      );
+    } else {
+      finalResponse = "No action plan generated";
     }
   } catch (err) {
     logger.error({ err }, "Monitor claude -p call failed");
