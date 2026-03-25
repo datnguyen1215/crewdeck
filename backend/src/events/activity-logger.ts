@@ -2,10 +2,24 @@ import { randomUUID } from "crypto";
 import { db } from "../db/index.js";
 import { eventBus } from "./bus.js";
 
-const VALID_ACTOR_TYPES = new Set(["user", "agent", "system"]);
+// Valid agent IDs for comment.author_type
+const AGENT_IDS = new Set(["captain", "engineer", "lead", "docs", "librarian"]);
 
 function sanitizeActorType(value: string): string {
-  return VALID_ACTOR_TYPES.has(value) ? value : "unknown";
+  if (value === "user" || value === "system") return value;
+  // "agent" is still valid for issue.created_by
+  if (value === "agent") return "agent";
+  // Agent IDs in comment.author_type map to "agent" for activity log
+  if (AGENT_IDS.has(value)) return "agent";
+  return "unknown";
+}
+
+function extractActorId(authorType: string): string | null {
+  // If author_type is an agent ID, extract it for actor_id
+  if (AGENT_IDS.has(authorType)) {
+    return authorType;
+  }
+  return null;
 }
 
 const insert = db.prepare(`
@@ -62,7 +76,7 @@ export function initActivityLogger(): void {
       project_id,
       issue_id: comment.issue_id,
       actor_type: sanitizeActorType(comment.author_type),
-      actor_id: comment.author_id,
+      actor_id: extractActorId(comment.author_type),
       action: "comment.added",
       details: { content_preview: comment.content.slice(0, 200) },
     });

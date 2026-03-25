@@ -102,7 +102,6 @@ describe("ActivityLogger", () => {
       id: "c1",
       issue_id: ISSUE_ID,
       author_type: "user",
-      author_id: "u1",
       content: "Hello world",
       created_at: new Date().toISOString(),
     };
@@ -113,10 +112,30 @@ describe("ActivityLogger", () => {
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
       actor_type: "user",
-      actor_id: "u1",
+      actor_id: null,
       action: "comment.added",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({ content_preview: "Hello world" });
+  });
+
+  it("logs comment.added with agent author_type", () => {
+    const comment: Comment = {
+      id: "c1b",
+      issue_id: ISSUE_ID,
+      author_type: "captain",
+      content: "Captain comment",
+      created_at: new Date().toISOString(),
+    };
+    eventBus.emit("comment.added", { comment, project_id: PROJECT_ID });
+    const logs = getLog();
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      project_id: PROJECT_ID,
+      issue_id: ISSUE_ID,
+      actor_type: "agent",
+      actor_id: "captain",
+      action: "comment.added",
+    });
   });
 
   it("truncates comment content_preview to 200 chars", () => {
@@ -124,8 +143,7 @@ describe("ActivityLogger", () => {
     const comment: Comment = {
       id: "c2",
       issue_id: ISSUE_ID,
-      author_type: "agent",
-      author_id: null,
+      author_type: "engineer",
       content: longContent,
       created_at: new Date().toISOString(),
     };

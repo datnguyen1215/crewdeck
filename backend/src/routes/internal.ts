@@ -59,19 +59,18 @@ const InternalCommentSchema = CreateCommentSchema.pick({
 }).extend({
   issue_id: z.string(),
   project_id: z.string(),
-  agent_id: z.string().optional(),
+  author_type: z.string().optional(),
 });
 
 // POST /comment — agent posts a comment on an issue
 router.post("/comment", validate(InternalCommentSchema), (req, res) => {
-  const { issue_id, project_id, agent_id, content } = req.body;
+  const { issue_id, project_id, author_type, content } = req.body;
 
   verifyIssueOwner(issue_id, project_id);
 
   const comment = createComment(issue_id, {
     content,
-    author_type: "agent",
-    author_id: agent_id ?? null,
+    author_type: author_type ?? "captain",
   });
 
   eventBus.emit("comment.added", { comment, project_id });

@@ -60,7 +60,6 @@ describe("buildPrompt", () => {
         id: "c1",
         issue_id: "issue-1",
         author_type: "user",
-        author_id: null,
         content: "Please fix the redirect",
         created_at: "2026-01-01",
       },

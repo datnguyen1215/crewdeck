@@ -118,22 +118,26 @@ export const initMentionHandler = (): void => {
     if (!issue) return;
 
     const agents = crew.listCrew();
+    // author_type now contains the agent id directly (captain, engineer, etc.)
+    // Only pass as commentAuthorAgentId if it's an agent (not user/system)
+    const isAgentComment = comment.author_type !== "user" && comment.author_type !== "system";
+    const commentAuthorAgentId = isAgentComment ? comment.author_type : undefined;
     const mentioned = mentionParser.parseDispatches(
       comment.content,
       agents,
-      comment.author_id ?? undefined,
+      commentAuthorAgentId,
     );
 
     if (mentioned.length === 0) return;
 
     // Create a batch when an agent dispatches other agents, so the originator is auto-invoked on completion
-    if (mentioned.length >= 1 && comment.author_id) {
+    if (mentioned.length >= 1 && commentAuthorAgentId) {
       const existingBatchId = issueBatches.get(comment.issue_id);
       if (!existingBatchId) {
         createBatch(
           comment.issue_id,
           project_id,
-          comment.author_id,
+          commentAuthorAgentId,
           mentioned.map((a) => a.id),
         );
       }
@@ -170,7 +174,7 @@ export const initMentionHandler = (): void => {
         agent,
         comment.issue_id,
         project_id,
-        comment.author_id ?? undefined,
+        commentAuthorAgentId,
       ).catch((err) => {
         log.logger.error(
           { err, agent: agent.name, issueId: comment.issue_id },

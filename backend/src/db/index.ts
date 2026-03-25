@@ -124,9 +124,13 @@ const migrations: Migration[] = [
   {
     name: "009_rename_admiral_to_captain_data",
     run(db) {
-      db.exec(
-        "UPDATE Comment SET author_id = 'captain' WHERE author_id = 'admiral'",
-      );
+      // Check if author_id column exists (may be removed by migration 018)
+      const commentCols = db.pragma("table_info(Comment)") as { name: string }[];
+      if (commentCols.some((c) => c.name === "author_id")) {
+        db.exec(
+          "UPDATE Comment SET author_id = 'captain' WHERE author_id = 'admiral'",
+        );
+      }
       db.exec(
         "UPDATE AgentRun SET agent_id = 'captain' WHERE agent_id = 'admiral'",
       );
@@ -261,6 +265,44 @@ const migrations: Migration[] = [
             CREATE INDEX IF NOT EXISTS idx_agent_run_issue ON AgentRun(issue_id);
             CREATE INDEX IF NOT EXISTS idx_agent_run_status ON AgentRun(project_id, status);
             CREATE INDEX IF NOT EXISTS idx_agent_run_created ON AgentRun(project_id, created_at);
+          `);
+        })();
+      } finally {
+        db.pragma("foreign_keys = ON");
+      }
+    },
+  },
+  {
+    name: "018_merge_comment_author_id_into_author_type",
+    run(db) {
+      const cols = db.pragma("table_info(Comment)") as { name: string }[];
+      if (!cols.some((c) => c.name === "author_id")) return; // already migrated
+
+      db.pragma("foreign_keys = OFF");
+      try {
+        db.transaction(() => {
+          // Merge author_id into author_type for agent comments
+          db.exec(`
+            UPDATE Comment
+            SET author_type = author_id
+            WHERE author_type = 'agent' AND author_id IS NOT NULL
+          `);
+
+          // Recreate table without author_id column
+          db.exec(`
+            CREATE TABLE Comment_new (
+              id TEXT PRIMARY KEY,
+              issue_id TEXT NOT NULL REFERENCES Issue(id),
+              author_type TEXT NOT NULL,
+              content TEXT NOT NULL,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO Comment_new (id, issue_id, author_type, content, created_at)
+              SELECT id, issue_id, author_type, content, created_at FROM Comment;
+            DROP TABLE Comment;
+            ALTER TABLE Comment_new RENAME TO Comment;
+            CREATE INDEX IF NOT EXISTS idx_comment_issue ON Comment(issue_id);
+            CREATE INDEX IF NOT EXISTS idx_comment_created ON Comment(issue_id, created_at);
           `);
         })();
       } finally {

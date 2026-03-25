@@ -47,7 +47,6 @@ CREATE TABLE IF NOT EXISTS Comment (
   id TEXT PRIMARY KEY,
   issue_id TEXT NOT NULL REFERENCES Issue(id),
   author_type TEXT NOT NULL,
-  author_id TEXT,
   content TEXT NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

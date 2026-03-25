@@ -33,18 +33,17 @@ beforeAll(async () => {
 });
 
 describe("POST /api/v1/internal/comment", () => {
-  it("creates comment with author_type agent", async () => {
+  it("creates comment with author_type as agent id", async () => {
     const res = await request(app).post(`${BASE}/comment`).send({
       issue_id: issueId,
       project_id: projectId,
-      agent_id: agentId,
+      author_type: agentId,
       content: "Agent comment here",
     });
 
     expect(res.status).toBe(201);
-    expect(res.body.author_type).toBe("agent");
+    expect(res.body.author_type).toBe(agentId);
     expect(res.body.content).toBe("Agent comment here");
-    expect(res.body.author_id).toBe(agentId);
   });
 
   it("validates issue exists and belongs to project", async () => {

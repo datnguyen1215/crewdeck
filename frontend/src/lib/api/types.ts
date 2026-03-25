@@ -88,7 +88,6 @@ export interface Comment {
   id: string;
   issue_id: string;
   author_type: string;
-  author_id: string | null;
   content: string;
   created_at: string;
 }
