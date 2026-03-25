@@ -36,7 +36,7 @@
 	// Load monitor history on mount
 	onMount(async () => {
 		try {
-			const history = await getMonitorHistory(projectId);
+			const history = await getMonitorHistory(projectId, 20);
 			monitorEntries = history.map(mapMessageToEntry);
 		} catch (err) {
 			console.error('Failed to load monitor history:', err);
