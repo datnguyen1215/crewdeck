@@ -259,6 +259,7 @@
 					{#if isExpanded}
 						<div class="ml-5 flex flex-col gap-0.5">
 							{@render projectNavItem(`/projects/${project.id}`, 'Issues', 'issues', pathname === `/projects/${project.id}` || pathname.startsWith(`/projects/${project.id}/issues`))}
+							{@render projectNavItem(`/projects/${project.id}/crew`, 'Crew', 'crew', isActive(`/projects/${project.id}/crew`))}
 							{@render projectNavItem(`/projects/${project.id}/terminals`, 'Terminals', 'terminals', isActive(`/projects/${project.id}/terminals`))}
 							{@render projectNavItem(`/projects/${project.id}/chat`, 'Captain', 'chat', isActive(`/projects/${project.id}/chat`))}
 							{@render projectNavItem(`/projects/${project.id}/knowledge`, 'Knowledge', 'knowledge', isActive(`/projects/${project.id}/knowledge`))}

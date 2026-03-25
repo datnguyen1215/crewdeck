@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { listCrew } from "../orchestration/crew.js";
+import { listCrew, listAllCrew } from "../orchestration/crew.js";
 
 const router = Router();
 
-router.get("/", (_req, res) => {
-  res.json(listCrew());
+router.get("/", (req, res) => {
+  const all = req.query.all === "true";
+  res.json(all ? listAllCrew() : listCrew());
 });
 
 export default router;

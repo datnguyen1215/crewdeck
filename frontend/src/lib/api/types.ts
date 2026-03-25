@@ -208,6 +208,13 @@ export interface ChatMessage {
   created_at: string;
 }
 
+export interface AgentConfig {
+  id: string;
+  project_id: string;
+  agent_id: string;
+  model: string | null;
+}
+
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
 // but only includes events the frontend receives (excludes backend-only events)
 export interface WsEventMap {
