@@ -391,29 +391,34 @@ export const processWithLLM = async (
       collectedEvents.push(event);
 
       // Emit streaming events for frontend visibility
-      if (event.type === "assistant") {
-        const content = event.message as { content?: Array<{ text?: string }> };
-        const text = content?.content?.[0]?.text;
-        if (text) {
-          eventBus.emit("monitor.message", {
+      // Wrapped in try-catch for defensive handling of malformed events
+      try {
+        if (event.type === "assistant") {
+          const content = event.message as { content?: Array<{ text?: string }> } | undefined;
+          const text = content?.content?.[0]?.text;
+          if (text) {
+            eventBus.emit("monitor.message", {
+              project_id: projectId,
+              content: text,
+            });
+          }
+        } else if (event.type === "tool_use") {
+          eventBus.emit("monitor.tool_call", {
             project_id: projectId,
-            content: text,
+            tool_name: (event.name as string) ?? "unknown",
+            tool_input: event.input,
           });
+        } else if (event.type === "tool_result") {
+          eventBus.emit("monitor.tool_result", {
+            project_id: projectId,
+            tool_name: "bash",
+            result: event.content,
+          });
+        } else if (event.type === "result") {
+          resultText = typeof event.result === "string" ? event.result : "";
         }
-      } else if (event.type === "tool_use") {
-        eventBus.emit("monitor.tool_call", {
-          project_id: projectId,
-          tool_name: event.name as string,
-          tool_input: event.input,
-        });
-      } else if (event.type === "tool_result") {
-        eventBus.emit("monitor.tool_result", {
-          project_id: projectId,
-          tool_name: "bash",
-          result: event.content,
-        });
-      } else if (event.type === "result") {
-        resultText = typeof event.result === "string" ? event.result : "";
+      } catch (eventErr) {
+        logger.warn({ eventErr, eventType: event.type }, "Monitor: Failed to process stream event");
       }
     }
 
@@ -439,7 +444,12 @@ export const processWithLLM = async (
       actionPlan = extractActionPlanFromEvents(collectedEvents);
     }
 
-    // If we have an action plan, execute it
+    // If we have an action plan, execute it.
+    // Note: The mutex is still held during plan execution. While the issue
+    // description mentions narrowing mutex scope as an optimization, this
+    // implementation keeps the mutex held for simplicity. The main performance
+    // benefit comes from the LLM no longer waiting for curl responses — all
+    // actions are executed after the LLM completes.
     if (actionPlan) {
       logger.info(
         {
