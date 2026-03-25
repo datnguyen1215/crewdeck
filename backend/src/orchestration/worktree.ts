@@ -63,6 +63,23 @@ export async function createWorktree(
     await execAsync(
       `git -C ${shellQuote(repoPath)} worktree add ${shellQuote(worktreePath)} ${shellQuote(branchName)}`,
     );
+
+    // Rebase onto latest main so the agent doesn't work on a stale base
+    if (fetchSucceeded) {
+      try {
+        await execAsync(
+          `git -C ${shellQuote(worktreePath)} rebase ${shellQuote(startPoint)}`,
+        );
+      } catch (err) {
+        // Abort the rebase if it fails (e.g. conflicts) — agent starts with what it had
+        await execAsync(
+          `git -C ${shellQuote(worktreePath)} rebase --abort`,
+        ).catch(() => {});
+        console.warn(
+          `Failed to rebase ${branchName} onto ${startPoint}: ${err}`,
+        );
+      }
+    }
   } else {
     await execAsync(
       `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,

@@ -151,6 +151,83 @@ describe("createWorktree", () => {
     );
   });
 
+  it("rebases existing branch onto origin/<baseBranch> after fetch", async () => {
+    // Make rev-parse succeed so branchExists = true
+    vi.mocked(exec).mockImplementation((...args: unknown[]) => {
+      const cmdStr = args[0] as string;
+      const cb = typeof args[1] === "function" ? args[1] : args[2];
+      (cb as (err: null, result: { stdout: string; stderr: string }) => void)(
+        null,
+        { stdout: "", stderr: "" },
+      );
+      return {} as ReturnType<typeof exec>;
+    });
+
+    await createWorktree(repo, issue, "main");
+
+    const calls = vi.mocked(exec).mock.calls.map((c) => c[0] as string);
+    const rebaseCmd = calls.find((c) => c.includes("rebase"));
+    expect(rebaseCmd).toBeDefined();
+    expect(rebaseCmd).toContain("rebase");
+    expect(rebaseCmd).toContain("origin/main");
+  });
+
+  it("skips rebase when fetch failed", async () => {
+    vi.mocked(exec).mockImplementation((...args: unknown[]) => {
+      const cmdStr = args[0] as string;
+      const cb = typeof args[1] === "function" ? args[1] : args[2];
+      if (cmdStr.includes("fetch origin")) {
+        (cb as (err: Error) => void)(new Error("network error"));
+      } else {
+        (cb as (err: null, result: { stdout: string; stderr: string }) => void)(
+          null,
+          { stdout: "", stderr: "" },
+        );
+      }
+      return {} as ReturnType<typeof exec>;
+    });
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await createWorktree(repo, issue, "main");
+
+    const calls = vi.mocked(exec).mock.calls.map((c) => c[0] as string);
+    const rebaseCmd = calls.find((c) => c.includes("rebase"));
+    expect(rebaseCmd).toBeUndefined();
+    warnSpy.mockRestore();
+  });
+
+  it("aborts rebase on conflict and warns", async () => {
+    let rebaseAborted = false;
+    vi.mocked(exec).mockImplementation((...args: unknown[]) => {
+      const cmdStr = args[0] as string;
+      const cb = typeof args[1] === "function" ? args[1] : args[2];
+      if (cmdStr.includes("rebase --abort")) {
+        rebaseAborted = true;
+        (cb as (err: null, result: { stdout: string; stderr: string }) => void)(
+          null,
+          { stdout: "", stderr: "" },
+        );
+      } else if (cmdStr.includes("rebase") && !cmdStr.includes("rev-parse")) {
+        (cb as (err: Error) => void)(new Error("conflict"));
+      } else {
+        (cb as (err: null, result: { stdout: string; stderr: string }) => void)(
+          null,
+          { stdout: "", stderr: "" },
+        );
+      }
+      return {} as ReturnType<typeof exec>;
+    });
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await createWorktree(repo, issue, "main");
+
+    expect(rebaseAborted).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to rebase"),
+    );
+    warnSpy.mockRestore();
+  });
+
   it("returns the worktree path and branch name", async () => {
     const { path, branchName } = await createWorktree(repo, issue, "develop");
     expect(typeof path).toBe("string");
