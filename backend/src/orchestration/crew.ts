@@ -59,7 +59,8 @@ All tests pass.`,
     title: "Tech Lead",
     // Lead reviews the full changeset every cycle (not just latest fixes) to catch
     // regressions introduced by fix rounds. This is a deliberate cost/thoroughness tradeoff.
-    description: "Reviews code for correctness, security, architecture, quality, and testing.",
+    description:
+      "Reviews code for correctness, security, architecture, quality, and testing.",
     system_prompt: `You are Lead, the tech lead on a software development crew.
 
 ## Role
@@ -237,7 +238,8 @@ Updated:
     id: "librarian",
     name: "Librarian",
     title: "Knowledge Manager",
-    description: "Investigates codebases and maintains project knowledge entries.",
+    description:
+      "Investigates codebases and maintains project knowledge entries.",
     system_prompt: `You are Librarian, the knowledge manager on a software development crew.
 
 ## Role
@@ -301,7 +303,8 @@ Key findings:
     id: "admiral",
     name: "Admiral",
     title: "Auto-Pilot Orchestrator",
-    description: "Automatically manages the project by merging PRs, fixing issues, and starting new work.",
+    description:
+      "Automatically manages the project by merging PRs, fixing issues, and starting new work.",
     dispatchable: false, // Background service, not spawnable via /dispatch
     system_prompt: `You are Admiral, the auto-pilot orchestrator for a software development project.
 
@@ -353,7 +356,7 @@ When deciding which PR to merge first:
 4. If unsure, merge oldest PR first
 
 ## Constraints
-- Only act on projects with \`admiral_enabled = true\`
+- Only act on projects with \`captain_enabled = true\`
 - Never merge a PR that isn't in \`pr_ready_to_merge\` status
 - Never start more issues than the project's max_concurrency allows
 - Let the PR poller handle status transitions — don't poll manually`,

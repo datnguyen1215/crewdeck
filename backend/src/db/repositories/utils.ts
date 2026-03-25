@@ -22,7 +22,7 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
     "max_chain_depth",
     "agent_timeout_minutes",
     "github_account_id",
-    "admiral_enabled",
+    "captain_enabled",
     "auto_merge_enabled",
   ]),
 };

@@ -25,7 +25,7 @@ async function queueAndProcess(event: AdmiralEvent): Promise<void> {
 
   // Check if project has admiral enabled
   const project = getProject(projectId);
-  if (!project?.admiral_enabled) return;
+  if (!project?.captain_enabled) return;
 
   enqueue(event);
 
@@ -35,7 +35,10 @@ async function queueAndProcess(event: AdmiralEvent): Promise<void> {
   // Try to acquire the processing lock
   if (!tryAcquire(projectId)) {
     // Another process is handling it, event is queued for later
-    logger.debug({ projectId, eventType: event.type }, "Admiral: Event queued while processing");
+    logger.debug(
+      { projectId, eventType: event.type },
+      "Admiral: Event queued while processing",
+    );
     return;
   }
 
@@ -56,7 +59,10 @@ async function processQueue(projectId: string): Promise<void> {
     const events = drain(projectId);
     if (events.length === 0) break;
 
-    logger.info({ projectId, eventCount: events.length }, "Admiral: Processing event batch");
+    logger.info(
+      { projectId, eventCount: events.length },
+      "Admiral: Processing event batch",
+    );
 
     try {
       await processWithLLM(projectId, events);
@@ -81,13 +87,13 @@ function resetIdleTimeout(projectId: string): void {
 
   // Get project's idle timeout setting
   const project = getProject(projectId);
-  if (!project?.admiral_idle_timeout_ms) return;
+  if (!project?.captain_idle_timeout_ms) return;
 
   // Set new timeout
   const timeout = setTimeout(() => {
     idleTimeouts.delete(projectId);
     triggerIdleCheck(projectId);
-  }, project.admiral_idle_timeout_ms);
+  }, project.captain_idle_timeout_ms);
 
   idleTimeouts.set(projectId, timeout);
 }
@@ -112,7 +118,9 @@ function triggerIdleCheck(projectId: string): void {
  */
 function createProjectHandlers(projectId: string): () => void {
   // Handler for issue events
-  const handleIssueCreated = (data: { issue: { project_id: string; id: string; title: string } }) => {
+  const handleIssueCreated = (data: {
+    issue: { project_id: string; id: string; title: string };
+  }) => {
     if (data.issue.project_id !== projectId) return;
     const event: AdmiralEvent = {
       type: "issue.created",
@@ -121,11 +129,18 @@ function createProjectHandlers(projectId: string): () => void {
       data,
     };
     queueAndProcess(event).catch((err) => {
-      logger.error({ err, projectId }, "Admiral: Failed to queue issue.created");
+      logger.error(
+        { err, projectId },
+        "Admiral: Failed to queue issue.created",
+      );
     });
   };
 
-  const handleIssueUpdated = (data: { project_id: string; issue_id: string; changes: unknown }) => {
+  const handleIssueUpdated = (data: {
+    project_id: string;
+    issue_id: string;
+    changes: unknown;
+  }) => {
     if (data.project_id !== projectId) return;
     const event: AdmiralEvent = {
       type: "issue.updated",
@@ -134,11 +149,19 @@ function createProjectHandlers(projectId: string): () => void {
       data,
     };
     queueAndProcess(event).catch((err) => {
-      logger.error({ err, projectId }, "Admiral: Failed to queue issue.updated");
+      logger.error(
+        { err, projectId },
+        "Admiral: Failed to queue issue.updated",
+      );
     });
   };
 
-  const handleIssueStatusChanged = (data: { project_id: string; issue_id: string; from: string; to: string }) => {
+  const handleIssueStatusChanged = (data: {
+    project_id: string;
+    issue_id: string;
+    from: string;
+    to: string;
+  }) => {
     if (data.project_id !== projectId) return;
     const event: AdmiralEvent = {
       type: "issue.status_changed",
@@ -147,12 +170,20 @@ function createProjectHandlers(projectId: string): () => void {
       data,
     };
     queueAndProcess(event).catch((err) => {
-      logger.error({ err, projectId }, "Admiral: Failed to queue issue.status_changed");
+      logger.error(
+        { err, projectId },
+        "Admiral: Failed to queue issue.status_changed",
+      );
     });
   };
 
   // Handler for agent run completion
-  const handleRunCompleted = (data: { project_id: string; issue_id: string | null; agent_id: string; status: string }) => {
+  const handleRunCompleted = (data: {
+    project_id: string;
+    issue_id: string | null;
+    agent_id: string;
+    status: string;
+  }) => {
     if (data.project_id !== projectId) return;
     const event: AdmiralEvent = {
       type: "run.completed",
@@ -161,12 +192,20 @@ function createProjectHandlers(projectId: string): () => void {
       data,
     };
     queueAndProcess(event).catch((err) => {
-      logger.error({ err, projectId }, "Admiral: Failed to queue run.completed");
+      logger.error(
+        { err, projectId },
+        "Admiral: Failed to queue run.completed",
+      );
     });
   };
 
   // Handler for PR status changes
-  const handlePRStatusChanged = (data: { project_id: string; pr_id: string; from: string; to: string }) => {
+  const handlePRStatusChanged = (data: {
+    project_id: string;
+    pr_id: string;
+    from: string;
+    to: string;
+  }) => {
     if (data.project_id !== projectId) return;
     const event: AdmiralEvent = {
       type: "pr.status_changed",
@@ -175,12 +214,19 @@ function createProjectHandlers(projectId: string): () => void {
       data,
     };
     queueAndProcess(event).catch((err) => {
-      logger.error({ err, projectId }, "Admiral: Failed to queue pr.status_changed");
+      logger.error(
+        { err, projectId },
+        "Admiral: Failed to queue pr.status_changed",
+      );
     });
   };
 
   // Handler for recovered runs (orphaned runs after server restart)
-  const handleRunRecovered = (data: { project_id: string; issue_id: string; failed_agent_id: string }) => {
+  const handleRunRecovered = (data: {
+    project_id: string;
+    issue_id: string;
+    failed_agent_id: string;
+  }) => {
     if (data.project_id !== projectId) return;
     const event: AdmiralEvent = {
       type: "run.recovered",
@@ -189,12 +235,19 @@ function createProjectHandlers(projectId: string): () => void {
       data,
     };
     queueAndProcess(event).catch((err) => {
-      logger.error({ err, projectId }, "Admiral: Failed to queue run.recovered");
+      logger.error(
+        { err, projectId },
+        "Admiral: Failed to queue run.recovered",
+      );
     });
   };
 
   // Handler for chat messages
-  const handleChatMessage = (data: { project_id: string; content: string; images?: Array<{ data: string; mediaType: string }> }) => {
+  const handleChatMessage = (data: {
+    project_id: string;
+    content: string;
+    images?: Array<{ data: string; mediaType: string }>;
+  }) => {
     if (data.project_id !== projectId) return;
     const event: AdmiralEvent = {
       type: "chat.message",
@@ -245,13 +298,13 @@ export function startAdmiralForProject(projectId: string): void {
   if (projectSubscriptions.has(projectId)) return;
 
   const project = getProject(projectId);
-  if (!project?.admiral_enabled) return;
+  if (!project?.captain_enabled) return;
 
   const unsubscribe = createProjectHandlers(projectId);
   projectSubscriptions.set(projectId, unsubscribe);
 
   // Initialize idle timeout if configured
-  if (project.admiral_idle_timeout_ms) {
+  if (project.captain_idle_timeout_ms) {
     resetIdleTimeout(projectId);
   }
 
@@ -274,7 +327,7 @@ export function stopAdmiralForProject(projectId: string): void {
  * Initialize the Admiral service for all admiral-enabled projects.
  */
 export function initAdmiralService(): void {
-  const projects = listProjects().filter((p) => p.admiral_enabled);
+  const projects = listProjects().filter((p) => p.captain_enabled);
 
   for (const project of projects) {
     startAdmiralForProject(project.id);
