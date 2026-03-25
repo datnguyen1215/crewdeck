@@ -52,6 +52,46 @@ claude -p <prompt> \
 - The system prompt is written to a temp file and cleaned up after the process exits.
 - `--dangerously-skip-permissions` allows the agent to operate autonomously.
 
+### spawnClaudeStream
+
+Spawns `claude -p` with streaming JSON output for real-time token delivery. Used by the Captain Chat service.
+
+```
+spawnClaudeStream(opts: SpawnOpts) → Promise<StreamSpawnResult>
+```
+
+**StreamSpawnResult:**
+
+| Field       | Type                             | Description                                  |
+| ----------- | -------------------------------- | -------------------------------------------- |
+| pid         | number                           | Process ID.                                  |
+| process     | ChildProcess                     | The spawned child process.                   |
+| events      | AsyncIterable<ClaudeStreamEvent> | Async iterator of parsed stream-json events. |
+| exitPromise | Promise<{code, stdout}>          | Resolves when the process exits.             |
+
+**Command constructed:**
+
+```
+claude -p <prompt via stdin> \
+       --verbose \
+       --system-prompt-file <tmpfile> \
+       --output-format stream-json \
+       --dangerously-skip-permissions
+```
+
+- `--output-format stream-json` causes Claude to emit newline-delimited JSON events as they occur (content deltas, tool calls, result).
+- The prompt is written to stdin to avoid exceeding `ARG_MAX` for large prompts.
+
+### spawnClaudeMultimodal
+
+Spawns `claude -p` with multimodal (image) support. Used by the Captain Chat service when images are attached.
+
+```
+spawnClaudeMultimodal(opts: MultimodalOpts) → Promise<SpawnResult>
+```
+
+Uses `--output-format json` (non-streaming) and passes image data via stdin alongside the text prompt.
+
 ## MentionHandler
 
 `backend/src/orchestration/handler.ts`

@@ -1217,6 +1217,13 @@ All events follow this structure:
 | `captain.tool_result`    | Tool execution completed                   | `{ project_id, tool_name, result }`       |
 | `captain.complete`       | Captain finished processing                | `{ project_id, response }`                |
 
+#### Chat Events
+
+| Event           | Description                                  | Data                         |
+| --------------- | -------------------------------------------- | ---------------------------- |
+| `chat.stream`   | Token streamed from Chat service (real-time) | `{ project_id, token }`      |
+| `chat.complete` | Chat service finished processing a message   | `{ project_id, message_id }` |
+
 ---
 
 ## Error Format
