@@ -38,19 +38,19 @@ All persistent state is stored in a local SQLite database. This document defines
 
 Represents a body of work tied to one or more GitHub repositories.
 
-| Field                   | Type        | Constraints                                                  | Description                                                                    |
-| ----------------------- | ----------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| id                      | TEXT (UUID) | PRIMARY KEY                                                  | Unique identifier.                                                             |
-| name                    | TEXT        | NOT NULL                                                     | Human-readable project name.                                                   |
-| description             | TEXT        |                                                              | Optional project description.                                                  |
-| max_concurrency         | INTEGER     | NOT NULL, DEFAULT 1                                          | Maximum number of agent processes running simultaneously.                      |
-| max_chain_depth         | INTEGER     | NOT NULL, DEFAULT 20                                         | Maximum agent dispatches per issue before requiring manual reset.              |
-| admiral_enabled         | INTEGER     | NOT NULL, DEFAULT 1                                          | Whether Admiral auto-pilot is enabled. Stored as 0/1; exposed as boolean.      |
-| auto_merge_enabled      | INTEGER     | NOT NULL, DEFAULT 0                                          | Whether auto-merge is enabled for PRs. Stored as 0/1; exposed as boolean.      |
-| admiral_idle_timeout_ms | INTEGER     | NULLABLE                                                     | Idle timeout in milliseconds for Admiral stuck detection. NULL means disabled. |
-| github_account_id       | TEXT        | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations.                |
-| created_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                |
-| updated_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                |
+| Field                   | Type        | Constraints                                                  | Description                                                                                                                             |
+| ----------------------- | ----------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| id                      | TEXT (UUID) | PRIMARY KEY                                                  | Unique identifier.                                                                                                                      |
+| name                    | TEXT        | NOT NULL                                                     | Human-readable project name.                                                                                                            |
+| description             | TEXT        |                                                              | Optional project description.                                                                                                           |
+| max_concurrency         | INTEGER     | NOT NULL, DEFAULT 1                                          | Maximum number of agent processes running simultaneously.                                                                               |
+| max_chain_depth         | INTEGER     | NOT NULL, DEFAULT 20                                         | Maximum agent dispatches per issue before requiring manual reset.                                                                       |
+| admiral_enabled         | INTEGER     | NOT NULL, DEFAULT 1                                          | Whether Admiral auto-pilot is enabled. Stored as 0/1; exposed as boolean.                                                               |
+| auto_merge_enabled      | INTEGER     | NOT NULL, DEFAULT 0                                          | Whether Admiral auto-merges PRs that pass all checks. Stored as 0/1; exposed as boolean. Only effective when `admiral_enabled` is true. |
+| admiral_idle_timeout_ms | INTEGER     | NULLABLE                                                     | Idle timeout in milliseconds for Admiral stuck detection. NULL means disabled.                                                          |
+| github_account_id       | TEXT        | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations.                                                                         |
+| created_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                                                                         |
+| updated_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                                                                         |
 
 ### GitHubAccount
 
