@@ -15,6 +15,7 @@ import type {
   ActiveRun,
   ProjectKnowledge,
   LibrarianStatus,
+  ChatSession,
   ChatMessage,
 } from "./types.js";
 
@@ -39,6 +40,8 @@ export type {
   AgentRunEventType,
   ProjectKnowledge,
   LibrarianStatus,
+  ChatSession,
+  ChatSessionStatus,
   ChatMessage,
 } from "./types.js";
 
@@ -380,9 +383,51 @@ export function getLibrarianStatus(projectId: string) {
   );
 }
 
-// Captain Chat
-export function getChatHistory(projectId: string) {
-  return request<ChatMessage[]>("GET", `/projects/${e(projectId)}/chat`);
+// Chat Sessions
+export function listChatSessions(projectId: string) {
+  return request<ChatSession[]>(
+    "GET",
+    `/projects/${e(projectId)}/chat/sessions`,
+  );
+}
+
+export function createChatSession(projectId: string, title?: string) {
+  return request<ChatSession>(
+    "POST",
+    `/projects/${e(projectId)}/chat/sessions`,
+    title ? { title } : {},
+  );
+}
+
+export function getChatMessages(projectId: string, sessionId: string) {
+  return request<ChatMessage[]>(
+    "GET",
+    `/projects/${e(projectId)}/chat/sessions/${e(sessionId)}/messages`,
+  );
+}
+
+export function sendChatMessage(
+  projectId: string,
+  sessionId: string,
+  message: string,
+  images?: Array<{ data: string; mediaType: string }>,
+) {
+  return request<{ user_message: ChatMessage; status: string }>(
+    "POST",
+    `/projects/${e(projectId)}/chat/sessions/${e(sessionId)}/messages`,
+    { message, images },
+  );
+}
+
+export function abortChatMessage(projectId: string, sessionId: string) {
+  return request<{ status: string }>(
+    "POST",
+    `/projects/${e(projectId)}/chat/sessions/${e(sessionId)}/abort`,
+  );
+}
+
+export function clearChatHistory(projectId: string) {
+  return request<void>("DELETE", `/projects/${e(projectId)}/chat`);
 }
 
 // Captain dispatch
@@ -402,19 +447,4 @@ export function dispatchAgent(
       instructions,
     },
   );
-}
-
-export function sendChatMessage(
-  projectId: string,
-  message: string,
-  images?: Array<{ data: string; mediaType: string }>,
-) {
-  return request<{ user_message: ChatMessage; status: string }>(
-    "POST",
-    `/projects/${e(projectId)}/chat`,
-    { message, images },
-  );
-}
-export function clearChatHistory(projectId: string) {
-  return request<void>("DELETE", `/projects/${e(projectId)}/chat`);
 }

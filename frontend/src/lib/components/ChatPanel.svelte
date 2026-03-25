@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { getChatHistory, sendChatMessage, type ChatMessage } from '$lib/api/http.js';
+	import {
+		listChatSessions,
+		createChatSession,
+		getChatMessages,
+		sendChatMessage,
+		type ChatSession,
+		type ChatMessage,
+	} from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { md } from '$lib/utils/markdown.js';
@@ -33,34 +40,53 @@
 	let inputElement: HTMLTextAreaElement | undefined;
 	let pendingImages = $state<PendingImage[]>([]);
 	let sendingTimeout: ReturnType<typeof setTimeout> | null = null;
+	let currentSessionId = $state<string | null>(null);
 
-	// Load chat history
+	// Load or create active session, then load messages
 	$effect(() => {
 		const pid = projectId;
 		let cancelled = false;
 		loading = true;
 		streamingEntryId = null;
+		currentSessionId = null;
 
-		getChatHistory(pid)
-			.then((hist: ChatMessage[]) => {
+		async function initSession() {
+			// Get sessions, find active one or create new
+			const sessions = await listChatSessions(pid);
+			if (cancelled) return;
+
+			let session: ChatSession | undefined = sessions.find((s) => s.status === 'active');
+			if (!session) {
+				session = await createChatSession(pid);
 				if (cancelled) return;
-				entries = hist.map((m) => ({
-					id: m.id,
-					type: m.role === 'user' ? 'user' : 'captain',
-					content: m.content,
-					timestamp: new Date(m.created_at),
-				}));
-				loading = false;
-				scrollToBottom();
-			})
-			.catch(() => {
-				if (!cancelled) {
-					loading = false;
-					toastStore.add('Failed to load chat history', 'error');
-				}
-			});
+			}
 
-		return () => { cancelled = true; };
+			currentSessionId = session.id;
+
+			// Load messages for this session
+			const messages = await getChatMessages(pid, session.id);
+			if (cancelled) return;
+
+			entries = messages.map((m) => ({
+				id: m.id,
+				type: m.role === 'user' ? 'user' : 'captain',
+				content: m.content,
+				timestamp: new Date(m.created_at),
+			}));
+			loading = false;
+			scrollToBottom();
+		}
+
+		initSession().catch(() => {
+			if (!cancelled) {
+				loading = false;
+				toastStore.add('Failed to load chat session', 'error');
+			}
+		});
+
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	// WebSocket: captain.chat.* events
@@ -175,11 +201,11 @@
 
 	async function sendMessage() {
 		const message = inputValue.trim();
-		if (!message || sending) return;
+		if (!message || sending || !currentSessionId) return;
 
-		const imagesToSend = pendingImages.map(img => ({
+		const imagesToSend = pendingImages.map((img) => ({
 			data: img.data.replace(/^data:image\/[^;]+;base64,/, ''),
-			mediaType: img.mediaType
+			mediaType: img.mediaType,
 		}));
 
 		inputValue = '';
@@ -209,12 +235,20 @@
 		scrollToBottom();
 
 		try {
-			await sendChatMessage(projectId, message, imagesToSend.length ? imagesToSend : undefined);
+			await sendChatMessage(
+				projectId,
+				currentSessionId,
+				message,
+				imagesToSend.length ? imagesToSend : undefined,
+			);
 		} catch {
 			toastStore.add('Failed to send message', 'error');
 			entries = entries.filter((e) => e.id !== userEntry.id);
 			sending = false;
-			if (sendingTimeout) { clearTimeout(sendingTimeout); sendingTimeout = null; }
+			if (sendingTimeout) {
+				clearTimeout(sendingTimeout);
+				sendingTimeout = null;
+			}
 			inputElement?.focus();
 		}
 	}
