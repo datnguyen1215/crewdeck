@@ -26,6 +26,35 @@ import type {
   SkipAction,
 } from "./action-schema.js";
 
+/** Standard UUID length (32 hex + 4 hyphens) */
+const UUID_LENGTH = 36;
+
+/**
+ * Resolve a potentially truncated issue ID to a full UUID.
+ * If the ID is already a full UUID or found by exact match, returns it as-is.
+ * If it looks like a prefix (shorter than a full UUID), tries prefix matching
+ * scoped to the project. Returns null if not found or ambiguous.
+ */
+function resolveIssueId(issueId: string, projectId: string): string | null {
+  // Try exact match first
+  const exact = issueRepo.getIssue(issueId);
+  if (exact) return exact.id;
+
+  // If it looks like a truncated ID, try prefix match
+  if (issueId.length < UUID_LENGTH && issueId.length >= 8) {
+    const match = issueRepo.getIssueByPrefix(issueId, projectId);
+    if (match) {
+      logger.info(
+        { prefix: issueId, resolved: match.id },
+        "Monitor: Resolved truncated issue ID",
+      );
+      return match.id;
+    }
+  }
+
+  return null;
+}
+
 export interface ActionResult {
   action: Action;
   success: boolean;
@@ -45,7 +74,12 @@ async function executeDispatch(
     agent_id: action.agent_id,
     instructions: action.instructions,
   });
-  return { action, success: result.success, message: result.message, data: result.data };
+  return {
+    action,
+    success: result.success,
+    message: result.message,
+    data: result.data,
+  };
 }
 
 /**
@@ -56,7 +90,12 @@ async function executeMerge(
   action: MergeAction,
 ): Promise<ActionResult> {
   const result = await handleMergePR(projectId, { issue_id: action.issue_id });
-  return { action, success: result.success, message: result.message, data: result.data };
+  return {
+    action,
+    success: result.success,
+    message: result.message,
+    data: result.data,
+  };
 }
 
 /**
@@ -85,7 +124,11 @@ function executeComment(
       return { action, success: false, message: "Issue not found" };
     }
     if (issue.project_id !== projectId) {
-      return { action, success: false, message: "Issue belongs to a different project" };
+      return {
+        action,
+        success: false,
+        message: "Issue belongs to a different project",
+      };
     }
     const comment = commentRepo.createComment(action.issue_id, {
       author_type: "captain",
@@ -95,7 +138,11 @@ function executeComment(
     return { action, success: true, message: "Comment added" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { action, success: false, message: `Failed to add comment: ${message}` };
+    return {
+      action,
+      success: false,
+      message: `Failed to add comment: ${message}`,
+    };
   }
 }
 
@@ -127,7 +174,11 @@ function executeCreateIssue(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { action, success: false, message: `Failed to create issue: ${message}` };
+    return {
+      action,
+      success: false,
+      message: `Failed to create issue: ${message}`,
+    };
   }
 }
 
@@ -144,7 +195,11 @@ function executeUpdateIssue(
       return { action, success: false, message: "Issue not found" };
     }
     if (issue.project_id !== projectId) {
-      return { action, success: false, message: "Issue belongs to a different project" };
+      return {
+        action,
+        success: false,
+        message: "Issue belongs to a different project",
+      };
     }
     const updates: { status?: string; title?: string } = {};
     if (action.status !== undefined) updates.status = action.status;
@@ -167,7 +222,11 @@ function executeUpdateIssue(
     return { action, success: true, message: "Issue updated" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { action, success: false, message: `Failed to update issue: ${message}` };
+    return {
+      action,
+      success: false,
+      message: `Failed to update issue: ${message}`,
+    };
   }
 }
 
@@ -183,12 +242,38 @@ function executeSkip(action: SkipAction): ActionResult {
 }
 
 /**
+ * Resolve any truncated issue_id on an action before execution.
+ * Mutates the action in place. Returns an error ActionResult if resolution fails.
+ */
+function resolveActionIssueId(
+  projectId: string,
+  action: Action,
+): ActionResult | null {
+  if (!("issue_id" in action) || !action.issue_id) return null;
+
+  const resolved = resolveIssueId(action.issue_id, projectId);
+  if (!resolved) {
+    return {
+      action,
+      success: false,
+      message: `Issue not found for ID "${action.issue_id}"`,
+    };
+  }
+  action.issue_id = resolved;
+  return null;
+}
+
+/**
  * Execute a single action.
  */
 async function executeAction(
   projectId: string,
   action: Action,
 ): Promise<ActionResult> {
+  // Resolve truncated issue IDs before executing
+  const resolveError = resolveActionIssueId(projectId, action);
+  if (resolveError) return resolveError;
+
   switch (action.type) {
     case "dispatch":
       return executeDispatch(projectId, action);
