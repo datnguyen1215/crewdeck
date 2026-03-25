@@ -14,7 +14,8 @@ export type CaptainEventType =
   | "pr.status_changed"
   | "comment.added"
   | "chat.message"
-  | "idle.check";
+  | "idle.check"
+  | "project.settings_changed";
 
 /** Image content passed with chat messages */
 export interface ChatImage {
