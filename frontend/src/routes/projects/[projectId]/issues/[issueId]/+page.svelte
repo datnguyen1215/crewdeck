@@ -6,6 +6,7 @@
 	import { md } from '$lib/utils/markdown.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import { createFormState } from '$lib/utils/form.js';
 	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
 	import ActivityDetails from '$lib/components/ActivityDetails.svelte';
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
@@ -26,10 +27,7 @@
 		return 'CrewDeck';
 	});
 
-	let showEditForm = $state(false);
-	let working = $state(false);
-	let editTitle = $state('');
-	let editDescription = $state('');
+	const editForm = createFormState({ title: '', description: '' });
 
 	let activeTab = $state<'description' | 'timeline'>('description');
 
@@ -307,23 +305,15 @@
 
 	async function handleEditSave() {
 		if (!issue) return;
-		working = true;
-		try {
-			await updateIssue(projectId, issueId, { title: editTitle, description: editDescription });
-			issue = { ...issue, title: editTitle, description: editDescription };
-			showEditForm = false;
-		} catch (err) {
-			toastStore.add(err instanceof Error ? err.message : 'Failed to save changes', 'error');
-		} finally {
-			working = false;
-		}
+		await editForm.submit(async (f) => {
+			await updateIssue(projectId, issueId, { title: f.title, description: f.description });
+			issue = { ...issue!, title: f.title, description: f.description };
+		});
 	}
 
 	function openEdit() {
 		if (!issue) return;
-		editTitle = issue.title;
-		editDescription = issue.description ?? '';
-		showEditForm = true;
+		editForm.show({ title: issue.title, description: issue.description ?? '' });
 	}
 
 	function toggleActivityExpand(id: string) {
@@ -657,13 +647,16 @@
 
 				<div class="p-4 md:p-6">
 					{#if activeTab === 'description'}
-						{#if showEditForm}
+						{#if editForm.open}
 							<div class="flex flex-col gap-3">
-								<input bind:value={editTitle} class="bg-base border border-edge rounded px-3 py-3 sm:py-2 text-primary text-sm w-full focus:border-cyan focus:outline-none" placeholder="Title" />
-								<textarea bind:value={editDescription} rows={10} class="bg-base border border-edge rounded px-3 py-3 sm:py-2 text-secondary text-sm sm:text-xs w-full focus:border-cyan focus:outline-none resize-y" placeholder="Description (Markdown supported)"></textarea>
+								<input bind:value={editForm.fields.title} class="bg-base border border-edge rounded px-3 py-3 sm:py-2 text-primary text-sm w-full focus:border-cyan focus:outline-none" placeholder="Title" />
+								<textarea bind:value={editForm.fields.description} rows={10} class="bg-base border border-edge rounded px-3 py-3 sm:py-2 text-secondary text-sm sm:text-xs w-full focus:border-cyan focus:outline-none resize-y" placeholder="Description (Markdown supported)"></textarea>
+								{#if editForm.error}
+									<p class="text-red text-xs">{editForm.error}</p>
+								{/if}
 								<div class="flex gap-2">
-									<button onclick={handleEditSave} disabled={working} class="px-4 py-2.5 sm:py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors min-h-[44px] sm:min-h-0">Save</button>
-									<button onclick={() => showEditForm = false} class="px-4 py-2.5 sm:py-1.5 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors min-h-[44px] sm:min-h-0">Cancel</button>
+									<button onclick={handleEditSave} disabled={editForm.submitting} class="px-4 py-2.5 sm:py-1.5 text-xs border border-cyan text-cyan rounded hover:bg-cyan/10 disabled:opacity-50 transition-colors min-h-[44px] sm:min-h-0">Save</button>
+									<button onclick={() => editForm.close()} class="px-4 py-2.5 sm:py-1.5 text-xs border border-edge text-muted rounded hover:text-secondary transition-colors min-h-[44px] sm:min-h-0">Cancel</button>
 								</div>
 							</div>
 						{:else}
