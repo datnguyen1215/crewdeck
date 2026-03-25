@@ -140,6 +140,10 @@ export function listAgents() {
   return request<Agent[]>("GET", "/crew");
 }
 
+export function listAllAgents() {
+  return request<Agent[]>("GET", "/crew?all=true");
+}
+
 // Agent Config (per-project model overrides)
 export function listAgentConfig(projectId: string) {
   return request<AgentConfig[]>(

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import {
-		listAgents,
+		listAllAgents,
 		getProject,
 		listAgentConfig,
 		setAgentModel,
@@ -26,7 +26,7 @@
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
-		Promise.all([listAgents(), getProject(projectId), listAgentConfig(projectId)])
+		Promise.all([listAllAgents(), getProject(projectId), listAgentConfig(projectId)])
 			.then(([a, p, c]) => {
 				if (cancelled) return;
 				agents = a;

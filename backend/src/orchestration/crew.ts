@@ -367,6 +367,10 @@ export function listCrew(): Agent[] {
   return CREW.filter((a) => a.dispatchable !== false);
 }
 
+export function listAllCrew(): Agent[] {
+  return CREW;
+}
+
 export function getCrewMember(id: string): Agent | null {
   return CREW.find((a) => a.id === id) ?? null;
 }
