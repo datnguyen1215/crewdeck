@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import {
 		listChatSessions,
 		createChatSession,
@@ -12,6 +11,7 @@
 	import type { WsEventMap } from '$lib/api/types.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { md } from '$lib/utils/markdown.js';
+	import { autoscroll } from '$lib/utils/autoscroll.js';
 
 	interface TerminalEntry {
 		id: string;
@@ -37,7 +37,7 @@
 	let inputValue = $state('');
 	let isThinking = $state(false);
 	let streamingEntryId = $state<string | null>(null);
-	let messagesContainer: HTMLDivElement | undefined;
+	let scrollToBottom: () => void;
 	let inputElement: HTMLTextAreaElement | undefined;
 	let pendingImages = $state<PendingImage[]>([]);
 	let sendingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -75,7 +75,6 @@
 				timestamp: new Date(m.created_at),
 			}));
 			loading = false;
-			scrollToBottom();
 		}
 
 		initSession().catch(() => {
@@ -119,7 +118,6 @@
 					timestamp: new Date(),
 				}];
 			}
-			scrollToBottom();
 		};
 
 		// Full message (non-streaming fallback)
@@ -140,7 +138,6 @@
 					timestamp: new Date(),
 				}];
 			}
-			scrollToBottom();
 		};
 
 		const handleToolCall = (data: WsEventMap['captain.chat.tool_call']) => {
@@ -153,7 +150,6 @@
 				toolInput: data.tool_input,
 				timestamp: new Date(),
 			}];
-			scrollToBottom();
 		};
 
 		const handleToolResult = (data: WsEventMap['captain.chat.tool_result']) => {
@@ -166,7 +162,6 @@
 				success: result?.success ?? true,
 				timestamp: new Date(),
 			}];
-			scrollToBottom();
 		};
 
 		const handleComplete = () => {
@@ -190,13 +185,6 @@
 
 		return () => unsubs.forEach((fn) => fn());
 	});
-
-	async function scrollToBottom() {
-		await tick();
-		if (messagesContainer) {
-			messagesContainer.scrollTop = messagesContainer.scrollHeight;
-		}
-	}
 
 	async function sendMessage() {
 		const message = inputValue.trim();
@@ -304,7 +292,7 @@
 <div class="h-full flex flex-col">
 	<!-- Messages -->
 	<div
-		bind:this={messagesContainer}
+		use:autoscroll={(fn) => scrollToBottom = fn}
 		class="flex-1 overflow-y-auto p-3 md:p-4 font-mono text-xs md:text-sm bg-black/20"
 	>
 		{#if loading}

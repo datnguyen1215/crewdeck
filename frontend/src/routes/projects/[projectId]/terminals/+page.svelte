@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getContext, tick, onMount } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 	import { listActiveRuns, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project, type ChatMessage } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { WsEventMap } from '$lib/api/types.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import { md } from '$lib/utils/markdown.js';
+	import { autoscroll } from '$lib/utils/autoscroll.js';
 
 	// Monitor entry type for captain feed
 	interface MonitorEntry {
@@ -18,15 +19,9 @@
 		success?: boolean;
 	}
 
-	// Track scroll containers and their "at bottom" state (reactive maps)
-	let scrollContainers = $state<Map<string, HTMLElement>>(new Map());
-	let atBottom = $state<Map<string, boolean>>(new Map());
-
 	// Captain monitor state
 	let monitorEntries = $state<MonitorEntry[]>([]);
 	let monitorLoading = $state(true);
-	let monitorContainer: HTMLDivElement | undefined;
-	let monitorAtBottom = $state(true);
 	let isAnalyzing = $state(false);
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
@@ -68,7 +63,6 @@
 		try {
 			const history = await getMonitorHistory(projectId);
 			monitorEntries = history.map(mapMessageToEntry);
-			scrollMonitorToBottom();
 		} catch (err) {
 			console.error('Failed to load monitor history:', err);
 		} finally {
@@ -88,7 +82,6 @@
 				content: `${data.event_type} - ${data.description ?? ''}`,
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
 		const handleThinking = () => {
@@ -99,7 +92,6 @@
 				content: 'Analyzing...',
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
 		const handleMessage = (data: WsEventMap['monitor.message']) => {
@@ -109,7 +101,6 @@
 				content: data.content,
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
 		const handleToolCall = (data: WsEventMap['monitor.tool_call']) => {
@@ -121,7 +112,6 @@
 				toolInput: data.tool_input,
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
 		const handleToolResult = (data: WsEventMap['monitor.tool_result']) => {
@@ -134,7 +124,6 @@
 				success: result?.success ?? true,
 				timestamp: new Date(),
 			}];
-			scrollMonitorToBottom();
 		};
 
 		const handleComplete = () => {
@@ -153,18 +142,6 @@
 
 		return () => unsubs.forEach((fn) => fn());
 	});
-
-	async function scrollMonitorToBottom() {
-		await tick();
-		if (monitorContainer && monitorAtBottom) {
-			monitorContainer.scrollTop = monitorContainer.scrollHeight;
-		}
-	}
-
-	function handleMonitorScroll(e: Event) {
-		const el = e.target as HTMLElement;
-		monitorAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
-	}
 
 	function formatMonitorTime(date: Date): string {
 		return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -217,8 +194,7 @@
 				if (r.id !== runId) return r;
 				return { ...r, events: [...r.events.slice(-49), event] };
 			});
-			scrollRunToBottom(runId);
-		};
+			};
 
 		const handleRunCompleted = (data: WsEventMap['run.completed']) => {
 			const runId = data.agent_run_id;
@@ -318,43 +294,6 @@
 		}
 	}
 
-	function handleScroll(runId: string, e: Event) {
-		const el = e.target as HTMLElement;
-		const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
-		atBottom = new Map(atBottom).set(runId, isAtBottom);
-	}
-
-	function scrollContainer(el: HTMLElement, runId: string) {
-		scrollContainers = new Map(scrollContainers).set(runId, el);
-		// Default to being at bottom for new containers
-		if (!atBottom.has(runId)) {
-			atBottom = new Map(atBottom).set(runId, true);
-		}
-		// Scroll to bottom on mount for pre-loaded events
-		tick().then(() => {
-			el.scrollTop = el.scrollHeight;
-		});
-		return {
-			destroy() {
-				const newContainers = new Map(scrollContainers);
-				newContainers.delete(runId);
-				scrollContainers = newContainers;
-				const newAtBottom = new Map(atBottom);
-				newAtBottom.delete(runId);
-				atBottom = newAtBottom;
-			}
-		};
-	}
-
-	async function scrollRunToBottom(runId: string) {
-		await tick();
-		const container = scrollContainers.get(runId);
-		const shouldScroll = atBottom.get(runId) ?? true;
-		if (container && shouldScroll) {
-			container.scrollTop = container.scrollHeight;
-		}
-	}
-
 	function formatElapsed(startedAt: string | null): string {
 		if (!startedAt) return '0s';
 		const ms = Date.now() - new Date(startedAt).getTime();
@@ -435,8 +374,7 @@
 
 			<!-- Monitor feed -->
 			<div
-				bind:this={monitorContainer}
-				onscroll={handleMonitorScroll}
+				use:autoscroll
 				class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs bg-black/20"
 			>
 				{#if monitorLoading}
@@ -534,8 +472,7 @@
 					<!-- Live feed -->
 					<div
 						class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs space-y-2 bg-base"
-						use:scrollContainer={run.id}
-						onscroll={(e) => handleScroll(run.id, e)}
+						use:autoscroll
 					>
 						{#if run.events.length === 0}
 							<div class="text-muted italic py-8 text-center">

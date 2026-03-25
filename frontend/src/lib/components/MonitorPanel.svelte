@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { tick, onMount } from 'svelte';
+	import { onMount } from 'svelte';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { WsEventMap } from '$lib/api/types.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { getMonitorHistory, type ChatMessage } from '$lib/api/http.js';
+	import { autoscroll } from '$lib/utils/autoscroll.js';
 
 	interface MonitorEntry {
 		id: string;
@@ -18,7 +19,6 @@
 	let { ws, projectId }: { ws: ProjectWebSocket | null; projectId: string } = $props();
 
 	let entries = $state<MonitorEntry[]>([]);
-	let feedContainer: HTMLDivElement | undefined;
 	let loading = $state(true);
 
 	// Convert stored ChatMessage to MonitorEntry
@@ -36,7 +36,6 @@
 		try {
 			const history = await getMonitorHistory(projectId);
 			entries = history.map(mapMessageToEntry);
-			scrollToBottom();
 		} catch (err) {
 			console.error('Failed to load monitor history:', err);
 		} finally {
@@ -55,7 +54,6 @@
 				content: `${data.event_type} - ${data.description ?? ''}`,
 				timestamp: new Date(),
 			}];
-			scrollToBottom();
 		};
 
 		const handleThinking = () => {
@@ -65,7 +63,6 @@
 				content: 'Analyzing...',
 				timestamp: new Date(),
 			}];
-			scrollToBottom();
 		};
 
 		const handleMessage = (data: WsEventMap['monitor.message']) => {
@@ -75,7 +72,6 @@
 				content: data.content,
 				timestamp: new Date(),
 			}];
-			scrollToBottom();
 		};
 
 		const handleToolCall = (data: WsEventMap['monitor.tool_call']) => {
@@ -87,7 +83,6 @@
 				toolInput: data.tool_input,
 				timestamp: new Date(),
 			}];
-			scrollToBottom();
 		};
 
 		const handleToolResult = (data: WsEventMap['monitor.tool_result']) => {
@@ -100,7 +95,6 @@
 				success: result?.success ?? true,
 				timestamp: new Date(),
 			}];
-			scrollToBottom();
 		};
 
 		const handleComplete = () => {
@@ -119,13 +113,6 @@
 
 		return () => unsubs.forEach((fn) => fn());
 	});
-
-	async function scrollToBottom() {
-		await tick();
-		if (feedContainer) {
-			feedContainer.scrollTop = feedContainer.scrollHeight;
-		}
-	}
 
 	function formatTime(date: Date): string {
 		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -165,7 +152,7 @@
 <div class="h-full flex flex-col">
 	<!-- Feed -->
 	<div
-		bind:this={feedContainer}
+		use:autoscroll
 		class="flex-1 overflow-y-auto p-3 md:p-4 font-mono text-xs md:text-sm bg-black/20"
 	>
 		{#if loading}
