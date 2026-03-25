@@ -12,6 +12,7 @@ import { eventBus } from "../../events/bus.js";
 import { getProject } from "../../db/repositories/projects.js";
 import { getActiveProcessCount } from "../processes.js";
 import { spawnClaudeStream } from "../process.js";
+import { resolveModel } from "../../db/repositories/agent-config.js";
 import { parseActionPlan, extractJsonFromResponse } from "./action-schema.js";
 import { executePlan, formatResults } from "./plan-executor.js";
 import type { ActionPlan } from "./action-schema.js";
@@ -383,11 +384,14 @@ export const processWithLLM = async (
   let actionPlan: ActionPlan | null = null;
 
   try {
+    const model = resolveModel(projectId, "captain");
+
     const result = await spawnClaudeStream({
       prompt: userPrompt,
       systemPrompt,
       workdir: ".",
       env,
+      model,
     });
 
     // Collect all events for processing
@@ -401,7 +405,9 @@ export const processWithLLM = async (
       // Wrapped in try-catch for defensive handling of malformed events
       try {
         if (event.type === "assistant") {
-          const content = event.message as { content?: Array<{ text?: string }> } | undefined;
+          const content = event.message as
+            | { content?: Array<{ text?: string }> }
+            | undefined;
           const text = content?.content?.[0]?.text;
           if (text) {
             eventBus.emit("monitor.message", {
@@ -425,7 +431,10 @@ export const processWithLLM = async (
           resultText = typeof event.result === "string" ? event.result : "";
         }
       } catch (eventErr) {
-        logger.warn({ eventErr, eventType: event.type }, "Monitor: Failed to process stream event");
+        logger.warn(
+          { eventErr, eventType: event.type },
+          "Monitor: Failed to process stream event",
+        );
       }
     }
 

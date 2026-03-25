@@ -7,6 +7,7 @@ export interface Project {
   agent_timeout_minutes: number;
   auto_start: boolean;
   auto_merge: boolean;
+  model: string;
   github_account_id: string | null;
   created_at: string;
   updated_at: string;

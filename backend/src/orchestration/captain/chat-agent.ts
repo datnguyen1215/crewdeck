@@ -18,6 +18,7 @@ import { eventBus } from "../../events/bus.js";
 import { getProject } from "../../db/repositories/projects.js";
 import { getActiveProcessCount } from "../processes.js";
 import { spawnClaudeStream, spawnClaudeMultimodal } from "../process.js";
+import { resolveModel } from "../../db/repositories/agent-config.js";
 
 import * as chatRepo from "../../db/repositories/chat-messages.js";
 import type { CaptainEvent } from "./queue.js";
@@ -386,6 +387,7 @@ const processSingleChat = async (
   };
 
   const sshKeyPath = await setupGitHubAuth(projectId, env);
+  const model = resolveModel(projectId, "captain");
   let fullResponse = "";
 
   try {
@@ -398,6 +400,7 @@ const processSingleChat = async (
         systemPrompt,
         workdir: ".",
         env,
+        model,
       });
 
       if (sessionId) {
@@ -457,6 +460,7 @@ const processSingleChat = async (
         systemPrompt,
         workdir: ".",
         env,
+        model,
       });
 
       if (sessionId) {
