@@ -15,6 +15,8 @@ import {
   updateIssuePR,
 } from "../db/repositories/issue-prs.js";
 import { logger } from "../logger.js";
+import { IssueStatus, PRStatus } from "../constants/statuses.js";
+import type { PRStatusValue } from "../constants/statuses.js";
 
 const POLL_INTERVAL = 60_000; // 60 seconds
 
@@ -128,10 +130,10 @@ async function fetchCommitStatus(
 }
 
 /** Map GitHub PR state to our internal status. */
-function mapPRStatus(pr: GitHubPRResponse): "open" | "merged" | "closed" {
-  if (pr.merged) return "merged";
-  if (pr.state === "closed") return "closed";
-  return "open";
+function mapPRStatus(pr: GitHubPRResponse): PRStatusValue {
+  if (pr.merged) return PRStatus.MERGED;
+  if (pr.state === "closed") return PRStatus.CLOSED;
+  return PRStatus.OPEN;
 }
 
 type CheckResult = "pass" | "fail" | "pending";
@@ -178,16 +180,17 @@ function determineIssueStatus(
   ciStatus: CheckResult,
 ): string {
   // Merge conflict takes priority
-  if (mergeable === false) return "pr_conflict";
+  if (mergeable === false) return IssueStatus.PR_CONFLICT;
 
   // CI failed
-  if (ciStatus === "fail") return "pr_failed_actions";
+  if (ciStatus === "fail") return IssueStatus.PR_FAILED_ACTIONS;
 
   // All good - ready to merge
-  if (mergeable === true && ciStatus === "pass") return "pr_ready_to_merge";
+  if (mergeable === true && ciStatus === "pass")
+    return IssueStatus.PR_READY_TO_MERGE;
 
   // Still pending (mergeable null or checks pending) - regress to pr_created
-  return "pr_created";
+  return IssueStatus.PR_CREATED;
 }
 
 /** Poll all open PRs and update their status. */
@@ -262,10 +265,10 @@ export async function pollPRs(): Promise<void> {
     }
 
     // Auto-transition issue to done if PR is merged (unless already done)
-    if (newPRStatus === "merged") {
+    if (newPRStatus === PRStatus.MERGED) {
       const issue = getIssue(pr.issue_id);
-      if (issue && issue.status !== "done") {
-        updateIssue(pr.issue_id, { status: "done" });
+      if (issue && issue.status !== IssueStatus.DONE) {
+        updateIssue(pr.issue_id, { status: IssueStatus.DONE });
 
         logger.info(
           { issue_id: pr.issue_id, pr_number: pr.pr_number },
@@ -276,14 +279,14 @@ export async function pollPRs(): Promise<void> {
           issue_id: pr.issue_id,
           project_id: pr.project_id,
           from: issue.status,
-          to: "done",
+          to: IssueStatus.DONE,
         });
       }
       continue; // No need to check CI for merged PRs
     }
 
     // For open PRs, check CI status and mergeability
-    if (newPRStatus === "open") {
+    if (newPRStatus === PRStatus.OPEN) {
       const issue = getIssue(pr.issue_id);
       if (!issue?.status.startsWith("pr_")) continue;
 

@@ -9,6 +9,7 @@ import * as log from "../logger.js";
 import * as crew from "./crew.js";
 import { eventBus } from "../events/bus.js";
 import { postSystemComment } from "./spawner.js";
+import { IssueStatus } from "../constants/statuses.js";
 
 /** Delay before recovery to ensure server is fully initialized */
 const RECOVERY_DELAY_MS = 2000;
@@ -77,7 +78,7 @@ export const emitRecoveryEvents = (items: RecoveryItem[]): void => {
 
     setTimeout(() => {
       const issue = issueRepo.getIssue(item.issueId);
-      if (!issue || issue.status !== "in_progress") {
+      if (!issue || issue.status !== IssueStatus.IN_PROGRESS) {
         // Issue no longer needs recovery
         return;
       }
