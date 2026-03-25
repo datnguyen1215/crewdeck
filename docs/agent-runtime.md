@@ -292,4 +292,6 @@ Every invocation gets a complete, self-contained prompt from the database. The b
 
 **Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed`, posts a system comment on each affected issue, and emits `run.recovered` events.
 
+**Spawn failure handling:** If `spawnClaudeStream()` throws during `spawnAndTrack()` (e.g., process cannot be created), the `AgentRun` record is immediately marked `failed` with a `completed_at` timestamp, `onComplete()` is called for cleanup (e.g., SSH key removal), and the error is re-thrown. This prevents runs from being permanently stuck in `running` with a null PID, which would block further work on the issue.
+
 **Shutdown:** `shutdownMentionHandler()` stops the batch cleanup interval, sends SIGTERM to all active processes, and clears the active-process and batch tracking maps.
