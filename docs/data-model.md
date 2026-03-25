@@ -38,31 +38,32 @@ All persistent state is stored in a local SQLite database. This document defines
 
 Represents a body of work tied to one or more GitHub repositories.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| name | TEXT | NOT NULL | Human-readable project name. |
-| description | TEXT | | Optional project description. |
-| max_concurrency | INTEGER | NOT NULL, DEFAULT 1 | Maximum number of agent processes running simultaneously. |
-| max_chain_depth | INTEGER | NOT NULL, DEFAULT 20 | Maximum agent dispatches per issue before requiring manual reset. |
-| admiral_enabled | INTEGER | NOT NULL, DEFAULT 1 | Whether Admiral auto-pilot is enabled. Stored as 0/1; exposed as boolean. |
-| admiral_idle_timeout_ms | INTEGER | NULLABLE | Idle timeout in milliseconds for Admiral stuck detection. NULL means disabled. |
-| github_account_id | TEXT | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
-| updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| Field                   | Type        | Constraints                                                  | Description                                                                    |
+| ----------------------- | ----------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| id                      | TEXT (UUID) | PRIMARY KEY                                                  | Unique identifier.                                                             |
+| name                    | TEXT        | NOT NULL                                                     | Human-readable project name.                                                   |
+| description             | TEXT        |                                                              | Optional project description.                                                  |
+| max_concurrency         | INTEGER     | NOT NULL, DEFAULT 1                                          | Maximum number of agent processes running simultaneously.                      |
+| max_chain_depth         | INTEGER     | NOT NULL, DEFAULT 20                                         | Maximum agent dispatches per issue before requiring manual reset.              |
+| admiral_enabled         | INTEGER     | NOT NULL, DEFAULT 1                                          | Whether Admiral auto-pilot is enabled. Stored as 0/1; exposed as boolean.      |
+| auto_merge_enabled      | INTEGER     | NOT NULL, DEFAULT 0                                          | Whether auto-merge is enabled for PRs. Stored as 0/1; exposed as boolean.      |
+| admiral_idle_timeout_ms | INTEGER     | NULLABLE                                                     | Idle timeout in milliseconds for Admiral stuck detection. NULL means disabled. |
+| github_account_id       | TEXT        | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations.                |
+| created_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                |
+| updated_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                |
 
 ### GitHubAccount
 
 A GitHub account connected via Device Flow OAuth.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| account_name | TEXT | NOT NULL | Display name for the account (matches github_username). |
-| github_username | TEXT | NOT NULL | GitHub username. |
-| oauth_token | TEXT | NOT NULL | OAuth access token. Never returned to the client. |
-| scopes | TEXT | | Comma-separated OAuth scopes granted. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| Field           | Type        | Constraints                         | Description                                             |
+| --------------- | ----------- | ----------------------------------- | ------------------------------------------------------- |
+| id              | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                      |
+| account_name    | TEXT        | NOT NULL                            | Display name for the account (matches github_username). |
+| github_username | TEXT        | NOT NULL                            | GitHub username.                                        |
+| oauth_token     | TEXT        | NOT NULL                            | OAuth access token. Never returned to the client.       |
+| scopes          | TEXT        |                                     | Comma-separated OAuth scopes granted.                   |
+| created_at      | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                         |
 
 **Note:** `oauth_token` is stored server-side only and stripped from all API responses.
 
@@ -72,40 +73,41 @@ A GitHub account connected via Device Flow OAuth.
 
 A GitHub repository linked to a project.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| github_url | TEXT | NOT NULL | Full GitHub repository URL (e.g., `https://github.com/org/repo`). |
-| name | TEXT | NOT NULL | Repository name (e.g., `repo`). |
-| owner | TEXT | NOT NULL | Repository owner (e.g., `org`). |
-| local_path | TEXT | NOT NULL | Absolute path to the local clone on disk. Managed by the backend; derived from `CREWDECK_REPOS_DIR/<owner>/<name>`. |
-| default_branch | TEXT | NOT NULL, DEFAULT 'main' | Default branch name. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| Field          | Type        | Constraints                         | Description                                                                                                         |
+| -------------- | ----------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| id             | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                  |
+| project_id     | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                     |
+| github_url     | TEXT        | NOT NULL                            | Full GitHub repository URL (e.g., `https://github.com/org/repo`).                                                   |
+| name           | TEXT        | NOT NULL                            | Repository name (e.g., `repo`).                                                                                     |
+| owner          | TEXT        | NOT NULL                            | Repository owner (e.g., `org`).                                                                                     |
+| local_path     | TEXT        | NOT NULL                            | Absolute path to the local clone on disk. Managed by the backend; derived from `CREWDECK_REPOS_DIR/<owner>/<name>`. |
+| default_branch | TEXT        | NOT NULL, DEFAULT 'main'            | Default branch name.                                                                                                |
+| created_at     | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                     |
 
 **Constraints:**
+
 - UNIQUE(project_id, github_url) — a repo can only be linked once per project.
 
 ### Issue
 
 The fundamental unit of work.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| title | TEXT | NOT NULL | Issue title. |
-| description | TEXT | NOT NULL | Detailed issue description. |
-| status | TEXT | NOT NULL, DEFAULT 'open' | Current status. One of: `open`, `in_progress`, `pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`, `done`. |
-| created_by | TEXT | NOT NULL, DEFAULT 'user' | Who created the issue. One of: `user`, `system`. |
-| chain_depth | INTEGER | NOT NULL, DEFAULT 0 | Number of agent spawns on this issue. Capped at `project.max_chain_depth`. |
-| branch_name | TEXT | NULLABLE | Git branch where work is being done. |
-| worktree_path | TEXT | NULLABLE | Absolute path to the git worktree. |
-| base_branch | TEXT | NULLABLE | The branch this issue's work is based on. |
-| repo_id | TEXT | FOREIGN KEY → Repo.id, NULLABLE | The repo this issue is being worked on in. |
-| agent_id | TEXT | NULLABLE | The agent currently assigned to this issue. One of the fixed agent IDs (engineer, lead, docs, librarian) or NULL if unassigned. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
-| updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| Field         | Type        | Constraints                         | Description                                                                                                                     |
+| ------------- | ----------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| id            | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                              |
+| project_id    | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                                 |
+| title         | TEXT        | NOT NULL                            | Issue title.                                                                                                                    |
+| description   | TEXT        | NOT NULL                            | Detailed issue description.                                                                                                     |
+| status        | TEXT        | NOT NULL, DEFAULT 'open'            | Current status. One of: `open`, `in_progress`, `pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`, `done`.   |
+| created_by    | TEXT        | NOT NULL, DEFAULT 'user'            | Who created the issue. One of: `user`, `system`.                                                                                |
+| chain_depth   | INTEGER     | NOT NULL, DEFAULT 0                 | Number of agent spawns on this issue. Capped at `project.max_chain_depth`.                                                      |
+| branch_name   | TEXT        | NULLABLE                            | Git branch where work is being done.                                                                                            |
+| worktree_path | TEXT        | NULLABLE                            | Absolute path to the git worktree.                                                                                              |
+| base_branch   | TEXT        | NULLABLE                            | The branch this issue's work is based on.                                                                                       |
+| repo_id       | TEXT        | FOREIGN KEY → Repo.id, NULLABLE     | The repo this issue is being worked on in.                                                                                      |
+| agent_id      | TEXT        | NULLABLE                            | The agent currently assigned to this issue. One of the fixed agent IDs (engineer, lead, docs, librarian) or NULL if unassigned. |
+| created_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                 |
+| updated_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                 |
 
 **Note:** When listing issues via the API (`GET /projects/:projectId/issues`), each issue is returned with additional computed fields `running_agent_id` and `running_agent_status` derived from a LEFT JOIN on the `AgentRun` table. These fields indicate the most recent running or queued agent for the issue (if any).
 
@@ -113,60 +115,60 @@ The fundamental unit of work.
 
 A message on an issue from an agent, the system, or a human.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| issue_id | TEXT | NOT NULL, FOREIGN KEY → Issue.id | The issue this comment belongs to. |
-| author_type | TEXT | NOT NULL | Who posted it. One of: `user`, `agent`, `system`. |
-| author_id | TEXT | NULLABLE | If author_type is `agent`, the Agent.id. NULL for user/system. |
-| content | TEXT | NOT NULL | Comment body (Markdown supported). |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| Field       | Type        | Constraints                         | Description                                                    |
+| ----------- | ----------- | ----------------------------------- | -------------------------------------------------------------- |
+| id          | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                             |
+| issue_id    | TEXT        | NOT NULL, FOREIGN KEY → Issue.id    | The issue this comment belongs to.                             |
+| author_type | TEXT        | NOT NULL                            | Who posted it. One of: `user`, `agent`, `system`.              |
+| author_id   | TEXT        | NULLABLE                            | If author_type is `agent`, the Agent.id. NULL for user/system. |
+| content     | TEXT        | NOT NULL                            | Comment body (Markdown supported).                             |
+| created_at  | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                |
 
 ### IssuePR
 
 Links an issue to a GitHub pull request.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| issue_id | TEXT | NOT NULL, FOREIGN KEY → Issue.id | The linked issue. |
-| repo_id | TEXT | NOT NULL, FOREIGN KEY → Repo.id | The repo the PR is on. |
-| pr_number | INTEGER | NOT NULL | GitHub PR number. |
-| pr_url | TEXT | NOT NULL | Full GitHub PR URL. |
-| status | TEXT | NOT NULL, DEFAULT 'open' | PR status. One of: `open`, `merged`, `closed`. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
-| updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| Field      | Type        | Constraints                         | Description                                    |
+| ---------- | ----------- | ----------------------------------- | ---------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                             |
+| issue_id   | TEXT        | NOT NULL, FOREIGN KEY → Issue.id    | The linked issue.                              |
+| repo_id    | TEXT        | NOT NULL, FOREIGN KEY → Repo.id     | The repo the PR is on.                         |
+| pr_number  | INTEGER     | NOT NULL                            | GitHub PR number.                              |
+| pr_url     | TEXT        | NOT NULL                            | Full GitHub PR URL.                            |
+| status     | TEXT        | NOT NULL, DEFAULT 'open'            | PR status. One of: `open`, `merged`, `closed`. |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                |
+| updated_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                |
 
 ### AgentRun
 
 Records a single execution of an agent. Can be associated with an issue (for `/dispatch` spawns) or run standalone (for scans).
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue this run was triggered by. NULL for standalone runs (e.g., scans). |
-| agent_id | TEXT | NOT NULL | The agent that was spawned (e.g., `engineer`). |
-| pid | INTEGER | NULLABLE | OS process ID. NULL until the process is spawned. |
-| status | TEXT | NOT NULL, DEFAULT 'queued' | Current status. One of: `queued`, `running`, `completed`, `failed`, `timeout`. |
-| exit_code | INTEGER | NULLABLE | Process exit code. NULL if not yet completed or if status is `timeout`. |
-| cost_usd | REAL | NULLABLE | Estimated cost in USD from the Claude API. NULL until run completes. |
-| duration_ms | INTEGER | NULLABLE | Wall-clock duration in milliseconds. NULL until run completes. |
-| started_at | DATETIME | NULLABLE | When the agent process started. NULL while queued. |
-| completed_at | DATETIME | NULLABLE | When the agent process ended. NULL while running. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the run record was created. |
+| Field        | Type        | Constraints                         | Description                                                                    |
+| ------------ | ----------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                             |
+| project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                |
+| issue_id     | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | The issue this run was triggered by. NULL for standalone runs (e.g., scans).   |
+| agent_id     | TEXT        | NOT NULL                            | The agent that was spawned (e.g., `engineer`).                                 |
+| pid          | INTEGER     | NULLABLE                            | OS process ID. NULL until the process is spawned.                              |
+| status       | TEXT        | NOT NULL, DEFAULT 'queued'          | Current status. One of: `queued`, `running`, `completed`, `failed`, `timeout`. |
+| exit_code    | INTEGER     | NULLABLE                            | Process exit code. NULL if not yet completed or if status is `timeout`.        |
+| cost_usd     | REAL        | NULLABLE                            | Estimated cost in USD from the Claude API. NULL until run completes.           |
+| duration_ms  | INTEGER     | NULLABLE                            | Wall-clock duration in milliseconds. NULL until run completes.                 |
+| started_at   | DATETIME    | NULLABLE                            | When the agent process started. NULL while queued.                             |
+| completed_at | DATETIME    | NULLABLE                            | When the agent process ended. NULL while running.                              |
+| created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the run record was created.                                               |
 
 ### AgentRunEvent
 
 A single streamed event from the Claude CLI (`--output-format stream-json`) captured during an agent run.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| agent_run_id | TEXT | NOT NULL, FOREIGN KEY → AgentRun.id ON DELETE CASCADE | The run this event belongs to. |
-| type | TEXT | NOT NULL | Raw event type from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`). Stored as-is without mapping. |
-| data | TEXT | NOT NULL | JSON-encoded event payload from the Claude CLI. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the event was recorded. |
+| Field        | Type        | Constraints                                           | Description                                                                                                                                       |
+| ------------ | ----------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id           | TEXT (UUID) | PRIMARY KEY                                           | Unique identifier.                                                                                                                                |
+| agent_run_id | TEXT        | NOT NULL, FOREIGN KEY → AgentRun.id ON DELETE CASCADE | The run this event belongs to.                                                                                                                    |
+| type         | TEXT        | NOT NULL                                              | Raw event type from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`). Stored as-is without mapping. |
+| data         | TEXT        | NOT NULL                                              | JSON-encoded event payload from the Claude CLI.                                                                                                   |
+| created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                   | When the event was recorded.                                                                                                                      |
 
 ---
 
@@ -174,17 +176,18 @@ A single streamed event from the Claude CLI (`--output-format stream-json`) capt
 
 A per-project environment variable injected into agent processes at spawn time.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| key | TEXT | NOT NULL | Variable name. Must match `[A-Za-z_][A-Za-z0-9_]*`. |
-| value | TEXT | NOT NULL | Variable value. Stored in plaintext; masked in API responses when `is_secret` is true. |
-| is_secret | INTEGER | NOT NULL, DEFAULT 0 | Whether to mask the value in API responses. Stored as 0/1; exposed as boolean. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
-| updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| Field      | Type        | Constraints                         | Description                                                                            |
+| ---------- | ----------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                     |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                        |
+| key        | TEXT        | NOT NULL                            | Variable name. Must match `[A-Za-z_][A-Za-z0-9_]*`.                                    |
+| value      | TEXT        | NOT NULL                            | Variable value. Stored in plaintext; masked in API responses when `is_secret` is true. |
+| is_secret  | INTEGER     | NOT NULL, DEFAULT 0                 | Whether to mask the value in API responses. Stored as 0/1; exposed as boolean.         |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                        |
+| updated_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                        |
 
 **Constraints:**
+
 - UNIQUE(project_id, key) — a key can only appear once per project.
 
 ---
@@ -193,17 +196,17 @@ A per-project environment variable injected into agent processes at spawn time.
 
 Structured knowledge entries that provide context to agents. Replaces the former `memory` field on Project.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project. |
-| title | TEXT | NOT NULL | Short title for the knowledge entry. |
-| category | TEXT | NOT NULL | Category for grouping (e.g., `architecture`, `conventions`, `gotchas`). |
-| content | TEXT | NOT NULL | The knowledge content. |
-| source | TEXT | NULLABLE | Optional source reference (e.g., file path, URL). |
-| agent_ids | TEXT | NULLABLE | JSON array of agent IDs this entry applies to. NULL means all agents. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
-| updated_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| Field      | Type        | Constraints                                          | Description                                                             |
+| ---------- | ----------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                      |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                         |
+| title      | TEXT        | NOT NULL                                             | Short title for the knowledge entry.                                    |
+| category   | TEXT        | NOT NULL                                             | Category for grouping (e.g., `architecture`, `conventions`, `gotchas`). |
+| content    | TEXT        | NOT NULL                                             | The knowledge content.                                                  |
+| source     | TEXT        | NULLABLE                                             | Optional source reference (e.g., file path, URL).                       |
+| agent_ids  | TEXT        | NULLABLE                                             | JSON array of agent IDs this entry applies to. NULL means all agents.   |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  |                                                                         |
+| updated_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  |                                                                         |
 
 **Note:** `agent_ids` is stored as a JSON string and parsed to `string[] | null` at runtime. When null, the entry applies to all agents. When set, only agents whose ID is in the array receive this knowledge.
 
@@ -215,17 +218,17 @@ Structured knowledge entries that provide context to agents. Replaces the former
 
 Tracks each agent process spawn for crash recovery and observability.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | The issue the agent was working on. NULL for standalone runs (e.g., scans). |
-| agent_id | TEXT | NOT NULL | The agent identifier (e.g., `engineer`, `lead`). |
-| pid | INTEGER | NOT NULL | OS process ID of the spawned `claude` process. |
-| status | TEXT | NOT NULL, DEFAULT 'running' | Current run status. One of: `running`, `completed`, `failed`, `timeout`. |
-| exit_code | INTEGER | NULLABLE | Exit code of the process. NULL if still running or timed out. |
-| started_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned. |
-| completed_at | DATETIME | NULLABLE | When the process finished. NULL if still running. |
+| Field        | Type        | Constraints                         | Description                                                                 |
+| ------------ | ----------- | ----------------------------------- | --------------------------------------------------------------------------- |
+| id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                          |
+| project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                             |
+| issue_id     | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | The issue the agent was working on. NULL for standalone runs (e.g., scans). |
+| agent_id     | TEXT        | NOT NULL                            | The agent identifier (e.g., `engineer`, `lead`).                            |
+| pid          | INTEGER     | NOT NULL                            | OS process ID of the spawned `claude` process.                              |
+| status       | TEXT        | NOT NULL, DEFAULT 'running'         | Current run status. One of: `running`, `completed`, `failed`, `timeout`.    |
+| exit_code    | INTEGER     | NULLABLE                            | Exit code of the process. NULL if still running or timed out.               |
+| started_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned.                                               |
+| completed_at | DATETIME    | NULLABLE                            | When the process finished. NULL if still running.                           |
 
 **Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed`, posts system comments on affected issues (if associated with an issue), and emits `run.recovered` events for Admiral to handle.
 
@@ -235,16 +238,16 @@ Tracks each agent process spawn for crash recovery and observability.
 
 Immutable audit trail of every action in the system.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id | Owning project. |
-| issue_id | TEXT | FOREIGN KEY → Issue.id, NULLABLE | Related issue, if applicable. |
-| actor_type | TEXT | NOT NULL | Who performed the action. One of: `user`, `agent`, `system`. |
-| actor_id | TEXT | NULLABLE | Agent.id if actor_type is `agent`. |
-| action | TEXT | NOT NULL | Action identifier (e.g., `issue.created`, `issue.status_changed`, `comment.added`, `mention.spawned`, `mention.completed`, `pr.created`). |
-| details | TEXT | | JSON blob with action-specific data (e.g., `{"from": "open", "to": "in_progress"}`). |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | |
+| Field      | Type        | Constraints                         | Description                                                                                                                               |
+| ---------- | ----------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                                        |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                                           |
+| issue_id   | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | Related issue, if applicable.                                                                                                             |
+| actor_type | TEXT        | NOT NULL                            | Who performed the action. One of: `user`, `agent`, `system`.                                                                              |
+| actor_id   | TEXT        | NULLABLE                            | Agent.id if actor_type is `agent`.                                                                                                        |
+| action     | TEXT        | NOT NULL                            | Action identifier (e.g., `issue.created`, `issue.status_changed`, `comment.added`, `mention.spawned`, `mention.completed`, `pr.created`). |
+| details    | TEXT        |                                     | JSON blob with action-specific data (e.g., `{"from": "open", "to": "in_progress"}`).                                                      |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                           |
 
 **Note:** This table is append-only. Rows are never updated or deleted.
 
@@ -254,15 +257,15 @@ Immutable audit trail of every action in the system.
 
 Stores conversation history for the Admiral LLM agent. Each project has its own conversation thread.
 
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| id | TEXT (UUID) | PRIMARY KEY | Unique identifier. |
-| project_id | TEXT | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project. |
-| role | TEXT | NOT NULL, CHECK (IN 'user', 'assistant') | Message role. `user` for user messages and event batches, `assistant` for Admiral responses. |
-| content | TEXT | NOT NULL | Message content. |
-| message_type | TEXT | NOT NULL, DEFAULT 'chat', CHECK (IN 'chat', 'event') | Type of message. `chat` for actual user/assistant messages shown in conversation history, `event` for synthetic event-batch messages (excluded from history reload). |
-| images | TEXT | NULLABLE | JSON array of image file paths. Images are stored on disk at `data/uploads/{projectId}/{messageId}/`. NULL if no images attached. |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the message was created. |
+| Field        | Type        | Constraints                                          | Description                                                                                                                                                          |
+| ------------ | ----------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id           | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                                                                                                                   |
+| project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                                                                                                                      |
+| role         | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role. `user` for user messages and event batches, `assistant` for Admiral responses.                                                                         |
+| content      | TEXT        | NOT NULL                                             | Message content.                                                                                                                                                     |
+| message_type | TEXT        | NOT NULL, DEFAULT 'chat', CHECK (IN 'chat', 'event') | Type of message. `chat` for actual user/assistant messages shown in conversation history, `event` for synthetic event-batch messages (excluded from history reload). |
+| images       | TEXT        | NULLABLE                                             | JSON array of image file paths. Images are stored on disk at `data/uploads/{projectId}/{messageId}/`. NULL if no images attached.                                    |
+| created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created.                                                                                                                                        |
 
 **Note:** The `message_type` field distinguishes actual conversation messages from synthetic event descriptions. When loading conversation history, only `chat` messages are included to avoid polluting the context with system event batches.
 
@@ -270,21 +273,21 @@ Stores conversation history for the Admiral LLM agent. Each project has its own 
 
 ## Relationships Summary
 
-| Relationship | Type | Description |
-|-------------|------|-------------|
-| GitHubAccount → Project | One-to-Many | A GitHub account can be linked to multiple projects. |
-| Project → Repo | One-to-Many | A project has multiple repos. |
-| Project → Issue | One-to-Many | A project has multiple issues. |
-| Project → ActivityLog | One-to-Many | A project has many activity log entries. |
-| Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes. |
-| Project → ProjectKnowledge | One-to-Many | A project has many knowledge entries for agent context. |
-| Issue → Comment | One-to-Many | An issue has many comments. |
-| Issue → IssuePR | One-to-Many | An issue can have multiple PRs (across repos). |
-| Issue → ActivityLog | One-to-Many | An issue has many activity log entries. |
-| Issue → AgentRun | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
-| AgentRun → AgentRunEvent | One-to-Many | A run has many streamed events (ordered by created_at). |
-| Project → AgentRun | One-to-Many | A project has many agent run records. |
-| Project → ChatMessage | One-to-Many | A project has many Admiral chat messages. |
+| Relationship                  | Type        | Description                                                                 |
+| ----------------------------- | ----------- | --------------------------------------------------------------------------- |
+| GitHubAccount → Project       | One-to-Many | A GitHub account can be linked to multiple projects.                        |
+| Project → Repo                | One-to-Many | A project has multiple repos.                                               |
+| Project → Issue               | One-to-Many | A project has multiple issues.                                              |
+| Project → ActivityLog         | One-to-Many | A project has many activity log entries.                                    |
+| Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes.     |
+| Project → ProjectKnowledge    | One-to-Many | A project has many knowledge entries for agent context.                     |
+| Issue → Comment               | One-to-Many | An issue has many comments.                                                 |
+| Issue → IssuePR               | One-to-Many | An issue can have multiple PRs (across repos).                              |
+| Issue → ActivityLog           | One-to-Many | An issue has many activity log entries.                                     |
+| Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
+| AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
+| Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
+| Project → ChatMessage         | One-to-Many | A project has many Admiral chat messages.                                   |
 
 ## Indexes
 

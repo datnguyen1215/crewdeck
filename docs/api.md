@@ -31,13 +31,14 @@ GET /projects?stats
 
 **Query Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| stats | flag | When present (any value), returns each project with computed stats fields. |
+| Parameter | Type | Description                                                                |
+| --------- | ---- | -------------------------------------------------------------------------- |
+| stats     | flag | When present (any value), returns each project with computed stats fields. |
 
 **Response:** `200 OK`
 
 Without `?stats`:
+
 ```json
 [
   {
@@ -47,6 +48,7 @@ Without `?stats`:
     "max_concurrency": 3,
     "max_chain_depth": 20,
     "admiral_enabled": true,
+    "auto_merge_enabled": false,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
@@ -55,6 +57,7 @@ Without `?stats`:
 ```
 
 With `?stats`:
+
 ```json
 [
   {
@@ -64,6 +67,7 @@ With `?stats`:
     "max_concurrency": 3,
     "max_chain_depth": 20,
     "admiral_enabled": true,
+    "auto_merge_enabled": false,
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601",
@@ -98,6 +102,7 @@ POST /projects
 ```
 
 **Request Body:**
+
 ```json
 {
   "github_url": "https://github.com/owner/repo",
@@ -107,13 +112,13 @@ POST /projects
 }
 ```
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| github_url | Yes | — | GitHub URL of the repository to link to this project. |
-| name | No | Repo name from GitHub API | Project name. |
-| description | No | Repo description from GitHub API | Project description. |
-| max_concurrency | No | — | Max concurrent agent processes. |
-| github_account_id | No | null | ID of a connected GitHubAccount to use for git operations in this project. |
+| Field             | Required | Default                          | Description                                                                |
+| ----------------- | -------- | -------------------------------- | -------------------------------------------------------------------------- |
+| github_url        | Yes      | —                                | GitHub URL of the repository to link to this project.                      |
+| name              | No       | Repo name from GitHub API        | Project name.                                                              |
+| description       | No       | Repo description from GitHub API | Project description.                                                       |
+| max_concurrency   | No       | —                                | Max concurrent agent processes.                                            |
+| github_account_id | No       | null                             | ID of a connected GitHubAccount to use for git operations in this project. |
 
 **Response:** `201 Created` — The created project object.
 
@@ -127,7 +132,7 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, admiral_enabled, github_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, admiral_enabled, auto_merge_enabled, github_account_id).
 
 **Response:** `200 OK` — The updated project object.
 
@@ -159,11 +164,11 @@ Returns the status of the most recent librarian (knowledge scan) run for the pro
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| status | TEXT | Status of the latest librarian run. NULL if no librarian has ever run on this project. |
-| started_at | DATETIME | When the librarian run started. NULL if no run exists. |
-| completed_at | DATETIME | When the librarian run completed. NULL if still running or no run exists. |
+| Field        | Type     | Description                                                                            |
+| ------------ | -------- | -------------------------------------------------------------------------------------- |
+| status       | TEXT     | Status of the latest librarian run. NULL if no librarian has ever run on this project. |
+| started_at   | DATETIME | When the librarian run started. NULL if no run exists.                                 |
+| completed_at | DATETIME | When the librarian run completed. NULL if still running or no run exists.              |
 
 **Error:** `404 Not Found` — Project does not exist.
 
@@ -180,15 +185,16 @@ POST /github-accounts/device-code
 ```
 
 **Request Body:**
+
 ```json
 {
   "client_id": "optional-override"
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| client_id | No | Overrides `GITHUB_CLIENT_ID` env var. |
+| Field     | Required | Description                           |
+| --------- | -------- | ------------------------------------- |
+| client_id | No       | Overrides `GITHUB_CLIENT_ID` env var. |
 
 **Response:** `200 OK` — GitHub device code response (user_code, verification_uri, device_code, expires_in, interval).
 
@@ -201,6 +207,7 @@ POST /github-accounts/device-code/poll
 Polls GitHub for an access token after the user has authorized on GitHub.
 
 **Request Body:**
+
 ```json
 {
   "device_code": "...",
@@ -211,6 +218,7 @@ Polls GitHub for an access token after the user has authorized on GitHub.
 **Response:**
 
 On success (`201 Created`): GitHubAccount object (without `oauth_token`):
+
 ```json
 {
   "id": "uuid",
@@ -222,6 +230,7 @@ On success (`201 Created`): GitHubAccount object (without `oauth_token`):
 ```
 
 While pending (`200 OK`):
+
 ```json
 {
   "status": "pending",
@@ -269,6 +278,7 @@ POST /projects/:projectId/repos
 ```
 
 **Request Body:**
+
 ```json
 {
   "github_url": "https://github.com/org/repo",
@@ -276,16 +286,17 @@ POST /projects/:projectId/repos
 }
 ```
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| github_url | Yes | — | Full GitHub URL. Name and owner are parsed from this. |
-| default_branch | No | main | Default branch name. |
+| Field          | Required | Default | Description                                           |
+| -------------- | -------- | ------- | ----------------------------------------------------- |
+| github_url     | Yes      | —       | Full GitHub URL. Name and owner are parsed from this. |
+| default_branch | No       | main    | Default branch name.                                  |
 
 **Response:** `201 Created` — The created repo object.
 
 **Side effects:** The backend clones the repo to a managed directory if not already present. Uses the project's linked GitHub account token when available.
 
 **Validation:**
+
 - github_url must be a valid GitHub URL.
 - github_url must not already be linked to this project.
 - Repository must be reachable and cloneable; otherwise returns `400 VALIDATION_ERROR`.
@@ -328,14 +339,14 @@ Both paths return the dispatchable agents (4 agents). Admiral is excluded becaus
 ]
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | TEXT | Agent identifier. |
-| name | TEXT | Display name. |
-| title | TEXT | Agent role title. |
-| description | TEXT | Brief description of the agent's purpose. |
-| system_prompt | TEXT | System prompt injected into agent processes. |
-| dispatchable | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. Background services (e.g., Admiral) have this set to false and are excluded from the list.
+| Field         | Type    | Description                                                                                                                                                     |
+| ------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id            | TEXT    | Agent identifier.                                                                                                                                               |
+| name          | TEXT    | Display name.                                                                                                                                                   |
+| title         | TEXT    | Agent role title.                                                                                                                                               |
+| description   | TEXT    | Brief description of the agent's purpose.                                                                                                                       |
+| system_prompt | TEXT    | System prompt injected into agent processes.                                                                                                                    |
+| dispatchable  | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. Background services (e.g., Admiral) have this set to false and are excluded from the list. |
 
 ---
 
@@ -349,12 +360,12 @@ GET /projects/:projectId/issues
 
 **Query Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| status | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
-| created_by | TEXT | Filter by creator (`user`, `agent`, or `system`). |
-| sort | TEXT | Sort field. One of: `created_at`, `updated_at`. Default: `created_at`. |
-| order | TEXT | Sort order. `asc` or `desc`. Default: `desc`. |
+| Parameter  | Type | Description                                                                |
+| ---------- | ---- | -------------------------------------------------------------------------- |
+| status     | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
+| created_by | TEXT | Filter by creator (`user`, `agent`, or `system`).                          |
+| sort       | TEXT | Sort field. One of: `created_at`, `updated_at`. Default: `created_at`.     |
+| order      | TEXT | Sort order. `asc` or `desc`. Default: `desc`.                              |
 
 **Response:** `200 OK` — Array of issue objects (without full comment thread). Each issue includes `running_agent_id` and `running_agent_status` fields indicating the currently running or queued agent (if any).
 
@@ -412,6 +423,7 @@ POST /projects/:projectId/issues
 ```
 
 **Request Body:**
+
 ```json
 {
   "title": "Fix authentication bug",
@@ -419,15 +431,16 @@ POST /projects/:projectId/issues
 }
 ```
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| title | Yes | — | Issue title. |
-| description | Yes | — | Issue description. |
-| agent_id | No | null | Assigned agent ID (one of: engineer, lead, docs, librarian). |
+| Field       | Required | Default | Description                                                  |
+| ----------- | -------- | ------- | ------------------------------------------------------------ |
+| title       | Yes      | —       | Issue title.                                                 |
+| description | Yes      | —       | Issue description.                                           |
+| agent_id    | No       | null    | Assigned agent ID (one of: engineer, lead, docs, librarian). |
 
 **Response:** `201 Created` — The created issue object with status `open` and `created_by: "user"`.
 
 **Side effects:**
+
 - WebSocket event emitted: `issue.created`.
 
 #### Update Issue
@@ -440,13 +453,14 @@ PATCH /projects/:projectId/issues/:issueId
 
 **Headers:**
 
-| Header | Required | Description |
-|--------|----------|-------------|
-| X-Agent-ID | No | Agent ID to exclude from the active process check when transitioning to `done`. Allows an agent to mark an issue as done without being blocked by its own running process. |
+| Header     | Required | Description                                                                                                                                                                |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| X-Agent-ID | No       | Agent ID to exclude from the active process check when transitioning to `done`. Allows an agent to mark an issue as done without being blocked by its own running process. |
 
 **Response:** `200 OK` — The updated issue object. If the request only sets a field to its current value (e.g. same status), the issue is returned unchanged.
 
 **Side effects:**
+
 - WebSocket event emitted: `issue.status_changed` (when status changes).
 
 **Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue (excluding the agent specified in `X-Agent-ID`). Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the project's `max_chain_depth` limit is reached.
@@ -483,6 +497,7 @@ POST /projects/:projectId/issues/:issueId/comments
 ```
 
 **Request Body:**
+
 ```json
 {
   "content": "Please also check the session handling."
@@ -492,6 +507,7 @@ POST /projects/:projectId/issues/:issueId/comments
 **Response:** `201 Created` — The created comment object (author_type = `user`).
 
 **Side effects:**
+
 - WebSocket event: `comment.added`.
 
 **Note:** Agent and system comments are created internally (by agent processes and the MentionHandler), not through this endpoint.
@@ -503,6 +519,7 @@ PATCH /projects/:projectId/issues/:issueId/comments/:commentId
 ```
 
 **Request Body:**
+
 ```json
 {
   "content": "Updated comment text."
@@ -514,6 +531,7 @@ PATCH /projects/:projectId/issues/:issueId/comments/:commentId
 **Error:** `403 Forbidden` — Cannot edit agent or system comments (author_type ≠ `user`).
 
 **Side effects:**
+
 - WebSocket event: `comment.updated`.
 
 #### Delete Comment
@@ -527,6 +545,7 @@ DELETE /projects/:projectId/issues/:issueId/comments/:commentId
 **Error:** `403 Forbidden` — Cannot delete agent or system comments (author_type ≠ `user`).
 
 **Side effects:**
+
 - WebSocket event: `comment.deleted`.
 
 ---
@@ -601,10 +620,10 @@ GET /projects/:projectId/runs?limit=50&offset=0
 
 **Query Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| limit | INTEGER | Max runs to return. Default: 50. Max: 100. |
-| offset | INTEGER | Pagination offset. Default: 0. Must be ≥ 0. |
+| Parameter | Type    | Description                                 |
+| --------- | ------- | ------------------------------------------- |
+| limit     | INTEGER | Max runs to return. Default: 50. Max: 100.  |
+| offset    | INTEGER | Pagination offset. Default: 0. Must be ≥ 0. |
 
 **Response:** `200 OK` — Array of AgentRun objects ordered by `created_at` descending.
 
@@ -620,14 +639,14 @@ GET /projects/:projectId/activity
 
 **Query Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| issue_id | TEXT | Filter by issue. |
-| actor_type | TEXT | Filter by actor type. |
-| action | TEXT | Filter by action (e.g., `issue.status_changed`). |
-| since | DATETIME | Only entries after this timestamp. Must be a valid date (ISO 8601 or any format parseable by `new Date()`). Invalid values return `400 VALIDATION_ERROR`. |
-| limit | INTEGER | Max entries to return. Default: 50. Max: 500. |
-| offset | INTEGER | Pagination offset. Default: 0. |
+| Parameter  | Type     | Description                                                                                                                                               |
+| ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| issue_id   | TEXT     | Filter by issue.                                                                                                                                          |
+| actor_type | TEXT     | Filter by actor type.                                                                                                                                     |
+| action     | TEXT     | Filter by action (e.g., `issue.status_changed`).                                                                                                          |
+| since      | DATETIME | Only entries after this timestamp. Must be a valid date (ISO 8601 or any format parseable by `new Date()`). Invalid values return `400 VALIDATION_ERROR`. |
+| limit      | INTEGER  | Max entries to return. Default: 50. Max: 500.                                                                                                             |
+| offset     | INTEGER  | Pagination offset. Default: 0.                                                                                                                            |
 
 **Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Entries where `actor_type` is `agent` include an additional `actor_name` field (string) with the agent's display name.
 
@@ -670,6 +689,7 @@ POST /projects/:projectId/environment
 ```
 
 **Request Body:**
+
 ```json
 {
   "key": "API_KEY",
@@ -678,11 +698,11 @@ POST /projects/:projectId/environment
 }
 ```
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| key | Yes | — | Environment variable name. Must match `[A-Za-z_][A-Za-z0-9_]*`. |
-| value | Yes | — | Value string. |
-| is_secret | No | false | If true, the value is masked in all API responses. |
+| Field     | Required | Default | Description                                                     |
+| --------- | -------- | ------- | --------------------------------------------------------------- |
+| key       | Yes      | —       | Environment variable name. Must match `[A-Za-z_][A-Za-z0-9_]*`. |
+| value     | Yes      | —       | Value string.                                                   |
+| is_secret | No       | false   | If true, the value is masked in all API responses.              |
 
 **Response:** `201 Created` — The created environment variable object (value masked if secret).
 
@@ -763,6 +783,7 @@ POST /projects/:projectId/knowledge
 ```
 
 **Request Body:**
+
 ```json
 {
   "title": "API Conventions",
@@ -773,13 +794,13 @@ POST /projects/:projectId/knowledge
 }
 ```
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| title | Yes | — | Short title for the entry. |
-| category | Yes | — | Category for grouping (e.g., `architecture`, `conventions`, `gotchas`). |
-| content | Yes | — | The knowledge content. |
-| source | No | null | Optional source reference (e.g., `user`, `librarian`, file path, URL). |
-| agent_ids | No | null | Array of agent IDs this entry applies to. NULL means all agents. |
+| Field     | Required | Default | Description                                                             |
+| --------- | -------- | ------- | ----------------------------------------------------------------------- |
+| title     | Yes      | —       | Short title for the entry.                                              |
+| category  | Yes      | —       | Category for grouping (e.g., `architecture`, `conventions`, `gotchas`). |
+| content   | Yes      | —       | The knowledge content.                                                  |
+| source    | No       | null    | Optional source reference (e.g., `user`, `librarian`, file path, URL).  |
+| agent_ids | No       | null    | Array of agent IDs this entry applies to. NULL means all agents.        |
 
 **Response:** `201 Created` — The created knowledge entry object.
 
@@ -823,13 +844,14 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field        | Type        | Description                      |
+| ------------ | ----------- | -------------------------------- |
 | agent_run_id | TEXT (UUID) | The ID of the spawned agent run. |
 
 **Error:** `500 Internal Server Error` — If the project's concurrency limit is reached (scans cannot be queued).
 
 **Side effects:**
+
 - Creates an `AgentRun` record with `issue_id: null`.
 - Spawns the librarian agent process.
 - Emits `run.started` event.
@@ -849,6 +871,7 @@ POST /internal/comment
 Agent posts a comment on an issue.
 
 **Request Body:**
+
 ```json
 {
   "issue_id": "uuid",
@@ -858,12 +881,12 @@ Agent posts a comment on an issue.
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| issue_id | Yes | The issue to comment on. |
-| project_id | Yes | The owning project. |
-| agent_id | No | The agent's ID (for author attribution). |
-| content | Yes | Comment body. |
+| Field      | Required | Description                              |
+| ---------- | -------- | ---------------------------------------- |
+| issue_id   | Yes      | The issue to comment on.                 |
+| project_id | Yes      | The owning project.                      |
+| agent_id   | No       | The agent's ID (for author attribution). |
+| content    | Yes      | Comment body.                            |
 
 **Response:** `201 Created`
 
@@ -878,6 +901,7 @@ POST /internal/issues/create
 Agent creates a new issue. The issue is created with `created_by: "agent"`.
 
 **Request Body:**
+
 ```json
 {
   "project_id": "uuid",
@@ -886,11 +910,11 @@ Agent creates a new issue. The issue is created with `created_by: "agent"`.
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| project_id | Yes | The project to create the issue in. |
-| title | Yes | Issue title (non-empty). |
-| description | Yes | Issue description (non-empty). |
+| Field       | Required | Description                         |
+| ----------- | -------- | ----------------------------------- |
+| project_id  | Yes      | The project to create the issue in. |
+| title       | Yes      | Issue title (non-empty).            |
+| description | Yes      | Issue description (non-empty).      |
 
 **Response:** `201 Created` — The created issue object.
 
@@ -906,9 +930,9 @@ Agent lists all knowledge entries for a project.
 
 **Query Parameters:**
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| project_id | Yes | The project ID. |
+| Parameter  | Required | Description     |
+| ---------- | -------- | --------------- |
+| project_id | Yes      | The project ID. |
 
 **Response:** `200 OK` — Array of knowledge entry objects.
 
@@ -921,6 +945,7 @@ POST /internal/knowledge/create
 Agent creates a knowledge entry. The `source` field is automatically set to `librarian`.
 
 **Request Body:**
+
 ```json
 {
   "project_id": "uuid",
@@ -931,13 +956,13 @@ Agent creates a knowledge entry. The `source` field is automatically set to `lib
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| project_id | Yes | The project to create the entry in. |
-| title | Yes | Short title (non-empty). |
-| category | Yes | Category for grouping (non-empty). |
-| content | Yes | The knowledge content (non-empty). |
-| agent_ids | No | Array of agent IDs this entry applies to. NULL means all agents. |
+| Field      | Required | Description                                                      |
+| ---------- | -------- | ---------------------------------------------------------------- |
+| project_id | Yes      | The project to create the entry in.                              |
+| title      | Yes      | Short title (non-empty).                                         |
+| category   | Yes      | Category for grouping (non-empty).                               |
+| content    | Yes      | The knowledge content (non-empty).                               |
+| agent_ids  | No       | Array of agent IDs this entry applies to. NULL means all agents. |
 
 **Response:** `201 Created` — The created knowledge entry object.
 
@@ -952,6 +977,7 @@ POST /internal/knowledge/update
 Agent updates a knowledge entry.
 
 **Request Body:**
+
 ```json
 {
   "project_id": "uuid",
@@ -961,14 +987,14 @@ Agent updates a knowledge entry.
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| project_id | Yes | Must match the entry's project. |
-| knowledge_id | Yes | The entry to update. |
-| title | No | Updated title. |
-| category | No | Updated category. |
-| content | No | Updated content. |
-| agent_ids | No | Updated agent assignments. |
+| Field        | Required | Description                     |
+| ------------ | -------- | ------------------------------- |
+| project_id   | Yes      | Must match the entry's project. |
+| knowledge_id | Yes      | The entry to update.            |
+| title        | No       | Updated title.                  |
+| category     | No       | Updated category.               |
+| content      | No       | Updated content.                |
+| agent_ids    | No       | Updated agent assignments.      |
 
 **Response:** `200 OK` — The updated knowledge entry object.
 
@@ -983,6 +1009,7 @@ POST /internal/knowledge/delete
 Agent deletes a knowledge entry.
 
 **Request Body:**
+
 ```json
 {
   "project_id": "uuid",
@@ -990,10 +1017,10 @@ Agent deletes a knowledge entry.
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| project_id | Yes | Must match the entry's project. |
-| knowledge_id | Yes | The entry to delete. |
+| Field        | Required | Description                     |
+| ------------ | -------- | ------------------------------- |
+| project_id   | Yes      | Must match the entry's project. |
+| knowledge_id | Yes      | The entry to delete.            |
 
 **Response:** `204 No Content`
 
@@ -1008,6 +1035,7 @@ POST /internal/create-pr
 Agent registers a PR for tracking. This creates an `IssuePR` record linking the PR to the issue, enabling the PR poller to auto-transition the issue to `done` when the PR is merged.
 
 **Request Body:**
+
 ```json
 {
   "project_id": "uuid",
@@ -1016,15 +1044,16 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| project_id | Yes | The project the issue belongs to. |
-| issue_id | Yes | The issue to link the PR to. |
-| pr_url | Yes | Full GitHub PR URL. |
+| Field      | Required | Description                       |
+| ---------- | -------- | --------------------------------- |
+| project_id | Yes      | The project the issue belongs to. |
+| issue_id   | Yes      | The issue to link the PR to.      |
+| pr_url     | Yes      | Full GitHub PR URL.               |
 
 **Response:**
 
 `201 Created` — New IssuePR record created:
+
 ```json
 {
   "id": "uuid",
@@ -1055,6 +1084,7 @@ POST /internal/admiral/dispatch-agent
 Admiral dispatches a sub-agent to work on an issue. This is used internally by Admiral to orchestrate work.
 
 **Request Body:**
+
 ```json
 {
   "project_id": "uuid",
@@ -1064,12 +1094,12 @@ Admiral dispatches a sub-agent to work on an issue. This is used internally by A
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| project_id | Yes | The project the issue belongs to. |
-| issue_id | Yes | The issue to dispatch the agent on. |
-| agent_id | Yes | The agent to dispatch. One of: `engineer`, `lead`, `docs`, `librarian`. |
-| instructions | No | Optional instructions posted as a system comment before spawning. |
+| Field        | Required | Description                                                             |
+| ------------ | -------- | ----------------------------------------------------------------------- |
+| project_id   | Yes      | The project the issue belongs to.                                       |
+| issue_id     | Yes      | The issue to dispatch the agent on.                                     |
+| agent_id     | Yes      | The agent to dispatch. One of: `engineer`, `lead`, `docs`, `librarian`. |
+| instructions | No       | Optional instructions posted as a system comment before spawning.       |
 
 **Response:** `200 OK` — ToolResult object with success status and message.
 
@@ -1083,6 +1113,7 @@ Admiral dispatches a sub-agent to work on an issue. This is used internally by A
 **Error:** `400 VALIDATION_ERROR` — Invalid agent_id (must be engineer, lead, docs, or librarian — not captain or admiral).
 
 **Side effects:**
+
 - Posts a system comment with instructions (if provided).
 - Spawns the specified agent process.
 - Emits `run.started` event.
@@ -1093,15 +1124,15 @@ Admiral dispatches a sub-agent to work on an issue. This is used internally by A
 
 Issue status changes are validated to ensure a valid lifecycle:
 
-| From | Allowed Transitions |
-|------|---------------------|
-| open | in_progress, done |
-| in_progress | pr_created, done |
-| pr_created | in_progress, done, pr_conflict, pr_failed_actions, pr_ready_to_merge |
-| pr_conflict | pr_created, in_progress |
-| pr_failed_actions | pr_created, in_progress |
-| pr_ready_to_merge | done, pr_conflict, in_progress |
-| done | (terminal — no further transitions) |
+| From              | Allowed Transitions                                                  |
+| ----------------- | -------------------------------------------------------------------- |
+| open              | in_progress, done                                                    |
+| in_progress       | pr_created, done                                                     |
+| pr_created        | in_progress, done, pr_conflict, pr_failed_actions, pr_ready_to_merge |
+| pr_conflict       | pr_created, in_progress                                              |
+| pr_failed_actions | pr_created, in_progress                                              |
+| pr_ready_to_merge | done, pr_conflict, in_progress                                       |
+| done              | (terminal — no further transitions)                                  |
 
 Any status can transition to `done` via `PATCH /issues/:issueId` (rejected if active agent processes are running).
 
@@ -1135,56 +1166,56 @@ All events follow this structure:
 
 #### Issue Events
 
-| Event | Description | Data |
-|-------|-------------|------|
-| `issue.created` | New issue created | Full issue object |
-| `issue.updated` | Issue fields changed | `{ issue_id, changes }` |
-| `issue.status_changed` | Status transition | `{ issue_id, from, to }` |
+| Event                  | Description          | Data                     |
+| ---------------------- | -------------------- | ------------------------ |
+| `issue.created`        | New issue created    | Full issue object        |
+| `issue.updated`        | Issue fields changed | `{ issue_id, changes }`  |
+| `issue.status_changed` | Status transition    | `{ issue_id, from, to }` |
 
 #### Comment Events
 
-| Event | Description | Data |
-|-------|-------------|------|
-| `comment.added` | New comment on an issue | Full comment object |
-| `comment.updated` | User comment was edited | Full comment object |
+| Event             | Description              | Data                       |
+| ----------------- | ------------------------ | -------------------------- |
+| `comment.added`   | New comment on an issue  | Full comment object        |
+| `comment.updated` | User comment was edited  | Full comment object        |
 | `comment.deleted` | User comment was deleted | `{ comment_id, issue_id }` |
 
 #### Dispatch Events
 
-| Event | Description | Data |
-|-------|-------------|------|
-| `mention.spawned` | Agent process started for a /dispatch command | `{ issue_id, agent_id, agent_name?, issue_title?, pid }` |
-| `mention.completed` | Agent process finished | `{ issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
-| `mention.error` | Agent process failed | `{ issue_id, agent_id, agent_name?, issue_title?, message }` |
-| `mention.chain_depth_reached` | Issue chain depth limit reached (per project's `max_chain_depth` setting) | `{ issue_id, issue_title? }` |
-| `dispatch.queued` | Agent dispatch queued (concurrency limit reached) | `{ issue_id, agent_id, agent_name?, issue_title?, position }` |
-| `dispatch.dequeued` | Agent dispatch dequeued and starting | `{ issue_id, agent_id, agent_name?, issue_title? }` |
+| Event                         | Description                                                               | Data                                                           |
+| ----------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `mention.spawned`             | Agent process started for a /dispatch command                             | `{ issue_id, agent_id, agent_name?, issue_title?, pid }`       |
+| `mention.completed`           | Agent process finished                                                    | `{ issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
+| `mention.error`               | Agent process failed                                                      | `{ issue_id, agent_id, agent_name?, issue_title?, message }`   |
+| `mention.chain_depth_reached` | Issue chain depth limit reached (per project's `max_chain_depth` setting) | `{ issue_id, issue_title? }`                                   |
+| `dispatch.queued`             | Agent dispatch queued (concurrency limit reached)                         | `{ issue_id, agent_id, agent_name?, issue_title?, position }`  |
+| `dispatch.dequeued`           | Agent dispatch dequeued and starting                                      | `{ issue_id, agent_id, agent_name?, issue_title? }`            |
 
 #### Agent Run Events
 
-| Event | Description | Data |
-|-------|-------------|------|
-| `run.started` | Agent run started (process spawned) | `{ agent_run_id, project_id, issue_id, agent_id, status, started_at }` |
-| `run.event` | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }` |
-| `run.completed` | Agent run finished | `{ agent_run_id, project_id, issue_id, agent_id, status, exit_code, cost_usd, duration_ms, completed_at }` |
+| Event           | Description                             | Data                                                                                                       |
+| --------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `run.started`   | Agent run started (process spawned)     | `{ agent_run_id, project_id, issue_id, agent_id, status, started_at }`                                     |
+| `run.event`     | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }`                                           |
+| `run.completed` | Agent run finished                      | `{ agent_run_id, project_id, issue_id, agent_id, status, exit_code, cost_usd, duration_ms, completed_at }` |
 
 #### PR Events
 
-| Event | Description | Data |
-|-------|-------------|------|
-| `pr.created` | PR recorded on an issue | Full IssuePR object + `issue_title?` |
-| `pr.status_changed` | PR status updated | `{ pr_id, from, to }` |
+| Event               | Description             | Data                                 |
+| ------------------- | ----------------------- | ------------------------------------ |
+| `pr.created`        | PR recorded on an issue | Full IssuePR object + `issue_title?` |
+| `pr.status_changed` | PR status updated       | `{ pr_id, from, to }`                |
 
 #### Admiral Events
 
-| Event | Description | Data |
-|-------|-------------|------|
+| Event                    | Description                                | Data                                      |
+| ------------------------ | ------------------------------------------ | ----------------------------------------- |
 | `admiral.event_received` | Admiral received a system event to process | `{ project_id, event_type, description }` |
-| `admiral.thinking` | Admiral is processing events | `{ project_id }` |
-| `admiral.message` | Admiral text response | `{ project_id, content }` |
-| `admiral.tool_call` | Admiral invoked a tool | `{ project_id, tool_name, tool_input }` |
-| `admiral.tool_result` | Tool execution completed | `{ project_id, tool_name, result }` |
-| `admiral.complete` | Admiral finished processing | `{ project_id, response }` |
+| `admiral.thinking`       | Admiral is processing events               | `{ project_id }`                          |
+| `admiral.message`        | Admiral text response                      | `{ project_id, content }`                 |
+| `admiral.tool_call`      | Admiral invoked a tool                     | `{ project_id, tool_name, tool_input }`   |
+| `admiral.tool_result`    | Tool execution completed                   | `{ project_id, tool_name, result }`       |
+| `admiral.complete`       | Admiral finished processing                | `{ project_id, response }`                |
 
 ---
 
@@ -1204,11 +1235,11 @@ All error responses follow this structure:
 
 ### Error Codes
 
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| NOT_FOUND | 404 | Resource does not exist. |
-| VALIDATION_ERROR | 400 | Request body fails validation. |
-| INVALID_TRANSITION | 400 | Invalid status transition. |
-| CONFLICT | 409 | Operation conflicts with current state (e.g., marking done while agents are running). |
-| FORBIDDEN | 403 | Action not allowed (e.g., editing agent comments). |
-| INTERNAL_ERROR | 500 | Unexpected server error. |
+| Code               | HTTP Status | Description                                                                           |
+| ------------------ | ----------- | ------------------------------------------------------------------------------------- |
+| NOT_FOUND          | 404         | Resource does not exist.                                                              |
+| VALIDATION_ERROR   | 400         | Request body fails validation.                                                        |
+| INVALID_TRANSITION | 400         | Invalid status transition.                                                            |
+| CONFLICT           | 409         | Operation conflicts with current state (e.g., marking done while agents are running). |
+| FORBIDDEN          | 403         | Action not allowed (e.g., editing agent comments).                                    |
+| INTERNAL_ERROR     | 500         | Unexpected server error.                                                              |
