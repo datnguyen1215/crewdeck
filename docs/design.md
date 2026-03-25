@@ -259,7 +259,8 @@ Captain is split into two independent services that run concurrently per project
 **Monitor Service** (`backend/src/orchestration/captain/monitor-service.ts` + `monitor-agent.ts`)
 
 - Automated event-driven orchestrator — no polling. Wakes only when events occur:
-  - `issue.created`, `issue.updated`, `issue.status_changed`
+  - `issue.created` (user-created issues only — agent-created issues are ignored to prevent chain reactions)
+  - `issue.updated`, `issue.status_changed`
   - `run.completed` (agent finished)
   - `run.recovered` (issue needs attention after server restart)
   - `pr.status_changed` (from PR poller)
