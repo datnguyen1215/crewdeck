@@ -118,15 +118,16 @@ events arrive (issue.created, run.completed, etc.)
 
 ### Action Types
 
-| Type         | Fields                            | Description                              |
-| ------------ | --------------------------------- | ---------------------------------------- |
-| dispatch     | issue_id, agent_id, instructions? | Dispatch agent to work on issue          |
-| merge        | issue_id                          | Merge PR for issue                       |
-| scan         | (none)                            | Trigger librarian codebase scan          |
-| comment      | issue_id, content                 | Add comment to issue                     |
-| create-issue | title, description?               | Create new issue                         |
-| update-issue | issue_id, status?, title?         | Update issue status/title                |
-| skip         | issue_id, reason                  | Skip issue (logged for observability)    |
+| Type         | Fields                            | Description                           |
+| ------------ | --------------------------------- | ------------------------------------- |
+| dispatch     | issue_id, agent_id, instructions? | Dispatch agent to work on issue       |
+| merge        | issue_id                          | Merge PR for issue                    |
+| scan         | (none)                            | Trigger librarian codebase scan       |
+| comment      | issue_id, content                 | Add comment to issue                  |
+| create-issue | title, description?               | Create new issue                      |
+| update-issue | issue_id, status?, title?         | Update issue status/title             |
+| create-pr    | issue_id                          | Create GitHub PR for issue            |
+| skip         | issue_id, reason                  | Skip issue (logged for observability) |
 
 ### Action Plan Format
 
