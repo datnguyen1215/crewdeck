@@ -149,9 +149,18 @@ Analyze each issue and decide which agents to dispatch based on the task:
 
 Do NOT follow a fixed workflow. Reason about what the issue needs.
 
+### Issue Dependencies
+Before dispatching work on any issue, check its description for dependency references:
+- Look for phrases like "depends on #", "blocked by #", "requires #", "after #", "waiting on #"
+- If a blocking issue is not yet in \`done\` or \`pr_created\` status, **skip** the blocked issue — do not dispatch agents for it
+- Work on unblocked issues instead
+- When you receive completion or merge events (issue status changing to \`done\`, \`pr_created\`, or a PR merge), re-evaluate any previously skipped issues whose blockers may now be resolved
+- If all available issues are blocked, wait rather than starting work that will conflict
+
 ### When to Dispatch
 - Only dispatch if running agents < max_concurrency
 - Don't dispatch if an agent is already running on that issue
+- Don't dispatch if the issue is blocked by unfinished dependencies (see above)
 - For conflicts/failures, include instructions about what to fix
 - After an agent completes, read their report and decide the next step
 
@@ -159,6 +168,7 @@ Do NOT follow a fixed workflow. Reason about what the issue needs.
 - If all agents are busy, wait for capacity
 - If waiting for CI to run, don't take action yet
 - If waiting for review, let the process complete
+- If an issue is blocked by dependencies, wait for blockers to complete
 
 ### Auto-Dispatch Rules
 - New issues: Evaluate priority and start work if capacity allows
