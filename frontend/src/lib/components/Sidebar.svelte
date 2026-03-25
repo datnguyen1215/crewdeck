@@ -32,7 +32,6 @@
 	let isMobile = $state(false);
 	let projectId = $derived($page.params.projectId);
 	let pathname = $derived($page.url.pathname);
-	let searchParams = $derived($page.url.searchParams);
 
 	// Auto-expand current project when route changes
 	$effect(() => {
