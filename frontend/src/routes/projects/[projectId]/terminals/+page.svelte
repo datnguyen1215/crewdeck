@@ -5,9 +5,9 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
-	// Track scroll containers and their "at bottom" state
-	let scrollContainers: Map<string, HTMLElement> = new Map();
-	let atBottom: Map<string, boolean> = new Map();
+	// Track scroll containers and their "at bottom" state (reactive maps)
+	let scrollContainers = $state<Map<string, HTMLElement>>(new Map());
+	let atBottom = $state<Map<string, boolean>>(new Map());
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -124,7 +124,8 @@
 				return { label, content };
 			}
 			case 'tool_result': {
-				const output = (d?.output ?? d?.content ?? d?.result ?? '') as string;
+				const raw = d?.output ?? d?.content ?? d?.result ?? '';
+				const output = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
 				return { label: 'Result', content: output || null };
 			}
 			case 'assistant': {
@@ -147,27 +148,34 @@
 	function handleScroll(runId: string, e: Event) {
 		const el = e.target as HTMLElement;
 		const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
-		atBottom.set(runId, isAtBottom);
+		atBottom = new Map(atBottom).set(runId, isAtBottom);
 	}
 
 	function scrollContainer(el: HTMLElement, runId: string) {
-		scrollContainers.set(runId, el);
+		scrollContainers = new Map(scrollContainers).set(runId, el);
 		// Default to being at bottom for new containers
 		if (!atBottom.has(runId)) {
-			atBottom.set(runId, true);
+			atBottom = new Map(atBottom).set(runId, true);
 		}
 		return {
 			destroy() {
-				scrollContainers.delete(runId);
-				atBottom.delete(runId);
+				const newContainers = new Map(scrollContainers);
+				newContainers.delete(runId);
+				scrollContainers = newContainers;
+				const newAtBottom = new Map(atBottom);
+				newAtBottom.delete(runId);
+				atBottom = newAtBottom;
 			}
 		};
 	}
 
+	// Derive total event count to ensure reactive dependency on event changes
+	let totalEventCount = $derived(runs.reduce((sum, r) => sum + r.events.length, 0));
+
 	// Auto-scroll when events change
 	$effect(() => {
-		// Track events to trigger on change
-		const eventCounts = runs.map(r => r.events.length);
+		// Access derived value to establish dependency
+		void totalEventCount;
 		// Scroll after DOM updates
 		tick().then(() => {
 			for (const run of runs) {
