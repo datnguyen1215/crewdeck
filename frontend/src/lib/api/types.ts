@@ -42,6 +42,8 @@ export interface Agent {
   title: string;
   description: string | null;
   system_prompt: string;
+  /** Whether this agent can be dispatched via /dispatch command. Background services like Captain are not dispatchable. */
+  dispatchable?: boolean;
 }
 
 export interface Issue {

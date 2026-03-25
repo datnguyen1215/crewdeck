@@ -40,7 +40,8 @@
 	$effect(() => {
 		loading = true;
 		let cancelled = false;
-		Promise.all([listActiveRuns(projectId), getProject(projectId), listAgents()])
+		// Include all agents including non-dispatchable ones (captain)
+		Promise.all([listActiveRuns(projectId), getProject(projectId), listAgents(true)])
 			.then(([r, p, a]) => {
 				if (cancelled) return;
 				runs = r;
@@ -570,7 +571,7 @@
 				</div>
 			{/each}
 
-			<!-- Show idle agents when no runs -->
+			<!-- Show idle agents when no runs (excluding captain since it has its own card, and librarian which is background-only) -->
 			{#if runs.length === 0 && agents.length > 0}
 				{#each agents.filter(a => a.id !== 'captain' && a.id !== 'librarian') as agent (agent.id)}
 					<div class="bg-surface border border-edge rounded-lg px-4 py-3 text-left fade-up">

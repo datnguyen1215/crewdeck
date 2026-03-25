@@ -134,8 +134,8 @@ export function deleteRepo(projectId: string, repoId: string) {
 }
 
 // Agents (read-only — crew is fixed)
-export function listAgents() {
-  return request<Agent[]>("GET", "/crew");
+export function listAgents(includeAll = false) {
+  return request<Agent[]>("GET", includeAll ? "/crew?all" : "/crew");
 }
 
 // Issues

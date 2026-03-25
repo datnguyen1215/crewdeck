@@ -363,8 +363,13 @@ When deciding which PR to merge first:
 ];
 
 export function listCrew(): Agent[] {
-  // Exclude non-dispatchable agents (like Captain) from the public API
+  // Exclude non-dispatchable agents (like Captain) from the dispatchable list
   return CREW.filter((a) => a.dispatchable !== false);
+}
+
+export function listAllCrew(): Agent[] {
+  // Include all agents including non-dispatchable ones (captain)
+  return CREW;
 }
 
 export function getCrewMember(id: string): Agent | null {

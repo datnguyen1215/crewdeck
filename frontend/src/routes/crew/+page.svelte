@@ -8,12 +8,20 @@
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
-		listAgents()
+		// Include all agents including non-dispatchable ones (captain)
+		listAgents(true)
 			.then((data) => { if (!cancelled) agents = data; })
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load agents', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
 		return () => { cancelled = true; };
 	});
+
+	function getRoleBadge(agent: Agent): { label: string; color: string } {
+		if (agent.dispatchable === false) {
+			return { label: 'Orchestrator', color: 'text-cyan bg-cyan/10 border-cyan/30' };
+		}
+		return { label: 'Worker', color: 'text-green bg-green/10 border-green/30' };
+	}
 </script>
 
 <svelte:head>
@@ -41,9 +49,13 @@
 	{:else}
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
 			{#each agents as agent, i (agent.id)}
-				<div class="flex flex-col p-4 bg-surface border border-edge rounded hover:-translate-y-0.5 transition-all duration-200 fade-up" style="animation-delay: {i * 50}ms">
+				{@const role = getRoleBadge(agent)}
+				<div class="flex flex-col p-4 bg-surface border border-edge rounded hover:-translate-y-0.5 transition-all duration-200 fade-up {agent.dispatchable === false ? 'border-cyan/30' : ''}" style="animation-delay: {i * 50}ms">
 					<div class="mb-3">
-						<h2 class="text-primary font-semibold truncate">{agent.name}</h2>
+						<div class="flex items-center gap-2">
+							<h2 class="text-primary font-semibold truncate">{agent.name}</h2>
+							<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border {role.color}">{role.label}</span>
+						</div>
 						<p class="text-cyan text-xs mt-0.5 truncate">{agent.title}</p>
 					</div>
 					{#if agent.description}
