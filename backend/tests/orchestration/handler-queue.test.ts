@@ -166,7 +166,6 @@ describe("handler queue integration", () => {
       issue_id: targetId,
       content: `/dispatch ${agentId}`,
       author_type: "user" as const,
-      author_id: null,
       created_at: new Date().toISOString(),
     };
     eventBus.emit("comment.added", { comment, project_id: projectId });
