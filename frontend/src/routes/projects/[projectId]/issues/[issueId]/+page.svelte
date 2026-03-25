@@ -707,7 +707,7 @@
 														style="border-color: {cs.border}"
 													>
 														<span class="text-[9px] leading-none {cs.textColor}">
-															{#if comment.author_type === 'agent'}⬡{:else if comment.author_type === 'system'}⚙{:else}○{/if}
+															{#if comment.author_type === 'system'}⚙{:else if comment.author_type === 'user'}○{:else}⬡{/if}
 														</span>
 													</div>
 												</div>
