@@ -257,7 +257,8 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Decision priorities (encoded in system prompt, conditional on `auto_merge_enabled`):
   1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status (when `auto_merge_enabled` is true); otherwise, **Report ready PRs** — note they are ready for manual merge
   2. **Fix broken PRs** — dispatch engineer for `pr_conflict` or `pr_failed_actions`
-  3. **Start new work** — dispatch appropriate agent on open issues when capacity allows (skipping issues blocked by unfinished dependencies)
+  3. **Update knowledge** — after a PR is merged, evaluate whether the changes warrant a librarian rescan (e.g., new files/modules, API changes, restructuring). Skip for bug fixes, style changes, dependency updates, or docs-only changes.
+  4. **Start new work** — dispatch appropriate agent on open issues when capacity allows (skipping issues blocked by unfinished dependencies)
 - When `auto_merge_enabled` is false, the merge tool is excluded from Admiral's available actions and a constraint is added preventing merge attempts.
 - **Dependency awareness**: Before dispatching work on an issue, Admiral checks its description for dependency references (e.g., "depends on #12", "blocked by #14", "requires #", "after #", "waiting on #"). If a blocking issue is not yet in `done` or `pr_created` status, Admiral skips the blocked issue and works on unblocked ones instead. Blocked issues are re-evaluated when completion or merge events arrive for their blockers.
 - Task-type reasoning: Admiral analyzes each issue and decides which agents to dispatch based on task type (research → librarian, docs-only → docs, code change → engineer then lead, etc.).
