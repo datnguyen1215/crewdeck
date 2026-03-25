@@ -215,6 +215,16 @@ export interface AgentConfig {
   model: string | null;
 }
 
+export interface MonitorEntry {
+  id: string;
+  type: "event" | "thinking" | "message" | "tool_call" | "tool_result";
+  content: string;
+  timestamp: Date;
+  toolName?: string;
+  toolInput?: unknown;
+  success?: boolean;
+}
+
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
 // but only includes events the frontend receives (excludes backend-only events)
 export interface WsEventMap {

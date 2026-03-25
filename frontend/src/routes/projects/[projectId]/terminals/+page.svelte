@@ -1,23 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getContext, onMount } from 'svelte';
-	import { listActiveRuns, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project, type ChatMessage } from '$lib/api/http.js';
+	import { getContext, tick, onMount } from 'svelte';
+	import { listActiveRuns, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
-	import type { WsEventMap } from '$lib/api/types.js';
+	import type { MonitorEntry, WsEventMap } from '$lib/api/types.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import { md } from '$lib/utils/markdown.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
-
-	// Monitor entry type for captain feed
-	interface MonitorEntry {
-		id: string;
-		type: 'event' | 'thinking' | 'message' | 'tool_call' | 'tool_result';
-		content: string;
-		timestamp: Date;
-		toolName?: string;
-		toolInput?: unknown;
-		success?: boolean;
-	}
+	import { mapMessageToEntry } from '$lib/utils/monitor.js';
 
 	// Captain monitor state
 	let monitorEntries = $state<MonitorEntry[]>([]);
@@ -47,16 +37,6 @@
 			.finally(() => { if (!cancelled) loading = false; });
 		return () => { cancelled = true; };
 	});
-
-	// Convert stored ChatMessage to MonitorEntry
-	function mapMessageToEntry(msg: ChatMessage): MonitorEntry {
-		return {
-			id: msg.id,
-			type: msg.role === 'user' ? 'event' : 'message',
-			content: msg.content,
-			timestamp: new Date(msg.created_at),
-		};
-	}
 
 	// Load monitor history on mount
 	onMount(async () => {
