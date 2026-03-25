@@ -1,13 +1,32 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getContext, tick } from 'svelte';
-	import { listActiveRuns, listAgents, getProject, type ActiveRun, type Agent, type Project } from '$lib/api/http.js';
+	import { getContext, tick, onMount } from 'svelte';
+	import { listActiveRuns, listAgents, getProject, getMonitorHistory, type ActiveRun, type Agent, type Project, type ChatMessage } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import { md } from '$lib/utils/markdown.js';
+
+	// Monitor entry type for captain feed
+	interface MonitorEntry {
+		id: string;
+		type: 'event' | 'thinking' | 'message' | 'tool_call' | 'tool_result';
+		content: string;
+		timestamp: Date;
+		toolName?: string;
+		toolInput?: unknown;
+		success?: boolean;
+	}
 
 	// Track scroll containers and their "at bottom" state (reactive maps)
 	let scrollContainers = $state<Map<string, HTMLElement>>(new Map());
 	let atBottom = $state<Map<string, boolean>>(new Map());
+
+	// Captain monitor state
+	let monitorEntries = $state<MonitorEntry[]>([]);
+	let monitorLoading = $state(true);
+	let monitorContainer: HTMLDivElement | undefined;
+	let monitorAtBottom = $state(true);
+	let isAnalyzing = $state(false);
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -32,6 +51,153 @@
 			.finally(() => { if (!cancelled) loading = false; });
 		return () => { cancelled = true; };
 	});
+
+	// Convert stored ChatMessage to MonitorEntry
+	function mapMessageToEntry(msg: ChatMessage): MonitorEntry {
+		return {
+			id: msg.id,
+			type: msg.role === 'user' ? 'event' : 'message',
+			content: msg.content,
+			timestamp: new Date(msg.created_at),
+		};
+	}
+
+	// Load monitor history on mount
+	onMount(async () => {
+		try {
+			const history = await getMonitorHistory(projectId);
+			monitorEntries = history.map(mapMessageToEntry);
+			scrollMonitorToBottom();
+		} catch (err) {
+			console.error('Failed to load monitor history:', err);
+		} finally {
+			monitorLoading = false;
+		}
+	});
+
+	// Subscribe to monitor WebSocket events
+	$effect(() => {
+		const ws = getWs();
+		if (!ws || monitorLoading) return;
+
+		const handleEventReceived = (data: Record<string, unknown>) => {
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'event',
+				content: `${data.event_type} - ${data.description ?? ''}`,
+				timestamp: new Date(),
+			}];
+			scrollMonitorToBottom();
+		};
+
+		const handleThinking = () => {
+			isAnalyzing = true;
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'thinking',
+				content: 'Analyzing...',
+				timestamp: new Date(),
+			}];
+			scrollMonitorToBottom();
+		};
+
+		const handleMessage = (data: Record<string, unknown>) => {
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'message',
+				content: data.content as string,
+				timestamp: new Date(),
+			}];
+			scrollMonitorToBottom();
+		};
+
+		const handleToolCall = (data: Record<string, unknown>) => {
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'tool_call',
+				content: `${data.tool_name}`,
+				toolName: data.tool_name as string,
+				toolInput: data.tool_input,
+				timestamp: new Date(),
+			}];
+			scrollMonitorToBottom();
+		};
+
+		const handleToolResult = (data: Record<string, unknown>) => {
+			const result = data.result as { success: boolean; message: string } | undefined;
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'tool_result',
+				content: result?.message ?? String(data.message ?? ''),
+				toolName: data.tool_name as string,
+				success: result?.success ?? true,
+				timestamp: new Date(),
+			}];
+			scrollMonitorToBottom();
+		};
+
+		const handleComplete = () => {
+			isAnalyzing = false;
+			monitorEntries = monitorEntries.filter(e => e.type !== 'thinking');
+		};
+
+		const unsubs = [
+			ws.on('monitor.event_received', handleEventReceived),
+			ws.on('monitor.thinking', handleThinking),
+			ws.on('monitor.message', handleMessage),
+			ws.on('monitor.tool_call', handleToolCall),
+			ws.on('monitor.tool_result', handleToolResult),
+			ws.on('monitor.complete', handleComplete),
+		];
+
+		return () => unsubs.forEach((fn) => fn());
+	});
+
+	async function scrollMonitorToBottom() {
+		await tick();
+		if (monitorContainer && monitorAtBottom) {
+			monitorContainer.scrollTop = monitorContainer.scrollHeight;
+		}
+	}
+
+	function handleMonitorScroll(e: Event) {
+		const el = e.target as HTMLElement;
+		monitorAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+	}
+
+	function formatMonitorTime(date: Date): string {
+		return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+	}
+
+	function formatToolInput(input: unknown): string {
+		if (!input) return '';
+		if (typeof input === 'object') {
+			return Object.entries(input as Record<string, unknown>)
+				.map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+				.join(', ');
+		}
+		return String(input);
+	}
+
+	function monitorTypeLabel(type: MonitorEntry['type']): string {
+		switch (type) {
+			case 'event': return 'event';
+			case 'thinking': return 'monitor';
+			case 'message': return 'monitor';
+			case 'tool_call': return 'tool';
+			case 'tool_result': return 'tool';
+		}
+	}
+
+	function monitorTypeColor(type: MonitorEntry['type']): string {
+		switch (type) {
+			case 'event': return 'text-yellow/80';
+			case 'thinking': return 'text-cyan';
+			case 'message': return 'text-cyan';
+			case 'tool_call': return 'text-purple';
+			case 'tool_result': return 'text-purple';
+		}
+	}
 
 	// Live updates via WebSocket
 	$effect(() => {
@@ -248,8 +414,79 @@
 		</div>
 	</div>
 
-	{#if loading}
-		<div class="grid grid-cols-1 gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
+	<!-- Terminals grid: always show captain monitor card + agent runs -->
+	<div class="grid grid-cols-1 gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
+		<!-- Captain Monitor Card -->
+		<div class="bg-surface border border-cyan/30 rounded-lg overflow-hidden flex flex-col fade-up">
+			<!-- Header -->
+			<div class="px-4 py-3 border-b border-cyan/30 bg-cyan/5">
+				<div class="flex items-center gap-2 mb-1">
+					<span class="text-sm font-medium text-cyan">Captain</span>
+					<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border {isAnalyzing ? 'text-cyan bg-cyan/10 border-cyan/30' : 'text-muted bg-surface border-edge'}">
+						{isAnalyzing ? 'Analyzing' : 'Monitoring'}
+					</span>
+					{#if isAnalyzing}
+						<span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse"></span>
+					{/if}
+				</div>
+				<p class="text-xs text-muted">Project orchestration feed</p>
+			</div>
+
+			<!-- Monitor feed -->
+			<div
+				bind:this={monitorContainer}
+				onscroll={handleMonitorScroll}
+				class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs bg-black/20"
+			>
+				{#if monitorLoading}
+					<div class="text-muted py-8 text-center">
+						<p class="animate-pulse">Loading monitor history...</p>
+					</div>
+				{:else if monitorEntries.length === 0}
+					<div class="text-muted py-8 text-center">
+						<p class="mb-2">Monitor feed empty.</p>
+						<p class="text-xs">Orchestration events will appear here.</p>
+					</div>
+				{:else}
+					<div class="space-y-2">
+						{#each monitorEntries.slice(-50) as entry (entry.id)}
+							<div class="flex gap-2 min-w-0">
+								<span class="text-muted/50 flex-shrink-0">[{formatMonitorTime(entry.timestamp)}]</span>
+								<span class="{monitorTypeColor(entry.type)} flex-shrink-0">[{monitorTypeLabel(entry.type)}]</span>
+								{#if entry.type === 'event'}
+									<span class="text-muted break-words min-w-0">{entry.content}</span>
+								{:else if entry.type === 'thinking'}
+									<span class="text-muted animate-pulse min-w-0">{entry.content}</span>
+								{:else if entry.type === 'message'}
+									<span class="text-primary prose prose-sm prose-invert max-w-none inline break-words min-w-0">
+										{@html md(entry.content)}
+									</span>
+								{:else if entry.type === 'tool_call'}
+									<span class="text-purple break-words min-w-0">
+										<span class="text-muted/50">-></span> {entry.toolName}({formatToolInput(entry.toolInput)})
+									</span>
+								{:else if entry.type === 'tool_result'}
+									<span class="text-muted/50 flex-shrink-0">-></span>
+									<span class="{entry.success ? 'text-green' : 'text-red'} min-w-0">
+										{entry.success ? 'ok' : 'err'}:
+									</span>
+									<span class="text-muted break-words min-w-0">{entry.content}</span>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Footer -->
+			<div class="px-4 py-2 border-t border-cyan/30 flex items-center justify-between text-xs text-muted bg-cyan/5">
+				<span class="font-mono">Read-only feed</span>
+				<a href="/projects/{projectId}/chat" class="text-cyan hover:text-cyan/80 transition-colors">Open chat →</a>
+			</div>
+		</div>
+
+		{#if loading}
+			<!-- Loading skeletons for agent runs -->
 			{#each Array(2) as _, i}
 				<div class="bg-surface border border-edge rounded-lg overflow-hidden fade-up" style="animation-delay: {i * 60}ms">
 					<div class="px-4 py-3 border-b border-edge">
@@ -266,36 +503,8 @@
 					</div>
 				</div>
 			{/each}
-		</div>
-	{:else if runs.length === 0}
-		<!-- Empty state: show crew roster as idle -->
-		<div class="text-center py-12">
-			<div class="text-muted mb-6">
-				<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto opacity-40">
-					<rect x="2" y="3" width="20" height="14" rx="2"/>
-					<line x1="8" y1="21" x2="16" y2="21"/>
-					<line x1="12" y1="17" x2="12" y2="21"/>
-				</svg>
-			</div>
-			<p class="text-muted text-sm mb-6">No agents are currently running</p>
-			{#if agents.length > 0}
-				<div class="grid grid-cols-1 gap-3 max-w-lg mx-auto" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
-					{#each agents.filter(a => a.id !== 'captain' && a.id !== 'librarian') as agent (agent.id)}
-						<div class="bg-surface border border-edge rounded-lg px-4 py-3 text-left">
-							<div class="flex items-center gap-2 mb-1">
-								<span class="w-2 h-2 rounded-full bg-muted flex-shrink-0"></span>
-								<span class="text-sm font-medium text-secondary">{agent.name}</span>
-							</div>
-							<p class="text-xs text-muted">{agent.title}</p>
-							<span class="inline-block mt-2 text-[10px] uppercase tracking-wider text-muted border border-edge rounded px-1.5 py-0.5">Idle</span>
-						</div>
-					{/each}
-				</div>
-			{/if}
-		</div>
-	{:else}
-		<!-- Active runs grid -->
-		<div class="grid grid-cols-1 gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
+		{:else}
+			<!-- Agent run cards -->
 			{#each runs as run (run.id)}
 				{@const isRunning = run.status === 'running'}
 				<div class="bg-surface border border-edge rounded-lg overflow-hidden flex flex-col fade-up">
@@ -354,6 +563,20 @@
 					</div>
 				</div>
 			{/each}
-		</div>
-	{/if}
+
+			<!-- Show idle agents when no runs -->
+			{#if runs.length === 0 && agents.length > 0}
+				{#each agents.filter(a => a.id !== 'captain' && a.id !== 'librarian') as agent (agent.id)}
+					<div class="bg-surface border border-edge rounded-lg px-4 py-3 text-left fade-up">
+						<div class="flex items-center gap-2 mb-1">
+							<span class="w-2 h-2 rounded-full bg-muted flex-shrink-0"></span>
+							<span class="text-sm font-medium text-secondary">{agent.name}</span>
+						</div>
+						<p class="text-xs text-muted">{agent.title}</p>
+						<span class="inline-block mt-2 text-[10px] uppercase tracking-wider text-muted border border-edge rounded px-1.5 py-0.5">Idle</span>
+					</div>
+				{/each}
+			{/if}
+		{/if}
+	</div>
 </div>
