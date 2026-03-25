@@ -3,33 +3,15 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { WsEventMap } from '$lib/api/types.js';
 	import { md } from '$lib/utils/markdown.js';
-	import { getMonitorHistory, type ChatMessage } from '$lib/api/http.js';
+	import { getMonitorHistory } from '$lib/api/http.js';
+	import type { MonitorEntry } from '$lib/api/types.js';
+	import { mapMessageToEntry } from '$lib/utils/monitor.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
-
-	interface MonitorEntry {
-		id: string;
-		type: 'event' | 'thinking' | 'message' | 'tool_call' | 'tool_result';
-		content: string;
-		timestamp: Date;
-		toolName?: string;
-		toolInput?: unknown;
-		success?: boolean;
-	}
 
 	let { ws, projectId }: { ws: ProjectWebSocket | null; projectId: string } = $props();
 
 	let entries = $state<MonitorEntry[]>([]);
 	let loading = $state(true);
-
-	// Convert stored ChatMessage to MonitorEntry
-	function mapMessageToEntry(msg: ChatMessage): MonitorEntry {
-		return {
-			id: msg.id,
-			type: msg.role === 'user' ? 'event' : 'message',
-			content: msg.content,
-			timestamp: new Date(msg.created_at),
-		};
-	}
 
 	// Load history on mount
 	onMount(async () => {
