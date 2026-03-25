@@ -273,7 +273,7 @@ Captain is split into two independent services that run concurrently per project
 - **Structured action plans**: Instead of making curl calls for write operations, the Monitor outputs a JSON action plan that the backend executes deterministically. This enables parallel dispatch execution and faster mutex release.
 - Maintains its own conversation history (last 100 sessionless messages in ChatMessage table, i.e. `session_id IS NULL`), separate from chat session history.
 - **Read-only curl access**: Monitor can still use curl for read operations (list issues, get issue details, list knowledge) to gather state before making decisions.
-- **Action types**: dispatch, merge, scan, comment, create-issue, update-issue, skip. Action schemas are validated with Zod (`action-schema.ts`) and executed by `plan-executor.ts`.
+- **Action types**: dispatch, merge, scan, comment, create-issue, update-issue, skip. Action schemas are validated with Zod (`action-schema.ts`) and executed by `plan-executor.ts`. Before execution, any truncated issue ID prefixes (≥8 chars but shorter than a full UUID) are resolved to full UUIDs via a project-scoped prefix match in the database.
 - Decision priorities (encoded in system prompt, conditional on `auto_merge` and `auto_start` settings):
   1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status (when `auto_merge` is true); otherwise, **Report ready PRs** — note they are ready for manual merge
   2. **Fix broken PRs** — dispatch engineer for `pr_conflict` or `pr_failed_actions`
