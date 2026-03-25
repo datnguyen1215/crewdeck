@@ -60,13 +60,6 @@ export function createDb(path: string): Database.Database {
     );
   }
 
-  // Migration: add auto_merge_enabled column to Project if missing.
-  if (!projectCols.some((c) => c.name === "auto_merge_enabled")) {
-    db.exec(
-      "ALTER TABLE Project ADD COLUMN auto_merge_enabled INTEGER NOT NULL DEFAULT 0",
-    );
-  }
-
   // Migration: add admiral_idle_timeout_ms column to Project if missing.
   if (!projectCols.some((c) => c.name === "admiral_idle_timeout_ms")) {
     db.exec("ALTER TABLE Project ADD COLUMN admiral_idle_timeout_ms INTEGER");
