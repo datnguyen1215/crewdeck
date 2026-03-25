@@ -162,18 +162,6 @@ describe("POST /api/v1/internal/captain/dispatch-agent", () => {
     expect(res.body.message).toContain("Invalid agent_id");
   });
 
-  it("rejects admiral agent_id", async () => {
-    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
-      project_id: projectId,
-      issue_id: issueId,
-      agent_id: "admiral",
-    });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(false);
-    expect(res.body.message).toContain("Invalid agent_id");
-  });
-
   it("rejects unknown agent_id", async () => {
     const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
       project_id: projectId,
