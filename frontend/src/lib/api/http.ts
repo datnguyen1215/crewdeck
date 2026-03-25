@@ -17,6 +17,7 @@ import type {
   LibrarianStatus,
   ChatSession,
   ChatMessage,
+  AgentConfig,
 } from "./types.js";
 
 export type {
@@ -43,6 +44,7 @@ export type {
   ChatSession,
   ChatSessionStatus,
   ChatMessage,
+  AgentConfig,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -136,6 +138,31 @@ export function deleteRepo(projectId: string, repoId: string) {
 // Agents (read-only — crew is fixed)
 export function listAgents() {
   return request<Agent[]>("GET", "/crew");
+}
+
+// Agent Config (per-project model overrides)
+export function listAgentConfig(projectId: string) {
+  return request<AgentConfig[]>(
+    "GET",
+    `/projects/${e(projectId)}/agent-config`,
+  );
+}
+export function setAgentModel(
+  projectId: string,
+  agentId: string,
+  model: string,
+) {
+  return request<AgentConfig>(
+    "PUT",
+    `/projects/${e(projectId)}/agent-config/${e(agentId)}`,
+    { model },
+  );
+}
+export function deleteAgentConfig(projectId: string, agentId: string) {
+  return request<void>(
+    "DELETE",
+    `/projects/${e(projectId)}/agent-config/${e(agentId)}`,
+  );
 }
 
 // Issues
