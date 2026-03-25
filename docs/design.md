@@ -361,7 +361,7 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Captain chat events** — chunk (streaming text), tool_call, tool_result, complete (session-scoped, granular streaming events).
 - **Chat events** — stream, complete (legacy, kept for backward compatibility).
 
-The frontend subscribes to events scoped by project.
+The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
 
 ## Execution Model
 
