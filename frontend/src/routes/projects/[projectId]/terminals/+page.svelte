@@ -414,15 +414,17 @@
 				{#if loading}
 					Loading...
 				{:else}
-					{runs.length} active agent{runs.length !== 1 ? 's' : ''}
+					{@const count = runs.length + (isAnalyzing ? 1 : 0)}
+					{count} active agent{count !== 1 ? 's' : ''}
 				{/if}
 			</p>
 		</div>
 	</div>
 
-	<!-- Terminals grid: always show captain monitor card + agent runs -->
+	<!-- Terminals grid: show active agents only -->
 	<div class="grid grid-cols-1 gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
-		<!-- Captain Monitor Card -->
+		<!-- Captain Monitor Card (only when analyzing) -->
+		{#if isAnalyzing}
 		<div class="bg-surface border border-cyan/30 rounded-lg overflow-hidden flex flex-col fade-up">
 			<!-- Header -->
 			<div class="px-4 py-3 border-b border-cyan/30 bg-cyan/5">
@@ -490,6 +492,7 @@
 				<a href="/projects/{projectId}/chat" class="text-cyan hover:text-cyan/80 transition-colors">Open chat →</a>
 			</div>
 		</div>
+		{/if}
 
 		{#if loading}
 			<!-- Loading skeletons for agent runs -->
@@ -570,18 +573,11 @@
 				</div>
 			{/each}
 
-			<!-- Show idle agents when no runs -->
-			{#if runs.length === 0 && agents.length > 0}
-				{#each agents.filter(a => a.id !== 'captain' && a.id !== 'librarian') as agent (agent.id)}
-					<div class="bg-surface border border-edge rounded-lg px-4 py-3 text-left fade-up">
-						<div class="flex items-center gap-2 mb-1">
-							<span class="w-2 h-2 rounded-full bg-muted flex-shrink-0"></span>
-							<span class="text-sm font-medium text-secondary">{agent.name}</span>
-						</div>
-						<p class="text-xs text-muted">{agent.title}</p>
-						<span class="inline-block mt-2 text-[10px] uppercase tracking-wider text-muted border border-edge rounded px-1.5 py-0.5">Idle</span>
-					</div>
-				{/each}
+			<!-- Empty state when no agents are working -->
+			{#if runs.length === 0 && !isAnalyzing}
+				<div class="text-center py-12 col-span-full">
+					<p class="text-muted text-sm">No agents are currently working</p>
+				</div>
 			{/if}
 		{/if}
 	</div>
