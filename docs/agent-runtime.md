@@ -112,21 +112,33 @@ events arrive (issue.created, run.completed, etc.)
     │
     └── Backend executes plan via plan-executor.ts
             ├── Validate action plan with Zod schemas
+            ├── Resolve truncated issue IDs to full UUIDs (see below)
             ├── Execute dispatch actions in parallel (Promise.all)
             └── Execute other actions sequentially
 ```
 
+### Truncated Issue ID Resolution
+
+The Monitor LLM sometimes outputs truncated 8-character issue ID prefixes (e.g. `3d97b21f`) instead of full UUIDs, because it sees short ID references in event data and comments (e.g. `#3d97b21f`). The plan executor resolves these before executing any action:
+
+1. Try exact match via `getIssue(id)`.
+2. If no match and the ID is shorter than 36 characters (full UUID length) but at least 8 characters, try a `LIKE prefix%` query scoped to the project via `getIssueByPrefix(prefix, projectId)`.
+3. The prefix query returns a match only if exactly one issue matches (ambiguous prefixes return null).
+4. If resolution fails, the action is rejected with an error result.
+
+This resolution is applied to all action types that take an `issue_id` (dispatch, merge, comment, update-issue, skip).
+
 ### Action Types
 
-| Type         | Fields                            | Description                              |
-| ------------ | --------------------------------- | ---------------------------------------- |
-| dispatch     | issue_id, agent_id, instructions? | Dispatch agent to work on issue          |
-| merge        | issue_id                          | Merge PR for issue                       |
-| scan         | (none)                            | Trigger librarian codebase scan          |
-| comment      | issue_id, content                 | Add comment to issue                     |
-| create-issue | title, description?               | Create new issue                         |
-| update-issue | issue_id, status?, title?         | Update issue status/title                |
-| skip         | issue_id, reason                  | Skip issue (logged for observability)    |
+| Type         | Fields                            | Description                           |
+| ------------ | --------------------------------- | ------------------------------------- |
+| dispatch     | issue_id, agent_id, instructions? | Dispatch agent to work on issue       |
+| merge        | issue_id                          | Merge PR for issue                    |
+| scan         | (none)                            | Trigger librarian codebase scan       |
+| comment      | issue_id, content                 | Add comment to issue                  |
+| create-issue | title, description?               | Create new issue                      |
+| update-issue | issue_id, status?, title?         | Update issue status/title             |
+| skip         | issue_id, reason                  | Skip issue (logged for observability) |
 
 ### Action Plan Format
 
