@@ -54,7 +54,7 @@
 	}
 
 	function commentAuthorLabel(comment: Comment): string {
-		if (comment.author_type === 'system') return 'System';
+		if (comment.author_type === 'system') return 'Admiral';
 		if (comment.author_type === 'user') return 'User';
 		if (comment.author_type === 'agent') {
 			const agent = agents.find(a => a.id === comment.author_id);
