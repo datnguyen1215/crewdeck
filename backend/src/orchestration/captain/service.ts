@@ -263,7 +263,7 @@ function createProjectHandlers(projectId: string): () => void {
     queueAndProcess(event).catch((err) => {
       logger.error(
         { err, projectId },
-        "Admiral: Failed to queue comment.added",
+        "Captain: Failed to queue comment.added",
       );
     });
   };
