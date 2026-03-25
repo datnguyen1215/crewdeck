@@ -13,6 +13,7 @@ import * as commentRepo from "../../db/repositories/comments.js";
 import {
   handleDispatchAgent,
   handleMergePR,
+  handleCreatePR,
   handleScanCodebase,
 } from "./tool-handlers.js";
 import type {
@@ -23,6 +24,7 @@ import type {
   CommentAction,
   CreateIssueAction,
   UpdateIssueAction,
+  CreatePRAction,
   SkipAction,
 } from "./action-schema.js";
 
@@ -45,7 +47,12 @@ async function executeDispatch(
     agent_id: action.agent_id,
     instructions: action.instructions,
   });
-  return { action, success: result.success, message: result.message, data: result.data };
+  return {
+    action,
+    success: result.success,
+    message: result.message,
+    data: result.data,
+  };
 }
 
 /**
@@ -56,7 +63,12 @@ async function executeMerge(
   action: MergeAction,
 ): Promise<ActionResult> {
   const result = await handleMergePR(projectId, { issue_id: action.issue_id });
-  return { action, success: result.success, message: result.message, data: result.data };
+  return {
+    action,
+    success: result.success,
+    message: result.message,
+    data: result.data,
+  };
 }
 
 /**
@@ -85,7 +97,11 @@ function executeComment(
       return { action, success: false, message: "Issue not found" };
     }
     if (issue.project_id !== projectId) {
-      return { action, success: false, message: "Issue belongs to a different project" };
+      return {
+        action,
+        success: false,
+        message: "Issue belongs to a different project",
+      };
     }
     const comment = commentRepo.createComment(action.issue_id, {
       author_type: "captain",
@@ -95,7 +111,11 @@ function executeComment(
     return { action, success: true, message: "Comment added" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { action, success: false, message: `Failed to add comment: ${message}` };
+    return {
+      action,
+      success: false,
+      message: `Failed to add comment: ${message}`,
+    };
   }
 }
 
@@ -127,7 +147,11 @@ function executeCreateIssue(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { action, success: false, message: `Failed to create issue: ${message}` };
+    return {
+      action,
+      success: false,
+      message: `Failed to create issue: ${message}`,
+    };
   }
 }
 
@@ -144,7 +168,11 @@ function executeUpdateIssue(
       return { action, success: false, message: "Issue not found" };
     }
     if (issue.project_id !== projectId) {
-      return { action, success: false, message: "Issue belongs to a different project" };
+      return {
+        action,
+        success: false,
+        message: "Issue belongs to a different project",
+      };
     }
     const updates: { status?: string; title?: string } = {};
     if (action.status !== undefined) updates.status = action.status;
@@ -167,8 +195,30 @@ function executeUpdateIssue(
     return { action, success: true, message: "Issue updated" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return { action, success: false, message: `Failed to update issue: ${message}` };
+    return {
+      action,
+      success: false,
+      message: `Failed to update issue: ${message}`,
+    };
   }
+}
+
+/**
+ * Execute a create-pr action.
+ */
+async function executeCreatePR(
+  projectId: string,
+  action: CreatePRAction,
+): Promise<ActionResult> {
+  const result = await handleCreatePR(projectId, {
+    issue_id: action.issue_id,
+  });
+  return {
+    action,
+    success: result.success,
+    message: result.message,
+    data: result.data,
+  };
 }
 
 /**
@@ -202,6 +252,8 @@ async function executeAction(
       return executeCreateIssue(projectId, action);
     case "update-issue":
       return executeUpdateIssue(projectId, action);
+    case "create-pr":
+      return executeCreatePR(projectId, action);
     case "skip":
       return executeSkip(action);
     default:

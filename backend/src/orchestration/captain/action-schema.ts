@@ -47,6 +47,12 @@ export const updateIssueActionSchema = z.object({
   title: z.string().optional(),
 });
 
+/** Create a GitHub PR for an issue */
+export const createPRActionSchema = z.object({
+  type: z.literal("create-pr"),
+  issue_id: z.string(),
+});
+
 /** Skip an issue (logged for observability) */
 export const skipActionSchema = z.object({
   type: z.literal("skip"),
@@ -62,6 +68,7 @@ export const actionSchema = z.discriminatedUnion("type", [
   commentActionSchema,
   createIssueActionSchema,
   updateIssueActionSchema,
+  createPRActionSchema,
   skipActionSchema,
 ]);
 
@@ -77,6 +84,7 @@ export type ScanAction = z.infer<typeof scanActionSchema>;
 export type CommentAction = z.infer<typeof commentActionSchema>;
 export type CreateIssueAction = z.infer<typeof createIssueActionSchema>;
 export type UpdateIssueAction = z.infer<typeof updateIssueActionSchema>;
+export type CreatePRAction = z.infer<typeof createPRActionSchema>;
 export type SkipAction = z.infer<typeof skipActionSchema>;
 export type Action = z.infer<typeof actionSchema>;
 export type ActionPlan = z.infer<typeof actionPlanSchema>;

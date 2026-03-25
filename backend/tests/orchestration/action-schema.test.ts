@@ -65,13 +65,14 @@ describe("action-schema", () => {
           },
           { type: "update-issue", issue_id: "7", status: "pr_created" },
           { type: "update-issue", issue_id: "8", title: "New title" },
+          { type: "create-pr", issue_id: "10" },
           { type: "skip", issue_id: "9", reason: "Blocked by dependency" },
         ],
       };
 
       const result = parseActionPlan(plan);
       expect(result).toEqual(plan);
-      expect(result?.actions).toHaveLength(12);
+      expect(result?.actions).toHaveLength(13);
     });
 
     it("returns null for invalid JSON", () => {
