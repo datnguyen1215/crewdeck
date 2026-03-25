@@ -1,9 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getContext } from 'svelte';
+	import { getContext, tick } from 'svelte';
 	import { listActiveRuns, listAgents, getProject, type ActiveRun, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+
+	// Track scroll containers and their "at bottom" state
+	let scrollContainers: Map<string, HTMLElement> = new Map();
+	let atBottom: Map<string, boolean> = new Map();
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
@@ -68,35 +72,113 @@
 		return () => unsubs.forEach((u) => u());
 	});
 
-	function formatEvent(event: { type: string; data: unknown }): string {
+	interface FormattedEvent {
+		label: string;
+		content: string | null;
+	}
+
+	function formatEvent(event: { type: string; data: unknown }): FormattedEvent {
 		const d = event.data as Record<string, unknown> | null;
 		switch (event.type) {
 			case 'tool_use': {
-				const name = d?.name ?? d?.tool_name ?? '';
+				const name = (d?.name ?? d?.tool_name ?? '') as string;
 				const input = d?.input as Record<string, unknown> | undefined;
+				let label = '';
+				let content: string | null = null;
 				switch (name) {
-					case 'Read': return `Reading ${input?.file_path ?? 'file'}`;
-					case 'Edit': return `Editing ${input?.file_path ?? 'file'}`;
-					case 'Write': return `Writing ${input?.file_path ?? 'file'}`;
-					case 'Bash': return `Running command`;
-					case 'Glob': return `Searching files: ${input?.pattern ?? ''}`;
-					case 'Grep': return `Searching for: ${input?.pattern ?? ''}`;
-					case 'Agent': return `Spawning sub-agent`;
-					default: return `Using ${name || 'tool'}`;
+					case 'Read':
+						label = 'Read';
+						content = (input?.file_path as string) ?? null;
+						break;
+					case 'Edit':
+						label = 'Edit';
+						content = (input?.file_path as string) ?? null;
+						break;
+					case 'Write':
+						label = 'Write';
+						content = (input?.file_path as string) ?? null;
+						break;
+					case 'Bash':
+						label = 'Bash';
+						content = (input?.command as string) ?? (input?.description as string) ?? null;
+						break;
+					case 'Glob':
+						label = 'Glob';
+						content = (input?.pattern as string) ?? null;
+						break;
+					case 'Grep':
+						label = 'Grep';
+						content = (input?.pattern as string) ?? null;
+						break;
+					case 'Task':
+						label = 'Task';
+						content = (input?.description as string) ?? (input?.prompt as string) ?? null;
+						break;
+					case 'TodoWrite':
+						label = 'TodoWrite';
+						break;
+					default:
+						label = name || 'Tool';
+						content = input ? JSON.stringify(input).slice(0, 200) : null;
 				}
+				return { label, content };
 			}
-			case 'tool_result': return `Tool completed`;
+			case 'tool_result': {
+				const output = (d?.output ?? d?.content ?? d?.result ?? '') as string;
+				return { label: 'Result', content: output || null };
+			}
 			case 'assistant': {
 				const text = (d?.content ?? d?.text ?? '') as string;
-				if (!text) return 'Thinking...';
-				const line = text.split('\n')[0];
-				return line.length > 80 ? line.slice(0, 80) + '...' : line;
+				return { label: 'Assistant', content: text || null };
 			}
-			case 'result': return `Finished`;
-			case 'error': return `Error: ${d?.message ?? 'unknown'}`;
-			default: return event.type;
+			case 'user': {
+				const text = (d?.content ?? d?.text ?? d?.message ?? '') as string;
+				return { label: 'User', content: text || null };
+			}
+			case 'result':
+				return { label: 'Finished', content: (d?.message as string) ?? null };
+			case 'error':
+				return { label: 'Error', content: (d?.message as string) ?? 'unknown' };
+			default:
+				return { label: event.type, content: d ? JSON.stringify(d).slice(0, 200) : null };
 		}
 	}
+
+	function handleScroll(runId: string, e: Event) {
+		const el = e.target as HTMLElement;
+		const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+		atBottom.set(runId, isAtBottom);
+	}
+
+	function scrollContainer(el: HTMLElement, runId: string) {
+		scrollContainers.set(runId, el);
+		// Default to being at bottom for new containers
+		if (!atBottom.has(runId)) {
+			atBottom.set(runId, true);
+		}
+		return {
+			destroy() {
+				scrollContainers.delete(runId);
+				atBottom.delete(runId);
+			}
+		};
+	}
+
+	// Auto-scroll when events change
+	$effect(() => {
+		// Track events to trigger on change
+		const eventCounts = runs.map(r => r.events.length);
+		// Scroll after DOM updates
+		tick().then(() => {
+			for (const run of runs) {
+				const container = scrollContainers.get(run.id);
+				const shouldScroll = atBottom.get(run.id) ?? true;
+				if (container && shouldScroll) {
+					container.scrollTop = container.scrollHeight;
+				}
+			}
+		});
+	});
 
 	function formatElapsed(startedAt: string | null): string {
 		if (!startedAt) return '0s';
@@ -124,10 +206,10 @@
 	}
 
 	// Tick elapsed time every second
-	let tick = $state(0);
+	let elapsedTick = $state(0);
 	$effect(() => {
 		if (runs.length === 0) return;
-		const interval = setInterval(() => { tick++; }, 1000);
+		const interval = setInterval(() => { elapsedTick++; }, 1000);
 		return () => clearInterval(interval);
 	});
 </script>
@@ -232,16 +314,26 @@
 					</div>
 
 					<!-- Live feed -->
-					<div class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs space-y-1 bg-base">
+					<div
+						class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs space-y-2 bg-base"
+						use:scrollContainer={run.id}
+						onscroll={(e) => handleScroll(run.id, e)}
+					>
 						{#if run.events.length === 0}
 							<div class="text-muted italic py-8 text-center">
 								{run.status === 'queued' ? 'Waiting in queue...' : 'Waiting for events...'}
 							</div>
 						{:else}
 							{#each run.events.slice(-30) as event (event.id)}
-								<div class="flex gap-2 py-0.5 text-secondary leading-relaxed">
-									<span class="text-muted flex-shrink-0 select-none">{new Date(event.created_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-									<span class="truncate">{formatEvent(event)}</span>
+								{@const formatted = formatEvent(event)}
+								<div class="py-1 border-b border-edge/30 last:border-0">
+									<div class="flex gap-2 text-secondary">
+										<span class="text-muted flex-shrink-0 select-none">{new Date(event.created_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+										<span class="text-cyan font-medium">{formatted.label}</span>
+									</div>
+									{#if formatted.content}
+										<pre class="mt-1 ml-[72px] text-secondary whitespace-pre-wrap break-words max-h-32 overflow-y-auto">{formatted.content}</pre>
+									{/if}
 								</div>
 							{/each}
 						{/if}
@@ -249,7 +341,7 @@
 
 					<!-- Footer -->
 					<div class="px-4 py-2 border-t border-edge flex items-center justify-between text-xs text-muted bg-base-hi">
-						<span>{#key tick}{formatElapsed(run.started_at)}{/key}</span>
+						<span>{#key elapsedTick}{formatElapsed(run.started_at)}{/key}</span>
 						<span>{formatCost(run.cost_usd)}</span>
 					</div>
 				</div>
