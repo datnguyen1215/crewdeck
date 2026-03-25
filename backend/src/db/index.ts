@@ -47,7 +47,12 @@ const migrations: Migration[] = [
     name: "004_add_admiral_enabled_to_project",
     run(db) {
       const cols = db.pragma("table_info(Project)") as { name: string }[];
-      if (!cols.some((c) => c.name === "admiral_enabled")) {
+      // Skip if already present under original or renamed name (008)
+      if (
+        !cols.some(
+          (c) => c.name === "admiral_enabled" || c.name === "captain_enabled",
+        )
+      ) {
         db.exec(
           "ALTER TABLE Project ADD COLUMN admiral_enabled INTEGER NOT NULL DEFAULT 1",
         );
@@ -80,7 +85,14 @@ const migrations: Migration[] = [
     name: "007_add_admiral_idle_timeout_ms_to_project",
     run(db) {
       const cols = db.pragma("table_info(Project)") as { name: string }[];
-      if (!cols.some((c) => c.name === "admiral_idle_timeout_ms")) {
+      // Skip if already present under original or renamed name (008)
+      if (
+        !cols.some(
+          (c) =>
+            c.name === "admiral_idle_timeout_ms" ||
+            c.name === "captain_idle_timeout_ms",
+        )
+      ) {
         db.exec(
           "ALTER TABLE Project ADD COLUMN admiral_idle_timeout_ms INTEGER",
         );
@@ -264,19 +276,6 @@ function runMigrations(db: Database.Database): void {
       db.prepare("SELECT name FROM _migrations").all() as { name: string }[]
     ).map((r) => r.name),
   );
-
-  // Fresh DB: schema.sql already defines the final schema, so all migrations
-  // are effectively applied. Seed the table to avoid running stale migrations
-  // (e.g., adding intermediate columns that no longer exist).
-  if (applied.size === 0) {
-    const seed = db.transaction(() => {
-      for (const m of migrations) {
-        db.prepare("INSERT INTO _migrations (name) VALUES (?)").run(m.name);
-      }
-    });
-    seed();
-    return;
-  }
 
   const record = db.prepare("INSERT INTO _migrations (name) VALUES (?)");
 
