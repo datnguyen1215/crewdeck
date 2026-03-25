@@ -4,7 +4,15 @@
  * Handles interactive user conversations using `claude -p --output-format stream-json`.
  * Streams responses token-by-token to the frontend via WebSocket events.
  * Each message is a one-shot call with conversation history as context.
+ *
+ * Supports:
+ * - Streaming text chunks via captain.chat.chunk
+ * - Tool call/result events via captain.chat.tool_call / captain.chat.tool_result
+ * - 10-minute timeout with SIGTERM -> SIGKILL escalation
+ * - Abort handling via chat.abort events (kills in-flight process)
+ * - Per-session concurrency (one in-flight message per session)
  */
+import { type ChildProcess } from "node:child_process";
 import { logger } from "../../logger.js";
 import { eventBus } from "../../events/bus.js";
 import { getProject } from "../../db/repositories/projects.js";
@@ -15,9 +23,60 @@ import * as chatRepo from "../../db/repositories/chat-messages.js";
 import type { CaptainEvent } from "./queue.js";
 
 const MAX_CONTEXT_MESSAGES = 100;
+const CHAT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const KILL_ESCALATION_MS = 5000; // SIGTERM -> SIGKILL delay
+
+/** Tracks in-flight chat processes per session for abort support */
+interface InFlightChat {
+  process: ChildProcess | null; // null while pending (process not yet spawned)
+  pid: number | null;
+  aborted: boolean;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
+const inFlightSessions = new Map<string, InFlightChat>();
 
 /**
- * Build the system prompt for Chat — conversational and informational.
+ * Check if a session has an in-flight message being processed.
+ */
+export const isSessionBusy = (sessionId: string): boolean =>
+  inFlightSessions.has(sessionId);
+
+/**
+ * Abort an in-flight chat process for a session.
+ * Sends SIGTERM, then SIGKILL after 5s if still alive.
+ * Does not save partial response to DB.
+ */
+export const abortSession = (sessionId: string): boolean => {
+  const flight = inFlightSessions.get(sessionId);
+  if (!flight) return false;
+
+  flight.aborted = true;
+  logger.info({ sessionId, pid: flight.pid }, "Aborting chat process");
+
+  // Process may be null if still in pending state (not yet spawned)
+  if (flight.process) {
+    try {
+      flight.process.kill("SIGTERM");
+    } catch {
+      /* already dead */
+    }
+
+    const proc = flight.process;
+    setTimeout(() => {
+      try {
+        if (!proc.killed) proc.kill("SIGKILL");
+      } catch {
+        /* already dead */
+      }
+    }, KILL_ESCALATION_MS);
+  }
+
+  return true;
+};
+
+/**
+ * Build the system prompt for Chat -- conversational and informational.
  */
 const buildSystemPrompt = (projectId: string): string => {
   const project = getProject(projectId);
@@ -176,8 +235,91 @@ const setupGitHubAuth = async (
 };
 
 /**
+ * Reserve a session slot synchronously before any async work.
+ * Prevents race conditions where two requests pass isSessionBusy() checks
+ * before either has spawned a process.
+ */
+function reserveSession(sessionId: string): InFlightChat {
+  const flight: InFlightChat = {
+    process: null,
+    pid: null,
+    aborted: false,
+    timer: null,
+  };
+  inFlightSessions.set(sessionId, flight);
+  return flight;
+}
+
+/**
+ * Register an in-flight process for an already-reserved session. Sets up timeout.
+ */
+function trackProcess(
+  sessionId: string,
+  childProcess: ChildProcess,
+  pid: number,
+): void {
+  const flight = inFlightSessions.get(sessionId);
+  if (!flight) return;
+
+  flight.process = childProcess;
+  flight.pid = pid;
+
+  // If abort was requested while we were in the pending state (process not yet spawned),
+  // kill the newly-spawned process immediately and skip timeout setup
+  if (flight.aborted) {
+    logger.info(
+      { sessionId, pid },
+      "Process spawned after abort — killing immediately",
+    );
+    try {
+      childProcess.kill("SIGTERM");
+    } catch {
+      /* already dead */
+    }
+    setTimeout(() => {
+      try {
+        if (!childProcess.killed) childProcess.kill("SIGKILL");
+      } catch {
+        /* already dead */
+      }
+    }, KILL_ESCALATION_MS);
+    return;
+  }
+
+  flight.timer = setTimeout(() => {
+    const current = inFlightSessions.get(sessionId);
+    if (!current) return;
+    current.aborted = true;
+    logger.warn({ sessionId, pid }, "Chat process timed out (10 min)");
+    try {
+      childProcess.kill("SIGTERM");
+    } catch {
+      /* already dead */
+    }
+    setTimeout(() => {
+      try {
+        if (!childProcess.killed) childProcess.kill("SIGKILL");
+      } catch {
+        /* already dead */
+      }
+    }, KILL_ESCALATION_MS);
+  }, CHAT_TIMEOUT_MS);
+}
+
+/**
+ * Clean up in-flight tracking for a session.
+ */
+function untrackProcess(sessionId: string): void {
+  const flight = inFlightSessions.get(sessionId);
+  if (flight) {
+    if (flight.timer) clearTimeout(flight.timer);
+    inFlightSessions.delete(sessionId);
+  }
+}
+
+/**
  * Process chat message with streaming LLM response.
- * Streams tokens to the frontend via chat.stream events.
+ * Streams tokens to the frontend via captain.chat.chunk events.
  */
 export const processChat = async (
   projectId: string,
@@ -186,7 +328,6 @@ export const processChat = async (
   const systemPrompt = buildSystemPrompt(projectId);
   if (!systemPrompt) return "Error: Project not found";
 
-  // Process each chat.message event individually so none are dropped
   const chatEvents = events.filter((e) => e.type === "chat.message");
   if (chatEvents.length === 0) return "";
 
@@ -218,6 +359,17 @@ const processSingleChat = async (
   const history = sessionId ? getChatHistory(sessionId) : "";
   const images = chatEvent.images ?? [];
 
+  // Reserve session slot synchronously before any async work to prevent
+  // race conditions with concurrent requests
+  let flight: InFlightChat | undefined;
+  if (sessionId) {
+    if (isSessionBusy(sessionId)) {
+      logger.warn({ projectId, sessionId }, "Chat: Session already reserved");
+      return "";
+    }
+    flight = reserveSession(sessionId);
+  }
+
   // Build prompt with history
   const sections = [];
   if (history) sections.push(`## Conversation History\n${history}`);
@@ -238,7 +390,7 @@ const processSingleChat = async (
 
   try {
     if (images.length > 0) {
-      // Multimodal path — uses non-streaming for image support
+      // Multimodal path -- uses non-streaming for image support
       const result = await spawnClaudeMultimodal({
         text: `## User Message\n${userContent}`,
         images,
@@ -247,7 +399,20 @@ const processSingleChat = async (
         workdir: ".",
         env,
       });
+
+      if (sessionId) {
+        trackProcess(sessionId, result.process, result.pid!);
+      }
+
       const exitResult = await result.exitPromise;
+
+      if (flight?.aborted) {
+        logger.info(
+          { projectId, sessionId },
+          "Chat aborted, discarding response",
+        );
+        return "";
+      }
 
       if (exitResult.code !== 0) {
         logger.warn(
@@ -271,7 +436,14 @@ const processSingleChat = async (
         fullResponse = exitResult.stdout;
       }
 
-      // Emit the full response as a single message (no streaming for multimodal)
+      // Emit the full response as a single chunk (no streaming for multimodal)
+      if (fullResponse && sessionId) {
+        eventBus.emit("captain.chat.chunk", {
+          project_id: projectId,
+          session_id: sessionId,
+          text: fullResponse,
+        });
+      }
       if (fullResponse) {
         eventBus.emit("captain.message", {
           project_id: projectId,
@@ -279,7 +451,7 @@ const processSingleChat = async (
         });
       }
     } else {
-      // Streaming path — stream tokens to frontend
+      // Streaming path -- stream tokens to frontend
       const result = await spawnClaudeStream({
         prompt: userPrompt,
         systemPrompt,
@@ -287,36 +459,85 @@ const processSingleChat = async (
         env,
       });
 
+      if (sessionId) {
+        trackProcess(sessionId, result.process, result.pid);
+      }
+
+      // Track current tool name for pairing tool_call with tool_result
+      let currentToolName = "";
+
       // Process stream events
       for await (const event of result.events) {
+        // Check if aborted between events
+        if (flight?.aborted) break;
+
         switch (event.type) {
           case "assistant": {
-            // Start of assistant turn — content blocks follow
             break;
           }
           case "content_block_start": {
-            // New content block starting
+            // Track tool use blocks
+            const contentBlock = event.content_block as
+              | { type: string; name?: string }
+              | undefined;
+            if (contentBlock?.type === "tool_use" && contentBlock.name) {
+              currentToolName = contentBlock.name;
+            }
             break;
           }
           case "content_block_delta": {
             const delta = event.delta as
-              | { type: string; text?: string }
+              | { type: string; text?: string; partial_json?: string }
               | undefined;
             if (delta?.type === "text_delta" && delta.text) {
               fullResponse += delta.text;
+              // Emit both legacy and new events
               eventBus.emit("chat.stream", {
                 project_id: projectId,
                 token: delta.text,
               });
+              if (sessionId) {
+                eventBus.emit("captain.chat.chunk", {
+                  project_id: projectId,
+                  session_id: sessionId,
+                  text: delta.text,
+                });
+              }
             }
             break;
           }
           case "content_block_stop": {
-            // Content block finished
+            break;
+          }
+          // Tool use events from Claude CLI stream-json
+          case "tool_use": {
+            const toolName = (event as any).name ?? currentToolName;
+            const toolInput = (event as any).input;
+            if (sessionId) {
+              eventBus.emit("captain.chat.tool_call", {
+                project_id: projectId,
+                session_id: sessionId,
+                tool_name: toolName,
+                tool_input: toolInput,
+              });
+            }
+            currentToolName = toolName;
+            break;
+          }
+          case "tool_result": {
+            const toolResult = (event as any).content ?? (event as any).output;
+            if (sessionId) {
+              eventBus.emit("captain.chat.tool_result", {
+                project_id: projectId,
+                session_id: sessionId,
+                tool_name: currentToolName,
+                result: toolResult,
+              });
+            }
             break;
           }
           case "result": {
-            // Final result — use as authoritative response
+            // Final result -- use as authoritative response
             const resultText = (event as { result?: string }).result;
             if (resultText) {
               fullResponse = resultText;
@@ -324,13 +545,21 @@ const processSingleChat = async (
             break;
           }
           default:
-            // Other events (system, tool calls, etc.) — skip for now
             break;
         }
       }
 
       // Wait for process to exit
       const { code } = await result.exitPromise;
+
+      if (flight?.aborted) {
+        logger.info(
+          { projectId, sessionId },
+          "Chat aborted, discarding response",
+        );
+        return "";
+      }
+
       if (code !== 0) {
         logger.warn({ projectId, code }, "Chat claude stream exited non-zero");
       }
@@ -344,26 +573,45 @@ const processSingleChat = async (
       }
     }
   } catch (err) {
+    if (flight?.aborted) {
+      logger.info({ projectId, sessionId }, "Chat aborted during processing");
+      return "";
+    }
     logger.error({ err }, "Chat claude call failed");
     fullResponse = "Error: Failed to process message";
   } finally {
+    if (sessionId) untrackProcess(sessionId);
     if (sshKeyPath) {
       const { cleanupSshKey } = await import("../../utils/git-auth.js");
       cleanupSshKey(sshKeyPath);
     }
   }
 
-  // Save assistant response to DB
+  // Save assistant response to DB (skip if aborted or empty)
+  let messageId: string | null = null;
   if (fullResponse) {
-    chatRepo.create(projectId, "assistant", fullResponse, sessionId ?? null);
+    const saved = chatRepo.create(
+      projectId,
+      "assistant",
+      fullResponse,
+      sessionId ?? null,
+    );
+    messageId = saved.id;
   }
 
-  // Emit completion
-  const messageId = null; // Message already saved inline
+  // Emit completion events
   eventBus.emit("chat.complete", {
     project_id: projectId,
     message_id: messageId,
   });
+
+  if (sessionId && messageId) {
+    eventBus.emit("captain.chat.complete", {
+      project_id: projectId,
+      session_id: sessionId,
+      message_id: messageId,
+    });
+  }
 
   return fullResponse;
 };

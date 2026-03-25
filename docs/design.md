@@ -244,13 +244,14 @@ Captain is split into two independent services that run concurrently per project
 **Chat Service** (`backend/src/orchestration/captain/chat-service.ts` + `chat-agent.ts`)
 
 - Handles interactive user conversations from the Captain chat UI.
-- Subscribes to `chat.message` events only.
-- Uses `claude -p --output-format stream-json` for real-time token streaming to the frontend via `chat.stream` WebSocket events. Falls back to `spawnClaudeMultimodal` for image-attached messages.
+- Subscribes to `chat.message` and `chat.abort` events.
+- Uses `claude -p --output-format stream-json` for real-time token streaming to the frontend via `captain.chat.chunk` WebSocket events. Also emits `captain.chat.tool_call` and `captain.chat.tool_result` for tool use during chat. Falls back to `spawnClaudeMultimodal` for image-attached messages (non-streaming, emits full response as a single chunk).
 - Messages are organized into sessions (ChatSession). Only one active session per project at a time; creating a new session archives the current active one.
 - Each message is a one-shot `claude -p` call with conversation history from the active session as context.
-- Has its own queue namespace (`chat:{projectId}`) so user messages are never blocked by monitor processing.
-- Processes each queued message individually (iterates sequentially) so no messages are dropped.
-- Saves assistant responses to ChatMessage table linked to the active session via `session_id`.
+- **Per-session concurrency**: one in-flight message per session. Additional sends are rejected with 409 (`SESSION_BUSY`). Multiple sessions can have in-flight messages simultaneously (separate processes). Session slots are reserved synchronously before any async work (process spawning, git auth setup) to prevent race conditions.
+- **Abort handling**: users can abort in-flight messages via `POST /chat/sessions/:sessionId/abort`. The process is killed with SIGTERM → SIGKILL after 5s. Partial responses are discarded (not saved to DB). If abort is requested while the process is still being spawned (pending state), the process is killed immediately upon spawn.
+- **Timeout**: 10-minute timeout per process, with SIGTERM → SIGKILL escalation.
+- On completion, saves the full assistant response to ChatMessage table and emits `captain.chat.complete` with the saved message ID.
 
 **Monitor Service** (`backend/src/orchestration/captain/monitor-service.ts` + `monitor-agent.ts`)
 
@@ -349,7 +350,8 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
 - **PR events** — PR created, status updated.
 - **Captain events** — event received, thinking, message, tool call, tool result, complete.
-- **Chat events** — stream (token-by-token streaming from Chat service), complete.
+- **Captain chat events** — chunk (streaming text), tool_call, tool_result, complete (session-scoped, granular streaming events).
+- **Chat events** — stream, complete (legacy, kept for backward compatibility).
 
 The frontend subscribes to events scoped by project.
 
