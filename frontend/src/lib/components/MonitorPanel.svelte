@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, onMount } from 'svelte';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { md } from '$lib/utils/markdown.js';
+	import { getMonitorHistory, type ChatMessage } from '$lib/api/http.js';
 
 	interface MonitorEntry {
 		id: string;
@@ -13,10 +14,34 @@
 		success?: boolean;
 	}
 
-	let { ws }: { ws: ProjectWebSocket | null } = $props();
+	let { ws, projectId }: { ws: ProjectWebSocket | null; projectId: string } = $props();
 
 	let entries = $state<MonitorEntry[]>([]);
 	let feedContainer: HTMLDivElement | undefined;
+	let loading = $state(true);
+
+	// Convert stored ChatMessage to MonitorEntry
+	function mapMessageToEntry(msg: ChatMessage): MonitorEntry {
+		return {
+			id: msg.id,
+			type: msg.role === 'user' ? 'event' : 'message',
+			content: msg.content,
+			timestamp: new Date(msg.created_at),
+		};
+	}
+
+	// Load history on mount
+	onMount(async () => {
+		try {
+			const history = await getMonitorHistory(projectId);
+			entries = history.map(mapMessageToEntry);
+			scrollToBottom();
+		} catch (err) {
+			console.error('Failed to load monitor history:', err);
+		} finally {
+			loading = false;
+		}
+	});
 
 	$effect(() => {
 		if (!ws) return;
@@ -141,7 +166,11 @@
 		bind:this={feedContainer}
 		class="flex-1 overflow-y-auto p-3 md:p-4 font-mono text-xs md:text-sm bg-black/20"
 	>
-		{#if entries.length === 0}
+		{#if loading}
+			<div class="text-muted py-8 text-center">
+				<p class="animate-pulse">Loading monitor history...</p>
+			</div>
+		{:else if entries.length === 0}
 			<div class="text-muted py-8 text-center">
 				<p class="mb-2">Monitor feed empty.</p>
 				<p class="text-xs">Automated orchestration events will appear here.</p>
