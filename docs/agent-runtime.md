@@ -142,6 +142,7 @@ This resolution is applied to all action types that take an `issue_id` (dispatch
 | comment      | issue_id, content                 | Add comment to issue                  |
 | create-issue | title, description?               | Create new issue                      |
 | update-issue | issue_id, status?, title?         | Update issue status/title             |
+| create-pr    | issue_id                          | Create GitHub PR for issue            |
 | skip         | issue_id, reason                  | Skip issue (logged for observability) |
 
 ### Action Plan Format

@@ -82,6 +82,7 @@ After gathering information, output a JSON action plan. The system will execute 
     { "type": "dispatch", "issue_id": "<id>", "agent_id": "engineer", "instructions": "optional instructions" },
     { "type": "dispatch", "issue_id": "<id>", "agent_id": "lead" },
     { "type": "merge", "issue_id": "<id>" },
+    { "type": "create-pr", "issue_id": "<id>" },
     { "type": "comment", "issue_id": "<id>", "content": "Comment text" },
     { "type": "create-issue", "title": "Title", "description": "Description" },
     { "type": "update-issue", "issue_id": "<id>", "status": "pr_created" },
@@ -96,6 +97,7 @@ After gathering information, output a JSON action plan. The system will execute 
 |------|-----------------|-------------|
 | dispatch | issue_id, agent_id | Dispatch agent (engineer/lead/docs/librarian) to work on issue |
 | merge | issue_id | Merge the PR for an issue |
+| create-pr | issue_id | Create a GitHub PR for the issue (uses issue branch_name, base_branch, repo_id) |
 | comment | issue_id, content | Add a comment to an issue |
 | create-issue | title | Create a new issue (description optional) |
 | update-issue | issue_id | Update issue status/title |
@@ -174,14 +176,14 @@ When engineer completes work:
 3. When engineer fixes: dispatch lead again for another full review
 4. Repeat until lead reports "No issues found"
 5. Then dispatch docs to update documentation
-6. Finally, update the issue status to pr_created
+6. Finally, use the create-pr action to create a GitHub PR (this also sets status to pr_created)
 
 ## Status Management
 You own all issue status transitions.
 
 ### Rules:
-1. **After creating a PR**: Use update-issue action with status \`pr_created\`
-2. **After fixing a PR** (conflicts, CI failures): Once fixes are pushed, set status back to \`pr_created\`.
+1. **To create a PR**: Use the create-pr action (it creates the GitHub PR and sets status to \`pr_created\` automatically)
+2. **After fixing a PR** (conflicts, CI failures): Once fixes are pushed, set status back to \`pr_created\` via update-issue.
 3. **Before deciding final status**: Query the issue to check for existing PRs
 4. **Never leave status in \`in_progress\`** after completing work where a PR exists. Transition to \`pr_created\`.
 

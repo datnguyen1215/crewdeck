@@ -13,6 +13,7 @@ import * as commentRepo from "../../db/repositories/comments.js";
 import {
   handleDispatchAgent,
   handleMergePR,
+  handleCreatePR,
   handleScanCodebase,
 } from "./tool-handlers.js";
 import type {
@@ -23,6 +24,7 @@ import type {
   CommentAction,
   CreateIssueAction,
   UpdateIssueAction,
+  CreatePRAction,
   SkipAction,
 } from "./action-schema.js";
 
@@ -231,6 +233,24 @@ function executeUpdateIssue(
 }
 
 /**
+ * Execute a create-pr action.
+ */
+async function executeCreatePR(
+  projectId: string,
+  action: CreatePRAction,
+): Promise<ActionResult> {
+  const result = await handleCreatePR(projectId, {
+    issue_id: action.issue_id,
+  });
+  return {
+    action,
+    success: result.success,
+    message: result.message,
+    data: result.data,
+  };
+}
+
+/**
  * Execute a skip action (no-op, logged for observability).
  */
 function executeSkip(action: SkipAction): ActionResult {
@@ -287,6 +307,8 @@ async function executeAction(
       return executeCreateIssue(projectId, action);
     case "update-issue":
       return executeUpdateIssue(projectId, action);
+    case "create-pr":
+      return executeCreatePR(projectId, action);
     case "skip":
       return executeSkip(action);
     default:

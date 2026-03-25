@@ -186,6 +186,128 @@ export const handleMergePR = async (
   return { success: false, message: result.message };
 };
 
+/**
+ * Create a GitHub PR for an issue.
+ * Looks up issue branch/repo info, calls GitHub API, creates IssuePR record.
+ */
+export const handleCreatePR = async (
+  projectId: string,
+  input: { issue_id: string },
+): Promise<ToolResult> => {
+  const project = getProject(projectId);
+  if (!project) return { success: false, message: "Project not found" };
+
+  if (!project.github_account_id)
+    return { success: false, message: "No GitHub account linked to project" };
+
+  const account = getGitHubAccount(project.github_account_id);
+  if (!account) return { success: false, message: "GitHub account not found" };
+
+  const issue = issueRepo.getIssue(input.issue_id);
+  if (!issue) return { success: false, message: "Issue not found" };
+
+  if (issue.project_id !== projectId)
+    return { success: false, message: "Issue belongs to a different project" };
+
+  if (!issue.branch_name)
+    return { success: false, message: "Issue has no branch_name set" };
+
+  if (!issue.repo_id)
+    return { success: false, message: "Issue has no repo_id set" };
+
+  const repoInfo = getRepoInfo(issue.repo_id);
+  if (!repoInfo) return { success: false, message: "Repository not found" };
+
+  const baseBranch = issue.base_branch || "main";
+
+  // Check for existing open PR
+  const existingPRs = issuePRRepo.listIssuePRs(issue.id);
+  const openPR = existingPRs.find((pr) => pr.status === PRStatus.OPEN);
+  if (openPR)
+    return {
+      success: false,
+      message: `Issue already has an open PR (#${openPR.pr_number})`,
+    };
+
+  // Create PR via GitHub API
+  const url = `https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/pulls`;
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...GITHUB_HEADERS,
+        Authorization: `Bearer ${account.gh_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: issue.title,
+        body: issue.description || "",
+        head: issue.branch_name,
+        base: baseBranch,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const message =
+        (body as { message?: string }).message || `HTTP ${response.status}`;
+      return { success: false, message: `Failed to create PR: ${message}` };
+    }
+
+    const prData = (await response.json()) as {
+      number: number;
+      html_url: string;
+    };
+
+    // Create IssuePR record
+    const issuePR = issuePRRepo.createIssuePR({
+      issue_id: issue.id,
+      repo_id: issue.repo_id,
+      pr_number: prData.number,
+      pr_url: prData.html_url,
+      status: PRStatus.OPEN,
+    });
+
+    // Update issue status to pr_created
+    const oldStatus = issue.status;
+    issueRepo.updateIssue(issue.id, { status: IssueStatus.PR_CREATED });
+
+    postSystemComment(
+      issue.id,
+      projectId,
+      `PR #${prData.number} created: ${prData.html_url}`,
+    );
+
+    eventBus.emit("pr.created", {
+      issue_pr: issuePR,
+      project_id: projectId,
+    });
+
+    if (oldStatus !== IssueStatus.PR_CREATED) {
+      eventBus.emit("issue.status_changed", {
+        issue_id: issue.id,
+        project_id: projectId,
+        from: oldStatus,
+        to: IssueStatus.PR_CREATED,
+        actor_type: "agent",
+        actor_id: "captain",
+      });
+    }
+
+    return {
+      success: true,
+      message: `Created PR #${prData.number}`,
+      data: {
+        pr_number: prData.number,
+        pr_url: prData.html_url,
+      },
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { success: false, message: `PR creation failed: ${message}` };
+  }
+};
+
 /** Valid agent IDs for dispatch-agent */
 const DISPATCHABLE_AGENTS = ["engineer", "lead", "docs", "librarian"] as const;
 type DispatchableAgent = (typeof DISPATCHABLE_AGENTS)[number];
