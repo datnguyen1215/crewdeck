@@ -34,6 +34,7 @@ export const UpdateProjectSchema = CreateProjectBase.omit({
   .extend({
     auto_start: z.boolean().optional(),
     auto_merge: z.boolean().optional(),
+    model: z.enum(["sonnet", "opus"]).optional(),
     max_chain_depth: z.number().int().positive().optional(),
     agent_timeout_minutes: z.number().int().min(1).max(60).optional(),
   });

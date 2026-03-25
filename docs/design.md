@@ -29,6 +29,7 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - A shared roster of 5 fixed agents (defined globally, not per-project; 4 dispatchable + Captain).
 - A concurrency limit (max simultaneous agent processes).
 - A chain depth limit (max agent dispatches per issue before requiring manual reset).
+- A default Claude model (`sonnet` or `opus`) for agent spawning, with optional per-agent overrides via AgentConfig.
 
 ### Agent
 

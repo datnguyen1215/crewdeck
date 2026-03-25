@@ -24,6 +24,7 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
     "github_account_id",
     "auto_start",
     "auto_merge",
+    "model",
   ]),
 };
 

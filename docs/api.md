@@ -49,6 +49,7 @@ Without `?stats`:
     "max_chain_depth": 20,
     "auto_start": false,
     "auto_merge": false,
+    "model": "sonnet",
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
@@ -68,6 +69,7 @@ With `?stats`:
     "max_chain_depth": 20,
     "auto_start": false,
     "auto_merge": false,
+    "model": "sonnet",
     "github_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601",
@@ -132,7 +134,11 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, auto_start, auto_merge, github_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, auto_start, auto_merge, model, github_account_id).
+
+| Field | Type | Description                                                        |
+| ----- | ---- | ------------------------------------------------------------------ |
+| model | TEXT | Default Claude model for agent spawning. One of: `sonnet`, `opus`. |
 
 **Response:** `200 OK` — The updated project object.
 
@@ -915,6 +921,69 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 - Creates an `AgentRun` record with `issue_id: null`.
 - Spawns the librarian agent process.
 - Emits `run.started` event.
+
+---
+
+### Agent Config
+
+Per-agent model overrides for a project. Allows configuring which Claude model (`sonnet` or `opus`) each agent uses, overriding the project default.
+
+#### List Agent Configs
+
+```
+GET /projects/:projectId/agent-config
+```
+
+**Response:** `200 OK` — Array of agent config objects.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "agent_id": "engineer",
+    "model": "opus"
+  }
+]
+```
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Set Agent Model Override
+
+```
+PUT /projects/:projectId/agent-config/:agentId
+```
+
+Creates or updates the model override for a specific agent in the project.
+
+**Request Body:**
+
+```json
+{
+  "model": "opus"
+}
+```
+
+| Field | Required | Description                                                                   |
+| ----- | -------- | ----------------------------------------------------------------------------- |
+| model | Yes      | Model to use. One of: `sonnet`, `opus`, or `null` (null clears the override). |
+
+**Response:** `200 OK` — The created or updated agent config object.
+
+**Error:** `404 Not Found` — Project does not exist.
+
+#### Remove Agent Model Override
+
+```
+DELETE /projects/:projectId/agent-config/:agentId
+```
+
+Removes the model override for the agent, falling back to the project default.
+
+**Response:** `204 No Content`
+
+**Error:** `404 Not Found` — Project does not exist.
 
 ---
 

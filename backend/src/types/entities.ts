@@ -23,6 +23,7 @@ export interface Project {
   agent_timeout_minutes: number;
   auto_start: boolean;
   auto_merge: boolean;
+  model: string;
   captain_idle_timeout_ms: number | null;
   github_account_id: string | null;
   created_at: string;
@@ -199,8 +200,16 @@ export interface UpdateProjectInput {
   agent_timeout_minutes?: number;
   auto_start?: boolean;
   auto_merge?: boolean;
+  model?: string;
   captain_idle_timeout_ms?: number | null;
   github_account_id?: string | null;
+}
+
+export interface AgentConfig {
+  id: string;
+  project_id: string;
+  agent_id: string;
+  model: string | null;
 }
 
 export interface CreateRepoInput {

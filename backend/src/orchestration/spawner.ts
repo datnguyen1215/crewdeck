@@ -31,6 +31,7 @@ import {
   cleanupSshKey,
   getProjectCredentials,
 } from "../utils/git-auth.js";
+import * as agentConfigRepo from "../db/repositories/agent-config.js";
 import type { Agent, AgentRunStatus } from "../types/entities.js";
 import {
   IssueStatus,
@@ -212,6 +213,7 @@ async function spawnAndTrack(opts: {
   env: Record<string, string>;
   timeoutMinutes: number;
   logLabel: string;
+  model?: string;
   onComplete?: () => void;
 }): Promise<string> {
   const {
@@ -223,6 +225,7 @@ async function spawnAndTrack(opts: {
     env,
     timeoutMinutes,
     logLabel,
+    model,
     onComplete,
   } = opts;
 
@@ -239,6 +242,7 @@ async function spawnAndTrack(opts: {
     systemPrompt: agent.system_prompt,
     workdir,
     env,
+    model,
   });
 
   // Update run with PID
@@ -471,6 +475,8 @@ export const spawnAgent = async (
   const timeoutMinutes =
     project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
 
+  const model = agentConfigRepo.resolveModel(projectId, agent.id);
+
   await spawnAndTrack({
     agent,
     projectId,
@@ -480,6 +486,7 @@ export const spawnAgent = async (
     env,
     timeoutMinutes,
     logLabel: "Agent",
+    model,
     onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
   });
 };
@@ -525,6 +532,8 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   const timeoutMinutes =
     project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
 
+  const model = agentConfigRepo.resolveModel(projectId, agent.id);
+
   return spawnAndTrack({
     agent,
     projectId,
@@ -534,5 +543,6 @@ export const spawnScan = async (projectId: string): Promise<string> => {
     env,
     timeoutMinutes,
     logLabel: "Scan",
+    model,
   });
 };
