@@ -253,7 +253,7 @@ export function listVCSAccounts() {
 export function createVCSAccount(data: {
   account_name: string;
   username: string;
-  gh_token: string;
+  token: string;
   ssh_private_key: string;
 }) {
   return request<VCSAccount>("POST", "/vcs-accounts", data);

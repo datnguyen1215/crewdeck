@@ -13,7 +13,7 @@ describe("Environment Variables API", () => {
     app = await getApp();
     const res = await request(app).post(`${BASE}`).send({
       name: "env-test-project",
-      github_url: "https://github.com/test/repo",
+      repo_url: "https://github.com/test/repo",
     });
     projectId = res.body.id;
   });
@@ -37,7 +37,7 @@ describe("Environment Variables API", () => {
     beforeAll(async () => {
       const res = await request(app).post(`${BASE}`).send({
         name: "env-post-project",
-        github_url: "https://github.com/test/repo",
+        repo_url: "https://github.com/test/repo",
       });
       freshProjectId = res.body.id;
     });
@@ -102,7 +102,7 @@ describe("Environment Variables API", () => {
     beforeAll(async () => {
       const projRes = await request(app).post(`${BASE}`).send({
         name: "env-patch-project",
-        github_url: "https://github.com/test/repo",
+        repo_url: "https://github.com/test/repo",
       });
       patchProjectId = projRes.body.id;
 
@@ -123,7 +123,7 @@ describe("Environment Variables API", () => {
     it("returns 404 for env var in different project", async () => {
       const otherRes = await request(app).post(`${BASE}`).send({
         name: "env-other-project",
-        github_url: "https://github.com/test/repo",
+        repo_url: "https://github.com/test/repo",
       });
       const res = await request(app)
         .patch(`${BASE}/${otherRes.body.id}/environment/${envVarId}`)
@@ -158,7 +158,7 @@ describe("Environment Variables API", () => {
     beforeAll(async () => {
       const projRes = await request(app).post(`${BASE}`).send({
         name: "env-delete-project",
-        github_url: "https://github.com/test/repo",
+        repo_url: "https://github.com/test/repo",
       });
       deleteProjectId = projRes.body.id;
 
@@ -185,7 +185,7 @@ describe("Environment Variables API", () => {
     it("returns 404 for env var in different project", async () => {
       const otherRes = await request(app).post(`${BASE}`).send({
         name: "env-del-other",
-        github_url: "https://github.com/test/repo",
+        repo_url: "https://github.com/test/repo",
       });
       const envRes = await request(app)
         .post(`${BASE}/${otherRes.body.id}/environment`)
@@ -202,7 +202,7 @@ describe("Environment Variables API", () => {
     it("masks secret values but shows non-secret values", async () => {
       const projRes = await request(app).post(`${BASE}`).send({
         name: "env-mask-project",
-        github_url: "https://github.com/test/repo",
+        repo_url: "https://github.com/test/repo",
       });
       const pid = projRes.body.id;
 

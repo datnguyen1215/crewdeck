@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "../../src/db/index.js";
 import { createProject } from "../../src/db/repositories/projects.js";
 import {
-  listGitHubAccounts,
-  getGitHubAccount,
-  createGitHubAccount,
-  deleteGitHubAccount,
-} from "../../src/db/repositories/github-accounts.js";
+  listVCSAccounts,
+  getVCSAccount,
+  createVCSAccount,
+  deleteVCSAccount,
+} from "../../src/db/repositories/vcs-accounts.js";
 
 function clearAll() {
   db.exec("DELETE FROM ActivityLog");
@@ -15,78 +15,78 @@ function clearAll() {
   db.exec("DELETE FROM Issue");
   db.exec("DELETE FROM Repo");
   db.exec("DELETE FROM Project");
-  db.exec("DELETE FROM GitHubAccount");
+  db.exec("DELETE FROM VCSAccount");
 }
 
 beforeEach(clearAll);
 
 const validInput = {
   account_name: "testuser",
-  github_username: "testuser",
-  gh_token: "gho_abc123",
+  username: "testuser",
+  token: "gho_abc123",
   ssh_private_key:
     "-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----",
 };
 
-describe("createGitHubAccount", () => {
+describe("createVCSAccount", () => {
   it("creates an account and returns it with an id", () => {
-    const account = createGitHubAccount(validInput);
+    const account = createVCSAccount(validInput);
     expect(account.id).toBeDefined();
     expect(account.account_name).toBe("testuser");
-    expect(account.github_username).toBe("testuser");
-    expect(account.gh_token).toBe("gho_abc123");
+    expect(account.username).toBe("testuser");
+    expect(account.token).toBe("gho_abc123");
     expect(account.ssh_private_key).toBeDefined();
     expect(account.created_at).toBeDefined();
   });
 });
 
-describe("getGitHubAccount", () => {
+describe("getVCSAccount", () => {
   it("returns the account by id", () => {
-    const created = createGitHubAccount(validInput);
-    const found = getGitHubAccount(created.id);
+    const created = createVCSAccount(validInput);
+    const found = getVCSAccount(created.id);
     expect(found).toMatchObject({
       id: created.id,
-      github_username: "testuser",
+      username: "testuser",
     });
   });
 
   it("returns null for a missing id", () => {
-    expect(getGitHubAccount("nonexistent")).toBeNull();
+    expect(getVCSAccount("nonexistent")).toBeNull();
   });
 });
 
-describe("listGitHubAccounts", () => {
+describe("listVCSAccounts", () => {
   it("returns all accounts", () => {
-    createGitHubAccount({ ...validInput, account_name: "a" });
-    createGitHubAccount({ ...validInput, account_name: "b" });
-    const list = listGitHubAccounts();
+    createVCSAccount({ ...validInput, account_name: "a" });
+    createVCSAccount({ ...validInput, account_name: "b" });
+    const list = listVCSAccounts();
     expect(list).toHaveLength(2);
     const names = list.map((a) => a.account_name).sort();
     expect(names).toEqual(["a", "b"]);
   });
 
   it("returns empty array when none exist", () => {
-    expect(listGitHubAccounts()).toEqual([]);
+    expect(listVCSAccounts()).toEqual([]);
   });
 });
 
-describe("deleteGitHubAccount", () => {
+describe("deleteVCSAccount", () => {
   it("removes the account", () => {
-    const account = createGitHubAccount(validInput);
-    deleteGitHubAccount(account.id);
-    expect(getGitHubAccount(account.id)).toBeNull();
+    const account = createVCSAccount(validInput);
+    deleteVCSAccount(account.id);
+    expect(getVCSAccount(account.id)).toBeNull();
   });
 
-  it("nullifies github_account_id on associated projects via ON DELETE SET NULL", () => {
-    const account = createGitHubAccount(validInput);
-    const project = createProject({ name: "P", github_account_id: account.id });
-    expect(project.github_account_id).toBe(account.id);
+  it("nullifies vcs_account_id on associated projects via ON DELETE SET NULL", () => {
+    const account = createVCSAccount(validInput);
+    const project = createProject({ name: "P", vcs_account_id: account.id });
+    expect(project.vcs_account_id).toBe(account.id);
 
-    deleteGitHubAccount(account.id);
+    deleteVCSAccount(account.id);
 
     const updated = db
-      .prepare("SELECT github_account_id FROM Project WHERE id = ?")
-      .get(project.id) as { github_account_id: string | null };
-    expect(updated.github_account_id).toBeNull();
+      .prepare("SELECT vcs_account_id FROM Project WHERE id = ?")
+      .get(project.id) as { vcs_account_id: string | null };
+    expect(updated.vcs_account_id).toBeNull();
   });
 });

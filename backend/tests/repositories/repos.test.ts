@@ -18,7 +18,7 @@ describe("createRepo", () => {
   it("parses owner and name from https URL", () => {
     const p = createProject({ name: "P" });
     const repo = createRepo(p.id, {
-      github_url: "https://github.com/acme/widget",
+      repo_url: "https://github.com/acme/widget",
     });
     expect(repo.owner).toBe("acme");
     expect(repo.name).toBe("widget");
@@ -29,7 +29,7 @@ describe("createRepo", () => {
   it("parses owner and name from ssh URL", () => {
     const p = createProject({ name: "P" });
     const repo = createRepo(p.id, {
-      github_url: "git@github.com:acme/widget.git",
+      repo_url: "git@github.com:acme/widget.git",
     });
     expect(repo.owner).toBe("acme");
     expect(repo.name).toBe("widget");
@@ -38,7 +38,7 @@ describe("createRepo", () => {
   it("respects custom default_branch", () => {
     const p = createProject({ name: "P" });
     const repo = createRepo(p.id, {
-      github_url: "https://github.com/acme/widget",
+      repo_url: "https://github.com/acme/widget",
       default_branch: "develop",
     });
     expect(repo.default_branch).toBe("develop");
@@ -48,15 +48,15 @@ describe("createRepo", () => {
 describe("listRepos", () => {
   it("returns repos for the project", () => {
     const p = createProject({ name: "P" });
-    createRepo(p.id, { github_url: "https://github.com/acme/a" });
-    createRepo(p.id, { github_url: "https://github.com/acme/b" });
+    createRepo(p.id, { repo_url: "https://github.com/acme/a" });
+    createRepo(p.id, { repo_url: "https://github.com/acme/b" });
     expect(listRepos(p.id).length).toBe(2);
   });
 
   it("does not return repos from other projects", () => {
     const p1 = createProject({ name: "P1" });
     const p2 = createProject({ name: "P2" });
-    createRepo(p1.id, { github_url: "https://github.com/a/x" });
+    createRepo(p1.id, { repo_url: "https://github.com/a/x" });
     expect(listRepos(p2.id).length).toBe(0);
   });
 });
@@ -71,7 +71,7 @@ describe("deleteRepo", () => {
   it("deletes the repo", () => {
     const p = createProject({ name: "P" });
     const repo = createRepo(p.id, {
-      github_url: "https://github.com/acme/widget",
+      repo_url: "https://github.com/acme/widget",
     });
     deleteRepo(repo.id);
     expect(getRepo(repo.id)).toBeNull();

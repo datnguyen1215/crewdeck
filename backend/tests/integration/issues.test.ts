@@ -51,7 +51,7 @@ describe("Issues API", () => {
       .post("/api/v1/projects")
       .send({
         name: "issues-test-project",
-        github_url: "https://github.com/test/repo",
+        repo_url: "https://github.com/test/repo",
       });
     projectId = res.body.id;
   });
@@ -64,7 +64,7 @@ describe("Issues API", () => {
         .post("/api/v1/projects")
         .send({
           name: "empty-project",
-          github_url: "https://github.com/test/repo",
+          repo_url: "https://github.com/test/repo",
         });
       const res = await request(app).get(base(proj.body.id));
       expect(res.status).toBe(200);

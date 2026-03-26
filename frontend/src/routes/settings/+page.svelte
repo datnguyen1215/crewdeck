@@ -5,7 +5,7 @@
 		type VCSAccount
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
-	import VCSConnect from './VCSConnect.svelte';
+	import VCSConnect from '$lib/components/VCSConnect.svelte';
 
 	let accounts = $state<VCSAccount[]>([]);
 	let loading = $state(true);

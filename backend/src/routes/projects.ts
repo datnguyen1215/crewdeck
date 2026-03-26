@@ -37,7 +37,7 @@ router.get("/:id", (req, res) => {
 router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
   try {
     const body = req.body;
-    const { provider, owner, name: repoName } = parseRepoUrl(body.github_url);
+    const { provider, owner, name: repoName } = parseRepoUrl(body.repo_url);
 
     // Fetch metadata from VCS provider
     const vcsClient = getProvider(provider);
@@ -60,7 +60,7 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
     const project = createProject({
       name: body.name || metadata.name,
       description: body.description || metadata.description || undefined,
-      github_url: body.github_url,
+      repo_url: body.repo_url,
       default_branch: metadata.default_branch,
       vcs_account_id: body.vcs_account_id,
     });

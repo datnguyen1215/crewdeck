@@ -30,7 +30,7 @@
 			const account = await createVCSAccount({
 				account_name: githubUsername,
 				username: githubUsername,
-				gh_token: ghToken,
+				token: ghToken,
 				ssh_private_key: sshPrivateKey,
 			});
 			toastStore.add(`Connected GitHub account: ${account.username}`, 'success');

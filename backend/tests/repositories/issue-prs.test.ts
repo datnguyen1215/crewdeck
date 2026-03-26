@@ -11,7 +11,7 @@ import {
   getIssuePRByRepoAndNumber,
   listOpenPRsWithContext,
 } from "../../src/db/repositories/issue-prs.js";
-import { createGitHubAccount } from "../../src/db/repositories/github-accounts.js";
+import { createVCSAccount } from "../../src/db/repositories/vcs-accounts.js";
 import { updateProject } from "../../src/db/repositories/projects.js";
 
 function clearAll() {
@@ -21,7 +21,7 @@ function clearAll() {
   db.exec("DELETE FROM Issue");
   db.exec("DELETE FROM Repo");
   db.exec("DELETE FROM Project");
-  db.exec("DELETE FROM GitHubAccount");
+  db.exec("DELETE FROM VCSAccount");
 }
 
 beforeEach(clearAll);
@@ -29,7 +29,7 @@ beforeEach(clearAll);
 describe("createIssuePR", () => {
   it("creates with default status", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
+    const repo = createRepo(p.id, { repo_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     const pr = createIssuePR({
@@ -47,7 +47,7 @@ describe("createIssuePR", () => {
 describe("updateIssuePR", () => {
   it("updates status", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
+    const repo = createRepo(p.id, { repo_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     const pr = createIssuePR({
       issue_id: issue.id,
@@ -64,7 +64,7 @@ describe("updateIssuePR", () => {
 describe("listIssuePRs", () => {
   it("returns PRs for issue", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
+    const repo = createRepo(p.id, { repo_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     createIssuePR({
       issue_id: issue.id,
@@ -97,7 +97,7 @@ describe("getIssuePRByRepoAndNumber", () => {
 
   it("returns the correct record when it exists", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
+    const repo = createRepo(p.id, { repo_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     const pr = createIssuePR({
@@ -116,7 +116,7 @@ describe("getIssuePRByRepoAndNumber", () => {
 
   it("returns null for different pr_number on same repo", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
+    const repo = createRepo(p.id, { repo_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     createIssuePR({
@@ -132,8 +132,8 @@ describe("getIssuePRByRepoAndNumber", () => {
 
   it("returns null for same pr_number on different repo", () => {
     const p = createProject({ name: "P" });
-    const repo1 = createRepo(p.id, { github_url: "https://github.com/acme/x" });
-    const repo2 = createRepo(p.id, { github_url: "https://github.com/acme/y" });
+    const repo1 = createRepo(p.id, { repo_url: "https://github.com/acme/x" });
+    const repo2 = createRepo(p.id, { repo_url: "https://github.com/acme/y" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     createIssuePR({
@@ -156,7 +156,7 @@ describe("listOpenPRsWithContext", () => {
 
   it("returns empty array when only closed/merged PRs exist", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
+    const repo = createRepo(p.id, { repo_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     const pr = createIssuePR({
@@ -173,15 +173,15 @@ describe("listOpenPRsWithContext", () => {
   });
 
   it("returns open PRs with correct context fields", () => {
-    const account = createGitHubAccount({
+    const account = createVCSAccount({
       account_name: "testuser",
-      github_username: "testuser",
-      gh_token: "gho_test123",
+      username: "testuser",
+      token: "gho_test123",
       ssh_private_key: "test-key",
     });
-    const p = createProject({ name: "P", github_account_id: account.id });
+    const p = createProject({ name: "P", vcs_account_id: account.id });
     const repo = createRepo(p.id, {
-      github_url: "https://github.com/acme/myrepo",
+      repo_url: "https://github.com/acme/myrepo",
     });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
@@ -204,13 +204,13 @@ describe("listOpenPRsWithContext", () => {
       repo_owner: "acme",
       repo_name: "myrepo",
       project_id: p.id,
-      github_account_id: account.id,
+      vcs_account_id: account.id,
     });
   });
 
-  it("returns null github_account_id when project has no linked account", () => {
+  it("returns null vcs_account_id when project has no linked account", () => {
     const p = createProject({ name: "P" });
-    const repo = createRepo(p.id, { github_url: "https://github.com/acme/x" });
+    const repo = createRepo(p.id, { repo_url: "https://github.com/acme/x" });
     const issue = createIssue(p.id, { title: "T", description: "D" });
 
     createIssuePR({
@@ -222,17 +222,17 @@ describe("listOpenPRsWithContext", () => {
 
     const result = listOpenPRsWithContext();
     expect(result).toHaveLength(1);
-    expect(result[0].github_account_id).toBeNull();
+    expect(result[0].vcs_account_id).toBeNull();
   });
 
   it("returns multiple open PRs from different projects", () => {
     const p1 = createProject({ name: "P1" });
     const p2 = createProject({ name: "P2" });
     const repo1 = createRepo(p1.id, {
-      github_url: "https://github.com/acme/x",
+      repo_url: "https://github.com/acme/x",
     });
     const repo2 = createRepo(p2.id, {
-      github_url: "https://github.com/acme/y",
+      repo_url: "https://github.com/acme/y",
     });
     const issue1 = createIssue(p1.id, { title: "T1", description: "D1" });
     const issue2 = createIssue(p2.id, { title: "T2", description: "D2" });

@@ -117,7 +117,7 @@ describe("getIssueWithDetails", () => {
   it("returns issue with nested comments, prs, activity", () => {
     const p = createProject({ name: "P" });
     const repo = createRepo(p.id, {
-      github_url: "https://github.com/acme/x",
+      repo_url: "https://github.com/acme/x",
     });
     const issue = createIssue(p.id, { title: "T", description: "D" });
     updateIssue(issue.id, { repo_id: repo.id });

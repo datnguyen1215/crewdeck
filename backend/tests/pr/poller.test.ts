@@ -4,7 +4,7 @@ import { createProject } from "../../src/db/repositories/projects.js";
 import { createRepo } from "../../src/db/repositories/repos.js";
 import { createIssue, getIssue } from "../../src/db/repositories/issues.js";
 import { createIssuePR } from "../../src/db/repositories/issue-prs.js";
-import { createGitHubAccount } from "../../src/db/repositories/github-accounts.js";
+import { createVCSAccount } from "../../src/db/repositories/vcs-accounts.js";
 import { pollPRs } from "../../src/pr/poller.js";
 
 function clearAll() {
@@ -14,7 +14,7 @@ function clearAll() {
   db.exec("DELETE FROM Issue");
   db.exec("DELETE FROM Repo");
   db.exec("DELETE FROM Project");
-  db.exec("DELETE FROM GitHubAccount");
+  db.exec("DELETE FROM VCSAccount");
 }
 
 beforeEach(() => {
@@ -41,18 +41,18 @@ describe("pollPRs", () => {
     it("transitions issue from pr_created to done when PR is merged", async () => {
       const fetchSpy = mockMergedPRResponse();
 
-      const account = createGitHubAccount({
+      const account = createVCSAccount({
         account_name: "testuser",
-        github_username: "testuser",
-        gh_token: "gho_test",
+        username: "testuser",
+        token: "gho_test",
         ssh_private_key: "test-key",
       });
       const project = createProject({
         name: "P",
-        github_account_id: account.id,
+        vcs_account_id: account.id,
       });
       const repo = createRepo(project.id, {
-        github_url: "https://github.com/acme/repo",
+        repo_url: "https://github.com/acme/repo",
       });
       const issue = createIssue(project.id, {
         title: "T",
@@ -76,18 +76,18 @@ describe("pollPRs", () => {
     it("transitions issue from in_progress to done when PR is merged", async () => {
       const fetchSpy = mockMergedPRResponse();
 
-      const account = createGitHubAccount({
+      const account = createVCSAccount({
         account_name: "testuser",
-        github_username: "testuser",
-        gh_token: "gho_test",
+        username: "testuser",
+        token: "gho_test",
         ssh_private_key: "test-key",
       });
       const project = createProject({
         name: "P",
-        github_account_id: account.id,
+        vcs_account_id: account.id,
       });
       const repo = createRepo(project.id, {
-        github_url: "https://github.com/acme/repo",
+        repo_url: "https://github.com/acme/repo",
       });
       const issue = createIssue(project.id, {
         title: "T",
@@ -111,18 +111,18 @@ describe("pollPRs", () => {
     it("does not transition issue that is already done", async () => {
       const fetchSpy = mockMergedPRResponse();
 
-      const account = createGitHubAccount({
+      const account = createVCSAccount({
         account_name: "testuser",
-        github_username: "testuser",
-        gh_token: "gho_test",
+        username: "testuser",
+        token: "gho_test",
         ssh_private_key: "test-key",
       });
       const project = createProject({
         name: "P",
-        github_account_id: account.id,
+        vcs_account_id: account.id,
       });
       const repo = createRepo(project.id, {
-        github_url: "https://github.com/acme/repo",
+        repo_url: "https://github.com/acme/repo",
       });
       const issue = createIssue(project.id, {
         title: "T",

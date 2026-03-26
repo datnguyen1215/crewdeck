@@ -6,6 +6,10 @@ export function run(db: Database.Database): void {
   const hasAutoMerge = cols.some((c) => c.name === "auto_merge");
   const hasCaptainEnabled = cols.some((c) => c.name === "captain_enabled");
   const hasAutoMergeEnabled = cols.some((c) => c.name === "auto_merge_enabled");
+  const hasVcsAccountId = cols.some((c) => c.name === "vcs_account_id");
+
+  // Fresh databases already have the new schema (with vcs_account_id from migration 022)
+  if (hasVcsAccountId) return;
 
   // Fresh databases already have the new schema - nothing to do
   if (hasAutoStart && hasAutoMerge && !hasCaptainEnabled) return;
@@ -34,16 +38,16 @@ export function run(db: Database.Database): void {
             auto_merge INTEGER NOT NULL DEFAULT 0,
             captain_idle_timeout_ms INTEGER,
             memory TEXT,
-            vcs_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
+            github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
           );
           INSERT INTO Project_new (id, name, description, max_concurrency, max_chain_depth,
             agent_timeout_minutes, auto_start, auto_merge, captain_idle_timeout_ms, memory,
-            vcs_account_id, created_at, updated_at)
+            github_account_id, created_at, updated_at)
           SELECT id, name, description, max_concurrency, max_chain_depth,
             agent_timeout_minutes, 0, ${autoMergeSource},
-            captain_idle_timeout_ms, memory, vcs_account_id, created_at, updated_at
+            captain_idle_timeout_ms, memory, github_account_id, created_at, updated_at
           FROM Project;
           DROP TABLE Project;
           ALTER TABLE Project_new RENAME TO Project;

@@ -1,9 +1,9 @@
 import type Database from "better-sqlite3";
 
 export function run(db: Database.Database): void {
-  // Check if migration already applied
-  const cols = db.pragma("table_info(VCSAccount)") as { name: string }[];
-  if (cols.length > 0) return;
+  // Check if VCSAccount table already exists (fresh database or migration already applied)
+  const tables = db.pragma("table_list") as { name: string }[];
+  if (tables.some((t) => t.name === "VCSAccount")) return;
 
   db.pragma("foreign_keys = OFF");
   try {
@@ -47,7 +47,7 @@ export function run(db: Database.Database): void {
         );
 
         INSERT INTO Project_new (id, name, description, max_concurrency, max_chain_depth, agent_timeout_minutes, auto_start, auto_merge, captain_idle_timeout_ms, memory, model, vcs_account_id, created_at, updated_at)
-          SELECT id, name, description, max_concurrency, max_chain_depth, agent_timeout_minutes, auto_start, auto_merge, captain_idle_timeout_ms, memory, model, vcs_account_id, created_at, updated_at
+          SELECT id, name, description, max_concurrency, max_chain_depth, agent_timeout_minutes, auto_start, auto_merge, captain_idle_timeout_ms, memory, model, github_account_id, created_at, updated_at
           FROM Project;
 
         DROP TABLE Project;

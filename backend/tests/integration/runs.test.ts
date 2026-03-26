@@ -17,7 +17,7 @@ describe("Runs API", () => {
       .post("/api/v1/projects")
       .send({
         name: "runs-test-project",
-        github_url: "https://github.com/test/runs-repo",
+        repo_url: "https://github.com/test/runs-repo",
       });
     projectId = projectRes.body.id;
 
@@ -121,7 +121,7 @@ describe("Runs API", () => {
         .post("/api/v1/projects")
         .send({
           name: "other-project",
-          github_url: "https://github.com/test/other-repo",
+          repo_url: "https://github.com/test/other-repo",
         });
       const proj2Id = proj2Res.body.id;
 
@@ -153,7 +153,7 @@ describe("Runs API", () => {
         .post("/api/v1/projects")
         .send({
           name: "project-runs-test",
-          github_url: "https://github.com/test/proj-runs",
+          repo_url: "https://github.com/test/proj-runs",
         });
       const pid = projRes.body.id;
 
@@ -188,7 +188,7 @@ describe("Runs API", () => {
         .post("/api/v1/projects")
         .send({
           name: "paginated-runs-test",
-          github_url: "https://github.com/test/pag-runs",
+          repo_url: "https://github.com/test/pag-runs",
         });
       const pid = projRes.body.id;
       const issue = createIssueInDb(pid, { title: "I", description: "D" });
