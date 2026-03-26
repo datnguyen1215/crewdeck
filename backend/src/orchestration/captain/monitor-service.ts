@@ -10,6 +10,7 @@ import { logger } from "../../logger.js";
 import { getProject, listProjects } from "../../db/repositories/projects.js";
 import { enqueue, tryAcquire, release, drain, hasPending } from "./queue.js";
 import { processWithLLM } from "./monitor-agent.js";
+import { RECOVERY_DELAY_MS } from "../recovery.js";
 import type { CaptainEvent } from "./queue.js";
 
 // Queue namespace prefix to separate monitor from chat queues
@@ -295,7 +296,6 @@ export function startMonitorForProject(projectId: string): void {
   }
 
   // Emit startup.scan event with a small delay to ensure recovery cleanup completes first
-  const RECOVERY_DELAY_MS = 2000;
   const STARTUP_BUFFER_MS = 500;
   setTimeout(() => {
     const event: CaptainEvent = {

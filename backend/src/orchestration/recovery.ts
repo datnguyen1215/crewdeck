@@ -8,7 +8,7 @@ import * as crew from "./crew.js";
 import { postSystemComment } from "./spawner.js";
 
 /** Delay before recovery to ensure server is fully initialized */
-const RECOVERY_DELAY_MS = 2000;
+export const RECOVERY_DELAY_MS = 2000;
 
 /**
  * Check if a process with the given PID is still alive.
