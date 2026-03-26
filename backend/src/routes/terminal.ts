@@ -20,7 +20,7 @@ const router = Router({ mergeParams: true });
  */
 router.post("/terminal", async (req, res, next) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
 
     const project = getProject(projectId);
     if (!project) {
@@ -48,7 +48,7 @@ router.post("/terminal", async (req, res, next) => {
  */
 router.get("/terminal", (req, res, next) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
 
     const session = getTerminalSession(projectId);
     if (!session) {
@@ -74,7 +74,7 @@ router.get("/terminal", (req, res, next) => {
  */
 router.delete("/terminal", async (req, res, next) => {
   try {
-    const { projectId } = req.params;
+    const { projectId } = req.params as { projectId: string };
 
     const destroyed = await destroyTerminalSession(projectId);
     res.json({ destroyed });
