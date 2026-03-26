@@ -31,12 +31,14 @@ export function initWorktreeCleanup(): void {
     try {
       await cleanupWorktree(repo, worktree_path, branch_name, true);
       logger.info({ issue_id, worktree_path, branch_name }, "Worktree cleaned up");
+    } catch (err) {
+      logger.warn({ err, issue_id, worktree_path }, "Failed to cleanup worktree, clearing DB fields anyway");
+    } finally {
+      // Always clear DB fields regardless of cleanup success/failure
       updateIssue(issue_id, {
         worktree_path: null,
         branch_name: null,
       });
-    } catch (err) {
-      logger.warn({ err, issue_id, worktree_path }, "Failed to cleanup worktree, continuing");
     }
   });
 }
