@@ -9,6 +9,18 @@ vi.mock("node:child_process", () => ({
   exec: vi.fn(),
 }));
 
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    default: {
+      ...actual.default,
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+    },
+  };
+});
+
 vi.mock("../../src/db/repositories/issues.js", () => ({
   updateIssue: vi.fn(),
 }));
