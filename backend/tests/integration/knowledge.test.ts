@@ -8,7 +8,7 @@ const API = "/api/v1";
 const createProject = async (app: Express, name: string) => {
   const res = await request(app)
     .post(`${API}/projects`)
-    .send({ name, github_url: "https://github.com/test/repo" });
+    .send({ name, repo_url: "https://github.com/test/repo" });
   expect(res.status).toBe(201);
   return res.body.id as string;
 };

@@ -13,9 +13,9 @@ All persistent state is stored in a local SQLite database. This document defines
 ## Entity Relationship Diagram
 
 ```
-┌─────────────┐    ┌──────────┐       ┌──────────┐
-│GitHubAccount│0──N│ Project  │1────N│   Repo   │
-└─────────────┘    └──────────┘       └──────────┘
+┌────────────┐    ┌──────────┐       ┌──────────┐
+│ VCSAccount │0──N│ Project  │1────N│   Repo   │
+└────────────┘    └──────────┘       └──────────┘
 
 ┌──────────┐       ┌──────────┐       ┌──────────────┐
 │  Issue   │1────N│ Comment  │       │ Activity Log │
@@ -51,39 +51,40 @@ Represents a body of work tied to one or more GitHub repositories.
 | max_chain_depth         | INTEGER     | NOT NULL, DEFAULT 20                                         | Maximum agent dispatches per issue before requiring manual reset.                                                                      |
 | auto_start              | INTEGER     | NOT NULL, DEFAULT 0                                          | Whether Captain auto-dispatches agents on new issues. Stored as 0/1; exposed as boolean.                                               |
 | auto_merge              | INTEGER     | NOT NULL, DEFAULT 0                                          | Whether Captain can auto-merge PRs. When disabled, Captain reports ready PRs but cannot merge them. Stored as 0/1; exposed as boolean. |
-| captain_idle_timeout_ms | INTEGER     | NULLABLE                                                     | Idle timeout in milliseconds for Captain stuck detection. NULL means disabled.                                                         |
-| model                   | TEXT        | NOT NULL, DEFAULT 'sonnet'                                   | Default Claude model for agent spawning. One of: `sonnet`, `opus`.                                                                     |
-| github_account_id       | TEXT        | FOREIGN KEY → GitHubAccount.id, NULLABLE, ON DELETE SET NULL | GitHub account used for cloning repos and agent git operations.                                                                        |
-| created_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                                                                        |
-| memory                  | TEXT        |                                                              | Legacy field for project memory/notes. Superseded by ProjectKnowledge.                                                                 |
-| updated_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                          |                                                                                                                                        |
+| captain_idle_timeout_ms | INTEGER     | NULLABLE                                                  | Idle timeout in milliseconds for Captain stuck detection. NULL means disabled.                                                         |
+| model                   | TEXT        | NOT NULL, DEFAULT 'sonnet'                                | Default Claude model for agent spawning. One of: `sonnet`, `opus`.                                                                     |
+| vcs_account_id          | TEXT        | FOREIGN KEY → VCSAccount.id, NULLABLE, ON DELETE SET NULL | VCS account used for cloning repos and agent git operations.                                                                           |
+| created_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                                        |
+| memory                  | TEXT        |                                                           | Legacy field for project memory/notes. Superseded by ProjectKnowledge.                                                                 |
+| updated_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                                        |
 
-### GitHubAccount
+### VCSAccount
 
-A GitHub account connected via Device Flow OAuth.
+A VCS account (GitHub, GitLab, etc.) connected via Device Flow OAuth.
 
-| Field           | Type        | Constraints                         | Description                                             |
-| --------------- | ----------- | ----------------------------------- | ------------------------------------------------------- |
-| id              | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                      |
-| account_name    | TEXT        | NOT NULL                            | Display name for the account (matches github_username). |
-| github_username | TEXT        | NOT NULL                            | GitHub username.                                        |
-| oauth_token     | TEXT        | NOT NULL                            | OAuth access token. Never returned to the client.       |
-| scopes          | TEXT        |                                     | Comma-separated OAuth scopes granted.                   |
-| created_at      | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                         |
+| Field        | Type        | Constraints                         | Description                                          |
+| ------------ | ----------- | ----------------------------------- | ---------------------------------------------------- |
+| id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                   |
+| provider     | TEXT        | NOT NULL, DEFAULT 'github'          | VCS provider (e.g., 'github', 'gitlab').             |
+| account_name | TEXT        | NOT NULL                            | Display name for the account (matches username).     |
+| username     | TEXT        | NOT NULL                            | Username on the VCS provider.                        |
+| token        | TEXT        | NOT NULL                            | OAuth/API access token. Never returned to client.    |
+| scopes       | TEXT        |                                     | Comma-separated OAuth scopes granted (if supported). |
+| created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                      |
 
-**Note:** `oauth_token` is stored server-side only and stripped from all API responses.
+**Note:** `token` is stored server-side only and stripped from all API responses.
 
 ---
 
 ### Repo
 
-A GitHub repository linked to a project.
+A VCS repository linked to a project.
 
 | Field          | Type        | Constraints                         | Description                                                                                                         |
 | -------------- | ----------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | id             | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                  |
 | project_id     | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                     |
-| github_url     | TEXT        | NOT NULL                            | Full GitHub repository URL (e.g., `https://github.com/org/repo`).                                                   |
+| repo_url       | TEXT        | NOT NULL                            | Full repository URL (e.g., `https://github.com/org/repo`).                                                          |
 | name           | TEXT        | NOT NULL                            | Repository name (e.g., `repo`).                                                                                     |
 | owner          | TEXT        | NOT NULL                            | Repository owner (e.g., `org`).                                                                                     |
 | local_path     | TEXT        | NOT NULL                            | Absolute path to the local clone on disk. Managed by the backend; derived from `CREWDECK_REPOS_DIR/<owner>/<name>`. |
@@ -92,7 +93,7 @@ A GitHub repository linked to a project.
 
 **Constraints:**
 
-- UNIQUE(project_id, github_url) — a repo can only be linked once per project.
+- UNIQUE(project_id, repo_url) — a repo can only be linked once per project.
 
 ### Issue
 
@@ -299,7 +300,7 @@ Internal table that tracks which database migrations have been applied. Used by 
 | Field      | Type     | Constraints                         | Description                                                            |
 | ---------- | -------- | ----------------------------------- | ---------------------------------------------------------------------- |
 | id         | INTEGER  | PRIMARY KEY AUTOINCREMENT           | Auto-incrementing identifier.                                          |
-| name       | TEXT     | NOT NULL, UNIQUE                    | Migration name derived from filename (e.g., `001_add_github_account`). |
+| name       | TEXT     | NOT NULL, UNIQUE                    | Migration name derived from filename (e.g., `001_initial_migration`). |
 | applied_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the migration was applied.                                        |
 
 **Migration System:**
@@ -334,7 +335,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 
 | Relationship                  | Type        | Description                                                                 |
 | ----------------------------- | ----------- | --------------------------------------------------------------------------- |
-| GitHubAccount → Project       | One-to-Many | A GitHub account can be linked to multiple projects.                        |
+| VCSAccount → Project          | One-to-Many | A VCS account can be linked to multiple projects.                           |
 | Project → Repo                | One-to-Many | A project has multiple repos.                                               |
 | Project → Issue               | One-to-Many | A project has multiple issues.                                              |
 | Project → ActivityLog         | One-to-Many | A project has many activity log entries.                                    |

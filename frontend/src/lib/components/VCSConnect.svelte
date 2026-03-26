@@ -1,12 +1,12 @@
 <script lang="ts">
 	import {
-		createGitHubAccount,
-		type GitHubAccount
+		createVCSAccount,
+		type VCSAccount
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	const { onConnected, inline = false }: {
-		onConnected: (account: GitHubAccount) => void;
+		onConnected: (account: VCSAccount) => void;
 		inline?: boolean;
 	} = $props();
 
@@ -27,13 +27,13 @@
 	async function handleSubmit() {
 		submitting = true;
 		try {
-			const account = await createGitHubAccount({
+			const account = await createVCSAccount({
 				account_name: githubUsername,
-				github_username: githubUsername,
-				gh_token: ghToken,
+				username: githubUsername,
+				token: ghToken,
 				ssh_private_key: sshPrivateKey,
 			});
-			toastStore.add(`Connected GitHub account: ${account.github_username}`, 'success');
+			toastStore.add(`Connected GitHub account: ${account.username}`, 'success');
 			reset();
 			onConnected(account);
 		} catch (err) {

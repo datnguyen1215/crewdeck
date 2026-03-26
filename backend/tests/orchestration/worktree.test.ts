@@ -32,7 +32,7 @@ import { mockExec as mockExecSuccess } from "../helpers/exec.js";
 const repo: Repo = {
   id: "repo-1",
   project_id: "proj-1",
-  github_url: "https://github.com/org/repo",
+  repo_url: "https://github.com/org/repo",
   name: "repo",
   owner: "org",
   local_path: "/repos/myrepo",

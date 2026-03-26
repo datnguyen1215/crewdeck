@@ -64,7 +64,7 @@ export interface OpenPRWithContext {
   repo_owner: string;
   repo_name: string;
   project_id: string;
-  github_account_id: string | null;
+  vcs_account_id: string | null;
 }
 
 export function listOpenPRsWithContext(): OpenPRWithContext[] {
@@ -74,7 +74,7 @@ export function listOpenPRsWithContext(): OpenPRWithContext[] {
     SELECT
       pr.id, pr.issue_id, pr.repo_id, pr.pr_number, pr.pr_url, pr.status,
       r.owner AS repo_owner, r.name AS repo_name,
-      p.id AS project_id, p.github_account_id
+      p.id AS project_id, p.vcs_account_id
     FROM IssuePR pr
     JOIN Repo r ON r.id = pr.repo_id
     JOIN Issue i ON i.id = pr.issue_id

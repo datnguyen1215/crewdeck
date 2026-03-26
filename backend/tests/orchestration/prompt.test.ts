@@ -21,7 +21,7 @@ const issue: Issue = {
 const repo: Repo = {
   id: "repo-1",
   project_id: "proj-1",
-  github_url: "https://github.com/org/myrepo",
+  repo_url: "https://github.com/org/myrepo",
   name: "myrepo",
   owner: "org",
   local_path: "/tmp/repos/myrepo",

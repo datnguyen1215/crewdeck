@@ -9,12 +9,9 @@ import type { Repo, CreateRepoInput } from "../../types/entities.js";
 import { ValidationError } from "../../middleware/errors.js";
 import { parseRepoUrl, getProvider } from "../../vcs/registry.js";
 
-/** Parse GitHub URL (deprecated - use parseRepoUrl from vcs/registry) */
-export function parseGithubUrl(url: string): { owner: string; name: string } {
+/** Parse repo URL using VCS registry */
+export function parseRepoUrlHelper(url: string): { owner: string; name: string } {
   const parsed = parseRepoUrl(url);
-  if (parsed.provider !== "github") {
-    throw new ValidationError(`Expected GitHub URL, got ${parsed.provider}`);
-  }
   return { owner: parsed.owner, name: parsed.name };
 }
 
@@ -25,7 +22,7 @@ export function toSshUrl(owner: string, name: string): string {
 }
 
 function cloneIfNeeded(
-  githubUrl: string,
+  repoUrl: string,
   localPath: string,
   sshPrivateKey?: string,
 ): void {
@@ -33,7 +30,7 @@ function cloneIfNeeded(
   if (fs.existsSync(path.join(diskPath, ".git"))) return;
   fs.mkdirSync(path.dirname(diskPath), { recursive: true });
 
-  const { owner, name } = parseGithubUrl(githubUrl);
+  const { owner, name } = parseRepoUrlHelper(repoUrl);
   const sshUrl = toSshUrl(owner, name);
 
   const ssh = sshPrivateKey ? createGitSshEnv(sshPrivateKey) : null;
@@ -55,25 +52,25 @@ function cloneIfNeeded(
 }
 
 /** Parse the URL and clone the repo if needed, without touching the DB. */
-export function ensureCloned(githubUrl: string, sshPrivateKey?: string): void {
-  const { owner, name } = parseGithubUrl(githubUrl);
+export function ensureCloned(repoUrl: string, sshPrivateKey?: string): void {
+  const { owner, name } = parseRepoUrlHelper(repoUrl);
   const localPath = path.resolve(config.reposDir, owner, name);
-  cloneIfNeeded(githubUrl, localPath, sshPrivateKey);
+  cloneIfNeeded(repoUrl, localPath, sshPrivateKey);
 }
 
 /** Insert a repo row. Assumes the repo is already cloned on disk. */
 export function insertRepo(projectId: string, input: CreateRepoInput): Repo {
   const id = crypto.randomUUID();
-  const { owner, name } = parseGithubUrl(input.github_url);
+  const { owner, name } = parseRepoUrlHelper(input.repo_url);
   const localPath = path.resolve(config.reposDir, owner, name);
 
   db.prepare(
-    `INSERT INTO Repo (id, project_id, github_url, name, owner, local_path, default_branch)
+    `INSERT INTO Repo (id, project_id, repo_url, name, owner, local_path, default_branch)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     projectId,
-    input.github_url,
+    input.repo_url,
     name,
     owner,
     localPath,
@@ -101,7 +98,7 @@ export function createRepo(
   input: CreateRepoInput,
   sshPrivateKey?: string,
 ): Repo {
-  ensureCloned(input.github_url, sshPrivateKey);
+  ensureCloned(input.repo_url, sshPrivateKey);
   return insertRepo(projectId, input);
 }
 

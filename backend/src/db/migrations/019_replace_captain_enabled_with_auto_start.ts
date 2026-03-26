@@ -6,6 +6,10 @@ export function run(db: Database.Database): void {
   const hasAutoMerge = cols.some((c) => c.name === "auto_merge");
   const hasCaptainEnabled = cols.some((c) => c.name === "captain_enabled");
   const hasAutoMergeEnabled = cols.some((c) => c.name === "auto_merge_enabled");
+  const hasVcsAccountId = cols.some((c) => c.name === "vcs_account_id");
+
+  // Fresh databases already have the new schema (with vcs_account_id from migration 022)
+  if (hasVcsAccountId) return;
 
   // Fresh databases already have the new schema - nothing to do
   if (hasAutoStart && hasAutoMerge && !hasCaptainEnabled) return;

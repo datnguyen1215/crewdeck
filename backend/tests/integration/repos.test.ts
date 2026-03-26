@@ -13,7 +13,7 @@ describe("Repos API", () => {
     app = await getApp();
     const res = await request(app)
       .post(`${BASE}`)
-      .send({ name: "repos-test-project", github_url: "https://github.com/test/repo" });
+      .send({ name: "repos-test-project", repo_url: "https://github.com/test/repo" });
     projectId = res.body.id;
   });
 
@@ -22,16 +22,16 @@ describe("Repos API", () => {
       const res = await request(app).get(`${BASE}/${projectId}/repos`);
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(1);
-      expect(res.body[0].github_url).toBe("https://github.com/test/repo");
+      expect(res.body[0].repo_url).toBe("https://github.com/test/repo");
     });
 
     it("returns repos after adding more", async () => {
       await request(app)
         .post(`${BASE}/${projectId}/repos`)
-        .send({ github_url: "https://github.com/octocat/hello-world" });
+        .send({ repo_url: "https://github.com/octocat/hello-world" });
       await request(app)
         .post(`${BASE}/${projectId}/repos`)
-        .send({ github_url: "https://github.com/octocat/spoon-knife" });
+        .send({ repo_url: "https://github.com/octocat/spoon-knife" });
 
       const res = await request(app).get(`${BASE}/${projectId}/repos`);
       expect(res.status).toBe(200);
@@ -50,19 +50,19 @@ describe("Repos API", () => {
     beforeAll(async () => {
       const res = await request(app)
         .post(`${BASE}`)
-        .send({ name: "repos-post-test-project", github_url: "https://github.com/test/repo" });
+        .send({ name: "repos-post-test-project", repo_url: "https://github.com/test/repo" });
       freshProjectId = res.body.id;
     });
 
     it("creates a repo with valid body and returns 201", async () => {
       const res = await request(app)
         .post(`${BASE}/${freshProjectId}/repos`)
-        .send({ github_url: "https://github.com/octocat/linguist" });
+        .send({ repo_url: "https://github.com/octocat/linguist" });
 
       expect(res.status).toBe(201);
       expect(res.body).toHaveProperty("id");
       expect(res.body).toHaveProperty(
-        "github_url",
+        "repo_url",
         "https://github.com/octocat/linguist",
       );
       expect(res.body).toHaveProperty("local_path");
@@ -71,7 +71,7 @@ describe("Repos API", () => {
     it("returns 404 for non-existent project", async () => {
       const res = await request(app)
         .post(`${BASE}/nonexistent-id/repos`)
-        .send({ github_url: "https://github.com/octocat/hello-world" });
+        .send({ repo_url: "https://github.com/octocat/hello-world" });
       expect(res.status).toBe(404);
     });
 
@@ -90,12 +90,12 @@ describe("Repos API", () => {
     beforeAll(async () => {
       const projRes = await request(app)
         .post(`${BASE}`)
-        .send({ name: "repos-delete-test-project", github_url: "https://github.com/test/repo" });
+        .send({ name: "repos-delete-test-project", repo_url: "https://github.com/test/repo" });
       deleteProjectId = projRes.body.id;
 
       const repoRes = await request(app)
         .post(`${BASE}/${deleteProjectId}/repos`)
-        .send({ github_url: "https://github.com/octocat/boysenberry-repo-1" });
+        .send({ repo_url: "https://github.com/octocat/boysenberry-repo-1" });
       repoId = repoRes.body.id;
     });
 
@@ -117,12 +117,12 @@ describe("Repos API", () => {
     it("rejects deleting a repo that belongs to a different project", async () => {
       const otherProjRes = await request(app)
         .post(`${BASE}`)
-        .send({ name: "repos-other-project", github_url: "https://github.com/test/repo" });
+        .send({ name: "repos-other-project", repo_url: "https://github.com/test/repo" });
       const otherProjectId = otherProjRes.body.id;
 
       const repoRes = await request(app)
         .post(`${BASE}/${otherProjectId}/repos`)
-        .send({ github_url: "https://github.com/octocat/git-consortium" });
+        .send({ repo_url: "https://github.com/octocat/git-consortium" });
       const otherRepoId = repoRes.body.id;
 
       // Try to delete otherRepoId via deleteProjectId — should 404

@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import {
-		listGitHubAccounts,
+		listVCSAccounts,
 		createEnvironmentVariable,
-		type GitHubAccount,
+		type VCSAccount,
 		type Project
 	} from '$lib/api/http.js';
-	import GitHubConnect from './GitHubConnect.svelte';
+	import VCSConnect from './VCSConnect.svelte';
 	import ProjectForm from './ProjectForm.svelte';
 
 	let step = $state(1);
-	let githubAccounts = $state<GitHubAccount[]>([]);
+	let githubAccounts = $state<VCSAccount[]>([]);
 	let loading = $state(true);
 	let createdProject = $state<Project | null>(null);
 
@@ -25,7 +25,7 @@
 
 	// Runs once on mount — no reactive deps
 	$effect(() => {
-		listGitHubAccounts()
+		listVCSAccounts()
 			.then((data) => {
 				githubAccounts = data;
 				if (data.length > 0) step = 2;
@@ -34,7 +34,7 @@
 			.finally(() => { loading = false; });
 	});
 
-	function handleGitHubConnected(account: GitHubAccount) {
+	function handleVCSConnected(account: VCSAccount) {
 		githubAccounts = [...githubAccounts, account];
 		step = 2;
 	}
@@ -147,7 +147,7 @@
 					Link a GitHub account to access private repositories. You can skip this step and use host credentials instead.
 				</p>
 
-				<GitHubConnect onConnected={handleGitHubConnected} inline />
+				<VCSConnect onConnected={handleVCSConnected} inline />
 
 				<div class="mt-6 pt-4 border-t border-edge">
 					<button

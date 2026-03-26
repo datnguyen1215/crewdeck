@@ -9,7 +9,7 @@ import { eventBus } from "../../events/bus.js";
 import { logger } from "../../logger.js";
 import * as issueRepo from "../../db/repositories/issues.js";
 import * as issuePRRepo from "../../db/repositories/issue-prs.js";
-import { getGitHubAccount } from "../../db/repositories/github-accounts.js";
+import { getVCSAccount } from "../../db/repositories/vcs-accounts.js";
 import { getProject } from "../../db/repositories/projects.js";
 import { getCrewMember } from "../crew.js";
 import { spawnAgent, spawnScan, postSystemComment } from "../spawner.js";
@@ -73,10 +73,10 @@ export const handleMergePR = async (
       message: "Auto-merge is disabled for this project",
     };
 
-  if (!project.github_account_id)
+  if (!project.vcs_account_id)
     return { success: false, message: "No GitHub account linked to project" };
 
-  const account = getGitHubAccount(project.github_account_id);
+  const account = getVCSAccount(project.vcs_account_id);
   if (!account) return { success: false, message: "GitHub account not found" };
 
   const resolvedId = resolveIssueId(input.issue_id, projectId);
@@ -101,7 +101,7 @@ export const handleMergePR = async (
     owner: repoInfo.owner,
     repo: repoInfo.name,
     prNumber: openPR.pr_number,
-    token: account.gh_token,
+    token: account.token,
   });
 
   if (result.success) {
@@ -115,7 +115,7 @@ export const handleMergePR = async (
         owner: repoInfo.owner,
         repo: repoInfo.name,
         branch: issue.branch_name,
-        token: account.gh_token,
+        token: account.token,
       });
     }
 
@@ -159,10 +159,10 @@ export const handleCreatePR = async (
   const project = getProject(projectId);
   if (!project) return { success: false, message: "Project not found" };
 
-  if (!project.github_account_id)
+  if (!project.vcs_account_id)
     return { success: false, message: "No GitHub account linked to project" };
 
-  const account = getGitHubAccount(project.github_account_id);
+  const account = getVCSAccount(project.vcs_account_id);
   if (!account) return { success: false, message: "GitHub account not found" };
 
   const issue = issueRepo.getIssue(input.issue_id);
@@ -207,7 +207,7 @@ export const handleCreatePR = async (
       base: baseBranch,
       title: issue.title,
       body: prBody,
-      token: account.gh_token,
+      token: account.token,
     });
 
     // Create IssuePR record

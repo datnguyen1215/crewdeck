@@ -60,15 +60,15 @@ const setupGitHubAuth = async (
   env: Record<string, string>,
 ): Promise<string | undefined> => {
   const project = getProject(projectId);
-  if (!project?.github_account_id) return undefined;
+  if (!project?.vcs_account_id) return undefined;
 
-  const { getGitHubAccount } = await import(
-    "../../db/repositories/github-accounts.js"
+  const { getVCSAccount } = await import(
+    "../../db/repositories/vcs-accounts.js"
   );
-  const account = getGitHubAccount(project.github_account_id);
+  const account = getVCSAccount(project.vcs_account_id);
   if (!account) return undefined;
 
-  env.GH_TOKEN = account.gh_token;
+  env.GH_TOKEN = account.token;
   const { createGitSshEnv } = await import("../../utils/git-auth.js");
   const ssh = createGitSshEnv(account.ssh_private_key);
   Object.assign(env, ssh.env);

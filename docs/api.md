@@ -50,7 +50,7 @@ Without `?stats`:
     "auto_start": false,
     "auto_merge": false,
     "model": "sonnet",
-    "github_account_id": "uuid | null",
+    "vcs_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
   }
@@ -70,7 +70,7 @@ With `?stats`:
     "auto_start": false,
     "auto_merge": false,
     "model": "sonnet",
-    "github_account_id": "uuid | null",
+    "vcs_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601",
     "repo_count": 2,
@@ -107,26 +107,26 @@ POST /projects
 
 ```json
 {
-  "github_url": "https://github.com/owner/repo",
+  "repo_url": "https://github.com/owner/repo",
   "name": "Optional override",
   "description": "Optional override",
-  "github_account_id": "uuid"
+  "vcs_account_id": "uuid"
 }
 ```
 
-| Field             | Required | Default                          | Description                                                                |
-| ----------------- | -------- | -------------------------------- | -------------------------------------------------------------------------- |
-| github_url        | Yes      | —                                | GitHub URL of the repository to link to this project.                      |
-| name              | No       | Repo name from GitHub API        | Project name.                                                              |
-| description       | No       | Repo description from GitHub API | Project description.                                                       |
-| max_concurrency   | No       | —                                | Max concurrent agent processes.                                            |
-| github_account_id | No       | null                             | ID of a connected GitHubAccount to use for git operations in this project. |
+| Field           | Required | Default                       | Description                                                             |
+| --------------- | -------- | ----------------------------- | ----------------------------------------------------------------------- |
+| repo_url        | Yes      | —                             | Repository URL (GitHub, GitLab, etc.) to link to this project.          |
+| name            | No       | Repo name from VCS API        | Project name.                                                           |
+| description     | No       | Repo description from VCS API | Project description.                                                    |
+| max_concurrency | No       | —                             | Max concurrent agent processes.                                         |
+| vcs_account_id  | No       | null                          | ID of a connected VCSAccount to use for git operations in this project. |
 
 **Response:** `201 Created` — The created project object.
 
-**Error:** `400 VALIDATION_ERROR` — If `github_url` is invalid or the repository cannot be cloned.
+**Error:** `400 VALIDATION_ERROR` — If `repo_url` is invalid or the repository cannot be cloned.
 
-**Side effects:** The backend fetches repo metadata (name, description, default branch) from the GitHub API and clones the repository. If `github_account_id` is provided, the token is used for the API call and git operations; otherwise metadata is fetched unauthenticated with a fallback to URL-derived values on failure.
+**Side effects:** The backend fetches repo metadata (name, description, default branch) from the VCS provider API and clones the repository. If `vcs_account_id` is provided, the token is used for the API call and git operations; otherwise metadata is fetched unauthenticated with a fallback to URL-derived values on failure.
 
 #### Update Project
 
@@ -134,7 +134,7 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, auto_start, auto_merge, model, github_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, auto_start, auto_merge, model, vcs_account_id).
 
 | Field | Type | Description                                                        |
 | ----- | ---- | ------------------------------------------------------------------ |
@@ -180,14 +180,14 @@ Returns the status of the most recent librarian (knowledge scan) run for the pro
 
 ---
 
-### GitHub Accounts
+### VCS Accounts
 
-Manages GitHub accounts connected via Device Flow OAuth. Requires `GITHUB_CLIENT_ID` (and optionally `GITHUB_CLIENT_SECRET`) to be configured on the backend.
+Manages VCS accounts (GitHub, GitLab, etc.) connected via Device Flow OAuth. GitHub accounts require `GITHUB_CLIENT_ID` (and optionally `GITHUB_CLIENT_SECRET`) to be configured on the backend.
 
 #### Initiate Device Flow
 
 ```
-POST /github-accounts/device-code
+POST /vcs-accounts/device-code
 ```
 
 **Request Body:**
@@ -202,15 +202,15 @@ POST /github-accounts/device-code
 | --------- | -------- | ------------------------------------- |
 | client_id | No       | Overrides `GITHUB_CLIENT_ID` env var. |
 
-**Response:** `200 OK` — GitHub device code response (user_code, verification_uri, device_code, expires_in, interval).
+**Response:** `200 OK` — VCS provider device code response (user_code, verification_uri, device_code, expires_in, interval).
 
 #### Poll for Token
 
 ```
-POST /github-accounts/device-code/poll
+POST /vcs-accounts/device-code/poll
 ```
 
-Polls GitHub for an access token after the user has authorized on GitHub.
+Polls the VCS provider for an access token after the user has authorized.
 
 **Request Body:**
 
@@ -223,13 +223,14 @@ Polls GitHub for an access token after the user has authorized on GitHub.
 
 **Response:**
 
-On success (`201 Created`): GitHubAccount object (without `oauth_token`):
+On success (`201 Created`): VCSAccount object (without `token`):
 
 ```json
 {
   "id": "uuid",
+  "provider": "github",
   "account_name": "octocat",
-  "github_username": "octocat",
+  "username": "octocat",
   "scopes": "repo,workflow",
   "created_at": "ISO 8601"
 }
@@ -245,21 +246,21 @@ While pending (`200 OK`):
 }
 ```
 
-#### List GitHub Accounts
+#### List VCS Accounts
 
 ```
-GET /github-accounts
+GET /vcs-accounts
 ```
 
-**Response:** `200 OK` — Array of GitHubAccount objects (without `oauth_token`).
+**Response:** `200 OK` — Array of VCSAccount objects (without `token`).
 
-#### Delete GitHub Account
+#### Delete VCS Account
 
 ```
-DELETE /github-accounts/:id
+DELETE /vcs-accounts/:id
 ```
 
-Disconnects the account. Best-effort token revocation is attempted (requires both `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`).
+Disconnects the account. Best-effort token revocation is attempted (requires both `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` for GitHub accounts).
 
 **Response:** `204 No Content`
 
@@ -287,24 +288,24 @@ POST /projects/:projectId/repos
 
 ```json
 {
-  "github_url": "https://github.com/org/repo",
+  "repo_url": "https://github.com/org/repo",
   "default_branch": "main"
 }
 ```
 
-| Field          | Required | Default | Description                                           |
-| -------------- | -------- | ------- | ----------------------------------------------------- |
-| github_url     | Yes      | —       | Full GitHub URL. Name and owner are parsed from this. |
-| default_branch | No       | main    | Default branch name.                                  |
+| Field          | Required | Default | Description                                               |
+| -------------- | -------- | ------- | --------------------------------------------------------- |
+| repo_url       | Yes      | —       | Full repository URL. Name and owner are parsed from this. |
+| default_branch | No       | main    | Default branch name.                                      |
 
 **Response:** `201 Created` — The created repo object.
 
-**Side effects:** The backend clones the repo to a managed directory if not already present. Uses the project's linked GitHub account token when available.
+**Side effects:** The backend clones the repo to a managed directory if not already present. Uses the project's linked VCS account token when available.
 
 **Validation:**
 
-- github_url must be a valid GitHub URL.
-- github_url must not already be linked to this project.
+- repo_url must be a valid repository URL.
+- repo_url must not already be linked to this project.
 - Repository must be reachable and cloneable; otherwise returns `400 VALIDATION_ERROR`.
 
 #### Remove Repo from Project

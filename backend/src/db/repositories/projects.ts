@@ -6,7 +6,7 @@ import type {
   UpdateProjectInput,
 } from "../../types/entities.js";
 import { ensureCloned, insertRepo } from "./repos.js";
-import { getGitHubAccount } from "./github-accounts.js";
+import { getVCSAccount } from "./vcs-accounts.js";
 import { buildAndRunUpdate } from "./utils.js";
 import { IssueStatus } from "../../constants/statuses.js";
 
@@ -90,28 +90,28 @@ export function getProject(id: string): Project | null {
 export function createProject(input: CreateProjectInput): Project {
   const id = crypto.randomUUID();
 
-  if (input.github_url) {
-    const ghAccount = input.github_account_id
-      ? getGitHubAccount(input.github_account_id)
+  if (input.repo_url) {
+    const vcsAccount = input.vcs_account_id
+      ? getVCSAccount(input.vcs_account_id)
       : null;
-    ensureCloned(input.github_url, ghAccount?.ssh_private_key);
+    ensureCloned(input.repo_url, vcsAccount?.ssh_private_key);
   }
 
   db.transaction(() => {
     db.prepare(
-      `INSERT INTO Project (id, name, description, max_concurrency, github_account_id)
+      `INSERT INTO Project (id, name, description, max_concurrency, vcs_account_id)
        VALUES (?, ?, ?, ?, ?)`,
     ).run(
       id,
       input.name,
       input.description ?? null,
       input.max_concurrency ?? 1,
-      input.github_account_id ?? null,
+      input.vcs_account_id ?? null,
     );
 
-    if (input.github_url) {
+    if (input.repo_url) {
       insertRepo(id, {
-        github_url: input.github_url,
+        repo_url: input.repo_url,
         default_branch: input.default_branch,
       });
     }

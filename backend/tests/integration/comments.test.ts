@@ -9,7 +9,7 @@ const API = "/api/v1";
 const seedProjectAndIssue = async (app: Express) => {
   const proj = await request(app)
     .post(`${API}/projects`)
-    .send({ name: "comment-test-project", github_url: "https://github.com/test/repo" });
+    .send({ name: "comment-test-project", repo_url: "https://github.com/test/repo" });
   expect(proj.status).toBe(201);
   const projectId = proj.body.id;
 
@@ -64,7 +64,7 @@ describe("Comments API", () => {
     it("returns 404 for non-existent issue", async () => {
       const proj = await request(app)
         .post(`${API}/projects`)
-        .send({ name: "no-issue-project", github_url: "https://github.com/test/repo" });
+        .send({ name: "no-issue-project", repo_url: "https://github.com/test/repo" });
       expect(proj.status).toBe(201);
 
       const res = await request(app).get(
@@ -79,7 +79,7 @@ describe("Comments API", () => {
       // Create a second project — the issue doesn't belong to it
       const otherProj = await request(app)
         .post(`${API}/projects`)
-        .send({ name: "other-project", github_url: "https://github.com/test/repo" });
+        .send({ name: "other-project", repo_url: "https://github.com/test/repo" });
       expect(otherProj.status).toBe(201);
 
       const res = await request(app).get(
@@ -131,7 +131,7 @@ describe("Comments API", () => {
     it("returns 404 for non-existent issue", async () => {
       const proj = await request(app)
         .post(`${API}/projects`)
-        .send({ name: "post-no-issue", github_url: "https://github.com/test/repo" });
+        .send({ name: "post-no-issue", repo_url: "https://github.com/test/repo" });
       expect(proj.status).toBe(201);
 
       const res = await request(app)

@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { createProject, type Project, type GitHubAccount } from '$lib/api/http.js';
+	import { createProject, type Project, type VCSAccount } from '$lib/api/http.js';
 
 	const { githubAccounts = [], onCreated, onCancel }: {
-		githubAccounts?: GitHubAccount[];
+		githubAccounts?: VCSAccount[];
 		onCreated: (project: Project) => void;
 		onCancel?: () => void;
 	} = $props();
 
 	let githubUrl = $state('');
-	let selectedGitHubAccountId = $state('');
+	let selectedVCSAccountId = $state('');
 	let submitting = $state(false);
 	let githubUrlError = $state('');
 	let formError = $state('');
@@ -25,8 +25,8 @@
 		submitting = true;
 		try {
 			const project = await createProject({
-				github_url: githubUrl.trim(),
-				github_account_id: selectedGitHubAccountId || undefined
+				repo_url: githubUrl.trim(),
+				vcs_account_id: selectedVCSAccountId || undefined
 			});
 			onCreated(project);
 		} catch (err) {
@@ -70,13 +70,13 @@
 			</label>
 			<select
 				id="proj-gh-account"
-				bind:value={selectedGitHubAccountId}
+				bind:value={selectedVCSAccountId}
 				class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary
 					focus:outline-none focus:border-cyan transition-colors"
 			>
 				<option value="">None (use host credentials)</option>
 				{#each githubAccounts as account (account.id)}
-					<option value={account.id}>{account.github_username} ({account.account_name})</option>
+					<option value={account.id}>{account.username} ({account.account_name})</option>
 				{/each}
 			</select>
 		</div>

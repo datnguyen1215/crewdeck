@@ -1,6 +1,6 @@
 import { Router, type Request } from "express";
 import { listRepos, createRepo, deleteRepo } from "../db/repositories/repos.js";
-import { getGitHubAccount } from "../db/repositories/github-accounts.js";
+import { getVCSAccount } from "../db/repositories/vcs-accounts.js";
 import { validate } from "../middleware/validate.js";
 import { verifyProject, verifyRepoOwnership } from "../middleware/ownership.js";
 import { CreateRepoSchema } from "../schemas/validation.js";
@@ -17,8 +17,8 @@ router.post(
   validate(CreateRepoSchema),
   (req: Request<{ projectId: string }>, res) => {
     const project = req.project!;
-    const ghAccount = project.github_account_id
-      ? getGitHubAccount(project.github_account_id)
+    const ghAccount = project.vcs_account_id
+      ? getVCSAccount(project.vcs_account_id)
       : null;
     const repo = createRepo(
       req.params.projectId,
