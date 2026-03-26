@@ -414,53 +414,6 @@ export function getLibrarianStatus(projectId: string) {
   );
 }
 
-// Chat Sessions
-export function listChatSessions(projectId: string) {
-  return request<ChatSession[]>(
-    "GET",
-    `/projects/${e(projectId)}/chat/sessions`,
-  );
-}
-
-export function createChatSession(projectId: string, title?: string) {
-  return request<ChatSession>(
-    "POST",
-    `/projects/${e(projectId)}/chat/sessions`,
-    title ? { title } : {},
-  );
-}
-
-export function getChatMessages(projectId: string, sessionId: string) {
-  return request<ChatMessage[]>(
-    "GET",
-    `/projects/${e(projectId)}/chat/sessions/${e(sessionId)}/messages`,
-  );
-}
-
-export function sendChatMessage(
-  projectId: string,
-  sessionId: string,
-  message: string,
-  images?: Array<{ data: string; mediaType: string }>,
-) {
-  return request<{ user_message: ChatMessage; status: string }>(
-    "POST",
-    `/projects/${e(projectId)}/chat/sessions/${e(sessionId)}/messages`,
-    { message, images },
-  );
-}
-
-export function abortChatMessage(projectId: string, sessionId: string) {
-  return request<{ status: string }>(
-    "POST",
-    `/projects/${e(projectId)}/chat/sessions/${e(sessionId)}/abort`,
-  );
-}
-
-export function clearChatHistory(projectId: string) {
-  return request<void>("DELETE", `/projects/${e(projectId)}/chat`);
-}
-
 // Monitor history
 export function getMonitorHistory(projectId: string, limit?: number) {
   const query = limit ? `?limit=${limit}` : "";

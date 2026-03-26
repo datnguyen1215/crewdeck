@@ -103,62 +103,6 @@ export interface EventMap {
     duration_ms: number | null;
     completed_at: string;
   };
-  // Captain chat events
-  "chat.stream": {
-    project_id: string;
-    token: string;
-  };
-  "chat.complete": {
-    project_id: string;
-    message_id: string | null;
-  };
-  // User chat message (triggers Captain processing)
-  "chat.message": {
-    project_id: string;
-    session_id: string;
-    content: string;
-    images?: Array<{ data: string; mediaType: string }>;
-  };
-  // Captain chat LLM events (interactive user conversations)
-  "captain.thinking": {
-    project_id: string;
-  };
-  "captain.message": {
-    project_id: string;
-    content: string;
-  };
-  "captain.complete": {
-    project_id: string;
-    response: string;
-  };
-  // Captain chat streaming events (new granular events)
-  "captain.chat.chunk": {
-    project_id: string;
-    session_id: string;
-    text: string;
-  };
-  "captain.chat.tool_call": {
-    project_id: string;
-    session_id: string;
-    tool_name: string;
-    tool_input: unknown;
-  };
-  "captain.chat.tool_result": {
-    project_id: string;
-    session_id: string;
-    tool_name: string;
-    result: unknown;
-  };
-  "captain.chat.complete": {
-    project_id: string;
-    session_id: string;
-    message_id: string;
-  };
-  // Chat abort (user cancels in-flight message)
-  "chat.abort": {
-    project_id: string;
-    session_id: string;
-  };
   // Monitor LLM agent events (automated orchestration)
   "monitor.event_received": {
     project_id: string;
