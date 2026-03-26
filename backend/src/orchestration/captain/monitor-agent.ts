@@ -71,11 +71,11 @@ curl "$CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJ
 
 ## Action Plan Output
 
-After gathering information, output a JSON action plan. The system will execute all actions deterministically.
+After gathering information, output a JSON action plan wrapped in <action> tags. The system will parse the tags and execute all actions deterministically.
 
-**IMPORTANT**: Your final response MUST be a JSON object in this exact format:
+**IMPORTANT**: You MUST wrap your action plan in <action> tags exactly like this:
 
-\`\`\`json
+<action>
 {
   "reasoning": "Brief explanation of your decisions",
   "actions": [
@@ -90,7 +90,9 @@ After gathering information, output a JSON action plan. The system will execute 
     { "type": "skip", "issue_id": "<id>", "reason": "Why skipping" }
   ]
 }
-\`\`\`
+</action>
+
+You can include reasoning text before the <action> tags, but the tags MUST be present. If no actions are needed, use an empty actions array: <action>{"reasoning": "waiting for CI", "actions": []}</action>
 
 ### Action Types
 | Type | Required Fields | Description |
@@ -480,20 +482,22 @@ export const processWithLLM = async (
         finalResponse = `${actionPlan.reasoning}\n\n${finalResponse}`;
       }
     } else {
-      // No valid action plan — retry once with a focused prompt
+      // No valid action plan — retry with a minimal extraction prompt
       logger.warn(
         { projectId, responsePreview: (resultText || "").slice(0, 200) },
-        "Monitor: Could not parse action plan, retrying",
+        "Monitor: Could not parse action plan, retrying extraction",
       );
 
       try {
         const retryResult = await spawnClaudeStream({
           prompt:
-            "Your previous response was not a valid JSON action plan. You MUST respond with ONLY a JSON object in this exact format:\n\n" +
-            '```json\n{"reasoning": "brief explanation", "actions": [{"type": "skip", "issue_id": "", "reason": "no action needed"}]}\n```\n\n' +
-            "If no actions are needed, use an empty actions array. Respond with ONLY the JSON — no other text.\n\n" +
-            "Original context:\n" + userPrompt,
-          systemPrompt,
+            "Extract the actions from the following text and output them as JSON wrapped in <action> tags.\n\n" +
+            "Available action types: dispatch (issue_id, agent_id, instructions?), merge (issue_id), " +
+            "create-pr (issue_id), comment (issue_id, content), create-issue (title, description?), " +
+            "update-issue (issue_id, status?, title?), scan, skip (issue_id, reason).\n\n" +
+            "If no actions are described, output: <action>{\"reasoning\": \"no actions\", \"actions\": []}</action>\n\n" +
+            "Text to extract from:\n---\n" + (resultText || "No response") + "\n---",
+          systemPrompt: "You extract structured actions from text. Output ONLY <action>{JSON}</action> tags. No other text.",
           workdir: ".",
           env,
           model,
@@ -517,7 +521,7 @@ export const processWithLLM = async (
         if (actionPlan) {
           logger.info(
             { projectId, actionCount: actionPlan.actions.length },
-            "Monitor: Retry succeeded",
+            "Monitor: Retry extraction succeeded",
           );
           const results = await executePlan(projectId, actionPlan);
           finalResponse = formatResults(results);
@@ -528,11 +532,11 @@ export const processWithLLM = async (
           finalResponse = resultText || "No action plan generated";
           logger.warn(
             { projectId },
-            "Monitor: Retry also failed to produce valid action plan",
+            "Monitor: Retry extraction also failed",
           );
         }
       } catch (retryErr) {
-        logger.error({ retryErr, projectId }, "Monitor: Retry failed");
+        logger.error({ retryErr, projectId }, "Monitor: Retry extraction failed");
         finalResponse = resultText || "No action plan generated";
       }
     }

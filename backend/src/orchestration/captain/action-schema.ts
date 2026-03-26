@@ -99,16 +99,23 @@ export function parseActionPlan(json: unknown): ActionPlan | null {
 }
 
 /**
- * Extract JSON from LLM response that may contain markdown code blocks.
- * Handles both raw JSON and ```json ... ``` wrapped content.
- *
- * If multiple code blocks exist, searches for one containing "actions"
- * (the required field for action plans) to avoid extracting the wrong block.
+ * Extract JSON from LLM response.
+ * Tries <action> tags first, then code blocks, then raw JSON.
  */
 export function extractJsonFromResponse(text: string): unknown | null {
   const trimmed = text.trim();
 
-  // Try parsing as raw JSON first
+  // Try <action> tags first (preferred format)
+  const actionMatch = trimmed.match(/<action>([\s\S]*?)<\/action>/);
+  if (actionMatch) {
+    try {
+      return JSON.parse(actionMatch[1].trim());
+    } catch {
+      // Invalid JSON inside tags, continue
+    }
+  }
+
+  // Try parsing as raw JSON
   try {
     return JSON.parse(trimmed);
   } catch {
@@ -123,7 +130,7 @@ export function extractJsonFromResponse(text: string): unknown | null {
     blocks.push(match[1].trim());
   }
 
-  // Try blocks that contain "actions" first (most likely to be the action plan)
+  // Try blocks that contain "actions" first
   for (const block of blocks) {
     if (block.includes('"actions"')) {
       try {
@@ -134,7 +141,7 @@ export function extractJsonFromResponse(text: string): unknown | null {
     }
   }
 
-  // Fall back to trying all blocks in reverse order (prefer later blocks)
+  // Fall back to trying all blocks in reverse order
   for (let i = blocks.length - 1; i >= 0; i--) {
     try {
       return JSON.parse(blocks[i]);
