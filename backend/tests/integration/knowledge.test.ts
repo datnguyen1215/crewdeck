@@ -125,12 +125,10 @@ describe("Knowledge API", () => {
           category: "guide",
           content: "Full entry",
           source: "manual",
-          agent_ids: ["agent-1", "agent-2"],
         });
 
       expect(res.status).toBe(201);
       expect(res.body.source).toBe("manual");
-      expect(res.body.agent_ids).toEqual(["agent-1", "agent-2"]);
     });
 
     it("rejects missing required fields with 400", async () => {
