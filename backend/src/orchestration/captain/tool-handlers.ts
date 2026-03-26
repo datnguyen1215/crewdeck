@@ -162,7 +162,12 @@ export const handleMergePR = async (
         account.gh_token,
       );
 
-    postSystemComment(issue.id, projectId, `PR #${openPR.pr_number} merged.`);
+    postSystemComment(
+      issue.id,
+      projectId,
+      `PR #${openPR.pr_number} merged.`,
+      "captain",
+    );
 
     eventBus.emit("issue.status_changed", {
       issue_id: issue.id,
@@ -276,6 +281,7 @@ export const handleCreatePR = async (
       issue.id,
       projectId,
       `PR #${prData.number} created: ${prData.html_url}`,
+      "captain",
     );
 
     eventBus.emit("pr.created", {
@@ -344,7 +350,7 @@ export const handleDispatchAgent = async (
     return { success: false, message: "Issue belongs to a different project" };
 
   if (input.instructions)
-    postSystemComment(issue.id, projectId, input.instructions);
+    postSystemComment(issue.id, projectId, input.instructions, "captain");
 
   try {
     await spawnAgent(agent, issue.id, projectId);

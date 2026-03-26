@@ -49,10 +49,11 @@ export const postSystemComment = (
   issueId: string,
   projectId: string,
   content: string,
+  authorType = "system",
 ): void => {
   const comment = commentRepo.createComment(issueId, {
     content,
-    author_type: "system",
+    author_type: authorType,
   });
   events.eventBus.emit("comment.added", { comment, project_id: projectId });
 };
