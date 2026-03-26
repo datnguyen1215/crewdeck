@@ -47,13 +47,15 @@ claude -p <prompt> \
        --system-prompt-file <tmpfile> \
        --output-format json \
        --model <model> \
-       --dangerously-skip-permissions
+       --dangerously-skip-permissions \
+       --settings '{"attribution":{"commit":"","pr":""}}'
 ```
 
 - `--output-format json` causes Claude to return a JSON object with a `result` field containing the response text, plus cost and duration metadata.
 - The system prompt is written to a temp file and cleaned up after the process exits.
 - `--dangerously-skip-permissions` allows the agent to operate autonomously.
 - `--model <model>` is included when a model is specified (resolved via AgentConfig override → project default → `"sonnet"`).
+- `--settings '{"attribution":{"commit":"","pr":""}}'` disables AI attribution in commits and PRs (no Co-Authored-By trailers or signatures).
 
 ### spawnClaudeStream
 
@@ -80,11 +82,13 @@ claude -p <prompt via stdin> \
        --system-prompt-file <tmpfile> \
        --output-format stream-json \
        --model <model> \
-       --dangerously-skip-permissions
+       --dangerously-skip-permissions \
+       --settings '{"attribution":{"commit":"","pr":""}}'
 ```
 
 - `--output-format stream-json` causes Claude to emit newline-delimited JSON events as they occur (content deltas, tool calls, result).
 - The prompt is written to stdin to avoid exceeding `ARG_MAX` for large prompts.
+- `--settings '{"attribution":{"commit":"","pr":""}}'` disables AI attribution in commits and PRs.
 
 ### spawnClaudeMultimodal
 
