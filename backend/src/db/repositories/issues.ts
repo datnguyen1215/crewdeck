@@ -122,6 +122,7 @@ export function updateIssue(id: string, input: UpdateIssueInput): Issue {
 
 export function deleteIssue(id: string): void {
   db.transaction(() => {
+    db.prepare("DELETE FROM AgentRun WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM ActivityLog WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM IssuePR WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM Comment WHERE issue_id = ?").run(id);
