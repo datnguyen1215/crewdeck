@@ -78,7 +78,7 @@ Pull requests are tracked in the `IssuePR` table. They can be linked to an issue
 - **Manual**: the user clicks "Mark as PR Created", which transitions the issue to `pr_created` and records the PR.
 - **Auto-link**: when a comment is posted containing a GitHub PR URL (e.g. `https://github.com/owner/repo/pull/123`), the PR detector automatically creates an `IssuePR` record linking it to the issue (deduped by repo + PR number).
 - **Agent registration**: An agent can call `POST /internal/create-pr` after creating a PR with `gh pr create` to explicitly register the PR for tracking. This ensures the PR poller can auto-transition the issue to `done` when the PR is merged.
-- **Captain create-pr action**: The Captain Monitor can create a PR directly via the `create-pr` action plan type. This calls the GitHub API (`POST /repos/{owner}/{repo}/pulls`), creates an `IssuePR` record, emits `pr.created`, and transitions the issue to `pr_created`.
+- **Captain create-pr action**: The Captain Monitor can create a PR directly via the `create-pr` action plan type. This calls the GitHub API (`POST /repos/{owner}/{repo}/pulls`), creates an `IssuePR` record, emits `pr.created`, and transitions the issue to `pr_created`. The PR body uses a structured format with Summary and Description sections.
 
 ## Issue Lifecycle
 

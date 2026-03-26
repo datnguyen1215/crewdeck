@@ -259,6 +259,12 @@ export const handleCreatePR = async (
       message: `Issue already has an open PR (#${openPR.pr_number})`,
     };
 
+  // Build PR body with structured format
+  let prBody = `## Summary\n${issue.title}`;
+  if (issue.description) {
+    prBody += `\n\n## Description\n${issue.description}`;
+  }
+
   // Create PR via GitHub API
   const url = `https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/pulls`;
   try {
@@ -271,7 +277,7 @@ export const handleCreatePR = async (
       },
       body: JSON.stringify({
         title: issue.title,
-        body: issue.description || "",
+        body: prBody,
         head: issue.branch_name,
         base: baseBranch,
       }),
