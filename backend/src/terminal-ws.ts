@@ -4,6 +4,7 @@ import { spawn as ptySpawn, type IPty } from "node-pty";
 import { logger } from "./logger.js";
 import { homedir } from "os";
 import { getTerminalSession } from "./orchestration/captain/pty-service.js";
+import { getProject } from "./db/repositories/projects.js";
 
 interface TerminalSession {
   pty: IPty;
@@ -25,6 +26,13 @@ export function setupTerminalWs(server: Server): WebSocketServer {
 
       if (!projectId) {
         ws.close(4004, "Missing projectId");
+        return;
+      }
+
+      // Validate project exists before proceeding
+      const project = getProject(projectId);
+      if (!project) {
+        ws.close(4004, "Project not found");
         return;
       }
 
@@ -71,8 +79,8 @@ export function setupTerminalWs(server: Server): WebSocketServer {
       ws.on("message", (data) => {
         const msg = data.toString();
 
-        // Check for resize messages (JSON with type: "resize")
-        if (msg.startsWith("{")) {
+        // Check for resize messages with stricter prefix match
+        if (msg.startsWith('{"type":"resize"')) {
           try {
             const parsed = JSON.parse(msg);
             if (parsed.type === "resize" && parsed.cols && parsed.rows) {
@@ -80,7 +88,7 @@ export function setupTerminalWs(server: Server): WebSocketServer {
               return;
             }
           } catch {
-            // Not JSON — fall through to write as terminal input
+            // Malformed resize message — fall through to write as terminal input
           }
         }
 

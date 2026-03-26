@@ -22,6 +22,7 @@ interface TerminalSession {
 }
 
 const activeSessions = new Map<string, TerminalSession>();
+const pendingCreations = new Set<string>(); // Guard against concurrent session creation
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -87,9 +88,17 @@ export async function createTerminalSession(
     return existing;
   }
 
+  // Guard against concurrent session creation
+  if (pendingCreations.has(projectId)) {
+    logger.warn({ projectId }, "Session creation already in progress");
+    return null;
+  }
+  pendingCreations.add(projectId);
+
   const project = getProject(projectId);
   if (!project) {
     logger.error({ projectId }, "Project not found");
+    pendingCreations.delete(projectId);
     return null;
   }
 
@@ -133,6 +142,7 @@ export async function createTerminalSession(
       } catch {
         /* ignore */
       }
+      pendingCreations.delete(projectId);
       resolve(null);
     });
 
@@ -147,6 +157,7 @@ export async function createTerminalSession(
         } catch {
           /* ignore */
         }
+        pendingCreations.delete(projectId);
         resolve(null);
         return;
       }
@@ -161,6 +172,7 @@ export async function createTerminalSession(
       };
 
       activeSessions.set(projectId, session);
+      pendingCreations.delete(projectId);
       logger.info(
         { projectId, tmuxSessionName },
         "Terminal session created",
@@ -193,9 +205,13 @@ export async function destroyTerminalSession(
   if (!session) return false;
 
   return new Promise((resolve) => {
+    let resolved = false;
     const proc = spawn("tmux", ["kill-session", "-t", session.tmuxSessionName]);
 
     proc.on("exit", () => {
+      if (resolved) return;
+      resolved = true;
+
       activeSessions.delete(projectId);
 
       // Clean up temp files
@@ -220,6 +236,9 @@ export async function destroyTerminalSession(
     });
 
     proc.on("error", (err) => {
+      if (resolved) return;
+      resolved = true;
+
       logger.error(
         { err, projectId },
         "Failed to kill tmux session",
@@ -234,7 +253,9 @@ export async function destroyTerminalSession(
  */
 function cleanupIdleSessions(): void {
   const now = Date.now();
-  for (const [projectId, session] of activeSessions) {
+  // Copy entries before iterating to avoid race with async destroyTerminalSession
+  const entries = Array.from(activeSessions);
+  for (const [projectId, session] of entries) {
     const idleTime = now - session.lastAccessedAt.getTime();
     if (idleTime > IDLE_TIMEOUT_MS) {
       logger.info(
