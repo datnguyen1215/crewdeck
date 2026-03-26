@@ -1188,6 +1188,84 @@ Returns stored monitor messages (ChatMessage records with `session_id = null`), 
 
 ---
 
+### Terminal Sessions
+
+PTY-backed terminal sessions enable direct interaction with the captain chat via a real terminal session using tmux. Sessions are persistent and shared between web UI and CLI access.
+
+#### Create Terminal Session
+
+```
+POST /projects/:projectId/terminal
+```
+
+Creates a new terminal session running `claude --system-prompt-file` inside a tmux session. If a session already exists, returns the existing session.
+
+**Response:** `200 OK`
+
+```json
+{
+  "projectId": "uuid",
+  "tmuxSessionName": "captain-abc12345",
+  "createdAt": "ISO 8601"
+}
+```
+
+**Error:** `404 Not Found` — Project does not exist.
+
+**Error:** `500 Internal Server Error` — Failed to create tmux session.
+
+**Side effects:**
+- Creates tmux session named `captain-{projectId:0:8}`
+- Spawns Claude CLI with captain system prompt
+- Injects environment variables (`CREWDECK_*`, `GH_TOKEN`, SSH keys)
+- Session persists until idle timeout (30 minutes) or manual termination
+
+#### Get Terminal Session Status
+
+```
+GET /projects/:projectId/terminal
+```
+
+Returns the status of the terminal session for a project.
+
+**Response:** `200 OK`
+
+```json
+{
+  "exists": true,
+  "projectId": "uuid",
+  "tmuxSessionName": "captain-abc12345",
+  "createdAt": "ISO 8601",
+  "lastAccessedAt": "ISO 8601"
+}
+```
+
+If no session exists:
+
+```json
+{
+  "exists": false
+}
+```
+
+#### Destroy Terminal Session
+
+```
+DELETE /projects/:projectId/terminal
+```
+
+Terminates the tmux session and cleans up temporary files (system prompt, SSH keys).
+
+**Response:** `200 OK`
+
+```json
+{
+  "destroyed": true
+}
+```
+
+---
+
 ### Internal API
 
 These endpoints are used by agent processes (`claude -p` subprocesses) spawned by the MentionHandler. They are not intended for frontend or external use. See [Agent Orchestration](agent-cli.md) for details on how agents are spawned and use these endpoints.
@@ -1479,6 +1557,27 @@ ws://localhost:<port>/ws?projectId=<uuid>
 ```
 
 Clients connect with a project ID to receive events scoped to that project. The server validates that the project exists on connection.
+
+### Terminal WebSocket Connection
+
+```
+ws://localhost:<port>/terminal-ws?projectId=<uuid>
+```
+
+Establishes a WebSocket connection for PTY streaming. Connects to the project's tmux session and provides bidirectional I/O:
+- **Server → Client**: Raw PTY output bytes (terminal escape sequences, text)
+- **Client → Server**: Raw keyboard input or resize messages
+
+**Resize message format:**
+```json
+{
+  "type": "resize",
+  "cols": 80,
+  "rows": 24
+}
+```
+
+Non-resize messages are treated as terminal input and written directly to the PTY.
 
 ### Type Safety
 
