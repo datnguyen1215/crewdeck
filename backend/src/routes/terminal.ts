@@ -4,13 +4,13 @@
  * Manages PTY-backed terminal sessions for captain chat.
  */
 import { Router } from "express";
-import { AppError } from "../middleware/error-handler.js";
 import {
   createTerminalSession,
   getTerminalSession,
   destroyTerminalSession,
 } from "../orchestration/captain/pty-service.js";
 import { getProject } from "../db/repositories/projects.js";
+import { NotFoundError } from "../middleware/errors.js";
 
 const router = Router({ mergeParams: true });
 
@@ -24,16 +24,12 @@ router.post("/terminal", async (req, res, next) => {
 
     const project = getProject(projectId);
     if (!project) {
-      throw new AppError("NOT_FOUND", "Project not found", 404);
+      throw new NotFoundError("Project not found");
     }
 
     const session = await createTerminalSession(projectId);
     if (!session) {
-      throw new AppError(
-        "INTERNAL_ERROR",
-        "Failed to create terminal session",
-        500,
-      );
+      throw new Error("Failed to create terminal session");
     }
 
     res.json({
