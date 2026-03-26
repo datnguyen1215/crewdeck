@@ -21,7 +21,7 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
     "max_concurrency",
     "max_chain_depth",
     "agent_timeout_minutes",
-    "github_account_id",
+    "vcs_account_id",
     "auto_start",
     "auto_merge",
     "model",

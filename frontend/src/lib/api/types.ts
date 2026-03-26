@@ -8,7 +8,7 @@ export interface Project {
   auto_start: boolean;
   auto_merge: boolean;
   model: string;
-  github_account_id: string | null;
+  vcs_account_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,7 +29,7 @@ export interface ProjectWithStats extends Project {
 export interface Repo {
   id: string;
   project_id: string;
-  github_url: string;
+  repo_url: string;
   name: string;
   owner: string;
   local_path: string;
@@ -105,10 +105,10 @@ export interface ActivityLog {
   created_at: string;
 }
 
-export interface GitHubAccount {
+export interface VCSAccount {
   id: string;
   account_name: string;
-  github_username: string;
+  username: string;
   created_at: string;
 }
 

@@ -1,16 +1,18 @@
-export interface GitHubAccount {
+export interface VCSAccount {
   id: string;
+  provider: string;
   account_name: string;
-  github_username: string;
-  gh_token: string;
+  username: string;
+  token: string;
   ssh_private_key: string;
   created_at: string;
 }
 
-export interface CreateGitHubAccountInput {
+export interface CreateVCSAccountInput {
+  provider?: string;
   account_name: string;
-  github_username: string;
-  gh_token: string;
+  username: string;
+  token: string;
   ssh_private_key: string;
 }
 
@@ -25,7 +27,7 @@ export interface Project {
   auto_merge: boolean;
   model: string;
   captain_idle_timeout_ms: number | null;
-  github_account_id: string | null;
+  vcs_account_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -33,7 +35,7 @@ export interface Project {
 export interface Repo {
   id: string;
   project_id: string;
-  github_url: string;
+  repo_url: string;
   name: string;
   owner: string;
   local_path: string;
@@ -187,9 +189,9 @@ export interface CreateProjectInput {
   name: string;
   description?: string;
   max_concurrency?: number;
-  github_url?: string;
+  repo_url?: string;
   default_branch?: string;
-  github_account_id?: string;
+  vcs_account_id?: string;
 }
 
 export interface UpdateProjectInput {
@@ -202,7 +204,7 @@ export interface UpdateProjectInput {
   auto_merge?: boolean;
   model?: string;
   captain_idle_timeout_ms?: number | null;
-  github_account_id?: string | null;
+  vcs_account_id?: string | null;
 }
 
 export interface AgentConfig {
@@ -213,7 +215,7 @@ export interface AgentConfig {
 }
 
 export interface CreateRepoInput {
-  github_url: string;
+  repo_url: string;
   default_branch?: string;
 }
 

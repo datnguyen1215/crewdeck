@@ -9,7 +9,7 @@ import issuesRouter from "./routes/issues.js";
 import commentsRouter from "./routes/comments.js";
 import activityRouter from "./routes/activity.js";
 import internalRouter from "./routes/internal.js";
-import githubAccountsRouter from "./routes/github-accounts.js";
+import vcsAccountsRouter from "./routes/vcs-accounts.js";
 import environmentRouter from "./routes/environment.js";
 import runsRouter from "./routes/runs.js";
 import knowledgeRouter from "./routes/knowledge.js";
@@ -50,7 +50,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/projects/:projectId`, chatRouter);
   app.use(`${v1}/projects/:projectId`, terminalRouter);
   app.use(`${v1}/internal`, internalRouter);
-  app.use(`${v1}/github-accounts`, githubAccountsRouter);
+  app.use(`${v1}/vcs-accounts`, vcsAccountsRouter);
 
   app.use(errorHandler);
 

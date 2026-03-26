@@ -34,16 +34,16 @@ export function run(db: Database.Database): void {
             auto_merge INTEGER NOT NULL DEFAULT 0,
             captain_idle_timeout_ms INTEGER,
             memory TEXT,
-            github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
+            vcs_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
           );
           INSERT INTO Project_new (id, name, description, max_concurrency, max_chain_depth,
             agent_timeout_minutes, auto_start, auto_merge, captain_idle_timeout_ms, memory,
-            github_account_id, created_at, updated_at)
+            vcs_account_id, created_at, updated_at)
           SELECT id, name, description, max_concurrency, max_chain_depth,
             agent_timeout_minutes, 0, ${autoMergeSource},
-            captain_idle_timeout_ms, memory, github_account_id, created_at, updated_at
+            captain_idle_timeout_ms, memory, vcs_account_id, created_at, updated_at
           FROM Project;
           DROP TABLE Project;
           ALTER TABLE Project_new RENAME TO Project;

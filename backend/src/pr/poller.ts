@@ -6,9 +6,9 @@
  */
 import { eventBus } from "../events/bus.js";
 import {
-  getGitHubAccount,
-  getGitHubAccountByUsername,
-} from "../db/repositories/github-accounts.js";
+  getVCSAccount,
+  getVCSAccountByUsername,
+} from "../db/repositories/vcs-accounts.js";
 import { getIssue, updateIssue } from "../db/repositories/issues.js";
 import {
   listOpenPRsWithContext,
@@ -65,15 +65,15 @@ export async function pollPRs(): Promise<void> {
   const tokenCache = new Map<string, string | null>();
 
   function resolveToken(pr: (typeof openPRs)[number]): string | null {
-    const key = pr.github_account_id ?? `owner:${pr.repo_owner}`;
+    const key = pr.vcs_account_id ?? `owner:${pr.repo_owner}`;
     if (tokenCache.has(key)) return tokenCache.get(key)!;
 
     let token: string | null = null;
-    if (pr.github_account_id) {
-      token = getGitHubAccount(pr.github_account_id)?.gh_token ?? null;
+    if (pr.vcs_account_id) {
+      token = getVCSAccount(pr.vcs_account_id)?.token ?? null;
     }
     if (!token) {
-      token = getGitHubAccountByUsername(pr.repo_owner)?.gh_token ?? null;
+      token = getVCSAccountByUsername(pr.repo_owner)?.token ?? null;
     }
     tokenCache.set(key, token);
     return token;

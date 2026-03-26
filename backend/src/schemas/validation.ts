@@ -19,15 +19,15 @@ const CreateProjectBase = z.object({
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   max_concurrency: z.number().int().positive().optional(),
-  github_url: githubUrl,
+  repo_url: githubUrl,
   default_branch: z.string().optional(),
-  github_account_id: z.string().nullable().optional(),
+  vcs_account_id: z.string().nullable().optional(),
 });
 
 export const CreateProjectSchema = CreateProjectBase;
 
 export const UpdateProjectSchema = CreateProjectBase.omit({
-  github_url: true,
+  repo_url: true,
   default_branch: true,
 })
   .partial()
@@ -40,7 +40,7 @@ export const UpdateProjectSchema = CreateProjectBase.omit({
   });
 
 export const CreateRepoSchema = z.object({
-  github_url: githubUrl,
+  repo_url: githubUrl,
   default_branch: z.string().optional(),
 });
 
@@ -114,17 +114,18 @@ export const UpdateEnvironmentVariableSchema = z.object({
 });
 
 // SSH key and PAT transmitted in plaintext — acceptable for local/self-hosted deployments behind TLS
-export const CreateGitHubAccountSchema = z.object({
+export const CreateVCSAccountSchema = z.object({
+  provider: z.string().min(1).optional(),
   account_name: z.string().min(1),
-  github_username: z.string().min(1),
-  gh_token: z.string().min(1),
+  username: z.string().min(1),
+  token: z.string().min(1),
   ssh_private_key: z.string().min(1),
 });
 
-export const UpdateGitHubAccountSchema = z.object({
+export const UpdateVCSAccountSchema = z.object({
   account_name: z.string().min(1).optional(),
-  github_username: z.string().min(1).optional(),
-  gh_token: z.string().min(1).optional(),
+  username: z.string().min(1).optional(),
+  token: z.string().min(1).optional(),
   ssh_private_key: z.string().min(1).optional(),
 });
 

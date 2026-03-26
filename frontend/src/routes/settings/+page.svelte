@@ -1,13 +1,13 @@
 <script lang="ts">
 	import {
-		listGitHubAccounts,
-		deleteGitHubAccount,
-		type GitHubAccount
+		listVCSAccounts,
+		deleteVCSAccount,
+		type VCSAccount
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
-	import GitHubConnect from '$lib/components/GitHubConnect.svelte';
+	import VCSConnect from './VCSConnect.svelte';
 
-	let accounts = $state<GitHubAccount[]>([]);
+	let accounts = $state<VCSAccount[]>([]);
 	let loading = $state(true);
 
 	// Delete confirmation
@@ -19,7 +19,7 @@
 
 	async function loadAccounts() {
 		try {
-			accounts = await listGitHubAccounts();
+			accounts = await listVCSAccounts();
 		} catch {
 			toastStore.add('Failed to load GitHub accounts', 'error');
 		} finally {
@@ -27,13 +27,13 @@
 		}
 	}
 
-	function handleConnected(account: GitHubAccount) {
+	function handleConnected(account: VCSAccount) {
 		accounts = [...accounts, account];
 	}
 
 	async function confirmDelete(id: string) {
 		try {
-			await deleteGitHubAccount(id);
+			await deleteVCSAccount(id);
 			accounts = accounts.filter((a) => a.id !== id);
 			toastStore.add('GitHub account disconnected', 'success');
 		} catch {
@@ -73,7 +73,7 @@
 			</p>
 		</div>
 
-		<GitHubConnect onConnected={handleConnected} />
+		<VCSConnect onConnected={handleConnected} />
 	</div>
 
 	<!-- Account List -->
@@ -95,7 +95,7 @@
 		<div class="flex flex-col items-center justify-center py-24 text-center">
 			<p class="text-primary text-lg font-semibold mb-1">No GitHub accounts connected</p>
 			<p class="text-muted text-sm mb-6">Connect a GitHub account to enable repository access</p>
-			<GitHubConnect onConnected={handleConnected} />
+			<VCSConnect onConnected={handleConnected} />
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
@@ -106,8 +106,8 @@
 				>
 					<!-- Username -->
 					<div class="mb-3">
-						<h2 class="text-primary font-semibold truncate">{account.github_username}</h2>
-						{#if account.account_name !== account.github_username}
+						<h2 class="text-primary font-semibold truncate">{account.username}</h2>
+						{#if account.account_name !== account.username}
 							<p class="text-cyan text-xs mt-0.5 truncate">{account.account_name}</p>
 						{/if}
 					</div>

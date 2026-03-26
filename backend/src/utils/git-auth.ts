@@ -42,7 +42,7 @@ export function cleanupSshKey(keyPath: string): void {
 }
 
 /**
- * Get the gh_token and ssh_private_key for a project's linked GitHub account.
+ * Get the token and ssh_private_key for a project's linked VCS account.
  * Returns undefined if no account is linked.
  */
 export function getProjectCredentials(
@@ -50,13 +50,13 @@ export function getProjectCredentials(
 ): { ghToken: string; sshPrivateKey: string } | undefined {
   const row = db
     .prepare(
-      `SELECT ga.gh_token, ga.ssh_private_key FROM Project p
-       JOIN GitHubAccount ga ON ga.id = p.github_account_id
+      `SELECT vcs.token, vcs.ssh_private_key FROM Project p
+       JOIN VCSAccount vcs ON vcs.id = p.vcs_account_id
        WHERE p.id = ?`,
     )
     .get(projectId) as
-    | { gh_token: string; ssh_private_key: string }
+    | { token: string; ssh_private_key: string }
     | undefined;
   if (!row) return undefined;
-  return { ghToken: row.gh_token, sshPrivateKey: row.ssh_private_key };
+  return { ghToken: row.token, sshPrivateKey: row.ssh_private_key };
 }

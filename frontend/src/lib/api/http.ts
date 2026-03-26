@@ -8,7 +8,7 @@ import type {
   IssueWithDetails,
   Comment,
   ActivityLog,
-  GitHubAccount,
+  VCSAccount,
   EnvironmentVariable,
   AgentRun,
   AgentRunWithEvents,
@@ -30,7 +30,7 @@ export type {
   IssueWithDetails,
   Comment,
   ActivityLog,
-  GitHubAccount,
+  VCSAccount,
   EnvironmentVariable,
   AgentRun,
   AgentRunEvent,
@@ -100,8 +100,8 @@ export function getProject(id: string) {
   return request<Project>("GET", `/projects/${e(id)}`);
 }
 export function createProject(data: {
-  github_url: string;
-  github_account_id?: string;
+  repo_url: string;
+  vcs_account_id?: string;
 }) {
   return request<Project>("POST", "/projects", data);
 }
@@ -121,7 +121,7 @@ export function listRepos(projectId: string) {
 }
 export function createRepo(
   projectId: string,
-  data: { github_url: string; default_branch?: string },
+  data: { repo_url: string; default_branch?: string },
 ) {
   return request<Repo>("POST", `/projects/${e(projectId)}/repos`, data);
 }
@@ -247,19 +247,19 @@ export function deleteComment(
 }
 
 // GitHub Accounts
-export function listGitHubAccounts() {
-  return request<GitHubAccount[]>("GET", "/github-accounts");
+export function listVCSAccounts() {
+  return request<VCSAccount[]>("GET", "/vcs-accounts");
 }
-export function createGitHubAccount(data: {
+export function createVCSAccount(data: {
   account_name: string;
-  github_username: string;
+  username: string;
   gh_token: string;
   ssh_private_key: string;
 }) {
-  return request<GitHubAccount>("POST", "/github-accounts", data);
+  return request<VCSAccount>("POST", "/vcs-accounts", data);
 }
-export function deleteGitHubAccount(id: string) {
-  return request<void>("DELETE", `/github-accounts/${e(id)}`);
+export function deleteVCSAccount(id: string) {
+  return request<void>("DELETE", `/vcs-accounts/${e(id)}`);
 }
 
 // Activity

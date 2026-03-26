@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS Project (
   captain_idle_timeout_ms INTEGER,
   memory TEXT,
   model TEXT NOT NULL DEFAULT 'sonnet',
-  github_account_id TEXT REFERENCES GitHubAccount(id) ON DELETE SET NULL,
+  vcs_account_id TEXT REFERENCES VCSAccount(id) ON DELETE SET NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -18,13 +18,13 @@ CREATE TABLE IF NOT EXISTS Project (
 CREATE TABLE IF NOT EXISTS Repo (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES Project(id),
-  github_url TEXT NOT NULL,
+  repo_url TEXT NOT NULL,
   name TEXT NOT NULL,
   owner TEXT NOT NULL,
   local_path TEXT NOT NULL,
   default_branch TEXT NOT NULL DEFAULT 'main',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(project_id, github_url)
+  UNIQUE(project_id, repo_url)
 );
 
 CREATE TABLE IF NOT EXISTS Issue (
@@ -75,11 +75,12 @@ CREATE TABLE IF NOT EXISTS ActivityLog (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS GitHubAccount (
+CREATE TABLE IF NOT EXISTS VCSAccount (
   id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL DEFAULT 'github',
   account_name TEXT NOT NULL,
-  github_username TEXT NOT NULL,
-  gh_token TEXT NOT NULL,
+  username TEXT NOT NULL,
+  token TEXT NOT NULL,
   ssh_private_key TEXT NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

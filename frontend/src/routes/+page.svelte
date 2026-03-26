@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { listProjectsWithStats, listGitHubAccounts, type ProjectWithStats, type GitHubAccount, type Project } from '$lib/api/http.js';
+	import { listProjectsWithStats, listVCSAccounts, type ProjectWithStats, type VCSAccount, type Project } from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import SetupWizard from '$lib/components/SetupWizard.svelte';
 	import ProjectForm from '$lib/components/ProjectForm.svelte';
@@ -7,7 +7,7 @@
 
 	let projects = $state<ProjectWithStats[]>([]);
 	let loading = $state(true);
-	let githubAccounts = $state<GitHubAccount[]>([]);
+	let githubAccounts = $state<VCSAccount[]>([]);
 
 	// Modal state
 	let showModal = $state(false);
@@ -23,7 +23,7 @@
 	// When projects.length === 0 the wizard manages its own account list.
 	$effect(() => {
 		if (projects.length > 0) {
-			listGitHubAccounts()
+			listVCSAccounts()
 				.then((data) => { githubAccounts = data; })
 				.catch(() => { /* silently fail — dropdown will just be empty */ });
 		}
