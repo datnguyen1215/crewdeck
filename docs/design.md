@@ -229,7 +229,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 **PR Detector**
 
 - Subscribes to `comment.added` events.
-- Parses GitHub PR URLs from comment text.
+- Parses PR URLs from comment text using registered VCS provider clients (currently GitHub only).
 - Matches URLs against repos linked to the project.
 - Creates `IssuePR` records for new PRs (deduped by repo + PR number).
 - Emits `pr.created` for each newly linked PR.
@@ -238,15 +238,22 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 - Runs every 60 seconds (started at startup, stopped on shutdown).
 - Queries all open `IssuePR` records with their project/repo context.
-- Fetches current PR state from the GitHub API using the project's OAuth token.
+- Fetches current PR state from the VCS provider (currently GitHub only) using the project's OAuth token.
 - Updates `IssuePR.status` when a PR is merged or closed.
 - Auto-transitions the linked issue to `done` when a PR is merged (regardless of current status, unless already `done`).
 - For open PRs, also checks:
   - **Merge conflicts** — via the `mergeable` field. If `false`, transitions issue to `pr_conflict`.
-  - **CI status** — via both GitHub check-runs API (modern) and commit status API (legacy). If any check failed, transitions issue to `pr_failed_actions`. If all checks pass and mergeable, transitions to `pr_ready_to_merge`.
+  - **CI status** — checks all configured CI systems. If any check failed, transitions issue to `pr_failed_actions`. If all checks pass and mergeable, transitions to `pr_ready_to_merge`.
 - Issues in intermediate states (`pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) are transitioned back to `pr_created` when conditions become pending (e.g., new commits pushed).
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
 - Exports `pollPRs()` for external callers to trigger immediate polling.
+
+**VCS Provider Abstraction**
+
+- All VCS-specific operations (GitHub, GitLab, etc.) are abstracted behind a `VCSProviderClient` interface (`backend/src/vcs/types.ts`).
+- GitHub implementation in `backend/src/vcs/github/client.ts` handles URL parsing, repo metadata, PR operations, and CI status checks.
+- Provider registry (`backend/src/vcs/registry.ts`) allows registration of multiple VCS providers and URL-based provider detection.
+- Ready for multi-VCS support — adding GitLab or Bitbucket requires only implementing the interface.
 
 **Captain (Chat + Monitor)**
 
@@ -320,7 +327,7 @@ Captain is split into two independent services that run concurrently per project
 
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than calling each other directly.
-- Producers: REST API handlers, MentionHandler, PR Detector, PR Poller, Chat Service, Monitor Service.
+- Producers: REST API handlers, MentionHandler, PR Detector, PR Poller, Chat Service, Monitor Service, VCS Provider clients.
 - Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger, Chat Service, Monitor Service, Worktree Cleanup.
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
@@ -375,7 +382,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 4. Activity Logger receives event → writes ActivityLog entry
 5. WebSocket broadcaster receives event → sends to connected frontend clients
 6. MentionHandler receives event → parses /dispatch commands → spawns agent processes
-7. PR Detector receives event → parses PR URLs → creates IssuePR records
+7. PR Detector receives event → parses PR URLs via VCS providers → creates IssuePR records
 8. API handler returns 201 to the client
 ```
 
@@ -479,7 +486,7 @@ On startup, the backend:
 4. Initializes the worktree cleanup listener (subscribes to `issue.status_changed`).
 5. Initializes the MentionHandler (subscribes to `comment.added`).
 6. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
-7. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
+7. Starts the PR poller (polls VCS providers every 60 seconds for PR status updates).
 8. Initializes Captain services — both Chat and Monitor subscribe to the event bus for all captain-enabled projects.
 9. Initializes PTY service — starts idle session cleanup interval (runs every 60 seconds).
 10. Starts the Express HTTP server.
