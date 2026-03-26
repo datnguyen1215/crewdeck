@@ -5,15 +5,6 @@ import type {
   UpdateKnowledgeInput,
 } from "../../types/entities.js";
 
-type KnowledgeRow = Omit<ProjectKnowledge, "agent_ids"> & { agent_ids: string | null };
-
-function fromRow(row: KnowledgeRow): ProjectKnowledge {
-  return {
-    ...row,
-    agent_ids: row.agent_ids ? JSON.parse(row.agent_ids) : null,
-  };
-}
-
 export function listByProject(projectId: string): ProjectKnowledge[] {
   const rows = db
     .prepare(
@@ -21,15 +12,15 @@ export function listByProject(projectId: string): ProjectKnowledge[] {
        WHERE project_id = ?
        ORDER BY updated_at DESC, created_at DESC`
     )
-    .all(projectId) as KnowledgeRow[];
-  return rows.map(fromRow);
+    .all(projectId) as ProjectKnowledge[];
+  return rows;
 }
 
 export function getById(id: string): ProjectKnowledge | null {
   const row = db
     .prepare("SELECT * FROM ProjectKnowledge WHERE id = ?")
-    .get(id) as KnowledgeRow | undefined;
-  return row ? fromRow(row) : null;
+    .get(id) as ProjectKnowledge | undefined;
+  return row ?? null;
 }
 
 export function create(
@@ -37,14 +28,11 @@ export function create(
   input: CreateKnowledgeInput
 ): ProjectKnowledge {
   const id = crypto.randomUUID();
-  const agentIds = input.agent_ids !== undefined
-    ? (input.agent_ids ? JSON.stringify(input.agent_ids) : null)
-    : null;
 
   db.prepare(
-    `INSERT INTO ProjectKnowledge (id, project_id, title, category, content, source, agent_ids)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, projectId, input.title, input.category, input.content, input.source ?? null, agentIds);
+    `INSERT INTO ProjectKnowledge (id, project_id, title, category, content, source)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, projectId, input.title, input.category, input.content, input.source ?? null);
 
   return getById(id)!;
 }
@@ -69,10 +57,6 @@ export function update(id: string, input: UpdateKnowledgeInput): ProjectKnowledg
     fields.push("source = ?");
     values.push(input.source);
   }
-  if (input.agent_ids !== undefined) {
-    fields.push("agent_ids = ?");
-    values.push(input.agent_ids ? JSON.stringify(input.agent_ids) : null);
-  }
 
   if (fields.length > 0) {
     fields.push("updated_at = CURRENT_TIMESTAMP");
@@ -86,23 +70,4 @@ export function update(id: string, input: UpdateKnowledgeInput): ProjectKnowledg
 
 export function remove(id: string): void {
   db.prepare("DELETE FROM ProjectKnowledge WHERE id = ?").run(id);
-}
-
-export function listForAgent(projectId: string, agentId: string): ProjectKnowledge[] {
-  // Validate agentId contains only safe characters (alphanumeric, hyphens, underscores)
-  const agentIdRegex = /^[a-z0-9_-]+$/i;
-  if (!agentIdRegex.test(agentId)) {
-    return [];
-  }
-
-  const pattern = `%"${agentId}"%`;
-  const rows = db
-    .prepare(
-      `SELECT * FROM ProjectKnowledge
-       WHERE project_id = ?
-         AND (agent_ids IS NULL OR agent_ids LIKE ?)
-       ORDER BY updated_at DESC, created_at DESC`
-    )
-    .all(projectId, pattern) as KnowledgeRow[];
-  return rows.map(fromRow);
 }

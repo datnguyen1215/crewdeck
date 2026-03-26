@@ -293,4 +293,48 @@ router.post(
   },
 );
 
+// GET /knowledge/titles — list knowledge titles (lightweight, for agent discovery)
+const InternalKnowledgeTitlesSchema = z.object({
+  project_id: z.string(),
+});
+
+router.get(
+  "/knowledge/titles",
+  validate(InternalKnowledgeTitlesSchema, "query"),
+  (req, res) => {
+    const { project_id } = req.query as { project_id: string };
+    verifyProjectExists(project_id);
+    const entries = listKnowledge(project_id);
+    const titles = entries.map((e) => ({
+      id: e.id,
+      title: e.title,
+      category: e.category,
+    }));
+    res.json(titles);
+  },
+);
+
+// GET /knowledge/get — get full knowledge entry by ID (for agent deep-read)
+const InternalKnowledgeGetSchema = z.object({
+  project_id: z.string(),
+  knowledge_id: z.string(),
+});
+
+router.get(
+  "/knowledge/get",
+  validate(InternalKnowledgeGetSchema, "query"),
+  (req, res) => {
+    const { project_id, knowledge_id } = req.query as {
+      project_id: string;
+      knowledge_id: string;
+    };
+    verifyProjectExists(project_id);
+    const entry = getKnowledge(knowledge_id);
+    if (!entry || entry.project_id !== project_id) {
+      throw new NotFoundError("Knowledge entry not found");
+    }
+    res.json(entry);
+  },
+);
+
 export default router;

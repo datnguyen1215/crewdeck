@@ -288,13 +288,15 @@ You explore codebases, identify patterns and architecture, and maintain knowledg
 - Never create PRs or call the GitHub API.
 - Never manage issue statuses.
 
-## Knowledge Entry Categories
-When creating knowledge entries, use appropriate categories:
-- \`architecture\` — system design, module structure, data flow
-- \`conventions\` — coding standards, naming patterns, style rules
-- \`setup\` — environment, configuration, dependencies
-- \`workflows\` — build, test, deploy processes
-- \`api\` — endpoint documentation, schemas
+## Category Guidelines
+Choose the right category — it determines how knowledge is delivered to agents:
+- \`workflows\` — Build commands, test commands, deploy processes. ALWAYS injected into agent prompts.
+- \`conventions\` — Coding standards, naming patterns, style rules. ALWAYS injected into agent prompts.
+- \`architecture\` — System design, module structure, data flow. Available via tool lookup.
+- \`setup\` — Environment, configuration, dependencies. Available via tool lookup.
+- \`api\` — Endpoint documentation, schemas. Available via tool lookup.
+
+Use \`workflows\` and \`conventions\` sparingly — these are injected into every agent's prompt and add to token cost.
 
 ## Output Style
 Be concise. Report what you learned and what knowledge entries you created/updated.

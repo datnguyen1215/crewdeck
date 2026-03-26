@@ -287,7 +287,6 @@ export interface ProjectKnowledge {
   category: string;
   content: string;
   source: string | null;
-  agent_ids: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -297,7 +296,6 @@ export interface CreateKnowledgeInput {
   category: string;
   content: string;
   source?: string;
-  agent_ids?: string[] | null;
 }
 
 export interface UpdateKnowledgeInput {
@@ -305,7 +303,6 @@ export interface UpdateKnowledgeInput {
   category?: string;
   content?: string;
   source?: string | null;
-  agent_ids?: string[] | null;
 }
 
 // Chat session types

@@ -16,9 +16,9 @@ function formatComments(comments: Comment[]): string {
 }
 
 /**
- * Agents with knowledge API access (list, create, update, delete knowledge entries).
+ * Agents with knowledge write API access (create, update, delete knowledge entries).
  */
-const KNOWLEDGE_ACCESS_AGENTS = new Set(["librarian"]);
+const KNOWLEDGE_WRITE_AGENTS = new Set(["librarian"]);
 
 function buildApiSection(agentId: string): string {
   const lines: string[] = [
@@ -28,23 +28,24 @@ function buildApiSection(agentId: string): string {
     "- CREWDECK_PROJECT_ID — current project ID",
     "- CREWDECK_AGENT_ID — your agent ID",
     "- CREWDECK_ISSUE_ID — current issue ID",
+    "",
+    "Knowledge API (read-only, via curl):",
+    "- GET $CREWDECK_API_URL/api/v1/internal/knowledge/titles?project_id=$CREWDECK_PROJECT_ID — list available knowledge entries (returns id, title, category)",
+    "- GET $CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID> — get full content of a knowledge entry",
   ];
 
-  if (KNOWLEDGE_ACCESS_AGENTS.has(agentId)) {
+  if (KNOWLEDGE_WRITE_AGENTS.has(agentId)) {
     lines.push(
       "",
-      "Knowledge API (via curl):",
-      "- GET $CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID — list knowledge entries",
-      "- POST $CREWDECK_API_URL/api/v1/internal/knowledge/create — create entry (body: { project_id, title, category, content, agent_ids? })",
-      "- POST $CREWDECK_API_URL/api/v1/internal/knowledge/update — update entry (body: { project_id, knowledge_id, title?, category?, content?, agent_ids? })",
+      "Knowledge API (write, via curl):",
+      "- POST $CREWDECK_API_URL/api/v1/internal/knowledge/create — create entry (body: { project_id, title, category, content })",
+      "- POST $CREWDECK_API_URL/api/v1/internal/knowledge/update — update entry (body: { project_id, knowledge_id, title?, category?, content? })",
       "- POST $CREWDECK_API_URL/api/v1/internal/knowledge/delete — delete entry (body: { project_id, knowledge_id })",
     );
   } else {
-    // Agents don't need direct API access — their stdout is automatically
-    // captured and posted as a comment by the backend.
     lines.push(
       "",
-      "You do not have API access. Your stdout is automatically posted as a comment.",
+      "Your stdout is automatically posted as a comment on the issue.",
     );
   }
 
@@ -79,12 +80,18 @@ export function buildPrompt(opts: BuildPromptOptions): string {
     `## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`,
   );
 
-  // Inject project knowledge entries if present
+  // Inject project knowledge entries (workflows and conventions only)
+  const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
   if (projectKnowledge && projectKnowledge.length > 0) {
-    const entries = projectKnowledge
-      .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
-      .join("\n\n");
-    parts.push(`## Project Knowledge\n${entries}`);
+    const injected = projectKnowledge.filter((k) =>
+      INJECT_CATEGORIES.has(k.category),
+    );
+    if (injected.length > 0) {
+      const entries = injected
+        .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
+        .join("\n\n");
+      parts.push(`## Project Knowledge\n${entries}`);
+    }
   }
 
   if (repo)
@@ -132,11 +139,18 @@ export function buildScanPrompt(opts: BuildScanPromptOptions): string {
     "## Task\nScan the codebase and update knowledge entries for this project.",
   );
 
+  // Inject project knowledge entries (workflows and conventions only)
+  const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
   if (projectKnowledge && projectKnowledge.length > 0) {
-    const entries = projectKnowledge
-      .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
-      .join("\n\n");
-    parts.push(`## Existing Knowledge\n${entries}`);
+    const injected = projectKnowledge.filter((k) =>
+      INJECT_CATEGORIES.has(k.category),
+    );
+    if (injected.length > 0) {
+      const entries = injected
+        .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
+        .join("\n\n");
+      parts.push(`## Existing Knowledge\n${entries}`);
+    }
   }
 
   if (repo)
@@ -151,10 +165,13 @@ The following environment variables are available:
 - CREWDECK_PROJECT_ID — current project ID
 - CREWDECK_AGENT_ID — your agent ID
 
-Knowledge API (via curl):
-- GET $CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID — list knowledge entries
-- POST $CREWDECK_API_URL/api/v1/internal/knowledge/create — create entry (body: { project_id, title, category, content, agent_ids? })
-- POST $CREWDECK_API_URL/api/v1/internal/knowledge/update — update entry (body: { project_id, knowledge_id, title?, category?, content?, agent_ids? })
+Knowledge API (read-only, via curl):
+- GET $CREWDECK_API_URL/api/v1/internal/knowledge/titles?project_id=$CREWDECK_PROJECT_ID — list available knowledge entries (returns id, title, category)
+- GET $CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID> — get full content of a knowledge entry
+
+Knowledge API (write, via curl):
+- POST $CREWDECK_API_URL/api/v1/internal/knowledge/create — create entry (body: { project_id, title, category, content })
+- POST $CREWDECK_API_URL/api/v1/internal/knowledge/update — update entry (body: { project_id, knowledge_id, title?, category?, content? })
 - POST $CREWDECK_API_URL/api/v1/internal/knowledge/delete — delete entry (body: { project_id, knowledge_id })`);
 
   parts.push(`## Instructions
