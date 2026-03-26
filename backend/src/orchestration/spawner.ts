@@ -17,6 +17,7 @@ import { normalizeEvent } from "../db/repositories/agent-runs.js";
 import * as knowledgeRepo from "../db/repositories/knowledge.js";
 import * as envVarRepo from "../db/repositories/environment-variables.js";
 import * as repoRepo from "../db/repositories/repos.js";
+import * as issuePRRepo from "../db/repositories/issue-prs.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import * as dispatchQueue from "./queue.js";
@@ -36,6 +37,7 @@ import type { Agent, AgentRunStatus } from "../types/entities.js";
 import {
   IssueStatus,
   PR_RELATED_ISSUE_STATUSES,
+  PRStatus,
 } from "../constants/statuses.js";
 import type { IssueStatusValue } from "../constants/statuses.js";
 
@@ -415,6 +417,24 @@ export const spawnAgent = async (
       .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
       .run(issueId);
     return;
+  }
+
+  // Guard against dispatching to issues with merged PRs
+  if (issue.status === IssueStatus.DONE) {
+    const prs = issuePRRepo.listIssuePRs(issueId);
+    const mergedPR = prs.find((pr) => pr.status === PRStatus.MERGED);
+    if (mergedPR) {
+      postSystemComment(
+        issueId,
+        projectId,
+        `Dispatch rejected: issue already has a merged PR (#${mergedPR.pr_number})`,
+      );
+      // Rollback the chain_depth increment
+      database.db
+        .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
+        .run(issueId);
+      return;
+    }
   }
 
   // Regress status to in_progress when work restarts
