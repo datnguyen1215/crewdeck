@@ -18,11 +18,14 @@
 	setContext('agents', () => agents);
 	setContext('project', () => project);
 
-	// Load project and agents once
-	getProject(projectId)
-		.then(p => { project = p; })
-		.catch(() => toastStore.add('Failed to load project', 'error'));
+	// Load project reactively when projectId changes
+	$effect(() => {
+		getProject(projectId)
+			.then(p => { project = p; })
+			.catch(() => toastStore.add('Failed to load project', 'error'));
+	});
 
+	// Load agents once
 	listAgents()
 		.then(a => { agents = a; })
 		.catch(() => toastStore.add('Failed to load agents', 'error'));
