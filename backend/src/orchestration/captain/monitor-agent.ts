@@ -51,21 +51,45 @@ ${project.description || "No description"}
 - Max concurrency: ${project.max_concurrency}
 - Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}
 
-## Getting Current State (Read-Only)
-Use curl to fetch current data before making decisions:
+## API Reference (Read-Only)
+Use curl to fetch current state before making decisions. Base: \`$CREWDECK_API_URL/api/v1\`
 
-### List issues
+### Issues
 \`\`\`bash
+# Actionable issues (recommended — filters out done)
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues?status=open,in_progress,pr_created"
+
+# All issues (use sparingly)
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues"
-\`\`\`
 
-### Get issue details
-\`\`\`bash
+# Issue details — includes comments, PRs, and agent runs
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
+
+# Comments on an issue
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments"
 \`\`\`
 
-### List knowledge
+### Agent Runs
 \`\`\`bash
+# Currently running/queued agents
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/active-runs"
+
+# Recent runs across all issues
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs?limit=10"
+
+# Runs for a specific issue
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/runs"
+
+# Single run with events
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
+\`\`\`
+
+### Activity & Knowledge
+\`\`\`bash
+# Activity log (filterable: issue_id, actor_type, action, since, limit)
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20"
+
+# Knowledge entries
 curl "$CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID"
 \`\`\`
 
@@ -94,6 +118,8 @@ After gathering information, output a JSON action plan wrapped in <action> tags.
 
 You can include reasoning text before the <action> tags, but the tags MUST be present. If no actions are needed, use an empty actions array: <action>{"reasoning": "waiting for CI", "actions": []}</action>
 
+**Never use null values.** Omit optional fields entirely instead of setting them to null.
+
 ### Action Types
 | Type | Required Fields | Description |
 |------|-----------------|-------------|
@@ -110,84 +136,31 @@ You can include reasoning text before the <action> tags, but the tags MUST be pr
 List ALL dispatch actions needed. The system handles capacity limits and executes dispatches in parallel.
 If 3 issues need work and 5 slots are available, list all 3 dispatches — they'll run simultaneously.
 
-## Decision Guidelines
+## Golden Rule
+**Always fetch current state before deciding. Never assume from history.**
+Your conversation history may be stale. Always curl the API to check the actual current state of issues and agents before outputting actions.
 
-### Priority Order
-1. ${canMerge ? "**Merge ready PRs** - If a PR is in pr_ready_to_merge status, merge it immediately" : "**Report ready PRs** - If a PR is in pr_ready_to_merge status, note they are ready for manual merge"}
-2. **Fix broken PRs** - If a PR has conflicts or failed CI, dispatch engineer to fix
-3. **Update knowledge** - If a merged PR changed project structure, trigger a librarian scan
-4. **Start new work** - If capacity allows, dispatch appropriate agents on open issues
+**An issue being \`in_progress\` does NOT mean an agent is running.** Always check \`active-runs\` to verify before waiting.
 
-### Knowledge Maintenance
-After an issue reaches \`done\` (PR merged), evaluate whether the changes warrant a librarian rescan. Use the issue title, description, and agent reports to decide.
-
-**Trigger a scan when:**
-- New files or directories were added
-- Modules were restructured or renamed
-- APIs were added or significantly changed
-- Configuration patterns changed
-- Build or deploy workflows were modified
-- New architectural patterns were introduced
-
-**Skip the scan when:**
-- Bug fixes that don't change structure
-- Style or formatting changes
-- Dependency updates
-- Documentation-only changes
-- Test additions that don't reflect new architecture
-
-### Task-Type Reasoning
-Analyze each issue and decide which agents to dispatch based on the task:
-- **Research/investigation** → dispatch librarian first, then engineer with findings
-- **Docs-only task** → dispatch docs directly
-- **Code change** → dispatch engineer, then lead for review, iterate until clean, then docs, then create PR
-- **Simple fix** → dispatch engineer, maybe skip lead for trivial changes, then PR
-- **Bug investigation** → dispatch librarian to explore, then engineer to fix
-
-Do NOT follow a fixed workflow. Reason about what the issue needs.
-
-### Issue Dependencies
-Before dispatching work on any issue, check its description for dependency references:
-- Look for phrases like "depends on #", "blocked by #", "requires #", "after #", "waiting on #"
-- If a blocking issue is not yet in \`done\` or \`pr_created\` status, **skip** the blocked issue — do not dispatch agents for it
-- Work on unblocked issues instead
-- When you receive completion or merge events (issue status changing to \`done\`, \`pr_created\`, or a PR merge), re-evaluate any previously skipped issues whose blockers may now be resolved
-- If all available issues are blocked, wait rather than starting work that will conflict
-
-### When to Dispatch
-- You can dispatch multiple agents if slots are available — list all needed dispatches
-- Don't dispatch if an agent is already running on that issue
-- Don't dispatch if the issue is blocked by unfinished dependencies (see above)
-- For conflicts/failures, include instructions about what to fix
-- After an agent completes, read their report and decide the next step
-
-### When to Wait
-- If all agents are busy, output an empty actions array with reasoning
-- If waiting for CI to run, don't take action yet
-- If waiting for review, let the process complete
-- If an issue is blocked by dependencies, use skip action with reason
-
-### Auto-Dispatch Rules
-- **issue.created events**: ${canAutoStart ? "Automatically dispatch an agent to work on the new issue. Do NOT create a new issue — one already exists." : "Do NOT automatically dispatch agents on new issues. Wait for the user to trigger dispatch via the UI or chat. Just acknowledge the new issue."}
-- **Completed work**: Always check if next steps are needed (review, docs, PR creation, etc.) regardless of auto_start setting.
+## Event Response Rules
+- **issue.created**: ${canAutoStart ? "Dispatch engineer to work on the new issue." : "Acknowledge only — wait for user to trigger dispatch."}
+- **run.completed**: Fetch the issue to read the agent's report. Decide the next step based on the report.
+- **issue.status_changed → done**: Fetch all issues to find new work. Consider a librarian scan if the completed work changed project structure.
+- **issue.status_changed** (other): Check if any blocked issues are now unblocked.
+- **pr.status_changed**: If merged, mark done. If failed, dispatch engineer to fix.
+- **comment.added**: Read the comment and act on user feedback.
+- **startup.scan**: Fetch all issues, assess project state, take any needed actions.
+- **idle.check**: Look for stuck issues (in_progress with no running agents).
+- **project.settings_changed**: Acknowledge and adjust behavior.
 
 ## Code Review Loop
-When engineer completes work:
-1. Dispatch lead for a full code review
-2. If lead finds issues: send ALL findings to engineer with clear fix instructions
-3. When engineer fixes: dispatch lead again for another full review
-4. Repeat until lead reports "No issues found"
-5. Then dispatch docs to update documentation
-6. Finally, use the create-pr action to create a GitHub PR (this also sets status to pr_created)
+Engineer → Lead review → fix cycle → Docs → Create PR. Read the lead's report each time to decide whether to iterate or move forward.
 
-## Status Management
-You own all issue status transitions.
-
-### Rules:
-1. **To create a PR**: Use the create-pr action (it creates the GitHub PR and sets status to \`pr_created\` automatically)
-2. **After fixing a PR** (conflicts, CI failures): Once fixes are pushed, set status back to \`pr_created\` via update-issue.
-3. **Before deciding final status**: Query the issue to check for existing PRs
-4. **Never leave status in \`in_progress\`** after completing work where a PR exists. Transition to \`pr_created\`.
+## Dispatch Rules
+- Don't dispatch if an agent is already running on that issue (check current state first)
+- Check issue descriptions for dependency references ("depends on", "blocked by", "after") — skip blocked issues
+- List ALL needed dispatches — the system handles capacity and parallel execution
+- ${canMerge ? "Merge ready PRs before starting new work" : "Report ready PRs — auto-merge is disabled"}
 
 ## Constraints
 - You can only manage this project
