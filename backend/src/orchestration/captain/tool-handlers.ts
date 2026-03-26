@@ -14,6 +14,7 @@ import { getProject } from "../../db/repositories/projects.js";
 import { getCrewMember } from "../crew.js";
 import { spawnAgent, spawnScan, postSystemComment } from "../spawner.js";
 import { IssueStatus, PRStatus } from "../../constants/statuses.js";
+import { getProvider } from "../../vcs/registry.js";
 
 const UUID_LENGTH = 36;
 
@@ -38,11 +39,6 @@ function resolveIssueId(issueId: string, projectId: string): string | null {
   return null;
 }
 
-const GITHUB_HEADERS = {
-  Accept: "application/vnd.github.v3+json",
-  "User-Agent": "crewdeck",
-};
-
 interface ToolResult {
   success: boolean;
   message: string;
@@ -59,73 +55,6 @@ const getRepoInfo = (
     .prepare("SELECT owner, name FROM Repo WHERE id = ?")
     .get(repoId) as { owner: string; name: string } | undefined;
   return row ?? null;
-};
-
-/**
- * Merge a PR via GitHub API.
- */
-const mergePROnGitHub = async (
-  owner: string,
-  repo: string,
-  prNumber: number,
-  token: string,
-): Promise<{ success: boolean; message: string }> => {
-  const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/merge`;
-
-  try {
-    const response = await fetch(url, {
-      method: "PUT",
-      headers: {
-        ...GITHUB_HEADERS,
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ merge_method: "squash" }),
-    });
-
-    if (response.ok)
-      return { success: true, message: "PR merged successfully" };
-
-    const body = await response.json().catch(() => ({}));
-    const message =
-      (body as { message?: string }).message || `HTTP ${response.status}`;
-
-    if (response.status === 405)
-      return { success: false, message: `PR not mergeable: ${message}` };
-    if (response.status === 409)
-      return { success: false, message: `Merge conflict: ${message}` };
-
-    return { success: false, message: `Merge failed: ${message}` };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return { success: false, message: `Merge request failed: ${message}` };
-  }
-};
-
-/**
- * Delete a branch on GitHub.
- */
-const deleteBranchOnGitHub = async (
-  owner: string,
-  repo: string,
-  branch: string,
-  token: string,
-): Promise<void> => {
-  const url = `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`;
-  try {
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: { ...GITHUB_HEADERS, Authorization: `Bearer ${token}` },
-    });
-    if (response.ok || response.status === 422)
-      logger.info({ owner, repo, branch }, "Deleted branch after merge");
-    else
-      logger.warn(
-        { owner, repo, branch, status: response.status },
-        "Failed to delete branch after merge",
-      );
-  } catch (err) {
-    logger.warn({ err, owner, repo, branch }, "Branch deletion failed");
-  }
 };
 
 /**
@@ -166,12 +95,14 @@ export const handleMergePR = async (
   const repoInfo = getRepoInfo(openPR.repo_id);
   if (!repoInfo) return { success: false, message: "Repository not found" };
 
-  const result = await mergePROnGitHub(
-    repoInfo.owner,
-    repoInfo.name,
-    openPR.pr_number,
-    account.gh_token,
-  );
+  // Use VCS provider for merge operations
+  const vcsClient = getProvider("github");
+  const result = await vcsClient.mergePR({
+    owner: repoInfo.owner,
+    repo: repoInfo.name,
+    prNumber: openPR.pr_number,
+    token: account.gh_token,
+  });
 
   if (result.success) {
     issuePRRepo.updateIssuePR(openPR.id, { status: PRStatus.MERGED });
@@ -179,13 +110,14 @@ export const handleMergePR = async (
     const oldStatus = issue.status;
     issueRepo.updateIssue(issue.id, { status: IssueStatus.DONE });
 
-    if (issue.branch_name)
-      await deleteBranchOnGitHub(
-        repoInfo.owner,
-        repoInfo.name,
-        issue.branch_name,
-        account.gh_token,
-      );
+    if (issue.branch_name) {
+      await vcsClient.deleteBranch({
+        owner: repoInfo.owner,
+        repo: repoInfo.name,
+        branch: issue.branch_name,
+        token: account.gh_token,
+      });
+    }
 
     postSystemComment(
       issue.id,
@@ -265,42 +197,25 @@ export const handleCreatePR = async (
     prBody += `\n\n## Description\n${issue.description}`;
   }
 
-  // Create PR via GitHub API
-  const url = `https://api.github.com/repos/${repoInfo.owner}/${repoInfo.name}/pulls`;
+  // Create PR via VCS provider
+  const vcsClient = getProvider("github");
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...GITHUB_HEADERS,
-        Authorization: `Bearer ${account.gh_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title: issue.title,
-        body: prBody,
-        head: issue.branch_name,
-        base: baseBranch,
-      }),
+    const prData = await vcsClient.createPR({
+      owner: repoInfo.owner,
+      repo: repoInfo.name,
+      head: issue.branch_name,
+      base: baseBranch,
+      title: issue.title,
+      body: prBody,
+      token: account.gh_token,
     });
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      const message =
-        (body as { message?: string }).message || `HTTP ${response.status}`;
-      return { success: false, message: `Failed to create PR: ${message}` };
-    }
-
-    const prData = (await response.json()) as {
-      number: number;
-      html_url: string;
-    };
 
     // Create IssuePR record
     const issuePR = issuePRRepo.createIssuePR({
       issue_id: issue.id,
       repo_id: issue.repo_id,
       pr_number: prData.number,
-      pr_url: prData.html_url,
+      pr_url: prData.url,
       status: PRStatus.OPEN,
     });
 
@@ -311,7 +226,7 @@ export const handleCreatePR = async (
     postSystemComment(
       issue.id,
       projectId,
-      `PR #${prData.number} created: ${prData.html_url}`,
+      `PR #${prData.number} created: ${prData.url}`,
       "captain",
     );
 
@@ -336,7 +251,7 @@ export const handleCreatePR = async (
       message: `Created PR #${prData.number}`,
       data: {
         pr_number: prData.number,
-        pr_url: prData.html_url,
+        pr_url: prData.url,
       },
     };
   } catch (err) {
