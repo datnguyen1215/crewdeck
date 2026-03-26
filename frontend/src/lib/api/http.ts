@@ -488,3 +488,40 @@ export function dispatchAgent(
     },
   );
 }
+
+// Terminal sessions
+export interface TerminalSession {
+  projectId: string;
+  tmuxSessionName: string;
+  createdAt: string;
+  lastAccessedAt?: string;
+}
+
+export interface TerminalSessionStatus {
+  exists: boolean;
+  projectId?: string;
+  tmuxSessionName?: string;
+  createdAt?: string;
+  lastAccessedAt?: string;
+}
+
+export function createTerminalSession(projectId: string) {
+  return request<TerminalSession>(
+    "POST",
+    `/projects/${e(projectId)}/terminal`,
+  );
+}
+
+export function getTerminalSession(projectId: string) {
+  return request<TerminalSessionStatus>(
+    "GET",
+    `/projects/${e(projectId)}/terminal`,
+  );
+}
+
+export function destroyTerminalSession(projectId: string) {
+  return request<{ destroyed: boolean }>(
+    "DELETE",
+    `/projects/${e(projectId)}/terminal`,
+  );
+}
