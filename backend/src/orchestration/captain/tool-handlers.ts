@@ -15,6 +15,29 @@ import { getCrewMember } from "../crew.js";
 import { spawnAgent, spawnScan, postSystemComment } from "../spawner.js";
 import { IssueStatus, PRStatus } from "../../constants/statuses.js";
 
+const UUID_LENGTH = 36;
+
+/**
+ * Resolve a potentially truncated issue ID to a full UUID.
+ */
+function resolveIssueId(issueId: string, projectId: string): string | null {
+  const exact = issueRepo.getIssue(issueId);
+  if (exact) return exact.id;
+
+  if (issueId.length < UUID_LENGTH && issueId.length >= 8) {
+    const match = issueRepo.getIssueByPrefix(issueId, projectId);
+    if (match) {
+      logger.info(
+        { prefix: issueId, resolved: match.id },
+        "Resolved truncated issue ID",
+      );
+      return match.id;
+    }
+  }
+
+  return null;
+}
+
 const GITHUB_HEADERS = {
   Accept: "application/vnd.github.v3+json",
   "User-Agent": "crewdeck",
@@ -127,8 +150,10 @@ export const handleMergePR = async (
   const account = getGitHubAccount(project.github_account_id);
   if (!account) return { success: false, message: "GitHub account not found" };
 
-  const issue = issueRepo.getIssue(input.issue_id);
-  if (!issue) return { success: false, message: "Issue not found" };
+  const resolvedId = resolveIssueId(input.issue_id, projectId);
+  if (!resolvedId) return { success: false, message: "Issue not found" };
+
+  const issue = issueRepo.getIssue(resolvedId)!;
 
   if (issue.project_id !== projectId)
     return { success: false, message: "Issue belongs to a different project" };
@@ -343,8 +368,10 @@ export const handleDispatchAgent = async (
   if (!agent)
     return { success: false, message: `Agent "${input.agent_id}" not found` };
 
-  const issue = issueRepo.getIssue(input.issue_id);
-  if (!issue) return { success: false, message: "Issue not found" };
+  const resolvedId = resolveIssueId(input.issue_id, projectId);
+  if (!resolvedId) return { success: false, message: "Issue not found" };
+
+  const issue = issueRepo.getIssue(resolvedId)!;
 
   if (issue.project_id !== projectId)
     return { success: false, message: "Issue belongs to a different project" };

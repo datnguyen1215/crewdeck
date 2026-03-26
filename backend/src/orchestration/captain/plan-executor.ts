@@ -368,8 +368,19 @@ export async function executePlan(
       "Monitor: Executing dispatch actions",
     );
 
+    // Resolve truncated issue IDs on dispatch actions before executing
+    const resolvedDispatches: DispatchAction[] = [];
+    for (const action of dispatchActions) {
+      const err = resolveActionIssueId(projectId, action);
+      if (err) {
+        results.push(err);
+      } else {
+        resolvedDispatches.push(action);
+      }
+    }
+
     // Execute all dispatches - spawnAgent handles queuing internally
-    const dispatchPromises = dispatchActions.map((action) =>
+    const dispatchPromises = resolvedDispatches.map((action) =>
       executeDispatch(projectId, action),
     );
     const dispatchResults = await Promise.all(dispatchPromises);
