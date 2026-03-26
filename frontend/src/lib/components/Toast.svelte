@@ -50,7 +50,12 @@
 				<span class="text-xs font-bold font-mono {s.text} flex-shrink-0 mt-0.5 tracking-wider"
 					>[{s.label}]</span
 				>
-				<span class="text-sm text-secondary flex-1 leading-snug">{frontToast.message}</span>
+				<div class="flex-1">
+					{#if frontToast.project}
+						<div class="text-xs text-muted mb-1">{frontToast.project}</div>
+					{/if}
+					<span class="text-sm text-secondary leading-snug">{frontToast.message}</span>
+				</div>
 
 				<!-- Position counter -->
 				{#if totalCount > 1}

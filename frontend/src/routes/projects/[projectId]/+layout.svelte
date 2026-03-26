@@ -5,18 +5,27 @@
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { setContext } from 'svelte';
 	import type { WsEvent } from '$lib/api/ws.svelte.js';
-	import { listAgents, type Agent } from '$lib/api/http.js';
+	import { listAgents, getProject, type Agent, type Project } from '$lib/api/http.js';
 
 	let { children } = $props();
 
 	let projectId = $derived($page.params.projectId!);
 	let ws = $state<ProjectWebSocket | null>(null);
 	let agents = $state<Agent[]>([]);
+	let project = $state<Project | null>(null);
 
 	setContext('projectWs', () => ws);
 	setContext('agents', () => agents);
+	setContext('project', () => project);
 
-	// Agents are global constants — load once
+	// Load project reactively when projectId changes
+	$effect(() => {
+		getProject(projectId)
+			.then(p => { project = p; })
+			.catch(() => toastStore.add('Failed to load project', 'error'));
+	});
+
+	// Load agents once
 	listAgents()
 		.then(a => { agents = a; })
 		.catch(() => toastStore.add('Failed to load agents', 'error'));
@@ -66,7 +75,7 @@
 		for (const [event, toastFn] of Object.entries(EVENT_TOASTS)) {
 			conn.on(event as WsEvent, (data) => {
 				const result = toastFn!(data);
-				if (result) toastStore.add(result.msg, result.type);
+				if (result) toastStore.add(result.msg, result.type, 5000, project?.name);
 			});
 		}
 		conn.connect();
