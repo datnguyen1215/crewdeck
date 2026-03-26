@@ -134,8 +134,11 @@ export async function createTerminalSession(
 
   return new Promise((resolve) => {
     const proc = spawn("tmux", tmuxCmd, { env });
+    let resolved = false;
 
     proc.on("error", (err) => {
+      if (resolved) return;
+      resolved = true;
       logger.error({ err, projectId }, "Failed to create tmux session");
       try {
         unlinkSync(systemPromptPath);
@@ -147,6 +150,8 @@ export async function createTerminalSession(
     });
 
     proc.on("exit", (code) => {
+      if (resolved) return;
+      resolved = true;
       if (code !== 0) {
         logger.error(
           { code, projectId },
