@@ -90,6 +90,7 @@ export async function createWorktree(
     branch_name: branchName,
     worktree_path: worktreePath,
     base_branch: baseBranch,
+    repo_id: repo.id,
   });
 
   return { path: worktreePath, branchName };
