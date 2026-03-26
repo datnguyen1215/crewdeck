@@ -15,6 +15,35 @@ import { getCrewMember } from "../crew.js";
 import { spawnAgent, spawnScan, postSystemComment } from "../spawner.js";
 import { IssueStatus, PRStatus } from "../../constants/statuses.js";
 
+/** Standard UUID length (32 hex + 4 hyphens) */
+const UUID_LENGTH = 36;
+
+/**
+ * Resolve a potentially truncated issue ID to a full UUID.
+ * If the ID is already a full UUID or found by exact match, returns it as-is.
+ * If it looks like a prefix (shorter than a full UUID), tries prefix matching
+ * scoped to the project. Returns null if not found or ambiguous.
+ */
+function resolveIssueId(issueId: string, projectId: string): string | null {
+  // Try exact match first
+  const exact = issueRepo.getIssue(issueId);
+  if (exact) return exact.id;
+
+  // If it looks like a truncated ID, try prefix match
+  if (issueId.length < UUID_LENGTH && issueId.length >= 8) {
+    const match = issueRepo.getIssueByPrefix(issueId, projectId);
+    if (match) {
+      logger.info(
+        { prefix: issueId, resolved: match.id },
+        "Resolved truncated issue ID",
+      );
+      return match.id;
+    }
+  }
+
+  return null;
+}
+
 const GITHUB_HEADERS = {
   Accept: "application/vnd.github.v3+json",
   "User-Agent": "crewdeck",
@@ -112,6 +141,15 @@ export const handleMergePR = async (
   projectId: string,
   input: { issue_id: string },
 ): Promise<ToolResult> => {
+  // Resolve potentially truncated issue ID
+  const issueId = resolveIssueId(input.issue_id, projectId);
+  if (!issueId) {
+    return {
+      success: false,
+      message: `Issue not found for ID "${input.issue_id}"`,
+    };
+  }
+
   const project = getProject(projectId);
   if (!project) return { success: false, message: "Project not found" };
 
@@ -127,7 +165,7 @@ export const handleMergePR = async (
   const account = getGitHubAccount(project.github_account_id);
   if (!account) return { success: false, message: "GitHub account not found" };
 
-  const issue = issueRepo.getIssue(input.issue_id);
+  const issue = issueRepo.getIssue(issueId);
   if (!issue) return { success: false, message: "Issue not found" };
 
   if (issue.project_id !== projectId)
@@ -199,6 +237,15 @@ export const handleCreatePR = async (
   projectId: string,
   input: { issue_id: string },
 ): Promise<ToolResult> => {
+  // Resolve potentially truncated issue ID
+  const issueId = resolveIssueId(input.issue_id, projectId);
+  if (!issueId) {
+    return {
+      success: false,
+      message: `Issue not found for ID "${input.issue_id}"`,
+    };
+  }
+
   const project = getProject(projectId);
   if (!project) return { success: false, message: "Project not found" };
 
@@ -208,7 +255,7 @@ export const handleCreatePR = async (
   const account = getGitHubAccount(project.github_account_id);
   if (!account) return { success: false, message: "GitHub account not found" };
 
-  const issue = issueRepo.getIssue(input.issue_id);
+  const issue = issueRepo.getIssue(issueId);
   if (!issue) return { success: false, message: "Issue not found" };
 
   if (issue.project_id !== projectId)
@@ -332,6 +379,15 @@ export const handleDispatchAgent = async (
   projectId: string,
   input: { issue_id: string; agent_id: string; instructions?: string },
 ): Promise<ToolResult> => {
+  // Resolve potentially truncated issue ID
+  const issueId = resolveIssueId(input.issue_id, projectId);
+  if (!issueId) {
+    return {
+      success: false,
+      message: `Issue not found for ID "${input.issue_id}"`,
+    };
+  }
+
   if (!isDispatchableAgent(input.agent_id)) {
     return {
       success: false,
@@ -343,7 +399,7 @@ export const handleDispatchAgent = async (
   if (!agent)
     return { success: false, message: `Agent "${input.agent_id}" not found` };
 
-  const issue = issueRepo.getIssue(input.issue_id);
+  const issue = issueRepo.getIssue(issueId);
   if (!issue) return { success: false, message: "Issue not found" };
 
   if (issue.project_id !== projectId)
