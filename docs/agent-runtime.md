@@ -184,6 +184,9 @@ comment.added event
     │       ├── check active process count < max_concurrency
     │       │       └── if limit reached: enqueue dispatch, post "Agent X queued (N ahead)"
     │       │               system comment, emit dispatch.queued — skip remaining steps
+    │       ├── guard against merged PRs: if issue status is 'done', check issue_prs table
+    │       │       └── if merged PR found: rollback chain_depth, post "Dispatch rejected: issue
+    │       │               already has a merged PR (#NNN)" system comment, return early
     │       ├── regress issue status to in_progress if needed (from any PR-related status or done)
     │       ├── create worktree if needed
     │       ├── build prompt from issue + comments + agentId
