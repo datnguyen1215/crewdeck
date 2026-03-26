@@ -37,8 +37,6 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
     "--output-format",
     "json",
     "--dangerously-skip-permissions",
-    "--settings",
-    JSON.stringify({ attribution: { commit: "", pr: "" } }),
   ];
   if (opts.model) args.push("--model", opts.model);
 
@@ -138,8 +136,6 @@ export async function spawnClaudeStream(
     "--output-format",
     "stream-json",
     "--dangerously-skip-permissions",
-    "--settings",
-    JSON.stringify({ attribution: { commit: "", pr: "" } }),
   ];
   if (opts.model) args.push("--model", opts.model);
 
@@ -277,8 +273,6 @@ export async function spawnClaudeMultimodal(
     "--output-format",
     "json",
     "--dangerously-skip-permissions",
-    "--settings",
-    JSON.stringify({ attribution: { commit: "", pr: "" } }),
   ];
   if (opts.model) args.push("--model", opts.model);
 

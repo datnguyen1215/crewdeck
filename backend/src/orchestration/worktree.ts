@@ -1,5 +1,6 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
+import fs from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { updateIssue } from "../db/repositories/issues.js";
@@ -85,6 +86,14 @@ export async function createWorktree(
       `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
     );
   }
+
+  // Inject Claude Code settings to disable AI attribution in commits/PRs
+  const claudeDir = join(worktreePath, ".claude");
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(
+    join(claudeDir, "settings.json"),
+    JSON.stringify({ attribution: { commit: "", pr: "" } }),
+  );
 
   updateIssue(issue.id, {
     branch_name: branchName,
