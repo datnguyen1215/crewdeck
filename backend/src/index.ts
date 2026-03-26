@@ -8,6 +8,8 @@ import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { setupTerminalWs, shutdownTerminalWs } from "./terminal-ws.js";
 import { initOrchestrator } from "./orchestrator/index.js";
+import { initActivityLogger } from "./events/activity-logger.js";
+import { initWorktreeCleanup } from "./events/worktree-cleanup.js";
 import { createApp } from "./app.js";
 
 const app = createApp({ corsOrigin: config.corsOrigin });
@@ -19,6 +21,8 @@ async function main(): Promise<void> {
   // races between orphan cleanup, process monitoring, and incoming requests.
   await cleanupOrphans();
   processMonitor.start();
+  initActivityLogger();
+  initWorktreeCleanup();
   const orchestrator = initOrchestrator(claudeCodeAdapter);
   // Start captain sessions for all projects in the background
   orchestrator.startAllCaptains().catch((err) => {
