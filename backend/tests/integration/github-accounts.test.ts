@@ -10,6 +10,20 @@ vi.mock("../../src/db/repositories/repos.js", async (importOriginal) => {
   return { ...actual, ensureCloned: vi.fn() };
 });
 
+// Mock VCS provider to avoid real GitHub API calls
+vi.mock("../../src/vcs/github/client.js", () => ({
+  GitHubClient: class {
+    parseRepoUrl(url: string) {
+      const match = url.match(/github\.com[/:]([\w-]+)\/([\w-]+)/);
+      if (!match) throw new Error("Invalid GitHub URL");
+      return { owner: match[1], name: match[2] };
+    }
+    async fetchRepoMetadata() {
+      return { name: "repo", description: "test repo", default_branch: "main" };
+    }
+  },
+}));
+
 const BASE = "/api/v1/github-accounts";
 
 const validAccount = {

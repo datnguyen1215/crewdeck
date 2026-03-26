@@ -7,31 +7,21 @@ import { toContainerPath } from "../../utils/paths.js";
 import { createGitSshEnv, cleanupSshKey } from "../../utils/git-auth.js";
 import type { Repo, CreateRepoInput } from "../../types/entities.js";
 import { ValidationError } from "../../middleware/errors.js";
+import { parseRepoUrl, getProvider } from "../../vcs/registry.js";
 
-function validateSegments(url: string, owner: string, name: string) {
-  if (
-    !/^[\w.-]+$/.test(owner) ||
-    !/^[\w.-]+$/.test(name) ||
-    owner === ".." ||
-    name === ".."
-  )
-    throw new ValidationError(`Cannot parse GitHub URL: ${url}`);
-  return { owner, name };
-}
-
+/** Parse GitHub URL (deprecated - use parseRepoUrl from vcs/registry) */
 export function parseGithubUrl(url: string): { owner: string; name: string } {
-  // https://github.com/owner/repo or https://github.com/owner/repo.git
-  const httpsMatch = url.match(/github\.com\/([^/]+)\/([^/.]+)/);
-  if (httpsMatch) return validateSegments(url, httpsMatch[1], httpsMatch[2]);
-  // git@github.com:owner/repo.git
-  const sshMatch = url.match(/github\.com:([^/]+)\/([^/.]+)/);
-  if (sshMatch) return validateSegments(url, sshMatch[1], sshMatch[2]);
-  throw new ValidationError(`Cannot parse GitHub URL: ${url}`);
+  const parsed = parseRepoUrl(url);
+  if (parsed.provider !== "github") {
+    throw new ValidationError(`Expected GitHub URL, got ${parsed.provider}`);
+  }
+  return { owner: parsed.owner, name: parsed.name };
 }
 
-// Safe to hardcode github.com — parseGithubUrl already validates hostname
+/** Convert owner/name to SSH URL (deprecated - use VCS provider directly) */
 export function toSshUrl(owner: string, name: string): string {
-  return `git@github.com:${owner}/${name}.git`;
+  const client = getProvider("github");
+  return client.toSshUrl(owner, name);
 }
 
 function cloneIfNeeded(

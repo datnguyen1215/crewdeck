@@ -1,7 +1,7 @@
 /**
- * PR URL detector: Subscribes to comment.added events and auto-links GitHub PRs.
+ * PR URL detector: Subscribes to comment.added events and auto-links VCS PRs.
  *
- * When a comment is posted containing a GitHub PR URL (e.g. https://github.com/owner/repo/pull/123),
+ * When a comment is posted containing a PR URL (e.g. https://github.com/owner/repo/pull/123),
  * this module creates an IssuePR record linking the PR to the issue.
  */
 import { eventBus } from "../events/bus.js";
@@ -13,32 +13,18 @@ import {
   getIssuePRByRepoAndNumber,
 } from "../db/repositories/issue-prs.js";
 import { logger } from "../logger.js";
+import { getAllProviders } from "../vcs/registry.js";
+import type { ParsedPRUrl } from "../vcs/types.js";
 
-// Regex to match GitHub PR URLs: https://github.com/owner/repo/pull/123
-const PR_URL_REGEX = /https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/g;
+export type ParsedPR = ParsedPRUrl;
 
-export interface ParsedPR {
-  owner: string;
-  name: string;
-  prNumber: number;
-  url: string;
-}
-
-/** Extract all GitHub PR URLs from text content. */
+/** Extract all PR URLs from text content using registered VCS providers. */
 export function parsePRUrls(content: string): ParsedPR[] {
   const results: ParsedPR[] = [];
-  let match;
 
-  // Reset regex state for each call
-  PR_URL_REGEX.lastIndex = 0;
-
-  while ((match = PR_URL_REGEX.exec(content)) !== null) {
-    results.push({
-      owner: match[1],
-      name: match[2],
-      prNumber: parseInt(match[3], 10),
-      url: match[0],
-    });
+  // Try all registered VCS providers
+  for (const client of getAllProviders()) {
+    results.push(...client.parsePRUrls(content));
   }
 
   return results;

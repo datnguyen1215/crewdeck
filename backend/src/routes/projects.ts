@@ -8,9 +8,8 @@ import {
   deleteProject,
 } from "../db/repositories/projects.js";
 import { getGitHubAccount } from "../db/repositories/github-accounts.js";
-import { parseGithubUrl } from "../db/repositories/repos.js";
 import { getLatestLibrarianRun } from "../db/repositories/agent-runs.js";
-import { fetchRepoMetadata } from "../github/repo-metadata.js";
+import { parseRepoUrl, getProvider } from "../vcs/registry.js";
 import { validate } from "../middleware/validate.js";
 import { NotFoundError } from "../middleware/errors.js";
 import {
@@ -38,16 +37,17 @@ router.get("/:id", (req, res) => {
 router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
   try {
     const body = req.body;
-    const { owner, name: repoName } = parseGithubUrl(body.github_url);
+    const { provider, owner, name: repoName } = parseRepoUrl(body.github_url);
 
-    // Fetch metadata from GitHub API
+    // Fetch metadata from VCS provider
+    const vcsClient = getProvider(provider);
     const token = body.github_account_id
       ? getGitHubAccount(body.github_account_id)?.gh_token
       : undefined;
 
     let metadata;
     try {
-      metadata = await fetchRepoMetadata(owner, repoName, token);
+      metadata = await vcsClient.fetchRepoMetadata({ owner, name: repoName, token });
     } catch (err) {
       // If a GitHub account was explicitly selected, surface the error —
       // the user likely expects private repo access and should know it failed.
