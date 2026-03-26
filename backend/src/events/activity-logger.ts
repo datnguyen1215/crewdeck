@@ -1,15 +1,15 @@
 import { randomUUID } from "crypto";
 import { db } from "../db/index.js";
-import { getSession } from "../db/repositories/sessions.js";
 import { eventBus } from "./bus.js";
 
-// Exhaustive set of actor types written to the audit log.
-// Any value outside this set is clamped to "unknown" to prevent callers
-// from writing arbitrary strings into actor_type (e.g. via issue.created_by).
-const VALID_ACTOR_TYPES = new Set(["user", "agent", "orchestrator", "system", "captain"]);
+const BASE_ACTOR_TYPES = new Set(["user", "system"]);
 
-function sanitizeActorType(value: string): string {
-  return VALID_ACTOR_TYPES.has(value) ? value : "unknown";
+function deriveActorType(authorType: string): { type: string; id: string | null } {
+  if (BASE_ACTOR_TYPES.has(authorType)) {
+    return { type: authorType, id: null };
+  }
+  // For agents, author_type is the agent ID (captain, engineer, etc.)
+  return { type: "agent", id: authorType };
 }
 
 const insert = db.prepare(`
@@ -32,73 +32,46 @@ function log(entry: {
     entry.actor_type,
     entry.actor_id ?? null,
     entry.action,
-    entry.details != null ? JSON.stringify(entry.details) : null
+    entry.details != null ? JSON.stringify(entry.details) : null,
   );
 }
 
 export function initActivityLogger(): void {
   eventBus.on("issue.created", ({ issue }) => {
+    const actor = deriveActorType(issue.created_by);
     log({
       project_id: issue.project_id,
       issue_id: issue.id,
-      actor_type: sanitizeActorType(issue.created_by),
+      actor_type: actor.type,
+      actor_id: actor.id,
       action: "issue.created",
       details: { title: issue.title },
     });
   });
 
-  eventBus.on("issue.status_changed", ({ project_id, issue_id, from, to }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "system",
-      action: "issue.status_changed",
-      details: { from, to },
-    });
-  });
-
-  eventBus.on("issue.assigned", ({ project_id, issue_id, agent_id, agent_name }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "orchestrator",
-      action: "agent.assigned",
-      details: { agent_id, agent_name },
-    });
-  });
+  eventBus.on(
+    "issue.status_changed",
+    ({ project_id, issue_id, from, to, actor_type, actor_id }) => {
+      log({
+        project_id,
+        issue_id,
+        actor_type: actor_type ?? "system",
+        actor_id,
+        action: "issue.status_changed",
+        details: { from, to },
+      });
+    },
+  );
 
   eventBus.on("comment.added", ({ comment, project_id }) => {
+    const actor = deriveActorType(comment.author_type);
     log({
       project_id,
       issue_id: comment.issue_id,
-      actor_type: sanitizeActorType(comment.author_type),
-      actor_id: comment.author_id,
+      actor_type: actor.type,
+      actor_id: actor.id,
       action: "comment.added",
       details: { content_preview: comment.content.slice(0, 200) },
-    });
-  });
-
-  eventBus.on("session.started", ({ project_id, issue_id, agent_id, tmux_session_name }) => {
-    // tmux_session_name is an internal identifier, but we log it here intentionally for
-    // session correlation in debugging (it ties an ActivityLog entry to a specific Session row).
-    // It is not secret and already stored in the Session table.
-    log({
-      project_id,
-      issue_id,
-      actor_type: "system",
-      action: "session.started",
-      details: { agent_id, tmux_session_name },
-    });
-  });
-
-  eventBus.on("session.ended", ({ session_id, project_id, status }) => {
-    const session = getSession(session_id);
-    log({
-      project_id,
-      issue_id: session?.issue_id ?? null,
-      actor_type: "system",
-      action: "session.ended",
-      details: { status },
     });
   });
 
@@ -112,64 +85,58 @@ export function initActivityLogger(): void {
     });
   });
 
-  eventBus.on("orchestrator.decision", ({ project_id, action, details, reasoning, issue_id, agent_id }) => {
-    const params = details as Record<string, unknown> | undefined;
-    log({
-      project_id,
-      issue_id: issue_id ?? null,
-      actor_type: "captain",
-      action: "captain.decision",
-      details: {
-        action,
-        reasoning,
-        agent_id,
-        reviewer_agent_id: params?.reviewer_agent_id,
-        message: params?.message,
-      },
-    });
-  });
-
-  eventBus.on("review.completed", ({ project_id, issue_id, agent_id, verdict }) => {
+  eventBus.on("mention.spawned", ({ project_id, issue_id, agent_id, pid }) => {
     log({
       project_id,
       issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
-      action: "review.completed",
-      details: { verdict },
+      actor_type: "system",
+      action: "mention.spawned",
+      details: { agent_id, pid },
     });
   });
 
-  eventBus.on("agent.finished", ({ project_id, issue_id, agent_id, role }) => {
+  eventBus.on(
+    "mention.completed",
+    ({ project_id, issue_id, agent_id, exit_code }) => {
+      log({
+        project_id,
+        issue_id,
+        actor_type: "system",
+        action: "mention.completed",
+        details: { agent_id, exit_code },
+      });
+    },
+  );
+
+  eventBus.on(
+    "dispatch.queued",
+    ({ project_id, issue_id, agent_id, position }) => {
+      log({
+        project_id,
+        issue_id,
+        actor_type: "system",
+        action: "agent.queued",
+        details: { agent_id, position },
+      });
+    },
+  );
+
+  eventBus.on("dispatch.dequeued", ({ project_id, issue_id, agent_id }) => {
     log({
       project_id,
       issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
-      action: "agent.finished",
-      details: { role },
+      actor_type: "system",
+      action: "agent.dequeued",
+      details: { agent_id },
     });
   });
 
-  eventBus.on("agent.error", ({ project_id, issue_id, agent_id, message }) => {
+  eventBus.on("project.settings_changed", ({ project_id, changes }) => {
     log({
       project_id,
-      issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
-      action: "agent.error",
-      details: { message },
-    });
-  });
-
-  eventBus.on("agent.needs_help", ({ project_id, issue_id, agent_id, message }) => {
-    log({
-      project_id,
-      issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
-      action: "agent.needs_help",
-      details: { message },
+      actor_type: "user",
+      action: "project.settings_changed",
+      details: { changes },
     });
   });
 }

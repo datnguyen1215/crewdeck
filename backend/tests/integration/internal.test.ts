@@ -1,21 +1,15 @@
-import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { getApp } from "./setup.js";
-import { eventBus } from "../../src/events/bus.js";
-import {
-  createSession,
-  getSession,
-} from "../../src/db/repositories/sessions.js";
 
 const BASE = "/api/v1/internal";
 const FAKE_ID = "00000000-0000-0000-0000-000000000000";
 
 let app: Express;
 let projectId: string;
-let agentId: string;
+const agentId = "engineer"; // fixed crew member
 let issueId: string;
-let sessionId: string;
 
 beforeAll(async () => {
   app = await getApp();
@@ -23,16 +17,12 @@ beforeAll(async () => {
   // Create project
   const projRes = await request(app)
     .post("/api/v1/projects")
-    .send({ name: `internal-test-${Date.now()}`, github_url: "https://github.com/test/repo" });
+    .send({
+      name: `internal-test-${Date.now()}`,
+      github_url: "https://github.com/test/repo",
+    });
   expect(projRes.status).toBe(201);
   projectId = projRes.body.id;
-
-  // Create agent
-  const agentRes = await request(app)
-    .post(`/api/v1/projects/${projectId}/crew/agents`)
-    .send({ name: "Test Agent", title: "developer", system_prompt: "test" });
-  expect(agentRes.status).toBe(201);
-  agentId = agentRes.body.id;
 
   // Create issue
   const issueRes = await request(app)
@@ -40,141 +30,6 @@ beforeAll(async () => {
     .send({ title: "Test Issue", description: "for internal tests" });
   expect(issueRes.status).toBe(201);
   issueId = issueRes.body.id;
-
-  // Create session directly via DB (no POST route exists)
-  const session = createSession({
-    project_id: projectId,
-    session_type: "agent",
-    agent_id: agentId,
-    issue_id: issueId,
-    status: "running",
-  });
-  sessionId = session.id;
-});
-
-describe("POST /api/v1/internal/signal", () => {
-  it("work-complete emits agent.finished and returns 200", async () => {
-    const handler = vi.fn();
-    eventBus.on("agent.finished", handler);
-
-    const res = await request(app).post(`${BASE}/signal`).send({
-      session_id: sessionId,
-      agent_id: agentId,
-      issue_id: issueId,
-      project_id: projectId,
-      event: "work-complete",
-    });
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        session_id: sessionId,
-        agent_id: agentId,
-        issue_id: issueId,
-        project_id: projectId,
-        role: "worker",
-      }),
-    );
-
-    eventBus.off("agent.finished", handler);
-  });
-
-  it("review-complete with verdict emits review.completed", async () => {
-    const handler = vi.fn();
-    eventBus.on("review.completed", handler);
-
-    const res = await request(app)
-      .post(`${BASE}/signal`)
-      .send({
-        session_id: sessionId,
-        agent_id: agentId,
-        issue_id: issueId,
-        project_id: projectId,
-        event: "review-complete",
-        data: { verdict: "approved" },
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({ verdict: "approved" }),
-    );
-
-    eventBus.off("review.completed", handler);
-  });
-
-  it("review-complete without verdict returns 400", async () => {
-    const res = await request(app).post(`${BASE}/signal`).send({
-      session_id: sessionId,
-      agent_id: agentId,
-      issue_id: issueId,
-      project_id: projectId,
-      event: "review-complete",
-    });
-
-    expect(res.status).toBe(400);
-  });
-
-  it("error signal emits agent.error", async () => {
-    const handler = vi.fn();
-    eventBus.on("agent.error", handler);
-
-    const res = await request(app)
-      .post(`${BASE}/signal`)
-      .send({
-        session_id: sessionId,
-        agent_id: agentId,
-        issue_id: issueId,
-        project_id: projectId,
-        event: "error",
-        data: { message: "something broke" },
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "something broke" }),
-    );
-
-    eventBus.off("agent.error", handler);
-  });
-
-  it("needs-help signal emits agent.needs_help", async () => {
-    const handler = vi.fn();
-    eventBus.on("agent.needs_help", handler);
-
-    const res = await request(app)
-      .post(`${BASE}/signal`)
-      .send({
-        session_id: sessionId,
-        agent_id: agentId,
-        issue_id: issueId,
-        project_id: projectId,
-        event: "needs-help",
-        data: { message: "stuck on tests" },
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "stuck on tests" }),
-    );
-
-    eventBus.off("agent.needs_help", handler);
-  });
-
-  it("returns 404 for non-existent agent", async () => {
-    const res = await request(app).post(`${BASE}/signal`).send({
-      session_id: sessionId,
-      agent_id: FAKE_ID,
-      issue_id: issueId,
-      project_id: projectId,
-      event: "work-complete",
-    });
-
-    expect(res.status).toBe(404);
-  });
 });
 
 describe("POST /api/v1/internal/comment", () => {
@@ -187,9 +42,8 @@ describe("POST /api/v1/internal/comment", () => {
     });
 
     expect(res.status).toBe(201);
-    expect(res.body.author_type).toBe("agent");
+    expect(res.body.author_type).toBe(agentId);
     expect(res.body.content).toBe("Agent comment here");
-    expect(res.body.author_id).toBe(agentId);
   });
 
   it("validates issue exists and belongs to project", async () => {
@@ -213,121 +67,149 @@ describe("POST /api/v1/internal/comment", () => {
   });
 });
 
-describe("POST /api/v1/internal/status", () => {
-  it("updates agent status and emits event", async () => {
-    const handler = vi.fn();
-    eventBus.on("agent.status_changed", handler);
-
-    const res = await request(app).post(`${BASE}/status`).send({
-      agent_id: agentId,
-      issue_id: issueId,
+describe("POST /api/v1/internal/issues/create", () => {
+  it("creates issue with created_by agent", async () => {
+    const res = await request(app).post(`${BASE}/issues/create`).send({
       project_id: projectId,
-      state: "active",
+      title: "Agent-created issue",
+      description: "Created via internal API",
     });
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agent_id: agentId,
-        state: "active",
-      }),
-    );
-
-    eventBus.off("agent.status_changed", handler);
-  });
-
-  it("returns 404 for non-existent agent", async () => {
-    const res = await request(app).post(`${BASE}/status`).send({
-      agent_id: FAKE_ID,
-      issue_id: issueId,
-      project_id: projectId,
-      state: "active",
-    });
-
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(201);
+    expect(res.body.created_by).toBe("agent");
+    expect(res.body.title).toBe("Agent-created issue");
   });
 
   it("validates required fields", async () => {
-    const res = await request(app)
-      .post(`${BASE}/status`)
-      .send({ agent_id: agentId });
+    const res = await request(app).post(`${BASE}/issues/create`).send({
+      project_id: projectId,
+    });
 
     expect(res.status).toBe(400);
   });
 });
 
-describe("POST /api/v1/internal/files", () => {
-  let filesSessionId: string;
-
-  beforeEach(() => {
-    const session = createSession({
+describe("POST /api/v1/internal/create-pr", () => {
+  it("creates IssuePR record and returns 201", async () => {
+    const prUrl = "https://github.com/test/repo/pull/42";
+    const res = await request(app).post(`${BASE}/create-pr`).send({
       project_id: projectId,
-      session_type: "agent",
-      agent_id: agentId,
       issue_id: issueId,
-      status: "running",
+      pr_url: prUrl,
     });
-    filesSessionId = session.id;
+
+    expect(res.status).toBe(201);
+    expect(res.body.pr_number).toBe(42);
+    expect(res.body.pr_url).toBe(prUrl);
+    expect(res.body.status).toBe("open");
+    expect(res.body.issue_id).toBe(issueId);
   });
 
-  it("sets modified files in session context", async () => {
-    const res = await request(app)
-      .post(`${BASE}/files`)
-      .send({
-        session_id: filesSessionId,
-        modified: ["src/index.ts", "src/app.ts"],
-      });
+  it("returns existing record on duplicate (idempotent)", async () => {
+    const prUrl = "https://github.com/test/repo/pull/42";
+    const res = await request(app).post(`${BASE}/create-pr`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      pr_url: prUrl,
+    });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-
-    // Verify the session was updated in the DB
-    const session = getSession(filesSessionId);
-    expect(session).not.toBeNull();
-    const ctx = session!.context as Record<string, unknown>;
-    expect(ctx.modified_files).toEqual(["src/index.ts", "src/app.ts"]);
+    expect(res.body.pr_number).toBe(42);
   });
 
-  it("returns 404 for non-existent session", async () => {
-    const res = await request(app)
-      .post(`${BASE}/files`)
-      .send({
-        session_id: FAKE_ID,
-        modified: ["file.ts"],
-      });
+  it("returns 404 for non-existent issue", async () => {
+    const res = await request(app).post(`${BASE}/create-pr`).send({
+      project_id: projectId,
+      issue_id: FAKE_ID,
+      pr_url: "https://github.com/test/repo/pull/99",
+    });
 
     expect(res.status).toBe(404);
   });
 
-  it("rejects empty array with 400", async () => {
-    const res = await request(app).post(`${BASE}/files`).send({
-      session_id: filesSessionId,
-      modified: [],
+  it("returns 400 for invalid PR URL", async () => {
+    const res = await request(app).post(`${BASE}/create-pr`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      pr_url: "not-a-valid-url",
     });
 
     expect(res.status).toBe(400);
   });
 
-  it("rejects array exceeding 500 items with 400", async () => {
-    const tooMany = Array.from({ length: 501 }, (_, i) => `file-${i}.ts`);
-    const res = await request(app).post(`${BASE}/files`).send({
-      session_id: filesSessionId,
-      modified: tooMany,
+  it("returns 400 for PR URL not matching project repo", async () => {
+    const res = await request(app).post(`${BASE}/create-pr`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      pr_url: "https://github.com/other/nonexistent/pull/1",
+    });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/v1/internal/captain/dispatch-agent", () => {
+  it("rejects captain agent_id", async () => {
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      agent_id: "captain",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("Invalid agent_id");
+  });
+
+  it("rejects unknown agent_id", async () => {
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
+      project_id: projectId,
+      issue_id: issueId,
+      agent_id: "nonexistent",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("Invalid agent_id");
+  });
+
+  it("returns 400 for missing agent_id", async () => {
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
+      project_id: projectId,
+      issue_id: issueId,
     });
 
     expect(res.status).toBe(400);
   });
 
-  it("rejects paths exceeding 500 chars with 400", async () => {
-    const longPath = "a".repeat(501);
-    const res = await request(app)
-      .post(`${BASE}/files`)
-      .send({
-        session_id: filesSessionId,
-        modified: [longPath],
-      });
+  it("returns 400 for missing issue_id", async () => {
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
+      project_id: projectId,
+      agent_id: "engineer",
+    });
 
     expect(res.status).toBe(400);
+  });
+
+  it("returns 404 for non-existent project", async () => {
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
+      project_id: FAKE_ID,
+      issue_id: issueId,
+      agent_id: "engineer",
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns error for non-existent issue", async () => {
+    const res = await request(app).post(`${BASE}/captain/dispatch-agent`).send({
+      project_id: projectId,
+      issue_id: FAKE_ID,
+      agent_id: "engineer",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("Issue not found");
   });
 });

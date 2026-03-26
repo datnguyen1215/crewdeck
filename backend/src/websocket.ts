@@ -3,33 +3,37 @@ import type { IncomingMessage } from "http";
 import type { Server } from "http";
 import type { EventBus } from "./events/bus.js";
 import { getProject } from "./db/repositories/projects.js";
+import { getIssue } from "./db/repositories/issues.js";
+import { getCrewMember } from "./orchestration/crew.js";
 import { logger } from "./logger.js";
 
 const PING_INTERVAL = 30_000;
 const PONG_TIMEOUT = 10_000;
 
-// projectId → connected clients
-export const subscribers = new Map<string, Set<WebSocket>>();
+const subscribers = new Map<string, Set<WebSocket>>();
 
-// Interval handle so we can clear it on shutdown
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-export function addSubscriber(projectId: string, ws: WebSocket): void {
+function addSubscriber(projectId: string, ws: WebSocket): void {
   if (!subscribers.has(projectId)) subscribers.set(projectId, new Set());
   subscribers.get(projectId)!.add(ws);
 }
 
-export function removeSubscriber(projectId: string, ws: WebSocket): void {
+function removeSubscriber(projectId: string, ws: WebSocket): void {
   const clients = subscribers.get(projectId);
   if (!clients) return;
   clients.delete(ws);
   if (clients.size === 0) subscribers.delete(projectId);
 }
 
-export function broadcast(projectId: string, event: string, data: unknown): void {
+function broadcast(projectId: string, event: string, data: unknown): void {
   const clients = subscribers.get(projectId);
   if (!clients?.size) return;
-  const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
+  const message = JSON.stringify({
+    event,
+    data,
+    timestamp: new Date().toISOString(),
+  });
   for (const ws of [...clients]) {
     if (ws.readyState !== WebSocket.OPEN) continue;
     try {
@@ -41,67 +45,208 @@ export function broadcast(projectId: string, event: string, data: unknown): void
   }
 }
 
-export function subscribeEvents(bus: EventBus): void {
+function subscribeEvents(bus: EventBus): void {
   bus.on("issue.created", ({ issue }) =>
-    broadcast(issue.project_id, "issue.created", issue));
+    broadcast(issue.project_id, "issue.created", issue),
+  );
 
   bus.on("issue.updated", ({ issue_id, project_id, changes }) =>
-    broadcast(project_id, "issue.updated", { issue_id, changes }));
-
-  bus.on("issue.approved", ({ issue }) =>
-    broadcast(issue.project_id, "issue.approved", issue));
+    broadcast(project_id, "issue.updated", { issue_id, changes }),
+  );
 
   bus.on("issue.status_changed", ({ issue_id, project_id, from, to }) =>
-    broadcast(project_id, "issue.status_changed", { issue_id, from, to }));
-
-  bus.on("issue.assigned", ({ issue_id, project_id, agent_id, agent_name }) =>
-    broadcast(project_id, "issue.assigned", { issue_id, agent_id, agent_name }));
+    broadcast(project_id, "issue.status_changed", { issue_id, from, to }),
+  );
 
   bus.on("comment.added", ({ comment, project_id }) =>
-    broadcast(project_id, "comment.added", comment));
+    broadcast(project_id, "comment.added", comment),
+  );
 
   bus.on("comment.updated", ({ comment, project_id }) =>
-    broadcast(project_id, "comment.updated", comment));
+    broadcast(project_id, "comment.updated", comment),
+  );
 
   bus.on("comment.deleted", ({ comment_id, issue_id, project_id }) =>
-    broadcast(project_id, "comment.deleted", { comment_id, issue_id }));
+    broadcast(project_id, "comment.deleted", { comment_id, issue_id }),
+  );
 
-  bus.on("session.started", ({ session_id, agent_id, issue_id, project_id, tmux_session_name }) =>
-    broadcast(project_id, "session.started", { session_id, agent_id, issue_id, tmux_session_name }));
-
-  bus.on("session.ended", ({ session_id, project_id, status }) => {
-    broadcast(project_id, "session.ended", { session_id, status });
+  bus.on("pr.created", ({ issue_pr, project_id }) => {
+    const issue = getIssue(issue_pr.issue_id);
+    broadcast(project_id, "pr.created", {
+      ...issue_pr,
+      issue_title: issue?.title,
+    });
   });
 
-  bus.on("agent.finished", ({ session_id, agent_id, issue_id, project_id, role }) =>
-    broadcast(project_id, "agent.finished", { session_id, agent_id, issue_id, role }));
-
-  bus.on("agent.status_changed", ({ agent_id, issue_id, project_id, state }) =>
-    broadcast(project_id, "agent.status_changed", { agent_id, issue_id, state }));
-
-  bus.on("agent.error", ({ session_id, agent_id, issue_id, project_id, message }) =>
-    broadcast(project_id, "agent.error", { session_id, agent_id, issue_id, message }));
-
-  bus.on("agent.needs_help", ({ session_id, agent_id, issue_id, project_id, message }) =>
-    broadcast(project_id, "agent.needs_help", { session_id, agent_id, issue_id, message }));
-
-  bus.on("review.completed", ({ session_id, issue_id, agent_id, project_id, verdict }) =>
-    broadcast(project_id, "review.completed", { session_id, issue_id, agent_id, verdict }));
-
-  bus.on("pr.created", ({ issue_pr, project_id }) =>
-    broadcast(project_id, "pr.created", issue_pr));
-
   bus.on("pr.status_changed", ({ pr_id, project_id, from, to }) =>
-    broadcast(project_id, "pr.status_changed", { pr_id, from, to }));
+    broadcast(project_id, "pr.status_changed", { pr_id, from, to }),
+  );
 
-  bus.on("orchestrator.decision", ({ project_id, action, details }) =>
-    broadcast(project_id, "orchestrator.decision", { action, details }));
+  bus.on("mention.spawned", ({ project_id, issue_id, agent_id, pid }) => {
+    const agent = getCrewMember(agent_id);
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "mention.spawned", {
+      issue_id,
+      agent_id,
+      agent_name: agent?.name,
+      issue_title: issue?.title,
+      pid,
+    });
+  });
 
-  bus.on("orchestrator.draft_issue", ({ issue, project_id }) =>
-    broadcast(project_id, "orchestrator.draft_issue", issue));
+  bus.on(
+    "mention.completed",
+    ({ project_id, issue_id, agent_id, exit_code }) => {
+      const agent = getCrewMember(agent_id);
+      const issue = issue_id ? getIssue(issue_id) : null;
+      broadcast(project_id, "mention.completed", {
+        issue_id,
+        agent_id,
+        agent_name: agent?.name,
+        issue_title: issue?.title,
+        exit_code,
+      });
+    },
+  );
 
-  bus.on("captain.message", ({ message, project_id }) =>
-    broadcast(project_id, "captain.message", message));
+  bus.on("mention.error", ({ project_id, issue_id, agent_id, message }) => {
+    const agent = getCrewMember(agent_id);
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "mention.error", {
+      issue_id,
+      agent_id,
+      agent_name: agent?.name,
+      issue_title: issue?.title,
+      message,
+    });
+  });
+
+  bus.on("mention.chain_depth_reached", ({ project_id, issue_id }) => {
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "mention.chain_depth_reached", {
+      issue_id,
+      issue_title: issue?.title,
+    });
+  });
+
+  bus.on("dispatch.queued", ({ project_id, issue_id, agent_id, position }) => {
+    const agent = getCrewMember(agent_id);
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "dispatch.queued", {
+      issue_id,
+      agent_id,
+      agent_name: agent?.name,
+      issue_title: issue?.title,
+      position,
+    });
+  });
+
+  bus.on("dispatch.dequeued", ({ project_id, issue_id, agent_id }) => {
+    const agent = getCrewMember(agent_id);
+    const issue = getIssue(issue_id);
+    broadcast(project_id, "dispatch.dequeued", {
+      issue_id,
+      agent_id,
+      agent_name: agent?.name,
+      issue_title: issue?.title,
+    });
+  });
+
+  bus.on("run.started", ({ project_id, ...data }) =>
+    broadcast(project_id, "run.started", data),
+  );
+
+  bus.on("run.event", ({ project_id, ...data }) =>
+    broadcast(project_id, "run.event", data),
+  );
+
+  bus.on("run.completed", ({ project_id, ...data }) =>
+    broadcast(project_id, "run.completed", data),
+  );
+
+  // Captain chat events
+  bus.on("chat.stream", ({ project_id, token }) =>
+    broadcast(project_id, "chat.stream", { token }),
+  );
+
+  bus.on("chat.complete", ({ project_id, message_id }) =>
+    broadcast(project_id, "chat.complete", { message_id }),
+  );
+
+  // Captain chat events (interactive conversations)
+  bus.on("captain.thinking", ({ project_id }) =>
+    broadcast(project_id, "captain.thinking", {}),
+  );
+
+  bus.on("captain.message", ({ project_id, content }) =>
+    broadcast(project_id, "captain.message", { content }),
+  );
+
+  bus.on("captain.complete", ({ project_id }) =>
+    broadcast(project_id, "captain.complete", {}),
+  );
+
+  // Captain chat streaming events (granular)
+  bus.on("captain.chat.chunk", ({ project_id, session_id, text }) =>
+    broadcast(project_id, "captain.chat.chunk", { session_id, text }),
+  );
+
+  bus.on(
+    "captain.chat.tool_call",
+    ({ project_id, session_id, tool_name, tool_input }) =>
+      broadcast(project_id, "captain.chat.tool_call", {
+        session_id,
+        tool_name,
+        tool_input,
+      }),
+  );
+
+  bus.on(
+    "captain.chat.tool_result",
+    ({ project_id, session_id, tool_name, result }) =>
+      broadcast(project_id, "captain.chat.tool_result", {
+        session_id,
+        tool_name,
+        result,
+      }),
+  );
+
+  bus.on("captain.chat.complete", ({ project_id, session_id, message_id }) =>
+    broadcast(project_id, "captain.chat.complete", { session_id, message_id }),
+  );
+
+  // Monitor events (automated orchestration)
+  bus.on("monitor.event_received", ({ project_id, event_type, description }) =>
+    broadcast(project_id, "monitor.event_received", {
+      event_type,
+      description,
+    }),
+  );
+
+  bus.on("monitor.thinking", ({ project_id }) =>
+    broadcast(project_id, "monitor.thinking", {}),
+  );
+
+  bus.on("monitor.message", ({ project_id, content }) =>
+    broadcast(project_id, "monitor.message", { content }),
+  );
+
+  bus.on("monitor.tool_call", ({ project_id, tool_name, tool_input }) =>
+    broadcast(project_id, "monitor.tool_call", { tool_name, tool_input }),
+  );
+
+  bus.on("monitor.tool_result", ({ project_id, tool_name, result }) =>
+    broadcast(project_id, "monitor.tool_result", { tool_name, result }),
+  );
+
+  bus.on("monitor.complete", ({ project_id }) =>
+    broadcast(project_id, "monitor.complete", {}),
+  );
+
+  // Project settings changed
+  bus.on("project.settings_changed", ({ project_id, changes }) =>
+    broadcast(project_id, "project.settings_changed", { changes }),
+  );
 }
 
 interface ExtendedWebSocket extends WebSocket {
@@ -110,8 +255,7 @@ interface ExtendedWebSocket extends WebSocket {
 }
 
 export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
-  // TODO: add per-IP connection cap
-  const wss = new WebSocketServer({ server, path: "/ws" });
+  const wss = new WebSocketServer({ noServer: true });
 
   heartbeatInterval = setInterval(() => {
     for (const [projectId, clients] of subscribers) {
@@ -133,24 +277,19 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
 
   wss.on("connection", (socket, req: IncomingMessage) => {
     const ws = socket as ExtendedWebSocket;
-
     try {
       const url = new URL(req.url ?? "", "http://localhost");
       const projectId = url.searchParams.get("projectId");
-
       if (!projectId) {
         ws.close(4004, "Missing projectId");
         return;
       }
-
       const project = getProject(projectId);
       if (!project) {
         ws.close(4004, "Project not found");
         return;
       }
 
-      // No authentication — this is a local/self-hosted tool, not a public SaaS.
-      // Revisit if the app ever accepts connections from untrusted networks.
       ws.isAlive = true;
       addSubscriber(projectId, ws);
 
@@ -159,7 +298,6 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
         if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
       });
 
-      // Server-push only — client messages are ignored
       ws.on("close", () => {
         if (ws.pongTimeout) clearTimeout(ws.pongTimeout);
         removeSubscriber(projectId, ws);
@@ -177,7 +315,6 @@ export function setupWebSocket(server: Server, bus: EventBus): WebSocketServer {
   });
 
   subscribeEvents(bus);
-
   return wss;
 }
 
@@ -187,9 +324,7 @@ export function shutdownWebSocket(wss: WebSocketServer): void {
     heartbeatInterval = null;
   }
   for (const [, clients] of subscribers) {
-    for (const ws of clients) {
-      ws.close(1001, "Going Away");
-    }
+    for (const ws of clients) ws.close(1001, "Going Away");
   }
   subscribers.clear();
   wss.close();

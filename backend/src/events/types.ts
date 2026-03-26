@@ -1,80 +1,194 @@
-import type { CaptainMessage } from "../types/entities.js";
-
-// Issue, Comment, and IssuePR are redeclared here rather than imported from a shared types file
-// because no shared entity types module exists yet. Once one is added (e.g. src/types/entities.ts),
-// these should be replaced with imports or Pick<> aliases from that module to avoid drift.
-export interface Issue {
-  id: string;
-  project_id: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: number;
-  assigned_agent_id: string | null;
-  created_by: string;
-  max_review_rounds: number | null;
-  current_review_round: number;
-  branch_name: string | null;
-  worktree_path: string | null;
-  base_branch: string | null;
-  repo_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Comment {
-  id: string;
-  issue_id: string;
-  author_type: string;
-  author_id: string | null;
-  content: string;
-  created_at: string;
-}
-
-export interface IssuePR {
-  id: string;
-  issue_id: string;
-  repo_id: string;
-  pr_number: number;
-  pr_url: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
+import type {
+  Issue,
+  Comment,
+  IssuePR,
+  AgentRunStatus,
+  Project,
+} from "../types/entities.js";
 
 export interface EventMap {
   "issue.created": { issue: Issue };
-  "issue.updated": { issue_id: string; project_id: string; changes: Partial<Issue> };
-  "issue.approved": { issue: Issue };
-  "issue.status_changed": { issue_id: string; project_id: string; from: string; to: string };
-  "issue.assigned": { issue_id: string; project_id: string; agent_id: string; agent_name: string };
-  "comment.added": { comment: Comment; project_id: string };
-  "comment.updated": { comment: Comment; project_id: string };
-  "comment.deleted": { comment_id: string; issue_id: string; project_id: string };
-  "session.started": {
-    session_id: string;
-    agent_id?: string;
-    issue_id?: string;
-    project_id: string;
-    tmux_session_name: string;
-  };
-  "session.ended": { session_id: string; project_id: string; status: string };
-  "agent.finished": {
-    session_id: string;
-    agent_id: string;
+  "issue.updated": {
     issue_id: string;
     project_id: string;
-    role: string;
+    changes: Partial<Issue>;
   };
-  "agent.error": { session_id: string; agent_id: string; issue_id: string; project_id: string; message?: string };
-  "agent.needs_help": { session_id: string; agent_id: string; issue_id: string; project_id: string; message?: string };
-  "agent.status_changed": { agent_id: string; issue_id: string; project_id: string; state: string };
+  "issue.status_changed": {
+    issue_id: string;
+    project_id: string;
+    from: string;
+    to: string;
+    actor_type?: "user" | "agent" | "system";
+    actor_id?: string;
+  };
+  "comment.added": { comment: Comment; project_id: string };
+  "comment.updated": { comment: Comment; project_id: string };
+  "comment.deleted": {
+    comment_id: string;
+    issue_id: string;
+    project_id: string;
+  };
   "pr.created": { issue_pr: IssuePR; project_id: string };
-  "pr.status_changed": { pr_id: string; project_id: string; from: string; to: string };
-  "orchestrator.decision": { project_id: string; action: string; details: unknown; reasoning?: string; issue_id?: string; agent_id?: string };
-  "orchestrator.draft_issue": { issue: Issue; project_id: string };
-  "review.completed": { session_id: string; issue_id: string; agent_id: string; project_id: string; verdict: string };
-  "captain.message": { message: CaptainMessage; project_id: string };
-  "captain.assign": { project_id: string; issue_id: string; agent_id: string };
-  "captain.route_review": { project_id: string; issue_id: string; reviewer_agent_id: string };
+  // pr.status_changed: reserved for future PR webhook integration — not currently emitted
+  "pr.status_changed": {
+    pr_id: string;
+    project_id: string;
+    from: string;
+    to: string;
+  };
+  "mention.spawned": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+    agent_name?: string;
+    issue_title?: string;
+    pid: number;
+  };
+  "mention.completed": {
+    project_id: string;
+    issue_id: string | null;
+    agent_id: string;
+    agent_name?: string;
+    issue_title?: string;
+    exit_code: number;
+  };
+  "mention.error": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+    agent_name?: string;
+    issue_title?: string;
+    message: string;
+  };
+  "mention.chain_depth_reached": {
+    project_id: string;
+    issue_id: string;
+    issue_title?: string;
+  };
+  "dispatch.queued": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+    position: number;
+  };
+  "dispatch.dequeued": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+  };
+  "run.started": {
+    agent_run_id: string;
+    project_id: string;
+    issue_id: string | null;
+    agent_id: string;
+    status: AgentRunStatus;
+    started_at: string | null;
+  };
+  "run.event": {
+    agent_run_id: string;
+    project_id: string;
+    event_id: string;
+    type: string;
+    data: unknown;
+    created_at: string;
+  };
+  "run.completed": {
+    agent_run_id: string;
+    project_id: string;
+    issue_id: string | null;
+    agent_id: string;
+    status: AgentRunStatus;
+    exit_code: number | null;
+    cost_usd: number | null;
+    duration_ms: number | null;
+    completed_at: string;
+  };
+  // Captain chat events
+  "chat.stream": {
+    project_id: string;
+    token: string;
+  };
+  "chat.complete": {
+    project_id: string;
+    message_id: string | null;
+  };
+  // User chat message (triggers Captain processing)
+  "chat.message": {
+    project_id: string;
+    session_id: string;
+    content: string;
+    images?: Array<{ data: string; mediaType: string }>;
+  };
+  // Captain chat LLM events (interactive user conversations)
+  "captain.thinking": {
+    project_id: string;
+  };
+  "captain.message": {
+    project_id: string;
+    content: string;
+  };
+  "captain.complete": {
+    project_id: string;
+    response: string;
+  };
+  // Captain chat streaming events (new granular events)
+  "captain.chat.chunk": {
+    project_id: string;
+    session_id: string;
+    text: string;
+  };
+  "captain.chat.tool_call": {
+    project_id: string;
+    session_id: string;
+    tool_name: string;
+    tool_input: unknown;
+  };
+  "captain.chat.tool_result": {
+    project_id: string;
+    session_id: string;
+    tool_name: string;
+    result: unknown;
+  };
+  "captain.chat.complete": {
+    project_id: string;
+    session_id: string;
+    message_id: string;
+  };
+  // Chat abort (user cancels in-flight message)
+  "chat.abort": {
+    project_id: string;
+    session_id: string;
+  };
+  // Monitor LLM agent events (automated orchestration)
+  "monitor.event_received": {
+    project_id: string;
+    event_type: string;
+    description: string;
+  };
+  "monitor.thinking": {
+    project_id: string;
+  };
+  "monitor.message": {
+    project_id: string;
+    content: string;
+  };
+  "monitor.tool_call": {
+    project_id: string;
+    tool_name: string;
+    tool_input: unknown;
+  };
+  "monitor.tool_result": {
+    project_id: string;
+    tool_name: string;
+    result: unknown;
+  };
+  "monitor.complete": {
+    project_id: string;
+    response: string;
+  };
+  // Project settings changed
+  "project.settings_changed": {
+    project_id: string;
+    changes: Partial<Project>;
+  };
 }

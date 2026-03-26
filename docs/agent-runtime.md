@@ -1,6 +1,6 @@
 ---
 title: CrewDeck Agent Runtime
-version: 0.3.0
+version: 0.4.0
 status: draft
 ---
 
@@ -8,308 +8,255 @@ status: draft
 
 ## Overview
 
-The Agent Runtime is the abstraction layer between CrewDeck's backend and the underlying AI CLI tools. It manages spawning, communicating with, and monitoring AI agent sessions running in tmux. Claude Code is the default adapter, but the interface is designed to be CLI-tool-agnostic so that future adapters (ChatGPT CLI, Codex, etc.) can be swapped in.
+The Agent Runtime spawns AI agents as `claude -p` subprocesses. There are no tmux sessions or persistent interactive sessions. Each agent invocation is a one-shot process: it receives a prompt, runs to completion, and its stdout is captured and posted back as a comment on the issue.
 
-## Adapter Interface
+## ProcessAdapter
 
-Every CLI tool adapter must implement this interface. The backend only interacts with agents through this interface — it never calls CLI tools directly.
+`backend/src/orchestration/process.ts`
 
-### Methods
+### spawnClaude
 
-#### spawn
-
-Creates a new tmux session and starts the CLI tool with the given prompt and working directory.
+Spawns `claude -p` with the given prompt and system prompt.
 
 ```
-spawn(options: SpawnOptions) → SessionHandle
+spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 ```
 
-**SpawnOptions:**
+**SpawnOpts:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| sessionName | string | Yes | Unique tmux session name (e.g., `crewdeck-<issueId>-<agentId>`). |
-| workdir | string | Yes | Absolute path to the working directory (git worktree). |
-| prompt | string | Yes | The initial prompt/instruction to send to the agent. |
-| systemPrompt | string | No | System prompt defining the agent's persona. How this is passed depends on the adapter (e.g., Claude Code uses `--system-prompt` flag). |
-| env | Record<string, string> | No | Additional environment variables to set in the tmux session. |
-| print | boolean | No | When true, runs in `--print` mode: prompt is passed as a positional arg and the process exits after printing structured output. Used by the orchestrator. |
+| Field        | Type                   | Required | Description                                                                              |
+| ------------ | ---------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| prompt       | string                 | Yes      | The task prompt (issue context + comments).                                              |
+| systemPrompt | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`. |
+| workdir      | string                 | Yes      | Absolute path to the git worktree.                                                       |
+| env          | Record<string, string> | No       | Additional environment variables.                                                        |
+| model        | string                 | No       | Claude model to use (`sonnet` or `opus`). Passed as `--model <model>` to the CLI.        |
 
-**SessionHandle:**
+**SpawnResult:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| sessionName | string | The tmux session name. |
+| Field       | Type                    | Description                      |
+| ----------- | ----------------------- | -------------------------------- |
+| pid         | number                  | Process ID.                      |
+| process     | ChildProcess            | The spawned child process.       |
+| exitPromise | Promise<{code, stdout}> | Resolves when the process exits. |
 
-**Pseudocode:**
-
-```
-function spawn(options):
-    create tmux session with name options.sessionName
-    set working directory to options.workdir
-    set environment variables from options.env
-    build CLI command with adapter-specific flags
-    send CLI command to tmux session
-    return SessionHandle { sessionName }
-```
-
-#### send
-
-Sends a follow-up message to an existing session. Used when resuming work (e.g., feeding review feedback to an agent).
+**Command constructed:**
 
 ```
-send(sessionName: string, message: string) → void
+claude -p <prompt> \
+       --system-prompt-file <tmpfile> \
+       --output-format json \
+       --model <model> \
+       --dangerously-skip-permissions
 ```
 
-**Pseudocode:**
+- `--output-format json` causes Claude to return a JSON object with a `result` field containing the response text, plus cost and duration metadata.
+- The system prompt is written to a temp file and cleaned up after the process exits.
+- `--dangerously-skip-permissions` allows the agent to operate autonomously.
+- `--model <model>` is included when a model is specified (resolved via AgentConfig override → project default → `"sonnet"`).
+
+### spawnClaudeStream
+
+Spawns `claude -p` with streaming JSON output for real-time token delivery. Used by the Captain Chat service and Monitor service.
 
 ```
-function send(sessionName, message):
-    verify tmux session exists
-    send keystrokes to the tmux pane (tmux send-keys)
-    the message becomes input to the running CLI tool
+spawnClaudeStream(opts: SpawnOpts) → Promise<StreamSpawnResult>
 ```
 
-#### getOutput
+**StreamSpawnResult:**
 
-Captures the current visible output from the tmux pane.
+| Field       | Type                             | Description                                  |
+| ----------- | -------------------------------- | -------------------------------------------- |
+| pid         | number                           | Process ID.                                  |
+| process     | ChildProcess                     | The spawned child process.                   |
+| events      | AsyncIterable<ClaudeStreamEvent> | Async iterator of parsed stream-json events. |
+| exitPromise | Promise<{code, stdout}>          | Resolves when the process exits.             |
 
-```
-getOutput(sessionName: string) → string
-```
-
-**Pseudocode:**
-
-```
-function getOutput(sessionName):
-    run tmux capture-pane for the session
-    return captured text
-```
-
-#### isAlive
-
-Checks whether the CLI tool process in the session is still running.
+**Command constructed:**
 
 ```
-isAlive(sessionName: string) → boolean
+claude -p <prompt via stdin> \
+       --verbose \
+       --system-prompt-file <tmpfile> \
+       --output-format stream-json \
+       --model <model> \
+       --dangerously-skip-permissions
 ```
 
-**Pseudocode:**
+- `--output-format stream-json` causes Claude to emit newline-delimited JSON events as they occur (content deltas, tool calls, result).
+- The prompt is written to stdin to avoid exceeding `ARG_MAX` for large prompts.
+
+### spawnClaudeMultimodal
+
+Spawns `claude -p` with multimodal (image) support. Used by the Captain Chat service when images are attached.
 
 ```
-function isAlive(sessionName):
-    check if tmux session exists (tmux has-session)
-    return true if session exists, false otherwise
+spawnClaudeMultimodal(opts: MultimodalOpts) → Promise<SpawnResult>
 ```
 
-#### kill
+Uses `--output-format json` (non-streaming) and passes image data via stdin alongside the text prompt.
 
-Terminates the session and cleans up.
+## Monitor Action Plans
 
-```
-kill(sessionName: string) → void
-```
+`backend/src/orchestration/captain/action-schema.ts` + `plan-executor.ts`
 
-**Pseudocode:**
+The Monitor service uses structured action plans instead of curl calls for write operations. This enables parallel dispatch execution and faster mutex release.
 
-```
-function kill(sessionName):
-    send exit/quit command to the CLI tool
-    wait briefly for graceful shutdown
-    if still running, kill the tmux session forcefully
-```
-
-## Claude Code Adapter
-
-The default adapter implementation for Claude Code CLI.
-
-### Command Construction
-
-When spawning a Claude Code session, the adapter constructs the CLI command. There are two modes:
-
-**Interactive mode** (workers and reviewers — `print: false`, the default):
+### Flow
 
 ```
-claude --dangerously-skip-permissions \
-       --system-prompt "<agent system prompt>" \
-       --prompt "<initial task prompt>"
+events arrive (issue.created, run.completed, etc.)
+    │
+    ├── Monitor service batches events
+    │
+    ├── spawnClaudeStream with system prompt
+    │       └── LLM can use curl for READ operations (list issues, get issue, list knowledge)
+    │
+    ├── LLM outputs JSON action plan as final response
+    │
+    └── Backend executes plan via plan-executor.ts
+            ├── Validate action plan with Zod schemas
+            ├── Resolve truncated issue IDs to full UUIDs (see below)
+            ├── Execute dispatch actions in parallel (Promise.all)
+            └── Execute other actions sequentially
 ```
 
-**Print mode** (orchestrator — `print: true`):
+### Truncated Issue ID Resolution
 
-```
-claude --dangerously-skip-permissions \
-       --print \
-       --system-prompt "<system prompt>" \
-       "<initial task prompt>"
-```
+The Monitor LLM sometimes outputs truncated 8-character issue ID prefixes (e.g. `3d97b21f`) instead of full UUIDs, because it sees short ID references in event data and comments (e.g. `#3d97b21f`). The plan executor resolves these before executing any action:
 
-In print mode `--print` is a standalone flag (it does not take the prompt as its value). The prompt is passed as a positional argument. Claude exits immediately after writing its response to stdout, which the adapter captures and parses as structured JSON.
+1. Try exact match via `getIssue(id)`.
+2. If no match and the ID is shorter than 36 characters (full UUID length) but at least 8 characters, try a `LIKE prefix%` query scoped to the project via `getIssueByPrefix(prefix, projectId)`.
+3. The prefix query returns a match only if exactly one issue matches (ambiguous prefixes return null).
+4. If resolution fails, the action is rejected with an error result.
 
-**Notes:**
-- `--dangerously-skip-permissions` is used because agents need to operate autonomously without approval prompts. The human oversight comes from CrewDeck's review pipeline instead.
-- The system prompt is passed via `--system-prompt` flag to define the agent's persona.
-- The initial prompt contains the task instructions, issue context, and any relevant state from the database.
+This resolution is applied to all action types that take an `issue_id` (dispatch, merge, comment, update-issue, skip).
 
-### Prompt Construction
+### Action Types
 
-When the backend resumes an agent or sends it new work, it constructs a prompt containing all relevant context from the database:
+| Type         | Fields                            | Description                           |
+| ------------ | --------------------------------- | ------------------------------------- |
+| dispatch     | issue_id, agent_id, instructions? | Dispatch agent to work on issue       |
+| merge        | issue_id                          | Merge PR for issue                    |
+| scan         | (none)                            | Trigger librarian codebase scan       |
+| comment      | issue_id, content                 | Add comment to issue                  |
+| create-issue | title, description?               | Create new issue                      |
+| update-issue | issue_id, status?, title?         | Update issue status/title             |
+| create-pr    | issue_id                          | Create GitHub PR for issue            |
+| skip         | issue_id, reason                  | Skip issue (logged for observability) |
 
-```
-function buildPrompt(issue, agent, repo, context):
-    parts = []
-    parts += "## Issue\n" + XML-tagged issue.title and issue.description
-    parts += "## Repository\n" + repo.name + " at " + context.worktreePath
-    if context.previousComments:
-        parts += "## Previous Comments\n" + XML-tagged comments
-    if context.feedbackComments:
-        parts += "## Review Feedback to Address\n" + XML-tagged feedback
-    parts += "## Instructions\n" + role info + crewdeck CLI usage
-    return join(parts, "\n\n")
-```
+### Action Plan Format
 
-The agent system prompt is passed separately via the `--system-prompt` CLI flag, not embedded in the prompt body.
-
-This approach means we never depend on Claude Code's session management. Every invocation gets a complete, self-contained prompt built from CrewDeck's database.
-
-### Session Naming Convention
-
-```
-crewdeck-<issueId-short>-<agentId-short>-<role>
-crewdeck-captain-<projectId-8chars>
+```json
+{
+  "reasoning": "Brief explanation of decisions",
+  "actions": [
+    { "type": "dispatch", "issue_id": "abc", "agent_id": "engineer" },
+    { "type": "dispatch", "issue_id": "def", "agent_id": "lead" },
+    { "type": "merge", "issue_id": "ghi" }
+  ]
+}
 ```
 
-Examples (8-char hex prefixes):
-- `crewdeck-a1b2c3d4-e5f6g7h8-worker` — worker agent session
-- `crewdeck-a1b2c3d4-i9j0k1l2-reviewer` — reviewer agent session
-- `crewdeck-captain-a1b2c3d4` — persistent captain session for a project
+The executor validates the plan using Zod schemas and executes dispatches in parallel. If multiple issues need work and slots are available, they all start simultaneously.
 
-### Detecting Completion
+## MentionHandler
 
-Completion detection differs between worker/reviewer sessions and the captain session.
+`backend/src/orchestration/handler.ts`
 
-#### Worker and Reviewer Sessions
+The MentionHandler subscribes to `comment.added` events and drives agent spawning.
 
-Workers and reviewers run in one-shot mode (`--prompt`). Completion is detected through two complementary mechanisms:
-
-1. **CrewDeck CLI signal (primary)** — the agent's system prompt instructs it to call `crewdeck signal --event work-complete` when it finishes its task. The CLI makes an HTTP call to the backend's internal API, which emits an event on the event bus. This is the most reliable method because the agent explicitly declares "I'm done."
-
-2. **Process exit (fallback)** — the Agent Runtime polls `isAlive()` to detect when the Claude Code process exits. This catches cases where the agent crashes or exits without signaling.
+### Flow
 
 ```
-Agent (in tmux)                    CrewDeck CLI              Backend Event Bus
-     │                                  │                          │
-     │  working...                      │                          │
-     │  working...                      │                          │
-     │  calls: crewdeck signal          │                          │
-     │    --event work-complete  ──────→│                          │
-     │                                  │  POST /internal/signal ─→│
-     │                                  │                          │  emit("agent.finished")
-     │  exits                           │                          │
-     │                                  │                          │
+comment.added event
+    │
+    ├── parse /dispatch commands from comment.content
+    │       (only /dispatch at start of line triggers spawns; @mentions are ignored)
+    │
+    ├── if multiple agents dispatched by an agent author:
+    │       └── create batch (originator = comment.author_type, members = dispatched agents)
+    │
+    ├── for each dispatched agent:
+    │       ├── skip if agent is the batch originator (will be auto-spawned later)
+    │       ├── skip if agent already has an active process for this issue (deduplication)
+    │       ├── check chain_depth < project.max_chain_depth (atomic DB increment)
+    │       ├── check active process count < max_concurrency
+    │       │       └── if limit reached: enqueue dispatch, post "Agent X queued (N ahead)"
+    │       │               system comment, emit dispatch.queued — skip remaining steps
+    │       ├── guard against merged PRs: if issue status is 'done', check issue_prs table
+    │       │       └── if merged PR found: rollback chain_depth, post "Dispatch rejected: issue
+    │       │               already has a merged PR (#NNN)" system comment, return early
+    │       ├── regress issue status to in_progress if needed (from any PR-related status or done)
+    │       ├── create worktree if needed
+    │       ├── build prompt from issue + comments + agentId
+    │       └── spawnClaude(...)
+    │
+    └── on process exit:
+            ├── post agent output as comment (author_type: agent ID, e.g., "engineer")
+            ├── post system comment with cost/duration
+            ├── emit mention.completed
+            ├── drain dispatch queue: dequeue next for this project (if any),
+            │       post "Agent X dequeued, spawning now" system comment,
+            │       emit dispatch.dequeued, then spawn
+            └── if agent is a batch member: mark completed in batch
 ```
 
-When completion is detected (via either mechanism), the backend:
-- Captures the final output.
-- Stores relevant context in the Session table.
-- Emits events on the event bus (`agent.finished`).
-- The event bus triggers: WebSocket broadcast, Activity Logger, and the Orchestrator (which relays the event to the captain).
+### Batch Tracking
 
-#### Captain Session
+When a single comment dispatches multiple agents (e.g., `/dispatch engineer lead`), the handler groups them into a **batch**:
 
-The captain runs as a persistent interactive session. It does not "complete" in the traditional sense. Instead:
+- The dispatched agents become **batch members** and are spawned immediately.
+- Batches time out after **30 minutes**. A cleanup interval (every 5 minutes) fires `handleBatchComplete` on any stale batch, preventing orphaned state.
+- Only one batch is tracked per issue at a time.
+- Batches track completion of grouped dispatches so the originator isn't re-spawned while its batch members are still running.
 
-- The captain remains idle between events, waiting for input.
-- The orchestrator relays events to the captain via `tmux send-keys`.
-- The captain processes the event, executes CLI commands, and returns to an idle state.
-- The session only ends if explicitly killed or if the captain process crashes. On crash, the backend restores the session from saved history (see [Orchestrator Runtime](#orchestrator-runtime)).
+### Chain Depth
 
-See [Agent CLI](agent-cli.md) for the full CLI specification.
+Each spawn atomically increments `Issue.chain_depth`. If `chain_depth` is already at the project's `max_chain_depth` limit (default 20), the increment fails and a system comment is posted instead. Chain depth can be reset via `PATCH /api/v1/projects/:projectId/issues/:issueId` with `{ "chain_depth": 0 }`.
 
-## Tmux Management
+### Concurrency
 
-### Session Lifecycle
+Active processes are tracked in an in-memory map keyed by PID. Before spawning, the handler counts active processes for the project. If the count has reached `project.max_concurrency`, the dispatch is placed in an in-memory per-project FIFO queue instead of being dropped. A system comment is posted with the agent's queue position. When any active process exits, the handler dequeues the next pending dispatch for that project and spawns it. Queue state is in-memory and lost on restart.
 
-```
-1. Backend decides an agent needs to work
-      ↓
-2. Runtime.spawn() creates tmux session + starts CLI tool
-      ↓
-3. Backend stores session info in DB (Session table)
-      ↓
-4. Frontend connects to output stream via WebSocket
-      ↓
-5. Agent works autonomously in the tmux session
-      ↓
-6. Adapter detects completion
-      ↓
-7. Backend captures output, updates DB, emits events
-      ↓
-8. Backend may send follow-up (Runtime.send()) or kill session (Runtime.kill())
-```
+### Timeouts
 
-### Concurrent Session Management
+Each process is given a 10-minute timeout. On timeout, SIGTERM is sent; if the process does not exit within 5 seconds, SIGKILL is sent. A system comment is posted on the issue.
 
-Multiple tmux sessions can run simultaneously, bounded by the project's max_concurrency setting. The backend tracks all active sessions and their associations:
+## MentionParser
 
-- Which agent is in which session.
-- Which issue each session is working on.
-- Whether the session is for a worker or reviewer.
+`backend/src/orchestration/parser.ts`
 
-### Output Streaming for xterm.js
+Parses `/dispatch` commands from comment text.
 
-The frontend renders live terminal views using xterm.js. The data flow:
-
-```
-tmux pane → node-pty (tmux attach-session) → terminal WebSocket → frontend xterm.js
-```
-
-The backend exposes a `/terminal-ws?sessionId=<id>` WebSocket endpoint. When a client connects, the server spawns a PTY via `node-pty` running `tmux attach-session -t <tmux_session_name>`, piping raw terminal data bidirectionally between the PTY and the browser. This gives xterm.js the full ANSI escape sequences it needs for proper rendering, and supports bidirectional input so users can interact with sessions from the browser.
-
-The `ProcessMonitor` still captures a final output snapshot via `adapter.getOutput()` when a session ends and stores it in `Session.context` for post-mortem inspection.
-
-### Cleanup
-
-Sessions are cleaned up when:
-- The agent completes its work.
-- The user manually stops a session via the API.
-- The project is deleted.
-- An error occurs and the session cannot recover.
-
-Cleanup involves:
-1. Killing the CLI process.
-2. Destroying the tmux session.
-3. Updating the Session record status to `completed` or `error`.
-4. Optionally cleaning up the git worktree (if the issue is done).
+- `/dispatch agent1 agent2 ...` syntax (space-separated agents on one line).
+- Only `/dispatch` at the start of a line triggers spawning.
+- `@mentions` are ignored (cosmetic references only, do NOT trigger spawns).
+- Case-insensitive matching, greedy (longest agent name first).
+- Ignores dispatches inside fenced code blocks or inline backticks.
+- Skips self-dispatches (agent cannot dispatch itself).
 
 ## Git Worktree Management
 
-### Creating Worktrees
-
-When an agent starts work on an issue, the backend creates a git worktree:
+When an agent starts work on an issue that has no worktree, the backend creates one:
 
 ```
-function createWorktree(repo, issue, baseBranch):
-    branchName = "crewdeck/" + issue.id-short + "-" + slugify(issue.title)
-    repoPath = toContainerPath(repo.local_path)
-    worktreePath = repoPath + "/.worktrees/" + branchName
-
-    run: git -C <repoPath> worktree add -b <branchName> <worktreePath> <baseBranch>
-
-    update issue record with branch_name, worktree_path, base_branch
-    return worktreePath
+branchName = "crewdeck/" + issue.id-short + "-" + slugify(issue.title)
+worktreePath = tmpdir() + "/crewdeck-worktrees/" + branchName
+git -C <repoPath> fetch origin                          # updates origin/<defaultBranch>
+git -C <repoPath> worktree add -b <branchName> <worktreePath> origin/<defaultBranch>
 ```
 
-### Base Branch Selection
+If the fetch fails (e.g. network error), the worktree is created from the local branch instead and a warning is logged.
 
-The orchestrator determines the base branch:
+The worktree path and branch name are recorded on the issue and reused for subsequent agent invocations.
 
-- **Default:** The repo's default branch (e.g., `main`).
-- **Dependency-aware:** If issue B depends on issue A, the orchestrator bases B's worktree on A's branch. This allows stacking changes.
+### Rebase on Existing Branch
 
-### Reviewer Access
+When a worktree branch already exists (subsequent agent runs on the same issue), the backend rebases it onto `origin/<defaultBranch>` after fetching. This ensures the agent always works on top of the latest main, even if other PRs have merged since the last run.
 
-Reviewers work in the same worktree as the original agent. They examine the code and post comments but do not create separate branches. If a reviewer needs to suggest changes, they describe them in comments for the original agent to implement.
+- Rebase only runs if the fetch succeeded (otherwise the local state is used as-is).
+- If the rebase fails (e.g. merge conflicts), it is automatically aborted and a warning is logged. The agent continues with its existing branch state.
 
 ### Worktree Cleanup
 
@@ -319,14 +266,14 @@ Worktrees are automatically cleaned up when an issue reaches `done` status or wh
 
 1. Listens for `issue.status_changed` events with `to === "done"`
 2. Retrieves the issue and checks for worktree info (`worktree_path`, `branch_name`, `repo_id`)
-3. If the worktree path already missing from disk, clears DB fields and returns early
+3. If the worktree path is already missing from disk, clears DB fields and returns early
 4. If the worktree path exists, calls `cleanupWorktree(repo, worktreePath, branchName, true)` to remove it
 5. **Always clears** `worktree_path` and `branch_name` fields on the issue record (via `finally` block) regardless of cleanup success
 6. Logs warnings on failure but continues — cleanup errors are non-fatal
 
 **Synchronous cleanup on deletion:**
 
-When an issue is deleted via `DELETE /issues/:issueId` or `POST /issues/:issueId/discard`, cleanup runs synchronously before database deletion:
+When an issue is deleted via `DELETE /issues/:issueId`, cleanup runs synchronously before database deletion:
 - Checks if worktree path exists on disk
 - Calls `cleanupWorktree()` if present
 - Logs warnings on failure but continues with deletion
@@ -340,132 +287,49 @@ When an issue is deleted via `DELETE /issues/:issueId` or `POST /issues/:issueId
 
 ```
 function cleanupWorktree(repo, worktreePath, branchName, deleteBranch):
-    repoPath = toContainerPath(repo.local_path)
     run: git -C <repoPath> worktree remove <worktreePath>
     if deleteBranch:
         git -C <repoPath> branch -d <branchName>
 ```
 
-## Session Context Storage
+## Prompt Construction
 
-### Purpose
-
-CrewDeck owns all session context rather than relying on CLI tool session management. This enables:
-
-- CLI tool agnosticism — any adapter can be used.
-- Precise context control — only relevant state is fed to agents.
-- Crash recovery — sessions can be reconstructed from the database.
-- Audit trail — all context is stored and queryable.
-
-### What Gets Stored
-
-The Session.context field (JSON) stores:
-
-```json
-{
-  "conversation_summary": "Brief summary of what happened in this session",
-  "decisions_made": [
-    "Chose to refactor auth middleware instead of patching",
-    "Split the migration into two steps"
-  ],
-  "files_modified": [
-    "src/auth/middleware.ts",
-    "src/db/migrations/003.sql"
-  ],
-  "pending_questions": [
-    "Should the old endpoint be deprecated or removed?"
-  ],
-  "last_output_snapshot": "Last N lines of terminal output"
-}
-```
-
-### When Context Is Updated
-
-- After each agent completion (worker finishes, reviewer finishes).
-- The backend parses relevant information from the agent's output and comments.
-- This parsed context is used to construct the next prompt when resuming or handing off.
-
-## Orchestrator Runtime
-
-The orchestrator is a thin event relay between the backend event bus and a persistent captain tmux session. It does not call Claude directly or parse agent output. All decision-making happens inside the captain session.
-
-### Architecture
+`backend/src/orchestration/prompt.ts`
 
 ```
-Backend Event Bus          Orchestrator (relay)         Captain (tmux session)
-     │                          │                              │
-     │  event fired ──────────→ │                              │
-     │                          │  format event text           │
-     │                          │  tmux send-keys ───────────→ │
-     │                          │                              │  reads event
-     │                          │                              │  decides action
-     │                          │                              │  runs: crewdeck assign ...
-     │                          │                              │  runs: crewdeck route-review ...
-     │  ← event bus updated ────│←── crewdeck CLI calls ──────│
-     │                          │                              │  returns to idle
+function buildPrompt(opts: BuildPromptOptions): string
+  opts.issue            — issue title and description (XML-tagged)
+  opts.comments         — all previous comments (XML-tagged, in order)
+  opts.repo             — repo name and worktree path (optional)
+  opts.worktreePath     — absolute path to the git worktree
+  opts.agentId          — controls which API section is injected
+  opts.projectKnowledge — project knowledge entries (filtered by agent assignment)
 ```
 
-### Captain Session
+The function accepts a single options object containing all required and optional fields.
 
-The captain is a persistent interactive Claude Code session running in tmux. Unlike worker/reviewer sessions that use one-shot `--prompt` mode, the captain runs in interactive mode and persists across multiple issues.
+**Role-specific API access:** The prompt's API section varies by `agentId`. Librarian receives access to the knowledge internal API (list, create, update, delete knowledge entries). All other agents (engineer, lead, docs) receive a notice that their stdout is automatically posted as a comment — no direct API access needed.
 
-**Session name:** `crewdeck-captain-<projectId-8chars>`
-
-**Spawning:**
+**Project knowledge:** Knowledge entries are injected as a `## Project Knowledge` section. Each entry is rendered as a level-3 heading with its title and category, followed by the content:
 
 ```
-claude --dangerously-skip-permissions \
-       --system-prompt "<captain system prompt>"
+## Project Knowledge
+
+### Entry Title (category)
+Entry content here...
+
+### Another Entry (conventions)
+More content...
 ```
 
-The captain is spawned without `--prompt` so it starts in interactive mode, waiting for input. The system prompt defines the captain's persona, available CLI commands, and decision-making guidelines.
+Entries are filtered by agent assignment (`agent_ids` field) and ordered by `updated_at DESC, created_at DESC`. An agent only receives entries where `agent_ids` is null (applies to all agents) or contains the agent's ID.
 
-### Captain Requirement
+Every invocation gets a complete, self-contained prompt from the database. The backend does not rely on Claude's session management.
 
-The orchestrator requires a designated **captain** agent. If no agent in the crew has `is_captain = true`, the orchestrator skips processing entirely until one is set. The captain's system prompt is passed via the `--system-prompt` flag when spawning the session.
+## Startup and Shutdown
 
-### Event Relay
+**Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed` and posts a system comment on each affected issue. The monitor service emits a `startup.scan` event for each project, allowing the Captain to analyze current state and resume any necessary work.
 
-The orchestrator is event-driven. When an event fires, the orchestrator formats it as text and sends it to the captain session via `tmux send-keys`.
+**Spawn failure handling:** If `spawnClaudeStream()` throws during `spawnAndTrack()` (e.g., process cannot be created), the `AgentRun` record is immediately marked `failed` with a `completed_at` timestamp, `onComplete()` is called for cleanup (e.g., SSH key removal), and the error is re-thrown. This prevents runs from being permanently stuck in `running` with a null PID, which would block further work on the issue.
 
-| Event | What gets relayed to the captain |
-|-------|----------------------------------|
-| Issue approved | Issue details, priority, available agents, project state |
-| Agent finished work | Issue status, agent output summary, review routing options |
-| Review completed | Review outcome, reviewer comments, approve/reject decision |
-| Max rounds reached | Escalation context, round history |
-| New comment from user | Comment content, issue context |
-| User captain message | User's direct message to the captain |
-
-The orchestrator does not interpret the captain's response. The captain acts by calling CrewDeck CLI commands directly from within its tmux session.
-
-### Captain CLI Commands
-
-Instead of returning structured JSON, the captain executes CLI commands to take action:
-
-- `crewdeck assign --issue <id> --agent <id>` — assign an agent to an issue.
-- `crewdeck route-review --issue <id>` — send an issue to the next reviewer.
-- `crewdeck escalate --issue <id>` — flag an issue for human attention.
-- `crewdeck create-issue --title "..." --description "..."` — propose a new issue.
-- `crewdeck reorder --issue <id> --priority <n>` — change issue priority.
-
-Each CLI command makes an HTTP call to the backend's internal API, which updates the database and emits events on the event bus. The captain can run multiple commands in sequence when handling a single event.
-
-### Session Persistence and Recovery
-
-The captain session persists across multiple events and issues. To handle crashes or restarts:
-
-- **History saved to DB** — the captain's conversation history is periodically saved to the database.
-- **Session restore** — when a captain session is lost (process crash, container restart), the orchestrator detects the missing session via `isAlive()` and respawns it. The saved history is restored into the new session so the captain retains context from prior decisions.
-- **CaptainMessage records** — the backend stores a `CaptainMessage` record for each event relay and captain action. This builds the captain chat timeline visible to the user in the frontend.
-
-## Future Adapters
-
-To add support for a new CLI tool:
-
-1. Implement the adapter interface (spawn, send, getOutput, isAlive, kill).
-2. Handle tool-specific command construction (flags, prompt passing).
-3. Handle tool-specific completion detection.
-4. Register the adapter in the runtime configuration.
-
-The rest of the system (backend, frontend, orchestrator, session management) requires no changes.
+**Shutdown:** `shutdownMentionHandler()` stops the batch cleanup interval, sends SIGTERM to all active processes, and clears the active-process and batch tracking maps.

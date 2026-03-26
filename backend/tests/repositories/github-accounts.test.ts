@@ -10,14 +10,10 @@ import {
 
 function clearAll() {
   db.exec("DELETE FROM ActivityLog");
-  db.exec("DELETE FROM IssueAgent");
   db.exec("DELETE FROM IssuePR");
   db.exec("DELETE FROM Comment");
-  db.exec("DELETE FROM Session");
   db.exec("DELETE FROM Issue");
-  db.exec("DELETE FROM Agent");
   db.exec("DELETE FROM Repo");
-  db.exec("DELETE FROM Crew");
   db.exec("DELETE FROM Project");
   db.exec("DELETE FROM GitHubAccount");
 }
@@ -27,8 +23,9 @@ beforeEach(clearAll);
 const validInput = {
   account_name: "testuser",
   github_username: "testuser",
-  oauth_token: "gho_abc123",
-  scopes: "repo",
+  gh_token: "gho_abc123",
+  ssh_private_key:
+    "-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----",
 };
 
 describe("createGitHubAccount", () => {
@@ -37,15 +34,9 @@ describe("createGitHubAccount", () => {
     expect(account.id).toBeDefined();
     expect(account.account_name).toBe("testuser");
     expect(account.github_username).toBe("testuser");
-    expect(account.oauth_token).toBe("gho_abc123");
-    expect(account.scopes).toBe("repo");
+    expect(account.gh_token).toBe("gho_abc123");
+    expect(account.ssh_private_key).toBeDefined();
     expect(account.created_at).toBeDefined();
-  });
-
-  it("stores null scopes when omitted", () => {
-    const { scopes: _, ...noScopes } = validInput;
-    const account = createGitHubAccount(noScopes);
-    expect(account.scopes).toBeNull();
   });
 });
 
@@ -53,7 +44,10 @@ describe("getGitHubAccount", () => {
   it("returns the account by id", () => {
     const created = createGitHubAccount(validInput);
     const found = getGitHubAccount(created.id);
-    expect(found).toMatchObject({ id: created.id, github_username: "testuser" });
+    expect(found).toMatchObject({
+      id: created.id,
+      github_username: "testuser",
+    });
   });
 
   it("returns null for a missing id", () => {

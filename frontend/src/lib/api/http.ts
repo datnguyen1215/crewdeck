@@ -1,7 +1,51 @@
-/**
- * HTTP API client — talks to the backend REST API at /api/v1/*.
- * Uses relative URLs so the Vite dev proxy and same-domain prod both work.
- */
+import type {
+  Project,
+  ProjectWithStats,
+  Repo,
+  Agent,
+  Issue,
+  IssueWithRunningAgent,
+  IssueWithDetails,
+  Comment,
+  ActivityLog,
+  GitHubAccount,
+  EnvironmentVariable,
+  AgentRun,
+  AgentRunWithEvents,
+  ActiveRun,
+  ProjectKnowledge,
+  LibrarianStatus,
+  ChatSession,
+  ChatMessage,
+  AgentConfig,
+} from "./types.js";
+
+export type {
+  Project,
+  ProjectWithStats,
+  Repo,
+  Agent,
+  Issue,
+  IssueWithRunningAgent,
+  IssuePR,
+  IssueWithDetails,
+  Comment,
+  ActivityLog,
+  GitHubAccount,
+  EnvironmentVariable,
+  AgentRun,
+  AgentRunEvent,
+  AgentRunWithEvents,
+  ActiveRun,
+  AgentRunStatus,
+  AgentRunEventType,
+  ProjectKnowledge,
+  LibrarianStatus,
+  ChatSession,
+  ChatSessionStatus,
+  ChatMessage,
+  AgentConfig,
+} from "./types.js";
 
 const BASE = "/api/v1";
 
@@ -15,7 +59,6 @@ class ApiError extends Error {
   }
 }
 
-/** Build a query string from an optional filter object. Returns "" or "?key=val&…". */
 function qs(filters?: Record<string, unknown>): string {
   if (!filters) return "";
   const params = new URLSearchParams();
@@ -36,11 +79,8 @@ async function request<T>(
     headers: { "Content-Type": "application/json" },
   };
   if (body !== undefined) opts.body = JSON.stringify(body);
-
   const res = await fetch(`${BASE}${path}`, opts);
-
   if (res.status === 204) return undefined as T;
-
   const json = await res.json();
   if (!res.ok) {
     const err = json.error ?? {};
@@ -53,54 +93,41 @@ async function request<T>(
   return json as T;
 }
 
-// ---------------------------------------------------------------------------
-// Projects
-// ---------------------------------------------------------------------------
+const e = encodeURIComponent;
 
+// Projects
 export function listProjects() {
   return request<Project[]>("GET", "/projects");
 }
-
 export function getProject(id: string) {
-  return request<Project>("GET", `/projects/${encodeURIComponent(id)}`);
+  return request<Project>("GET", `/projects/${e(id)}`);
 }
-
 export function createProject(data: {
   github_url: string;
   github_account_id?: string;
 }) {
   return request<Project>("POST", "/projects", data);
 }
-
 export function updateProject(id: string, data: Partial<Project>) {
-  return request<Project>("PATCH", `/projects/${encodeURIComponent(id)}`, data);
+  return request<Project>("PATCH", `/projects/${e(id)}`, data);
 }
-
 export function deleteProject(id: string) {
-  return request<void>("DELETE", `/projects/${encodeURIComponent(id)}`);
+  return request<void>("DELETE", `/projects/${e(id)}`);
 }
-
 export function listProjectsWithStats() {
   return request<ProjectWithStats[]>("GET", "/projects?stats");
 }
 
-// ---------------------------------------------------------------------------
 // Repos
-// ---------------------------------------------------------------------------
-
-const e = encodeURIComponent;
-
 export function listRepos(projectId: string) {
   return request<Repo[]>("GET", `/projects/${e(projectId)}/repos`);
 }
-
 export function createRepo(
   projectId: string,
   data: { github_url: string; default_branch?: string },
 ) {
   return request<Repo>("POST", `/projects/${e(projectId)}/repos`, data);
 }
-
 export function deleteRepo(projectId: string, repoId: string) {
   return request<void>(
     "DELETE",
@@ -108,105 +135,67 @@ export function deleteRepo(projectId: string, repoId: string) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Crew & Agents
-// ---------------------------------------------------------------------------
-
-export function getCrew(projectId: string) {
-  return request<CrewWithAgents>("GET", `/projects/${e(projectId)}/crew`);
+// Agents (read-only — crew is fixed)
+export function listAgents() {
+  return request<Agent[]>("GET", "/crew");
 }
 
-export function updateCrew(projectId: string, data: { name: string }) {
-  return request<Crew>("PATCH", `/projects/${e(projectId)}/crew`, data);
+export function listAllAgents() {
+  return request<Agent[]>("GET", "/crew?all=true");
 }
 
-export function listAgents(projectId: string) {
-  return request<Agent[]>("GET", `/projects/${e(projectId)}/crew/agents`);
-}
-
-export function createAgent(
-  projectId: string,
-  data: {
-    name: string;
-    title: string;
-    description?: string;
-    system_prompt: string;
-    is_captain?: boolean;
-  },
-) {
-  return request<Agent>("POST", `/projects/${e(projectId)}/crew/agents`, data);
-}
-
-export function generateAgent(
-  projectId: string,
-  data: { prompt: string },
-) {
-  return request<{ name: string; title: string; description: string; system_prompt: string }>(
-    "POST",
-    `/projects/${e(projectId)}/crew/agents/generate`,
-    data,
+// Agent Config (per-project model overrides)
+export function listAgentConfig(projectId: string) {
+  return request<AgentConfig[]>(
+    "GET",
+    `/projects/${e(projectId)}/agent-config`,
   );
 }
-
-export function updateAgent(
+export function setAgentModel(
   projectId: string,
   agentId: string,
-  data: Partial<Agent>,
+  model: string,
 ) {
-  return request<Agent>(
-    "PATCH",
-    `/projects/${e(projectId)}/crew/agents/${e(agentId)}`,
-    data,
+  return request<AgentConfig>(
+    "PUT",
+    `/projects/${e(projectId)}/agent-config/${e(agentId)}`,
+    { model },
   );
 }
-
-export function deleteAgent(projectId: string, agentId: string) {
+export function deleteAgentConfig(projectId: string, agentId: string) {
   return request<void>(
     "DELETE",
-    `/projects/${e(projectId)}/crew/agents/${e(agentId)}`,
+    `/projects/${e(projectId)}/agent-config/${e(agentId)}`,
   );
 }
 
-// ---------------------------------------------------------------------------
 // Issues
-// ---------------------------------------------------------------------------
-
 export function listIssues(
   projectId: string,
   filters?: {
     status?: string;
-    agent?: string;
     created_by?: string;
     sort?: string;
     order?: string;
   },
 ) {
-  return request<Issue[]>(
+  return request<IssueWithRunningAgent[]>(
     "GET",
     `/projects/${e(projectId)}/issues${qs(filters)}`,
   );
 }
-
 export function getIssue(projectId: string, issueId: string) {
   return request<IssueWithDetails>(
     "GET",
     `/projects/${e(projectId)}/issues/${e(issueId)}`,
   );
 }
-
 export function createIssue(
   projectId: string,
-  data: {
-    title: string;
-    description?: string;
-    priority?: number;
-    max_review_rounds?: number;
-    created_by?: string;
-  },
+  data: { title: string; description: string },
 ) {
   return request<Issue>("POST", `/projects/${e(projectId)}/issues`, data);
 }
-
 export function updateIssue(
   projectId: string,
   issueId: string,
@@ -218,7 +207,6 @@ export function updateIssue(
     data,
   );
 }
-
 export function deleteIssue(projectId: string, issueId: string) {
   return request<void>(
     "DELETE",
@@ -226,31 +214,7 @@ export function deleteIssue(projectId: string, issueId: string) {
   );
 }
 
-export function approveIssue(projectId: string, issueId: string) {
-  return request<Issue>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/approve`,
-  );
-}
-
-export function discardIssue(projectId: string, issueId: string) {
-  return request<void>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/discard`,
-  );
-}
-
-export function createPR(projectId: string, issueId: string) {
-  return request<Issue>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/create-pr`,
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Comments
-// ---------------------------------------------------------------------------
-
 export function addComment(
   projectId: string,
   issueId: string,
@@ -262,7 +226,6 @@ export function addComment(
     data,
   );
 }
-
 export function editComment(
   projectId: string,
   issueId: string,
@@ -275,7 +238,6 @@ export function editComment(
     data,
   );
 }
-
 export function deleteComment(
   projectId: string,
   issueId: string,
@@ -287,54 +249,23 @@ export function deleteComment(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Sessions
-// ---------------------------------------------------------------------------
-
-export function listSessions(
-  projectId: string,
-  filters?: { status?: string; type?: string; issue_id?: string },
-) {
-  return request<Session[]>(
-    "GET",
-    `/projects/${e(projectId)}/sessions${qs(filters)}`,
-  );
-}
-
-export function getSession(projectId: string, sessionId: string) {
-  return request<Session>(
-    "GET",
-    `/projects/${e(projectId)}/sessions/${e(sessionId)}`,
-  );
-}
-
-// ---------------------------------------------------------------------------
 // GitHub Accounts
-// ---------------------------------------------------------------------------
-
 export function listGitHubAccounts() {
   return request<GitHubAccount[]>("GET", "/github-accounts");
 }
-
-export function startDeviceFlow(clientId?: string) {
-  return request<DeviceCodeResponse>("POST", "/github-accounts/device-code", clientId ? { client_id: clientId } : {});
+export function createGitHubAccount(data: {
+  account_name: string;
+  github_username: string;
+  gh_token: string;
+  ssh_private_key: string;
+}) {
+  return request<GitHubAccount>("POST", "/github-accounts", data);
 }
-
-export function pollDeviceFlow(deviceCode: string, clientId?: string) {
-  return request<DeviceCodePollResponse>("POST", "/github-accounts/device-code/poll", {
-    device_code: deviceCode,
-    ...(clientId ? { client_id: clientId } : {}),
-  });
-}
-
 export function deleteGitHubAccount(id: string) {
   return request<void>("DELETE", `/github-accounts/${e(id)}`);
 }
 
-// ---------------------------------------------------------------------------
 // Activity
-// ---------------------------------------------------------------------------
-
 export function listActivity(
   projectId: string,
   filters?: {
@@ -352,206 +283,208 @@ export function listActivity(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Captain Messages
-// ---------------------------------------------------------------------------
-
-export function listCaptainMessages(projectId: string) {
-  return request<CaptainMessage[]>(
+// Environment Variables
+export function listEnvironmentVariables(projectId: string) {
+  return request<EnvironmentVariable[]>(
     "GET",
-    `/projects/${e(projectId)}/captain/messages`,
+    `/projects/${e(projectId)}/environment`,
   );
 }
-
-export function sendCaptainMessage(
+export function createEnvironmentVariable(
   projectId: string,
-  data: { content: string },
+  data: { key: string; value: string; is_secret?: boolean },
 ) {
-  return request<CaptainMessage>(
+  return request<EnvironmentVariable>(
     "POST",
-    `/projects/${e(projectId)}/captain/messages`,
+    `/projects/${e(projectId)}/environment`,
     data,
   );
 }
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface Project {
-  id: string;
-  name: string;
-  description: string | null;
-  max_concurrency: number;
-  max_review_rounds: number;
-  orchestrator_session_id: string | null;
-  github_account_id: string | null;
-  created_at: string;
-  updated_at: string;
+export function updateEnvironmentVariable(
+  projectId: string,
+  envVarId: string,
+  data: { key?: string; value?: string; is_secret?: boolean },
+) {
+  return request<EnvironmentVariable>(
+    "PATCH",
+    `/projects/${e(projectId)}/environment/${e(envVarId)}`,
+    data,
+  );
+}
+export function deleteEnvironmentVariable(projectId: string, envVarId: string) {
+  return request<void>(
+    "DELETE",
+    `/projects/${e(projectId)}/environment/${e(envVarId)}`,
+  );
 }
 
-export interface ProjectWithStats extends Project {
-  repo_count: number;
-  agent_count: number;
-  issues: {
-    open: number;
-    in_progress: number;
-    in_review: number;
-    ready: number;
-    done: number;
-  };
-  orchestrator_status: string;
+// Agent Runs
+export function listIssueRuns(projectId: string, issueId: string) {
+  return request<AgentRun[]>(
+    "GET",
+    `/projects/${e(projectId)}/issues/${e(issueId)}/runs`,
+  );
+}
+export function getRun(projectId: string, runId: string) {
+  return request<AgentRunWithEvents>(
+    "GET",
+    `/projects/${e(projectId)}/runs/${e(runId)}`,
+  );
+}
+export function listProjectRuns(
+  projectId: string,
+  filters?: { limit?: number; offset?: number },
+) {
+  return request<AgentRun[]>(
+    "GET",
+    `/projects/${e(projectId)}/runs${qs(filters)}`,
+  );
 }
 
-export interface Repo {
-  id: string;
-  project_id: string;
-  github_url: string;
-  default_branch: string;
-  created_at: string;
-  updated_at: string;
+// Active Runs (for Terminals page)
+export function listActiveRuns(projectId: string) {
+  return request<ActiveRun[]>("GET", `/projects/${e(projectId)}/active-runs`);
 }
 
-export interface Crew {
-  id: string;
-  project_id: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
+// Knowledge
+// Backend uses agent_ids but frontend uses agents for cleaner naming
+type BackendKnowledge = Omit<ProjectKnowledge, "agents"> & {
+  agent_ids: string[] | null;
+};
+
+function mapKnowledge(k: BackendKnowledge): ProjectKnowledge {
+  const { agent_ids, ...rest } = k;
+  return { ...rest, agents: agent_ids ?? [] };
 }
 
-export interface Agent {
-  id: string;
-  crew_id: string;
-  name: string;
-  title: string;
-  description: string | null;
-  system_prompt: string;
-  is_captain: boolean;
-  created_at: string;
-  updated_at: string;
+export async function listKnowledge(projectId: string) {
+  const data = await request<BackendKnowledge[]>(
+    "GET",
+    `/projects/${e(projectId)}/knowledge`,
+  );
+  return data.map(mapKnowledge);
+}
+export async function createKnowledge(
+  projectId: string,
+  data: { title: string; category: string; content: string; agents?: string[] },
+) {
+  const { agents, ...rest } = data;
+  const result = await request<BackendKnowledge>(
+    "POST",
+    `/projects/${e(projectId)}/knowledge`,
+    { ...rest, agent_ids: agents?.length ? agents : null },
+  );
+  return mapKnowledge(result);
+}
+export async function updateKnowledge(
+  projectId: string,
+  knowledgeId: string,
+  data: {
+    title?: string;
+    category?: string;
+    content?: string;
+    agents?: string[];
+  },
+) {
+  const { agents, ...rest } = data;
+  const result = await request<BackendKnowledge>(
+    "PATCH",
+    `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`,
+    { ...rest, agent_ids: agents?.length ? agents : null },
+  );
+  return mapKnowledge(result);
+}
+export function deleteKnowledge(projectId: string, knowledgeId: string) {
+  return request<void>(
+    "DELETE",
+    `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`,
+  );
+}
+export function triggerKnowledgeScan(projectId: string) {
+  return request<{ agent_run_id: string }>(
+    "POST",
+    `/projects/${e(projectId)}/knowledge/scan`,
+  );
 }
 
-export interface CrewWithAgents extends Crew {
-  agents: (Agent & {
-    status: "idle" | "working" | "reviewing";
-    current_issue: { id: string; title: string } | null;
-  })[];
+export function getLibrarianStatus(projectId: string) {
+  return request<LibrarianStatus>(
+    "GET",
+    `/projects/${e(projectId)}/librarian-status`,
+  );
 }
 
-export interface Issue {
-  id: string;
-  project_id: string;
-  title: string;
-  description: string | null;
-  status: string;
-  priority: number;
-  assigned_agent_id: string | null;
-  created_by: string;
-  max_review_rounds: number | null;
-  current_review_round: number;
-  branch_name: string | null;
-  worktree_path: string | null;
-  base_branch: string;
-  repo_id: string | null;
-  created_at: string;
-  updated_at: string;
+// Chat Sessions
+export function listChatSessions(projectId: string) {
+  return request<ChatSession[]>(
+    "GET",
+    `/projects/${e(projectId)}/chat/sessions`,
+  );
 }
 
-export interface IssueAgent {
-  id: string;
-  issue_id: string;
-  agent_id: string;
-  role: "worker" | "reviewer";
-  status: string;
-  review_order: number | null;
-  agent: { id: string; name: string } | null;
+export function createChatSession(projectId: string, title?: string) {
+  return request<ChatSession>(
+    "POST",
+    `/projects/${e(projectId)}/chat/sessions`,
+    title ? { title } : {},
+  );
 }
 
-export interface IssuePR {
-  id: string;
-  issue_id: string;
-  pr_number: number;
-  pr_url: string;
-  status: string;
+export function getChatMessages(projectId: string, sessionId: string) {
+  return request<ChatMessage[]>(
+    "GET",
+    `/projects/${e(projectId)}/chat/sessions/${e(sessionId)}/messages`,
+  );
 }
 
-export interface IssueWithDetails extends Issue {
-  assigned_agent: { id: string; name: string } | null;
-  repo: { id: string; name: string } | null;
-  comments: Comment[];
-  activity_log: ActivityLog[];
-  issue_agents: IssueAgent[];
-  issue_prs: IssuePR[];
+export function sendChatMessage(
+  projectId: string,
+  sessionId: string,
+  message: string,
+  images?: Array<{ data: string; mediaType: string }>,
+) {
+  return request<{ user_message: ChatMessage; status: string }>(
+    "POST",
+    `/projects/${e(projectId)}/chat/sessions/${e(sessionId)}/messages`,
+    { message, images },
+  );
 }
 
-export interface Comment {
-  id: string;
-  issue_id: string;
-  author_type: string;
-  author_id: string | null;
-  content: string;
-  created_at: string;
+export function abortChatMessage(projectId: string, sessionId: string) {
+  return request<{ status: string }>(
+    "POST",
+    `/projects/${e(projectId)}/chat/sessions/${e(sessionId)}/abort`,
+  );
 }
 
-export interface Session {
-  id: string;
-  project_id: string;
-  session_type: string;
-  agent_id: string | null;
-  issue_id: string | null;
-  tmux_session_name: string;
-  tmux_pane_id: string | null;
-  status: string;
-  context: Record<string, unknown> | null;
-  created_at: string;
-  updated_at: string;
+export function clearChatHistory(projectId: string) {
+  return request<void>("DELETE", `/projects/${e(projectId)}/chat`);
 }
 
-export interface ActivityLog {
-  id: string;
-  project_id: string;
-  issue_id: string | null;
-  actor_type: string;
-  actor_id: string | null;
-  action: string;
-  details: Record<string, unknown>;
-  created_at: string;
+// Monitor history
+export function getMonitorHistory(projectId: string, limit?: number) {
+  const query = limit ? `?limit=${limit}` : "";
+  return request<ChatMessage[]>(
+    "GET",
+    `/projects/${e(projectId)}/monitor/history${query}`,
+  );
 }
 
-export interface GitHubAccount {
-  id: string;
-  account_name: string;
-  github_username: string;
-  scopes: string | null;
-  created_at: string;
-}
-
-export interface DeviceCodeResponse {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  expires_in: number;
-  interval: number;
-}
-
-export interface DeviceCodePollResponse {
-  id?: string;
-  account_name?: string;
-  github_username?: string;
-  scopes?: string | null;
-  created_at?: string;
-  status?: string;
-  error?: string;
-  error_description?: string;
-}
-
-export interface CaptainMessage {
-  id: string;
-  project_id: string;
-  author_type: string;
-  author_id: string | null;
-  content: string;
-  context: Record<string, unknown> | null;
-  created_at: string;
+// Captain dispatch
+export function dispatchAgent(
+  projectId: string,
+  issueId: string,
+  agentId: string,
+  instructions?: string,
+) {
+  return request<{ success: boolean; message: string }>(
+    "POST",
+    `/internal/captain/dispatch-agent`,
+    {
+      project_id: projectId,
+      issue_id: issueId,
+      agent_id: agentId,
+      instructions,
+    },
+  );
 }

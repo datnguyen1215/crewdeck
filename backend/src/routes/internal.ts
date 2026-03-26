@@ -1,164 +1,296 @@
-// These routes are intentionally unauthenticated. The server only runs on the
-// local machine, so there is no untrusted network traffic. Add auth (shared
-// secret or network isolation) if the deployment model ever changes.
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
+import { createOwnershipVerifier } from "../middleware/ownership.js";
 import { createComment } from "../db/repositories/comments.js";
-import { getIssue } from "../db/repositories/issues.js";
-import { getAgent } from "../db/repositories/agents.js";
-import { getSession, updateSession } from "../db/repositories/sessions.js";
-import { NotFoundError } from "../middleware/errors.js";
+import { createIssue, getIssue } from "../db/repositories/issues.js";
+import {
+  createIssuePR,
+  getIssuePRByRepoAndNumber,
+} from "../db/repositories/issue-prs.js";
+import { PRStatus } from "../constants/statuses.js";
+import {
+  listByProject as listKnowledge,
+  getById as getKnowledge,
+  create as createKnowledge,
+  update as updateKnowledge,
+  remove as removeKnowledge,
+} from "../db/repositories/knowledge.js";
+import { getProject } from "../db/repositories/projects.js";
+import { listRepos } from "../db/repositories/repos.js";
+import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import { eventBus } from "../events/bus.js";
-import { createCaptainHistory, listCaptainHistory } from "../db/repositories/captain-history.js";
+import {
+  CreateCommentSchema,
+  CreateIssueSchema as BaseCreateIssueSchema,
+  CreateKnowledgeSchema,
+  UpdateKnowledgeSchema,
+} from "../schemas/validation.js";
+import { parsePRUrls } from "../pr/detector.js";
+import {
+  handleMergePR,
+  handleDispatchAgent,
+  handleScanCodebase,
+} from "../orchestration/captain/tool-handlers.js";
 
+// Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
 
-const SignalSchema = z.object({
-  session_id: z.string(),
-  agent_id: z.string(),
-  issue_id: z.string(),
-  project_id: z.string(),
-  event: z.enum(["work-complete", "review-complete", "error", "needs-help"]),
-  data: z.object({ verdict: z.string().optional(), message: z.string().optional() }).optional(),
-}).refine(
-  (d) => d.event !== "review-complete" || !!d.data?.verdict,
-  { message: "verdict is required for review-complete signals", path: ["data", "verdict"] },
+const verifyIssueOwner = createOwnershipVerifier(
+  getIssue,
+  "Issue",
+  "project_id",
+);
+const verifyKnowledgeOwner = createOwnershipVerifier(
+  getKnowledge,
+  "Knowledge entry",
+  "project_id",
 );
 
-const CommentSchema = z.object({
+function verifyProjectExists(projectId: string) {
+  const project = getProject(projectId);
+  if (!project) throw new NotFoundError("Project not found");
+  return project;
+}
+
+// Reuse base schemas with internal route requirements (project_id, issue_id, etc.)
+const InternalCommentSchema = CreateCommentSchema.pick({
+  content: true,
+}).extend({
   issue_id: z.string(),
   project_id: z.string(),
   agent_id: z.string().optional(),
-  content: z.string().min(1),
-});
-
-const StatusSchema = z.object({
-  agent_id: z.string(),
-  issue_id: z.string(),
-  project_id: z.string(),
-  state: z.enum(["active", "done", "error"]),
-});
-
-const FilesSchema = z.object({
-  session_id: z.string(),
-  modified: z.array(z.string().max(500)).min(1).max(500),
-});
-
-// POST /signal — receive agent completion signals
-router.post("/signal", validate(SignalSchema), (req, res) => {
-  const { session_id, agent_id, issue_id, project_id, event, data } = req.body;
-
-  if (!getAgent(agent_id)) throw new NotFoundError("Agent not found");
-
-  if (event === "work-complete") {
-    eventBus.emit("agent.finished", { session_id, agent_id, issue_id, project_id, role: "worker" });
-  } else if (event === "review-complete") {
-    // verdict is guaranteed present by SignalSchema .refine()
-    eventBus.emit("review.completed", { session_id, issue_id, agent_id, project_id, verdict: data!.verdict! });
-  } else if (event === "error") {
-    eventBus.emit("agent.error", { session_id, agent_id, issue_id, project_id, message: data?.message });
-  } else if (event === "needs-help") {
-    eventBus.emit("agent.needs_help", { session_id, agent_id, issue_id, project_id, message: data?.message });
-  }
-
-  res.json({ ok: true });
 });
 
 // POST /comment — agent posts a comment on an issue
-router.post("/comment", validate(CommentSchema), (req, res) => {
+router.post("/comment", validate(InternalCommentSchema), (req, res) => {
   const { issue_id, project_id, agent_id, content } = req.body;
 
-  const issue = getIssue(issue_id);
-  if (!issue || issue.project_id !== project_id) throw new NotFoundError("Issue not found");
+  verifyIssueOwner(issue_id, project_id);
 
+  // Use agent_id as author_type directly (e.g., "captain", "engineer")
+  // Default to "captain" since only the captain uses this endpoint
   const comment = createComment(issue_id, {
     content,
-    author_type: "agent",
-    author_id: agent_id ?? null,
+    author_type: agent_id ?? "captain",
   });
 
   eventBus.emit("comment.added", { comment, project_id });
   res.status(201).json(comment);
 });
 
-// POST /status — agent updates its working status
-router.post("/status", validate(StatusSchema), (req, res) => {
-  const { agent_id, issue_id, project_id, state } = req.body;
-
-  const agent = getAgent(agent_id);
-  if (!agent) throw new NotFoundError("Agent not found");
-
-  eventBus.emit("agent.status_changed", { agent_id, issue_id, project_id, state });
-
-  res.json({ ok: true });
+// POST /issues/create — agent creates a new issue
+const InternalCreateIssueSchema = BaseCreateIssueSchema.omit({
+  created_by: true,
+}).extend({
+  project_id: z.string(),
 });
 
-// POST /files — agent reports which files were modified during the session
-// File paths are stored as metadata only — never used for filesystem access
-router.post("/files", validate(FilesSchema), (req, res) => {
-  const { session_id, modified } = req.body;
+router.post(
+  "/issues/create",
+  validate(InternalCreateIssueSchema),
+  (req, res) => {
+    const { project_id, title, description } = req.body;
+    const issue = createIssue(project_id, {
+      title,
+      description,
+      created_by: "agent",
+    });
+    eventBus.emit("issue.created", { issue });
+    res.status(201).json(issue);
+  },
+);
 
-  const session = getSession(session_id);
-  if (!session) throw new NotFoundError("Session not found");
+// POST /create-pr — agent registers a PR for tracking
+const CreatePRSchema = z.object({
+  project_id: z.string(),
+  issue_id: z.string(),
+  pr_url: z.string().min(1),
+});
 
-  const ctx = session.context;
-  // Guard needed because session.context is typed as unknown in the DB layer
-  const existing = (typeof ctx === "object" && ctx !== null && !Array.isArray(ctx))
-    ? (ctx as Record<string, unknown>)
-    : {};
-  updateSession(session_id, {
-    context: { ...existing, modified_files: modified },
+router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
+  const { project_id, issue_id, pr_url } = req.body;
+
+  verifyIssueOwner(issue_id, project_id);
+
+  // Parse PR URL to extract owner/repo/number
+  const parsed = parsePRUrls(pr_url);
+  if (parsed.length === 0) throw new ValidationError("Invalid GitHub PR URL");
+
+  const pr = parsed[0];
+
+  // Find matching repo by owner/name
+  const repos = listRepos(project_id);
+  const repo = repos.find(
+    (r) =>
+      r.owner.toLowerCase() === pr.owner.toLowerCase() &&
+      r.name.toLowerCase() === pr.name.toLowerCase(),
+  );
+
+  if (!repo)
+    throw new ValidationError("PR URL does not match any project repository");
+
+  // Check if already linked
+  const existing = getIssuePRByRepoAndNumber(repo.id, pr.prNumber);
+  if (existing) {
+    // Return existing record (idempotent)
+    res.status(200).json(existing);
+    return;
+  }
+
+  // Create IssuePR record
+  const issuePR = createIssuePR({
+    issue_id,
+    repo_id: repo.id,
+    pr_number: pr.prNumber,
+    pr_url: pr.url,
+    status: PRStatus.OPEN,
   });
 
-  res.json({ ok: true });
+  eventBus.emit("pr.created", { issue_pr: issuePR, project_id });
+  res.status(201).json(issuePR);
 });
 
-// POST /assign — captain requests agent assignment
-const AssignSchema = z.object({
+// GET /knowledge/list — list knowledge entries
+const InternalKnowledgeListSchema = z.object({
+  project_id: z.string(),
+});
+
+router.get(
+  "/knowledge/list",
+  validate(InternalKnowledgeListSchema, "query"),
+  (req, res) => {
+    const { project_id } = req.query as { project_id: string };
+    verifyProjectExists(project_id);
+    const entries = listKnowledge(project_id);
+    res.json(entries);
+  },
+);
+
+// POST /knowledge/create — create knowledge entry (force source to "librarian")
+const InternalKnowledgeCreateSchema = CreateKnowledgeSchema.omit({
+  source: true,
+}).extend({
+  project_id: z.string(),
+});
+
+router.post(
+  "/knowledge/create",
+  validate(InternalKnowledgeCreateSchema),
+  (req, res) => {
+    const { project_id, ...input } = req.body;
+    verifyProjectExists(project_id);
+    const entry = createKnowledge(project_id, {
+      ...input,
+      source: "librarian",
+    });
+    res.status(201).json(entry);
+  },
+);
+
+// POST /knowledge/update — update knowledge entry
+const InternalKnowledgeUpdateSchema = UpdateKnowledgeSchema.omit({
+  source: true,
+}).extend({
+  project_id: z.string(),
+  knowledge_id: z.string(),
+});
+
+router.post(
+  "/knowledge/update",
+  validate(InternalKnowledgeUpdateSchema),
+  (req, res) => {
+    const { project_id, knowledge_id, ...updates } = req.body;
+    verifyProjectExists(project_id);
+    verifyKnowledgeOwner(knowledge_id, project_id);
+    const updated = updateKnowledge(knowledge_id, updates);
+    res.json(updated);
+  },
+);
+
+// POST /knowledge/delete — delete knowledge entry
+const InternalKnowledgeDeleteSchema = z.object({
+  project_id: z.string(),
+  knowledge_id: z.string(),
+});
+
+router.post(
+  "/knowledge/delete",
+  validate(InternalKnowledgeDeleteSchema),
+  (req, res) => {
+    const { project_id, knowledge_id } = req.body;
+    verifyProjectExists(project_id);
+    verifyKnowledgeOwner(knowledge_id, project_id);
+    removeKnowledge(knowledge_id);
+    res.status(204).send();
+  },
+);
+
+// Captain-specific routes (merge PR, dispatch agent, scan codebase)
+
+const CaptainMergePRSchema = z.object({
+  project_id: z.string(),
+  issue_id: z.string(),
+});
+
+router.post(
+  "/captain/merge-pr",
+  validate(CaptainMergePRSchema),
+  async (req, res, next) => {
+    try {
+      const { project_id, issue_id } = req.body;
+      verifyProjectExists(project_id);
+      const result = await handleMergePR(project_id, { issue_id });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+const CaptainDispatchAgentSchema = z.object({
   project_id: z.string(),
   issue_id: z.string(),
   agent_id: z.string(),
+  instructions: z.string().optional(),
 });
 
-router.post("/assign", validate(AssignSchema), (req, res) => {
-  const { project_id, issue_id, agent_id } = req.body;
-  eventBus.emit("captain.assign", { project_id, issue_id, agent_id });
-  res.json({ ok: true });
-});
+router.post(
+  "/captain/dispatch-agent",
+  validate(CaptainDispatchAgentSchema),
+  async (req, res, next) => {
+    try {
+      const { project_id, issue_id, agent_id, instructions } = req.body;
+      verifyProjectExists(project_id);
+      const result = await handleDispatchAgent(project_id, {
+        issue_id,
+        agent_id,
+        instructions,
+      });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
-// POST /route-review — captain requests review routing
-const RouteReviewSchema = z.object({
+const CaptainScanSchema = z.object({
   project_id: z.string(),
-  issue_id: z.string(),
-  reviewer_agent_id: z.string(),
 });
 
-router.post("/route-review", validate(RouteReviewSchema), (req, res) => {
-  const { project_id, issue_id, reviewer_agent_id } = req.body;
-  eventBus.emit("captain.route_review", { project_id, issue_id, reviewer_agent_id });
-  res.json({ ok: true });
-});
-
-// POST /history — save captain decision history
-const HistorySaveSchema = z.object({
-  project_id: z.string(),
-  agent_id: z.string().optional(),
-  summary: z.string().min(1),
-});
-
-router.post("/history", validate(HistorySaveSchema), (req, res) => {
-  const { project_id, agent_id, summary } = req.body;
-  const entry = createCaptainHistory(project_id, { agent_id, summary });
-  res.status(201).json(entry);
-});
-
-// GET /history — list captain decision history
-router.get("/history", (req, res) => {
-  const project_id = req.query.project_id as string;
-  if (!project_id) { res.status(400).json({ message: "project_id query param required" }); return; }
-  const entries = listCaptainHistory(project_id);
-  res.json(entries);
-});
+router.post(
+  "/captain/scan-codebase",
+  validate(CaptainScanSchema),
+  async (req, res, next) => {
+    try {
+      const { project_id } = req.body;
+      verifyProjectExists(project_id);
+      const result = await handleScanCodebase(project_id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 export default router;
