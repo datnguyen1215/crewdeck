@@ -186,12 +186,6 @@ export interface EventMap {
     project_id: string;
     response: string;
   };
-  // Recovery event — emitted for issues that need attention after server restart
-  "run.recovered": {
-    project_id: string;
-    issue_id: string;
-    failed_agent_id: string;
-  };
   // Project settings changed
   "project.settings_changed": {
     project_id: string;
