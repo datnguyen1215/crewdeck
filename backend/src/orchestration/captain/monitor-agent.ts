@@ -206,11 +206,11 @@ export const formatEvents = (events: CaptainEvent[]): string => {
       switch (e.type) {
         case "issue.created": {
           const data = e.data as { issue: { title: string; id: string } };
-          return `[${ts}] Issue created: "${data.issue.title}" (${data.issue.id.slice(0, 8)})`;
+          return `[${ts}] Issue created: "${data.issue.title}" (${data.issue.id})`;
         }
         case "issue.status_changed": {
           const data = e.data as { issue_id: string; from: string; to: string };
-          return `[${ts}] Issue ${data.issue_id.slice(0, 8)} status: ${data.from} → ${data.to}`;
+          return `[${ts}] Issue ${data.issue_id} status: ${data.from} → ${data.to}`;
         }
         case "run.completed": {
           const data = e.data as {
@@ -218,7 +218,7 @@ export const formatEvents = (events: CaptainEvent[]): string => {
             issue_id: string | null;
             status: string;
           };
-          return `[${ts}] Agent ${data.agent_id} completed (${data.status})${data.issue_id ? ` on issue ${data.issue_id.slice(0, 8)}` : ""}`;
+          return `[${ts}] Agent ${data.agent_id} completed (${data.status})${data.issue_id ? ` on issue ${data.issue_id}` : ""}`;
         }
         case "pr.status_changed": {
           const data = e.data as { pr_id: string; from: string; to: string };
@@ -230,7 +230,7 @@ export const formatEvents = (events: CaptainEvent[]): string => {
             changes: Record<string, unknown>;
           };
           const changedFields = Object.keys(data.changes || {}).join(", ");
-          return `[${ts}] Issue ${data.issue_id.slice(0, 8)} updated: ${changedFields || "unknown fields"}`;
+          return `[${ts}] Issue ${data.issue_id} updated: ${changedFields || "unknown fields"}`;
         }
         case "comment.added": {
           const data = e.data as {
@@ -246,14 +246,14 @@ export const formatEvents = (events: CaptainEvent[]): string => {
             data.comment.content.length > 200
               ? data.comment.content.slice(0, 200) + "…"
               : data.comment.content;
-          return `[${ts}] Comment on issue ${data.comment.issue_id.slice(0, 8)} by ${data.comment.author_type}: ${preview}`;
+          return `[${ts}] Comment on issue ${data.comment.issue_id} by ${data.comment.author_type}: ${preview}`;
         }
         case "run.recovered": {
           const data = e.data as {
             issue_id: string;
             failed_agent_id: string;
           };
-          return `[${ts}] Run recovered: agent ${data.failed_agent_id} failed on issue ${data.issue_id.slice(0, 8)}, ready for retry`;
+          return `[${ts}] Run recovered: agent ${data.failed_agent_id} failed on issue ${data.issue_id}, ready for retry`;
         }
         case "idle.check":
           return `[${ts}] Idle check: checking for stuck issues`;
