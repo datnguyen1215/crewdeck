@@ -135,7 +135,7 @@ router.post("/:issueId/approve", (req: Request<{ projectId: string; issueId: str
 });
 
 // POST /discard — delete draft
-router.post("/:issueId/discard", (req: Request<{ projectId: string; issueId: string }>, res) => {
+router.post("/:issueId/discard", async (req: Request<{ projectId: string; issueId: string }>, res) => {
   const issue = getIssue(req.params.issueId);
   if (!issue || issue.project_id !== req.params.projectId) {
     throw new NotFoundError("Issue not found");
@@ -143,6 +143,21 @@ router.post("/:issueId/discard", (req: Request<{ projectId: string; issueId: str
   if (issue.status !== "draft") {
     throw new ValidationError("Only draft issues can be discarded");
   }
+
+  // Clean up worktree before deleting the issue
+  const { worktree_path, branch_name, repo_id } = issue;
+  if (worktree_path && branch_name && repo_id) {
+    const repo = getRepo(repo_id);
+    if (repo && existsSync(worktree_path)) {
+      try {
+        await cleanupWorktree(repo, worktree_path, branch_name, true);
+        logger.info({ issue_id: issue.id, worktree_path }, "Worktree cleaned up during issue discard");
+      } catch (err) {
+        logger.warn({ err, issue_id: issue.id, worktree_path }, "Failed to cleanup worktree during discard, continuing");
+      }
+    }
+  }
+
   deleteIssue(req.params.issueId);
   res.status(204).send();
 });

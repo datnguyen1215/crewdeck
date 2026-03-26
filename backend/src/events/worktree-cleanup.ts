@@ -6,7 +6,7 @@ import { getRepo } from "../db/repositories/repos.js";
 import { cleanupWorktree } from "../agent/worktree.js";
 
 export function initWorktreeCleanup(): void {
-  eventBus.on("issue.status_changed", ({ issue_id, to }) => {
+  eventBus.on("issue.status_changed", async ({ issue_id, to }) => {
     if (to !== "done") return;
 
     const issue = getIssue(issue_id);
@@ -28,16 +28,15 @@ export function initWorktreeCleanup(): void {
       return;
     }
 
-    cleanupWorktree(repo, worktree_path, branch_name, true)
-      .then(() => {
-        logger.info({ issue_id, worktree_path, branch_name }, "Worktree cleaned up");
-        updateIssue(issue_id, {
-          worktree_path: null,
-          branch_name: null,
-        });
-      })
-      .catch((err) => {
-        logger.warn({ err, issue_id, worktree_path }, "Failed to cleanup worktree, continuing");
+    try {
+      await cleanupWorktree(repo, worktree_path, branch_name, true);
+      logger.info({ issue_id, worktree_path, branch_name }, "Worktree cleaned up");
+      updateIssue(issue_id, {
+        worktree_path: null,
+        branch_name: null,
       });
+    } catch (err) {
+      logger.warn({ err, issue_id, worktree_path }, "Failed to cleanup worktree, continuing");
+    }
   });
 }
