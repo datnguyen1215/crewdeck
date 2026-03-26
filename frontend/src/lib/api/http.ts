@@ -347,52 +347,36 @@ export function listActiveRuns(projectId: string) {
 }
 
 // Knowledge
-// Backend uses agent_ids but frontend uses agents for cleaner naming
-type BackendKnowledge = Omit<ProjectKnowledge, "agents"> & {
-  agent_ids: string[] | null;
-};
-
-function mapKnowledge(k: BackendKnowledge): ProjectKnowledge {
-  const { agent_ids, ...rest } = k;
-  return { ...rest, agents: agent_ids ?? [] };
-}
-
-export async function listKnowledge(projectId: string) {
-  const data = await request<BackendKnowledge[]>(
+export function listKnowledge(projectId: string) {
+  return request<ProjectKnowledge[]>(
     "GET",
     `/projects/${e(projectId)}/knowledge`,
   );
-  return data.map(mapKnowledge);
 }
-export async function createKnowledge(
+export function createKnowledge(
   projectId: string,
-  data: { title: string; category: string; content: string; agents?: string[] },
+  data: { title: string; category: string; content: string },
 ) {
-  const { agents, ...rest } = data;
-  const result = await request<BackendKnowledge>(
+  return request<ProjectKnowledge>(
     "POST",
     `/projects/${e(projectId)}/knowledge`,
-    { ...rest, agent_ids: agents?.length ? agents : null },
+    data,
   );
-  return mapKnowledge(result);
 }
-export async function updateKnowledge(
+export function updateKnowledge(
   projectId: string,
   knowledgeId: string,
   data: {
     title?: string;
     category?: string;
     content?: string;
-    agents?: string[];
   },
 ) {
-  const { agents, ...rest } = data;
-  const result = await request<BackendKnowledge>(
+  return request<ProjectKnowledge>(
     "PATCH",
     `/projects/${e(projectId)}/knowledge/${e(knowledgeId)}`,
-    { ...rest, agent_ids: agents?.length ? agents : null },
+    data,
   );
-  return mapKnowledge(result);
 }
 export function deleteKnowledge(projectId: string, knowledgeId: string) {
   return request<void>(

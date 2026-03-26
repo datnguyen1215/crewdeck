@@ -172,7 +172,6 @@ export interface ProjectKnowledge {
   category: string;
   content: string;
   source: string | null;
-  agents: string[];
   created_at: string;
   updated_at: string;
 }
