@@ -3,7 +3,7 @@ import { logger } from "../logger.js";
 import { eventBus } from "./bus.js";
 import { getIssue, updateIssue } from "../db/repositories/issues.js";
 import { getRepo } from "../db/repositories/repos.js";
-import { cleanupWorktree } from "../agent/worktree.js";
+import { cleanupWorktree } from "../orchestration/worktree.js";
 
 export function initWorktreeCleanup(): void {
   eventBus.on("issue.status_changed", async ({ issue_id, to }) => {

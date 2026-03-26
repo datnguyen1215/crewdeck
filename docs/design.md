@@ -327,7 +327,6 @@ The backend uses an in-process typed EventEmitter as the central communication b
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
 │  Producers:                    Consumers:                │
-<<<<<<< HEAD
 │  ├── REST API handlers    ──→  Orchestrator Manager      │
 │  ├── Agent Runtime        ──→  WebSocket broadcaster     │
 │  ├── REST API handlers    ──→  MentionHandler            │

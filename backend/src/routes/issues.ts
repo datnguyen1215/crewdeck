@@ -106,7 +106,10 @@ router.patch(
       });
     }
 
-<<<<<<< HEAD
+    res.json(updated);
+  },
+);
+
 router.delete("/:issueId", verifyIssueOwnership, async (req, res) => {
   const issue = req.issue!;
 
@@ -127,4 +130,5 @@ router.delete("/:issueId", verifyIssueOwnership, async (req, res) => {
   deleteIssue(issue.id);
   res.status(204).send();
 });
+
 export default router;
