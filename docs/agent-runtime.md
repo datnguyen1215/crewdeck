@@ -258,6 +258,40 @@ When a worktree branch already exists (subsequent agent runs on the same issue),
 - Rebase only runs if the fetch succeeded (otherwise the local state is used as-is).
 - If the rebase fails (e.g. merge conflicts), it is automatically aborted and a warning is logged. The agent continues with its existing branch state.
 
+### Worktree Cleanup
+
+Worktrees are automatically cleaned up when an issue reaches `done` status or when an issue is deleted. The cleanup is handled by an event listener (`initWorktreeCleanup()`) initialized at startup.
+
+**Event-driven cleanup (`initWorktreeCleanup()`):**
+
+1. Listens for `issue.status_changed` events with `to === "done"`
+2. Retrieves the issue and checks for worktree info (`worktree_path`, `branch_name`, `repo_id`)
+3. If the worktree path is already missing from disk, clears DB fields and returns early
+4. If the worktree path exists, calls `cleanupWorktree(repo, worktreePath, branchName, true)` to remove it
+5. **Always clears** `worktree_path` and `branch_name` fields on the issue record (via `finally` block) regardless of cleanup success
+6. Logs warnings on failure but continues — cleanup errors are non-fatal
+
+**Synchronous cleanup on deletion:**
+
+When an issue is deleted via `DELETE /issues/:issueId`, cleanup runs synchronously before database deletion:
+- Checks if worktree path exists on disk
+- Calls `cleanupWorktree()` if present
+- Logs warnings on failure but continues with deletion
+- Prevents worktree leaks when issues are removed
+
+**Implementation guarantees:**
+- Database fields are always cleared when status reaches `done`, even if git cleanup fails
+- This prevents DB from pointing to broken or partially-cleaned worktree state
+- Early exit optimization when path already gone (no unnecessary git operations)
+- Error handling ensures cleanup failures don't block issue deletion or status transitions
+
+```
+function cleanupWorktree(repo, worktreePath, branchName, deleteBranch):
+    run: git -C <repoPath> worktree remove <worktreePath>
+    if deleteBranch:
+        git -C <repoPath> branch -d <branchName>
+```
+
 ## Prompt Construction
 
 `backend/src/orchestration/prompt.ts`

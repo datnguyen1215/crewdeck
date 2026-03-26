@@ -301,7 +301,7 @@ Captain is split into two independent services that run concurrently per project
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than calling each other directly.
 - Producers: REST API handlers, MentionHandler, PR Detector, PR Poller, Chat Service, Monitor Service.
-- Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger, Chat Service, Monitor Service.
+- Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger, Chat Service, Monitor Service, Worktree Cleanup.
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
 **SQLite Database**
@@ -327,12 +327,15 @@ The backend uses an in-process typed EventEmitter as the central communication b
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
 │  Producers:                    Consumers:                │
+│  ├── REST API handlers    ──→  Orchestrator Manager      │
+│  ├── Agent Runtime        ──→  WebSocket broadcaster     │
 │  ├── REST API handlers    ──→  MentionHandler            │
 │  ├── MentionHandler       ──→  WebSocket broadcaster     │
 │  ├── PR Detector/Poller   ──→  Activity Logger           │
 │  ├── Chat Service         ──→  PR Detector               │
-│  └── Monitor Service      ──→  Chat Service (chat.message)│
-│                           ──→  Monitor Service (events)   │
+│  ├── Monitor Service      ──→  Chat Service (chat.message)│
+│  │                        ──→  Monitor Service (events)   │
+│  └── Worktree Cleanup     ──→  Worktree Cleanup           │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -354,6 +357,18 @@ The backend uses an in-process typed EventEmitter as the central communication b
 6. MentionHandler receives event → parses /dispatch commands → spawns agent processes
 7. PR Detector receives event → parses PR URLs → creates IssuePR records
 8. API handler returns 201 to the client
+```
+
+### Example Flow: Issue Reaches Done Status
+
+```
+1. REST API: PATCH /api/v1/projects/:id/issues/:issueId (status: "done")
+2. API handler updates issue status in DB
+3. API handler emits: bus.emit("issue.status_changed", { issue_id, project_id, from: "in_progress", to: "done" })
+4. Worktree Cleanup listener receives event → cleans up git worktree, always clears DB fields (in finally block)
+5. Activity Logger receives event → writes ActivityLog entry
+6. WebSocket broadcaster receives event → sends to connected frontend clients
+7. API handler returns 200 to the client
 ```
 
 ## Real-Time Communication
@@ -408,6 +423,24 @@ Each issue gets its own git worktree:
 - The worktree path and branch name are recorded on the issue and reused for subsequent agent spawns on the same issue.
 - On subsequent runs, the existing branch is rebased onto `origin/<defaultBranch>` to incorporate the latest main. If the rebase fails (e.g. conflicts), it is aborted and the agent continues with its existing branch state.
 
+**Automatic Cleanup:**
+
+Worktrees are automatically cleaned up via event-driven and synchronous mechanisms:
+
+- **Event-driven cleanup (`initWorktreeCleanup()`)** — Listens for `issue.status_changed` events with `to === "done"`. When triggered:
+  1. Checks if worktree path exists on disk
+  2. Calls `cleanupWorktree()` to remove git worktree and branch
+  3. **Always clears** `worktree_path` and `branch_name` DB fields (via `finally` block), regardless of cleanup success
+  4. Logs warnings on failure but continues (cleanup errors are non-fatal)
+
+- **Synchronous cleanup on deletion** — DELETE `/issues/:issueId` and POST `/issues/:issueId/discard` routes call cleanup before deleting database records to prevent worktree leaks
+
+This approach ensures:
+- No unbounded disk usage from abandoned worktrees
+- Database never points to broken or partially-cleaned worktree state
+- Cleanup failures don't block issue status transitions or deletions
+- Early exit optimization when path already gone (no unnecessary git operations)
+
 ### Concurrency Control
 
 - Each project has a configurable concurrency limit (`max_concurrency`).
@@ -423,13 +456,14 @@ On startup, the backend:
 1. Loads configuration from environment variables (`.env` file).
 2. Initializes SQLite database (runs all pending migrations from `backend/src/db/migrations/`).
 3. Initializes the activity logger (registers event listeners).
-4. Initializes the MentionHandler (subscribes to `comment.added`).
-5. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
-6. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
-7. Initializes Captain services — both Chat and Monitor subscribe to the event bus for all captain-enabled projects.
-8. Starts the Express HTTP server.
-9. Starts the WebSocket server.
-10. Logs startup complete via pino.
+4. Initializes the worktree cleanup listener (subscribes to `issue.status_changed`).
+5. Initializes the MentionHandler (subscribes to `comment.added`).
+6. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
+7. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
+8. Initializes Captain services — both Chat and Monitor subscribe to the event bus for all captain-enabled projects.
+9. Starts the Express HTTP server.
+10. Starts the WebSocket server.
+11. Logs startup complete via pino.
 
 Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery).
 

@@ -1,12 +1,15 @@
 import { Router, type Request } from "express";
+import { existsSync } from "node:fs";
 import {
   listIssues,
   createIssue,
   updateIssue,
   deleteIssue,
+  getIssue,
 } from "../db/repositories/issues.js";
+import { getRepo } from "../db/repositories/repos.js";
 import { validate } from "../middleware/validate.js";
-import { InvalidTransitionError, ConflictError } from "../middleware/errors.js";
+import { InvalidTransitionError, ConflictError, NotFoundError, ValidationError } from "../middleware/errors.js";
 import {
   verifyProject,
   verifyIssueOwnership,
@@ -14,6 +17,8 @@ import {
 } from "../middleware/ownership.js";
 import { CreateIssueSchema, UpdateIssueSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
+import { cleanupWorktree } from "../orchestration/worktree.js";
+import { logger } from "../logger.js";
 import { hasActiveProcesses } from "../orchestration/processes.js";
 import { TRANSITIONS, IssueStatus } from "../constants/statuses.js";
 import type { IssueFilters } from "../types/entities.js";
@@ -105,8 +110,24 @@ router.patch(
   },
 );
 
-router.delete("/:issueId", verifyIssueOwnership, (req, res) => {
-  deleteIssue(req.issue!.id);
+router.delete("/:issueId", verifyIssueOwnership, async (req, res) => {
+  const issue = req.issue!;
+
+  // Clean up worktree before deleting the issue
+  const { worktree_path, branch_name, repo_id } = issue;
+  if (worktree_path && branch_name && repo_id) {
+    const repo = getRepo(repo_id);
+    if (repo && existsSync(worktree_path)) {
+      try {
+        await cleanupWorktree(repo, worktree_path, branch_name, true);
+        logger.info({ issue_id: issue.id, worktree_path }, "Worktree cleaned up during issue deletion");
+      } catch (err) {
+        logger.warn({ err, issue_id: issue.id, worktree_path }, "Failed to cleanup worktree during deletion, continuing");
+      }
+    }
+  }
+
+  deleteIssue(issue.id);
   res.status(204).send();
 });
 

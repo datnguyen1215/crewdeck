@@ -471,6 +471,25 @@ PATCH /projects/:projectId/issues/:issueId
 
 **Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue (excluding the agent specified in `X-Agent-ID`). Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the project's `max_chain_depth` limit is reached.
 
+#### Delete Issue
+
+```
+DELETE /projects/:projectId/issues/:issueId
+```
+
+Permanently deletes an issue and cleans up associated resources.
+
+**Response:** `204 No Content`
+
+**Side effects:**
+- If the issue has a worktree (`worktree_path`, `branch_name`), it is cleaned up before deletion
+- Git worktree is removed from disk
+- Associated branch is deleted
+- All related database records are deleted
+- Cleanup errors are logged but do not block deletion
+
+**Error:** `404 Not Found` — Issue does not exist.
+
 ---
 
 ### Comments
@@ -1504,7 +1523,7 @@ All events follow this structure:
 | ---------------------- | -------------------- | ------------------------------------------------------------ |
 | `issue.created`        | New issue created    | `{ issue }` — full Issue object                              |
 | `issue.updated`        | Issue fields changed | `{ issue_id, project_id, changes }`                          |
-| `issue.status_changed` | Status transition    | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
+| `issue.status_changed` | Status transition (triggers automatic worktree cleanup when `to === "done"` — DB fields always cleared in finally block) | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
 
 #### Comment Events
 

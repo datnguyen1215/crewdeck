@@ -4,6 +4,7 @@ import { db } from "./db/index.js";
 import { eventBus } from "./events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { initActivityLogger } from "./events/activity-logger.js";
+import { initWorktreeCleanup } from "./events/worktree-cleanup.js";
 import {
   initMentionHandler,
   shutdownMentionHandler,
@@ -18,6 +19,7 @@ const app = createApp();
 
 async function main(): Promise<void> {
   initActivityLogger();
+  initWorktreeCleanup();
   initMentionHandler();
   recoverOnStartup();
 
