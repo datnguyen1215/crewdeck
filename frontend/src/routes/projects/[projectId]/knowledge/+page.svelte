@@ -10,7 +10,6 @@
 		triggerKnowledgeScan,
 		getLibrarianStatus,
 		type ProjectKnowledge,
-		type Agent,
 		type Project,
 		type LibrarianStatus
 	} from '$lib/api/http.js';
@@ -30,7 +29,7 @@
 
 	// Modal state
 	let editingEntry = $state<ProjectKnowledge | null>(null);
-	const form = createFormState({ title: '', category: '', content: '', agents: [] as string[] });
+	const form = createFormState({ title: '', category: '', content: '' });
 
 	// Delete confirmation
 	let confirmingDeleteId = $state<string | null>(null);
@@ -42,8 +41,6 @@
 
 	// WebSocket for auto-refresh
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
-	const getAgents = getContext<() => Agent[]>('agents');
-	let agents = $derived(getAgents());
 
 	// Computed: is a scan currently running?
 	let scanRunning = $derived(librarianStatus?.status === 'running' || librarianStatus?.status === 'queued');
@@ -83,8 +80,6 @@
 		return unsub;
 	});
 
-	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
-
 	function openCreate() {
 		editingEntry = null;
 		form.show();
@@ -95,22 +90,13 @@
 		form.show({
 			title: entry.title,
 			category: entry.category,
-			content: entry.content,
-			agents: [...entry.agents]
+			content: entry.content
 		});
 	}
 
 	function closeModal() {
 		form.close();
 		if (!form.open) editingEntry = null;
-	}
-
-	function toggleAgent(agentId: string) {
-		if (form.fields.agents.includes(agentId)) {
-			form.fields = { ...form.fields, agents: form.fields.agents.filter(id => id !== agentId) };
-		} else {
-			form.fields = { ...form.fields, agents: [...form.fields.agents, agentId] };
-		}
 	}
 
 	async function handleSubmit(e: SubmitEvent) {
@@ -122,8 +108,7 @@
 				const updated = await updateKnowledge(projectId, editingEntry.id, {
 					title: f.title.trim(),
 					category: f.category.trim(),
-					content: f.content,
-					agents: f.agents
+					content: f.content
 				});
 				knowledge = knowledge.map(k => k.id === updated.id ? updated : k);
 				toastStore.add('Knowledge entry updated', 'success');
@@ -131,8 +116,7 @@
 				const created = await createKnowledge(projectId, {
 					title: f.title.trim(),
 					category: f.category.trim(),
-					content: f.content,
-					agents: f.agents
+					content: f.content
 				});
 				knowledge = [...knowledge, created];
 				toastStore.add('Knowledge entry created', 'success');
@@ -300,21 +284,6 @@
 
 							<!-- Content preview -->
 							<p class="text-secondary text-sm leading-relaxed">{truncate(entry.content, 150)}</p>
-
-							<!-- Agent assignments -->
-							{#if entry.agents.length > 0}
-								<div class="flex flex-wrap gap-1 mt-3">
-									{#each entry.agents as agentId (agentId)}
-										<span class="text-xs px-2 py-0.5 bg-surface border border-edge rounded text-muted">
-											{agentMap[agentId] ?? agentId}
-										</span>
-									{/each}
-								</div>
-							{:else}
-								<div class="mt-3">
-									<span class="text-xs text-muted italic">All agents</span>
-								</div>
-							{/if}
 						</div>
 
 						<!-- Actions -->
@@ -408,26 +377,6 @@
 				placeholder="Enter knowledge content... (Markdown supported)"
 				class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder:text-muted outline-none focus:border-cyan transition-colors resize-y"
 			></textarea>
-		</div>
-
-		<div>
-			<span class="block text-xs text-muted uppercase tracking-widest mb-1.5">
-				Assign to Agents
-			</span>
-			<p class="text-xs text-muted mb-2">Leave empty to make available to all agents</p>
-			<div class="flex flex-wrap gap-2">
-				{#each agents as agent (agent.id)}
-					<button
-						type="button"
-						onclick={() => toggleAgent(agent.id)}
-						class="px-2.5 py-1 text-xs rounded border transition-colors {form.fields.agents.includes(agent.id)
-							? 'bg-cyan/10 border-cyan text-cyan'
-							: 'border-edge text-muted hover:border-edge-hi hover:text-secondary'}"
-					>
-						{agent.name}
-					</button>
-				{/each}
-			</div>
 		</div>
 
 		{#if form.error}

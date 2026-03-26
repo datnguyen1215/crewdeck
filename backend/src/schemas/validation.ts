@@ -133,7 +133,6 @@ export const CreateKnowledgeSchema = z.object({
   category: z.string().min(1),
   content: z.string().min(1),
   source: z.string().optional(),
-  agent_ids: z.array(z.string()).nullable().optional(),
 });
 
 export const UpdateKnowledgeSchema = z.object({
@@ -141,5 +140,4 @@ export const UpdateKnowledgeSchema = z.object({
   category: z.string().min(1).optional(),
   content: z.string().min(1).optional(),
   source: z.string().nullable().optional(),
-  agent_ids: z.array(z.string()).nullable().optional(),
 });

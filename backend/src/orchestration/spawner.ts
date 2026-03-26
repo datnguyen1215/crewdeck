@@ -478,7 +478,7 @@ export const spawnAgent = async (
   }
 
   const comments = commentRepo.listComments(issueId);
-  const projectKnowledge = knowledgeRepo.listForAgent(projectId, agent.id);
+  const projectKnowledge = knowledgeRepo.listByProject(projectId);
 
   const prompt = agentPrompt.buildPrompt({
     issue: issueRepo.getIssue(issueId)!,
@@ -548,7 +548,7 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   const repo = repoRepo.listRepos(projectId)[0] ?? null;
   const repoPath = repo ? toContainerPath(repo.local_path) : ".";
 
-  const projectKnowledge = knowledgeRepo.listForAgent(projectId, agent.id);
+  const projectKnowledge = knowledgeRepo.listByProject(projectId);
 
   const prompt = agentPrompt.buildScanPrompt({
     repo,
