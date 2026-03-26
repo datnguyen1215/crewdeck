@@ -10,6 +10,7 @@ import { logger } from "../../logger.js";
 import { getProject, listProjects } from "../../db/repositories/projects.js";
 import { enqueue, tryAcquire, release, drain, hasPending } from "./queue.js";
 import { processWithLLM } from "./monitor-agent.js";
+import { RECOVERY_DELAY_MS } from "../recovery.js";
 import type { CaptainEvent } from "./queue.js";
 
 // Queue namespace prefix to separate monitor from chat queues
@@ -212,24 +213,6 @@ function createProjectHandlers(projectId: string): () => void {
     });
   };
 
-  const handleRunRecovered = (data: {
-    project_id: string;
-    issue_id: string;
-    failed_agent_id: string;
-  }) => {
-    if (data.project_id !== projectId) return;
-    queueAndProcess({
-      type: "run.recovered",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue run.recovered",
-      );
-    });
-  };
 
   const handleCommentAdded = (data: {
     comment: {
@@ -280,7 +263,6 @@ function createProjectHandlers(projectId: string): () => void {
   eventBus.on("run.completed", handleRunCompleted);
   eventBus.on("pr.status_changed", handlePRStatusChanged);
   eventBus.on("comment.added", handleCommentAdded);
-  eventBus.on("run.recovered", handleRunRecovered);
   eventBus.on("project.settings_changed", handleProjectSettingsChanged);
 
   return () => {
@@ -290,7 +272,6 @@ function createProjectHandlers(projectId: string): () => void {
     eventBus.off("run.completed", handleRunCompleted);
     eventBus.off("pr.status_changed", handlePRStatusChanged);
     eventBus.off("comment.added", handleCommentAdded);
-    eventBus.off("run.recovered", handleRunRecovered);
     eventBus.off("project.settings_changed", handleProjectSettingsChanged);
 
     const timeout = idleTimeouts.get(projectId);
@@ -313,6 +294,20 @@ export function startMonitorForProject(projectId: string): void {
   if (project.captain_idle_timeout_ms) {
     resetIdleTimeout(projectId);
   }
+
+  // Emit startup.scan event with a small delay to ensure recovery cleanup completes first
+  const STARTUP_BUFFER_MS = 500;
+  setTimeout(() => {
+    const event: CaptainEvent = {
+      type: "startup.scan",
+      projectId,
+      timestamp: new Date(),
+      data: {},
+    };
+    queueAndProcess(event).catch((err) => {
+      logger.error({ err, projectId }, "Monitor: Startup scan failed");
+    });
+  }, RECOVERY_DELAY_MS + STARTUP_BUFFER_MS);
 
   logger.info({ projectId }, "Monitor service started for project");
 }

@@ -267,7 +267,7 @@ Captain is split into two independent services that run concurrently per project
   - `issue.created` (user-created issues only — agent-created issues are ignored to prevent chain reactions)
   - `issue.updated`, `issue.status_changed`
   - `run.completed` (agent finished)
-  - `run.recovered` (issue needs attention after server restart)
+  - `startup.scan` (emitted when monitor service starts for each project — gives Captain full visibility into existing issues)
   - `pr.status_changed` (from PR poller)
   - `comment.added` (user comments only)
   - `project.settings_changed` (project configuration updates — e.g., `auto_merge_enabled`, `max_concurrency`)
