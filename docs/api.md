@@ -547,6 +547,24 @@ Removes a draft issue.
 
 **Response:** `204 No Content`
 
+#### Delete Issue
+
+```
+DELETE /projects/:projectId/issues/:issueId
+```
+
+Permanently deletes an issue and cleans up associated resources.
+
+**Response:** `204 No Content`
+
+**Side effects:**
+- If the issue has a worktree (`worktree_path`, `branch_name`), it is cleaned up before deletion
+- Git worktree is removed from disk
+- Associated branch is optionally deleted
+- All related database records are deleted
+
+**Error:** `404 Not Found` — Issue does not exist.
+
 #### Create Pull Request
 
 ```
@@ -941,7 +959,7 @@ All events follow this structure:
 | `issue.created` | New issue created | Full issue object |
 | `issue.updated` | Issue fields changed | Issue ID + changed fields |
 | `issue.approved` | Draft issue approved | Issue object with new status |
-| `issue.status_changed` | Status transition | `{ issue_id, from, to }` |
+| `issue.status_changed` | Status transition (triggers worktree cleanup when `to === "done"`) | `{ issue_id, from, to }` |
 | `issue.assigned` | Agent assigned to issue | `{ issue_id, agent_id, agent_name }` |
 
 #### Comment Events

@@ -246,7 +246,7 @@ The frontend and backend are separate directories (not a monorepo with workspace
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than direct coupling.
 - Producers: REST API handlers, Agent Runtime, Orchestrator Manager, Session Manager, CrewDeck CLI endpoints.
-- Consumers: Orchestrator Manager, WebSocket broadcaster, Session Manager, Activity Logger.
+- Consumers: Orchestrator Manager, WebSocket broadcaster, Session Manager, Activity Logger, Worktree Cleanup.
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
 **SQLite Database**
@@ -345,9 +345,10 @@ On startup, the backend:
 2. Initializes SQLite database (runs `schema.sql` if tables don't exist).
 3. Scans for orphaned tmux sessions from previous crashes (sessions prefixed with `crewdeck-`).
 4. Cleans up orphaned sessions: kills tmux sessions, updates Session records to `error` status.
-5. Starts the Express HTTP server.
-6. Starts the WebSocket server.
-7. Logs startup complete via pino.
+5. Initializes event listeners (`initActivityLogger()`, `initWorktreeCleanup()`).
+6. Starts the Express HTTP server.
+7. Starts the WebSocket server.
+8. Logs startup complete via pino.
 
 ### Graceful Shutdown
 

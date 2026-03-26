@@ -313,13 +313,22 @@ Reviewers work in the same worktree as the original agent. They examine the code
 
 ### Worktree Cleanup
 
-Worktrees are cleaned up when an issue reaches `done` status:
+Worktrees are automatically cleaned up when an issue reaches `done` status or when an issue is deleted. The cleanup is handled by an event listener (`initWorktreeCleanup()`) initialized at startup that:
+
+1. Listens for `issue.status_changed` events with `to === "done"`
+2. Retrieves the issue and checks for worktree info (`worktree_path`, `branch_name`, `repo_id`)
+3. If the worktree path exists on disk, calls `cleanupWorktree()` to remove it
+4. Clears the `worktree_path` and `branch_name` fields on the issue record
+5. Fails silently (logs warning) if cleanup fails
+
+When an issue is deleted via DELETE `/issues/:issueId`, cleanup runs synchronously before database deletion to ensure worktrees don't leak.
 
 ```
-function cleanupWorktree(repo, worktreePath, branchName):
+function cleanupWorktree(repo, worktreePath, branchName, deleteBranch):
     repoPath = toContainerPath(repo.local_path)
     run: git -C <repoPath> worktree remove <worktreePath>
-    optionally: git -C <repoPath> branch -d <branchName>
+    if deleteBranch:
+        git -C <repoPath> branch -d <branchName>
 ```
 
 ## Session Context Storage
