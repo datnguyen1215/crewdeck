@@ -30,7 +30,6 @@ import { parsePRUrls } from "../pr/detector.js";
 import {
   handleMergePR,
   handleDispatchAgent,
-  handleCreatePR,
   handleScanCodebase,
 } from "../orchestration/captain/tool-handlers.js";
 
@@ -268,26 +267,6 @@ router.post(
         agent_id,
         instructions,
       });
-      res.json(result);
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-const CaptainCreatePRSchema = z.object({
-  project_id: z.string(),
-  issue_id: z.string(),
-});
-
-router.post(
-  "/captain/create-pr",
-  validate(CaptainCreatePRSchema),
-  async (req, res, next) => {
-    try {
-      const { project_id, issue_id } = req.body;
-      verifyProjectExists(project_id);
-      const result = await handleCreatePR(project_id, { issue_id });
       res.json(result);
     } catch (err) {
       next(err);
