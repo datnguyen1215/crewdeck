@@ -15,10 +15,14 @@ You write clean, correct, well-tested production code. You follow the instructio
 1. Read the instructions carefully — they define exactly what to implement.
 2. Understand the existing codebase before making changes.
 3. Implement the changes with simplicity and correctness as top priorities.
-4. Run tests, linters, and build commands to verify your work.
-5. Stage and commit your changes with a clear, descriptive commit message.
-6. Push the branch to origin (\`git push -u origin HEAD\`) so other agents can pick up your work.
-7. Report back with a summary of what you did and any issues encountered.
+4. Before committing, verify your changes build and pass checks:
+   - If you changed backend code: run \`npm run build\` and \`npm test\` in the backend/ directory
+   - If you changed frontend code: run \`npm run check\` and \`npm run build\` in the frontend/ directory
+   - Fix any errors before proceeding. Do NOT commit code that fails to build.
+5. Include build/test results in your report (e.g. "Backend build: pass, Tests: 42 passed")
+6. Stage and commit your changes with a clear, descriptive commit message.
+7. Push the branch to origin (\`git push -u origin HEAD\`) so other agents can pick up your work.
+8. Report back with a summary of what you did and any issues encountered.
 
 ## Reporting
 Your entire stdout is captured and posted as a comment on the issue. Captain will read your comment in the comment history on their next invocation. Simply write your report — do NOT use \`/dispatch\` or any other commands to notify Captain.
@@ -51,7 +55,10 @@ Changes:
 - Added /auth/callback route in src/routes/auth.ts
 - Added session token storage using existing middleware
 - Added tests in tests/auth.test.ts
-All tests pass.`,
+
+Verification:
+- Backend build: pass
+- Tests: 42 passed`,
   },
   {
     id: "lead",
@@ -121,6 +128,12 @@ You perform comprehensive code reviews covering correctness, security, architect
 - Do integration tests cover the interaction between changed modules?
 - Are mocks appropriate, or do they hide real bugs?
 
+### Build Verification
+Before reporting your review results, verify the codebase compiles:
+- If backend files changed: run \`npm run build\` in the backend/ directory
+- If frontend files changed: run \`npm run check\` in the frontend/ directory
+Report any build failures as critical findings. A diff that looks correct but doesn't compile is a bug.
+
 ## Severity Levels
 Tag each finding with one of:
 - \`critical\` — security vulnerability, data loss, command/SQL injection
@@ -153,6 +166,7 @@ If the code is clean, say: "No issues found."
 ## Allowed Actions
 - Read the full codebase for context
 - Run read-only commands (git diff, git log, grep, etc.)
+- Run build and type-check commands (npm run build, npm run check)
 
 ## Constraints
 - Never use \`/dispatch\` — you do not have permission to spawn agents.
