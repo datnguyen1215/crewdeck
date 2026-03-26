@@ -258,44 +258,21 @@ Immutable audit trail of every action in the system.
 
 ---
 
-### ChatSession
-
-Groups chat messages into discrete conversation sessions per project. Only one session can be active at a time per project.
-
-| Field      | Type        | Constraints                                                 | Description                                                      |
-| ---------- | ----------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| id         | TEXT (UUID) | PRIMARY KEY                                                 | Unique identifier.                                               |
-| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE        | Owning project.                                                  |
-| title      | TEXT        | NULLABLE                                                    | Session title (auto-generated or user-set).                      |
-| summary    | TEXT        | NULLABLE                                                    | Session summary (reserved for future use).                       |
-| status     | TEXT        | NOT NULL, DEFAULT 'active', CHECK (IN 'active', 'archived') | Session status. Only one `active` session per project at a time. |
-| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                         |                                                                  |
-| updated_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                         |                                                                  |
-
-**Constraints:**
-
-- One active session per project. Creating a new session atomically archives the current active one (wrapped in a transaction).
-- Archived sessions are read-only — messages can be listed but not added.
-
----
-
 ### ChatMessage
 
-Stores conversation history for the Captain LLM agent. Messages belong to a chat session (for user conversations) or are sessionless (for Monitor messages).
+Stores conversation history for the Captain Monitor LLM agent. All messages are sessionless (used only by Monitor for automated orchestration).
 
-| Field      | Type        | Constraints                                              | Description                                                                                                                       |
-| ---------- | ----------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| id         | TEXT (UUID) | PRIMARY KEY                                              | Unique identifier.                                                                                                                |
-| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE     | Owning project.                                                                                                                   |
-| session_id | TEXT        | FOREIGN KEY → ChatSession.id ON DELETE CASCADE, NULLABLE | The chat session this message belongs to. NULL for Monitor messages (sessionless).                                                |
-| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')                 | Message role. `user` for user messages and event batches, `assistant` for Captain responses.                                      |
-| content    | TEXT        | NOT NULL                                                 | Message content.                                                                                                                  |
-| images     | TEXT        | NULLABLE                                                 | JSON array of image file paths. Images are stored on disk at `data/uploads/{projectId}/{messageId}/`. NULL if no images attached. |
-| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                      | When the message was created.                                                                                                     |
+| Field      | Type        | Constraints                                          | Description                                                                  |
+| ---------- | ----------- | ---------------------------------------------------- | ---------------------------------------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                           |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                              |
+| session_id | TEXT        | NULLABLE                                             | Always NULL (legacy field retained for Monitor's sessionless message store). |
+| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role. `user` for event batches, `assistant` for Monitor responses.   |
+| content    | TEXT        | NOT NULL                                             | Message content.                                                             |
+| images     | TEXT        | NULLABLE                                             | Always NULL (not used by Monitor).                                           |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created.                                                |
 
-**Note:** Chat and Monitor conversation histories are separated by the `session_id` field. Chat messages have a `session_id` (belong to a session). Monitor messages have `session_id = NULL` (sessionless). SQL-level filtering (`WHERE session_id IS NULL` / `IS NOT NULL`) ensures correct results when querying with limits.
-
-**Note:** The `images` field stores file paths as a JSON string and is parsed to `string[] | null` at runtime. Images pasted into the Captain chat UI are saved to disk and their paths are stored here for multimodal processing.
+**Note:** This table was originally designed for chat sessions but is now used exclusively by the Monitor service for its conversation history (`session_id = NULL`). The table and `session_id` column are retained for compatibility with existing migrations. Monitor queries use `WHERE session_id IS NULL` to retrieve its history.
 
 ### AgentConfig
 
@@ -371,9 +348,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
-| Project → ChatSession         | One-to-Many | A project has many chat sessions (one active at a time).                    |
-| ChatSession → ChatMessage     | One-to-Many | A session has many chat messages. Monitor messages have no session (NULL).  |
-| Project → ChatMessage         | One-to-Many | A project has many chat messages (both session and sessionless).            |
+| Project → ChatMessage         | One-to-Many | A project has many monitor messages (all sessionless, used by Monitor).     |
 
 ## Indexes
 
@@ -395,9 +370,5 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 - `idx_agent_run_created` on AgentRun(project_id, created_at)
 - `idx_agent_run_event_run` on AgentRunEvent(agent_run_id)
 - `idx_agent_run_event_created` on AgentRunEvent(agent_run_id, created_at)
-- `idx_chat_session_project` on ChatSession(project_id)
-- `idx_chat_session_status` on ChatSession(project_id, status)
-- `idx_chat_session_created` on ChatSession(project_id, created_at DESC)
 - `idx_chat_message_project` on ChatMessage(project_id)
-- `idx_chat_message_session` on ChatMessage(session_id)
 - `idx_chat_message_created` on ChatMessage(project_id, created_at DESC)
