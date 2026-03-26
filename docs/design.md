@@ -188,6 +188,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes and the Captain monitor feed. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each agent pane shows agent name, status badge, clickable issue link, an event feed with full content display, and elapsed time + cost. Events show their full content: assistant thinking/response text, user messages, tool call details (file paths, commands, patterns), and tool results. The feed auto-scrolls to new events when the user is at the bottom but preserves scroll position when the user has scrolled up to read history. The page also displays a **Captain monitor card** with cyan accent styling, which shows the automated orchestration feed. The monitor card loads history via `GET /projects/:projectId/monitor/history` on mount and subscribes to `monitor.event_received`, `monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.complete` WebSocket events for live updates. It displays "Analyzing..." during active processing and "Monitoring" when idle. Only agents with active runs are shown — idle agents are hidden; the grid renders only the Captain card and any agents with running/queued runs.
 - **Captain page** (`/projects/:id/chat`) — full-width chat interface for interactive conversation with the Captain. The sidebar has a single "Captain" entry.
   - **Chat panel** (`ChatPanel.svelte`): interactive conversation with input area, session selector, markdown rendering, image paste support. Subscribes to `captain.chat.chunk` (token-by-token streaming), `captain.chat.tool_call`, `captain.chat.tool_result`, `captain.chat.complete`, and legacy `captain.thinking`/`captain.message`/`captain.complete` events. Includes a 60-second safety timeout that resets the sending state if no completion event arrives.
+- **Captain Terminal page** (`/projects/:id/captain-terminal`) — PTY-backed terminal interface for direct CLI access to captain chat. Uses xterm.js for terminal rendering and connects to the backend via `/terminal-ws` WebSocket for bidirectional PTY streaming. The terminal component (`Terminal.svelte`) handles resize events, reconnection with exponential backoff, and FitAddon/WebLinksAddon integration. The page auto-creates a terminal session if none exists via `POST /projects/:id/terminal`.
 - Issue detail page (`[issueId]/+page.svelte`) is a thin orchestrator (~360 lines) that loads data, manages comment CRUD state, subscribes to WebSocket events, and passes props to focused child components:
   - **`IssueTimeline.svelte`** — renders the unified chronological timeline merging comments, activity entries, and agent run summaries. Accepts `comments`, `activityEntries`, `runs`, and `liveEvents` props. Owns activity expansion state and inline run expansion (loads run events on toggle, appends live events via a reactive `$effect`). Matches `mention.spawned`/`mention.completed` activity entries to `AgentRun` records by `agent_id` + timestamp (60s tolerance) and displays colored status dots (green = running, amber = queued, red = failed, cyan = completed). Stale-fetch guard: captures `runId` before async calls and checks it after await before updating state.
   - **`RunDetailModal.svelte`** — modal showing the full event log for a selected run. Accepts a `run` prop and a `liveEvents` map. Loads events from the API on open, merges in any already-received live events, then appends new live events via a second `$effect` that uses `untrack()` to read `modalEvents` without creating a reactive dependency. Stale-fetch guard: captures `runId` before the API call and checks `runId !== run?.id` before assigning results.
@@ -202,9 +203,11 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - All request validation via Zod schemas. Issue and PR status fields use Zod enum validation against centralized constants (`backend/src/constants/statuses.ts`).
 - Centralized error handling middleware (all errors formatted as `{ error: { code, message, details } }`).
 - Runs WebSocket server (`ws` library) to push real-time events to the frontend.
+- Runs separate terminal WebSocket server (`/terminal-ws`) for PTY streaming.
 - In-process event bus (typed EventEmitter) for decoupled internal communication between components.
 - Manages agent lifecycle — spawning `claude -p` processes, tracking active processes, enforcing concurrency limits.
-- Graceful shutdown on SIGTERM/SIGINT — kills active agent processes.
+- Manages terminal sessions — persistent tmux sessions running Claude CLI with 30-minute idle timeout cleanup.
+- Graceful shutdown on SIGTERM/SIGINT — kills active agent processes and terminal sessions.
 - Structured JSON logging via pino.
 
 **MentionHandler**
@@ -295,6 +298,23 @@ Captain is split into two independent services that run concurrently per project
 - `initCaptain()` starts both services for all captain-enabled projects.
 - `startCaptainForProject(projectId)` / `stopCaptainForProject(projectId)` control both services per project.
 - Uses OAuth token from the project's linked GitHub account for merging and PR creation.
+
+**PTY Service** (`backend/src/orchestration/captain/pty-service.ts`)
+
+- Manages persistent tmux sessions running Claude CLI for terminal access to captain chat.
+- Each project can have one terminal session running `claude --system-prompt-file` inside tmux.
+- Session lifecycle: `createTerminalSession()`, `getTerminalSession()`, `destroyTerminalSession()`.
+- Auto-cleanup: 30-minute idle timeout kills sessions and removes temporary files (system prompt, SSH keys).
+- Environment injection: `CREWDECK_*` vars, `GH_TOKEN`, SSH keys from project's GitHub account.
+- Concurrency control: `pendingCreations` Set guards against race conditions when multiple clients request sessions simultaneously.
+
+**Terminal WebSocket Server** (`backend/src/terminal-ws.ts`)
+
+- Separate WebSocket server on `/terminal-ws?projectId={id}` path.
+- Spawns `node-pty` process attaching to the project's tmux session via `tmux attach-session -t {name}`.
+- Bidirectional I/O: PTY output → WebSocket send (raw bytes), WebSocket messages → PTY write (keyboard input).
+- Resize handling: JSON messages with `{ type: "resize", cols, rows }` → `pty.resize()`.
+- Connection cleanup: kills PTY attach process on disconnect (does not kill the tmux session itself).
 
 **Event Bus**
 
@@ -461,11 +481,13 @@ On startup, the backend:
 6. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 7. Starts the PR poller (polls GitHub every 60 seconds for PR status updates).
 8. Initializes Captain services — both Chat and Monitor subscribe to the event bus for all captain-enabled projects.
-9. Starts the Express HTTP server.
-10. Starts the WebSocket server.
-11. Logs startup complete via pino.
+9. Initializes PTY service — starts idle session cleanup interval (runs every 60 seconds).
+10. Starts the Express HTTP server.
+11. Starts the WebSocket server (`/ws` for events).
+12. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
+13. Logs startup complete via pino.
 
-Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery).
+Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery). Terminal sessions are also lost (clients must reconnect and recreate sessions).
 
 ### Graceful Shutdown
 
@@ -474,9 +496,11 @@ On SIGTERM or SIGINT, the backend:
 1. Stops accepting new HTTP connections.
 2. Sends SIGTERM to all active agent processes (via `shutdownMentionHandler()`).
 3. Shuts down Captain services — both Chat and Monitor unsubscribe from events; Monitor clears idle timeouts.
-4. Stops the PR poller.
-5. Closes the SQLite database connection.
-6. Exits the process.
+4. Shuts down PTY service — kills all active tmux sessions and cleans up temporary files.
+5. Closes terminal WebSocket connections and kills all PTY attach processes.
+6. Stops the PR poller.
+7. Closes the SQLite database connection.
+8. Exits the process.
 
 ## Security and Access
 
