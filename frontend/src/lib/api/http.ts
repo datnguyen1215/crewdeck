@@ -15,7 +15,6 @@ import type {
   ActiveRun,
   ProjectKnowledge,
   LibrarianStatus,
-  ChatSession,
   ChatMessage,
   AgentConfig,
 } from "./types.js";
@@ -41,8 +40,6 @@ export type {
   AgentRunEventType,
   ProjectKnowledge,
   LibrarianStatus,
-  ChatSession,
-  ChatSessionStatus,
   ChatMessage,
   AgentConfig,
 } from "./types.js";

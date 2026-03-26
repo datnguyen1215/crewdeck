@@ -183,19 +183,6 @@ export interface LibrarianStatus {
   completed_at: string | null;
 }
 
-// Chat session types
-export type ChatSessionStatus = "active" | "archived";
-
-export interface ChatSession {
-  id: string;
-  project_id: string;
-  title: string | null;
-  summary: string | null;
-  status: ChatSessionStatus;
-  created_at: string;
-  updated_at: string;
-}
-
 export type ChatMessageRole = "user" | "assistant";
 
 export interface ChatMessage {

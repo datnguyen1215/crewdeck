@@ -31,9 +31,9 @@ All persistent state is stored in a local SQLite database. This document defines
 │  Issue   │1────N│ AgentRun │1────N│ AgentRunEvent  │
 └──────────┘       └──────────┘       └────────────────┘
 
-┌──────────┐       ┌─────────────┐       ┌─────────────┐
-│ Project  │1────N│ ChatSession │1────N│ ChatMessage  │
-└──────────┘       └─────────────┘       └─────────────┘
+┌──────────┐       ┌─────────────┐
+│ Project  │1────N│ ChatMessage │
+└──────────┘       └─────────────┘
 ```
 
 ## Entities
