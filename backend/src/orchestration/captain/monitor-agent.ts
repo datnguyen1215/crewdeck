@@ -248,13 +248,8 @@ export const formatEvents = (events: CaptainEvent[]): string => {
               : data.comment.content;
           return `[${ts}] Comment on issue ${data.comment.issue_id.slice(0, 8)} by ${data.comment.author_type}: ${preview}`;
         }
-        case "run.recovered": {
-          const data = e.data as {
-            issue_id: string;
-            failed_agent_id: string;
-          };
-          return `[${ts}] Run recovered: agent ${data.failed_agent_id} failed on issue ${data.issue_id.slice(0, 8)}, ready for retry`;
-        }
+        case "startup.scan":
+          return `[${ts}] Startup scan: analyze current project state and take any needed actions`;
         case "idle.check":
           return `[${ts}] Idle check: checking for stuck issues`;
         case "project.settings_changed": {

@@ -10,11 +10,11 @@ export type CaptainEventType =
   | "issue.updated"
   | "issue.status_changed"
   | "run.completed"
-  | "run.recovered"
   | "pr.status_changed"
   | "comment.added"
   | "chat.message"
   | "idle.check"
+  | "startup.scan"
   | "project.settings_changed";
 
 /** Image content passed with chat messages */
