@@ -479,15 +479,62 @@ export const processWithLLM = async (
       if (actionPlan.reasoning) {
         finalResponse = `${actionPlan.reasoning}\n\n${finalResponse}`;
       }
-    } else if (resultText) {
-      // No valid action plan, use raw response
-      finalResponse = resultText;
-      logger.warn(
-        { projectId, responsePreview: resultText.slice(0, 200) },
-        "Monitor: Could not parse action plan from response",
-      );
     } else {
-      finalResponse = "No action plan generated";
+      // No valid action plan — retry once with a focused prompt
+      logger.warn(
+        { projectId, responsePreview: (resultText || "").slice(0, 200) },
+        "Monitor: Could not parse action plan, retrying",
+      );
+
+      try {
+        const retryResult = await spawnClaudeStream({
+          prompt:
+            "Your previous response was not a valid JSON action plan. You MUST respond with ONLY a JSON object in this exact format:\n\n" +
+            '```json\n{"reasoning": "brief explanation", "actions": [{"type": "skip", "issue_id": "", "reason": "no action needed"}]}\n```\n\n' +
+            "If no actions are needed, use an empty actions array. Respond with ONLY the JSON — no other text.\n\n" +
+            "Original context:\n" + userPrompt,
+          systemPrompt,
+          workdir: ".",
+          env,
+          model,
+        });
+
+        let retryText = "";
+        for await (const event of retryResult.events) {
+          if (event.type === "result") {
+            retryText = typeof event.result === "string" ? event.result : "";
+          }
+        }
+        await retryResult.exitPromise;
+
+        if (retryText) {
+          const retryJson = extractJsonFromResponse(retryText);
+          if (retryJson) {
+            actionPlan = parseActionPlan(retryJson);
+          }
+        }
+
+        if (actionPlan) {
+          logger.info(
+            { projectId, actionCount: actionPlan.actions.length },
+            "Monitor: Retry succeeded",
+          );
+          const results = await executePlan(projectId, actionPlan);
+          finalResponse = formatResults(results);
+          if (actionPlan.reasoning) {
+            finalResponse = `${actionPlan.reasoning}\n\n${finalResponse}`;
+          }
+        } else {
+          finalResponse = resultText || "No action plan generated";
+          logger.warn(
+            { projectId },
+            "Monitor: Retry also failed to produce valid action plan",
+          );
+        }
+      } catch (retryErr) {
+        logger.error({ retryErr, projectId }, "Monitor: Retry failed");
+        finalResponse = resultText || "No action plan generated";
+      }
     }
   } catch (err) {
     logger.error({ err }, "Monitor claude -p call failed");
