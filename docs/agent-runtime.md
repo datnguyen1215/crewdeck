@@ -313,15 +313,30 @@ Reviewers work in the same worktree as the original agent. They examine the code
 
 ### Worktree Cleanup
 
-Worktrees are automatically cleaned up when an issue reaches `done` status or when an issue is deleted. The cleanup is handled by an event listener (`initWorktreeCleanup()`) initialized at startup that:
+Worktrees are automatically cleaned up when an issue reaches `done` status or when an issue is deleted. The cleanup is handled by an event listener (`initWorktreeCleanup()`) initialized at startup.
+
+**Event-driven cleanup (`initWorktreeCleanup()`):**
 
 1. Listens for `issue.status_changed` events with `to === "done"`
 2. Retrieves the issue and checks for worktree info (`worktree_path`, `branch_name`, `repo_id`)
-3. If the worktree path exists on disk, calls `cleanupWorktree()` to remove it
-4. Clears the `worktree_path` and `branch_name` fields on the issue record
-5. Fails silently (logs warning) if cleanup fails
+3. If the worktree path already missing from disk, clears DB fields and returns early
+4. If the worktree path exists, calls `cleanupWorktree(repo, worktreePath, branchName, true)` to remove it
+5. **Always clears** `worktree_path` and `branch_name` fields on the issue record (via `finally` block) regardless of cleanup success
+6. Logs warnings on failure but continues — cleanup errors are non-fatal
 
-When an issue is deleted via DELETE `/issues/:issueId`, cleanup runs synchronously before database deletion to ensure worktrees don't leak.
+**Synchronous cleanup on deletion:**
+
+When an issue is deleted via `DELETE /issues/:issueId` or `POST /issues/:issueId/discard`, cleanup runs synchronously before database deletion:
+- Checks if worktree path exists on disk
+- Calls `cleanupWorktree()` if present
+- Logs warnings on failure but continues with deletion
+- Prevents worktree leaks when issues are removed
+
+**Implementation guarantees:**
+- Database fields are always cleared when status reaches `done`, even if git cleanup fails
+- This prevents DB from pointing to broken or partially-cleaned worktree state
+- Early exit optimization when path already gone (no unnecessary git operations)
+- Error handling ensures cleanup failures don't block issue deletion or status transitions
 
 ```
 function cleanupWorktree(repo, worktreePath, branchName, deleteBranch):

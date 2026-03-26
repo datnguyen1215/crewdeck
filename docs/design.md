@@ -273,7 +273,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 │  ├── Agent Runtime        ──→  WebSocket broadcaster     │
 │  ├── CrewDeck CLI (HTTP)  ──→  Session Manager           │
 │  ├── Orchestrator Manager ──→  Activity Logger           │
-│  └── Session Manager                                     │
+│  └── Session Manager      ──→  Worktree Cleanup          │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -294,6 +294,17 @@ The backend uses an in-process typed EventEmitter as the central communication b
 5. WebSocket broadcaster receives event → sends to connected frontend clients
 6. Orchestrator Manager receives event → resumes orchestrator to evaluate the new issue
 7. API handler returns 201 to the client
+
+### Example Flow: Issue Reaches Done Status
+
+```
+1. REST API: PATCH /api/v1/projects/:id/issues/:issueId (status: "done")
+2. API handler updates issue status in DB
+3. API handler emits: bus.emit("issue.status_changed", { issue_id, from: "ready", to: "done" })
+4. Worktree Cleanup listener receives event → cleans up git worktree, always clears DB fields (in finally block)
+5. Activity Logger receives event → writes ActivityLog entry
+6. WebSocket broadcaster receives event → sends to connected frontend clients
+7. API handler returns 200 to the client
 ```
 
 ## Real-Time Communication
@@ -327,6 +338,24 @@ Each agent works in an isolated git worktree:
 - The orchestrator determines the base branch — it could be `main`, or it could be another issue's branch if there's a dependency.
 - The worktree path and branch name are recorded on the issue.
 - Reviewers access the same worktree to examine the code.
+
+**Automatic Cleanup:**
+
+Worktrees are automatically cleaned up via event-driven and synchronous mechanisms:
+
+- **Event-driven cleanup (`initWorktreeCleanup()`)** — Listens for `issue.status_changed` events with `to === "done"`. When triggered:
+  1. Checks if worktree path exists on disk
+  2. Calls `cleanupWorktree()` to remove git worktree and branch
+  3. **Always clears** `worktree_path` and `branch_name` DB fields (via `finally` block), regardless of cleanup success
+  4. Logs warnings on failure but continues (cleanup errors are non-fatal)
+
+- **Synchronous cleanup on deletion** — DELETE `/issues/:issueId` and POST `/issues/:issueId/discard` routes call cleanup before deleting database records to prevent worktree leaks
+
+This approach ensures:
+- No unbounded disk usage from abandoned worktrees
+- Database never points to broken or partially-cleaned worktree state
+- Cleanup failures don't block issue status transitions or deletions
+- Early exit optimization when path already gone (no unnecessary git operations)
 
 ### Concurrency Control
 
