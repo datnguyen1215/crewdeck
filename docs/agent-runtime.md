@@ -307,12 +307,12 @@ function buildPrompt(opts: BuildPromptOptions): string
   opts.repo             — repo name and worktree path (optional)
   opts.worktreePath     — absolute path to the git worktree
   opts.agentId          — controls which API section is injected
-  opts.projectKnowledge — project knowledge entries (filtered by agent assignment)
+  opts.projectKnowledge — project knowledge entries (all entries for the project)
 ```
 
 The function accepts a single options object containing all required and optional fields.
 
-**Role-specific API access:** The prompt's API section varies by `agentId`. Librarian receives access to the knowledge internal API (list, create, update, delete knowledge entries). All other agents (engineer, lead, docs) receive a notice that their stdout is automatically posted as a comment — no direct API access needed.
+**Role-specific API access:** The prompt's API section varies by `agentId`. All agents receive read-only access to the knowledge API (list titles, get full entries). Only the librarian receives write access (create, update, delete knowledge entries). All non-librarian agents receive a notice that their stdout is automatically posted as a comment.
 
 **Project knowledge:** Knowledge entries are injected as a `## Project Knowledge` section. Each entry is rendered as a level-3 heading with its title and category, followed by the content:
 
@@ -326,7 +326,7 @@ Entry content here...
 More content...
 ```
 
-Entries are filtered by agent assignment (`agent_ids` field) and ordered by `updated_at DESC, created_at DESC`. An agent only receives entries where `agent_ids` is null (applies to all agents) or contains the agent's ID.
+Entries are filtered by category. Only `workflows` and `conventions` categories are injected into agent prompts. Entries with `architecture`, `setup`, and `api` categories are available via read-only knowledge API endpoints that agents can query on demand. All entries are ordered by `updated_at DESC, created_at DESC`.
 
 Every invocation gets a complete, self-contained prompt from the database. The backend does not rely on Claude's session management.
 

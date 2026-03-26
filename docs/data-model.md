@@ -209,11 +209,10 @@ Structured knowledge entries that provide context to agents. Replaces the former
 | category   | TEXT        | NOT NULL                                             | Category for grouping (e.g., `architecture`, `conventions`, `gotchas`). |
 | content    | TEXT        | NOT NULL                                             | The knowledge content.                                                  |
 | source     | TEXT        | NULLABLE                                             | Optional source reference (e.g., file path, URL).                       |
-| agent_ids  | TEXT        | NULLABLE                                             | JSON array of agent IDs this entry applies to. NULL means all agents.   |
 | created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  |                                                                         |
 | updated_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  |                                                                         |
 
-**Note:** `agent_ids` is stored as a JSON string and parsed to `string[] | null` at runtime. When null, the entry applies to all agents. When set, only agents whose ID is in the array receive this knowledge.
+**Note:** As of the category-based injection refactoring, knowledge entries are delivered to agents based on their `category` field. Entries with `workflows` and `conventions` categories are injected into all agent prompts. Entries with `architecture`, `setup`, and `api` categories are available via read-only knowledge API tools that agents can query on demand.
 
 ---
 

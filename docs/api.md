@@ -842,7 +842,6 @@ GET /projects/:projectId/knowledge
     "category": "conventions",
     "content": "All endpoints return JSON...",
     "source": "librarian",
-    "agent_ids": ["engineer", "lead"],
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
   }
@@ -874,18 +873,16 @@ POST /projects/:projectId/knowledge
   "title": "API Conventions",
   "category": "conventions",
   "content": "All endpoints return JSON...",
-  "source": "user",
-  "agent_ids": ["engineer", "lead"]
+  "source": "user"
 }
 ```
 
-| Field     | Required | Default | Description                                                             |
-| --------- | -------- | ------- | ----------------------------------------------------------------------- |
-| title     | Yes      | —       | Short title for the entry.                                              |
-| category  | Yes      | —       | Category for grouping (e.g., `architecture`, `conventions`, `gotchas`). |
-| content   | Yes      | —       | The knowledge content.                                                  |
-| source    | No       | null    | Optional source reference (e.g., `user`, `librarian`, file path, URL).  |
-| agent_ids | No       | null    | Array of agent IDs this entry applies to. NULL means all agents.        |
+| Field    | Required | Default | Description                                                             |
+| -------- | -------- | ------- | ----------------------------------------------------------------------- |
+| title    | Yes      | —       | Short title for the entry.                                              |
+| category | Yes      | —       | Category for grouping (e.g., `architecture`, `conventions`, `gotchas`). |
+| content  | Yes      | —       | The knowledge content.                                                  |
+| source   | No       | null    | Optional source reference (e.g., `user`, `librarian`, file path, URL).  |
 
 **Response:** `201 Created` — The created knowledge entry object.
 
@@ -897,7 +894,7 @@ POST /projects/:projectId/knowledge
 PATCH /projects/:projectId/knowledge/:knowledgeId
 ```
 
-**Request Body:** Any subset of fields (title, category, content, source, agent_ids).
+**Request Body:** Any subset of fields (title, category, content, source).
 
 **Response:** `200 OK` — The updated knowledge entry object.
 
@@ -1347,13 +1344,13 @@ Agent creates a new issue. The issue is created with `created_by: "agent"`.
 
 **Side effects:** Emits `issue.created` on the event bus.
 
-#### List Knowledge Entries (Internal)
+#### List Knowledge Titles (Internal, Read-Only)
 
 ```
-GET /internal/knowledge/list?project_id=<uuid>
+GET /internal/knowledge/titles?project_id=<uuid>
 ```
 
-Agent lists all knowledge entries for a project.
+Agent lists knowledge entry titles for discovery. Available to all agents.
 
 **Query Parameters:**
 
@@ -1361,9 +1358,40 @@ Agent lists all knowledge entries for a project.
 | ---------- | -------- | --------------- |
 | project_id | Yes      | The project ID. |
 
-**Response:** `200 OK` — Array of knowledge entry objects.
+**Response:** `200 OK` — Array of lightweight objects with `id`, `title`, and `category`.
 
-#### Create Knowledge Entry (Internal)
+**Example Response:**
+
+```json
+[
+  {
+    "id": "uuid",
+    "title": "API Conventions",
+    "category": "conventions"
+  }
+]
+```
+
+#### Get Knowledge Entry (Internal, Read-Only)
+
+```
+GET /internal/knowledge/get?project_id=<uuid>&knowledge_id=<uuid>
+```
+
+Agent retrieves full content of a knowledge entry. Available to all agents.
+
+**Query Parameters:**
+
+| Parameter    | Required | Description        |
+| ------------ | -------- | ------------------ |
+| project_id   | Yes      | The project ID.    |
+| knowledge_id | Yes      | The entry ID.      |
+
+**Response:** `200 OK` — Full knowledge entry object.
+
+**Error:** `404 Not Found` — Entry does not exist or belongs to a different project.
+
+#### Create Knowledge Entry (Internal, Librarian Only)
 
 ```
 POST /internal/knowledge/create
@@ -1378,24 +1406,22 @@ Agent creates a knowledge entry. The `source` field is automatically set to `lib
   "project_id": "uuid",
   "title": "API Conventions",
   "category": "conventions",
-  "content": "All endpoints return JSON...",
-  "agent_ids": ["engineer", "lead"]
+  "content": "All endpoints return JSON..."
 }
 ```
 
-| Field      | Required | Description                                                      |
-| ---------- | -------- | ---------------------------------------------------------------- |
-| project_id | Yes      | The project to create the entry in.                              |
-| title      | Yes      | Short title (non-empty).                                         |
-| category   | Yes      | Category for grouping (non-empty).                               |
-| content    | Yes      | The knowledge content (non-empty).                               |
-| agent_ids  | No       | Array of agent IDs this entry applies to. NULL means all agents. |
+| Field      | Required | Description                         |
+| ---------- | -------- | ----------------------------------- |
+| project_id | Yes      | The project to create the entry in. |
+| title      | Yes      | Short title (non-empty).            |
+| category   | Yes      | Category for grouping (non-empty).  |
+| content    | Yes      | The knowledge content (non-empty).  |
 
 **Response:** `201 Created` — The created knowledge entry object.
 
-**Note:** The `source` field is forced to `librarian` for all entries created via this endpoint.
+**Note:** The `source` field is forced to `librarian` for all entries created via this endpoint. This endpoint is only available to the librarian agent.
 
-#### Update Knowledge Entry (Internal)
+#### Update Knowledge Entry (Internal, Librarian Only)
 
 ```
 POST /internal/knowledge/update
@@ -1421,13 +1447,14 @@ Agent updates a knowledge entry.
 | title        | No       | Updated title.                  |
 | category     | No       | Updated category.               |
 | content      | No       | Updated content.                |
-| agent_ids    | No       | Updated agent assignments.      |
 
 **Response:** `200 OK` — The updated knowledge entry object.
 
 **Error:** `404 Not Found` — Entry does not exist or belongs to a different project.
 
-#### Delete Knowledge Entry (Internal)
+**Note:** This endpoint is only available to the librarian agent.
+
+#### Delete Knowledge Entry (Internal, Librarian Only)
 
 ```
 POST /internal/knowledge/delete
@@ -1452,6 +1479,8 @@ Agent deletes a knowledge entry.
 **Response:** `204 No Content`
 
 **Error:** `404 Not Found` — Entry does not exist or belongs to a different project.
+
+**Note:** This endpoint is only available to the librarian agent.
 
 #### Register PR (Internal)
 
