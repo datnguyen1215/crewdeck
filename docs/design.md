@@ -102,7 +102,7 @@ Open → In Progress → PR Created → Done
 | **PR Ready to Merge** | The PR passes all checks and has no conflicts. Ready to be merged.                                                                        |
 | **Done**              | Issue resolved. Set via the "Mark as Done" button (blocked if active processes are running), or automatically when a linked PR is merged. |
 
-Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) or `done` issue automatically regresses it to `in_progress`.
+Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) or `done` issue automatically regresses it to `in_progress`. However, if the issue has a merged PR (recorded in the `issue_prs` table), the dispatch is rejected with a system comment and the status is not regressed. This prevents accidental re-opening of completed work.
 
 ## Technology Decisions
 
