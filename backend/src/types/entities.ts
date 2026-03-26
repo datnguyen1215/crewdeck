@@ -308,20 +308,7 @@ export interface UpdateKnowledgeInput {
   agent_ids?: string[] | null;
 }
 
-// Chat session types
-export type ChatSessionStatus = "active" | "archived";
-
-export interface ChatSession {
-  id: string;
-  project_id: string;
-  title: string | null;
-  summary: string | null;
-  status: ChatSessionStatus;
-  created_at: string;
-  updated_at: string;
-}
-
-// Chat message types
+// Chat message types (used by monitor-agent for sessionless messages)
 export type ChatMessageRole = "user" | "assistant";
 
 export interface ChatMessage {

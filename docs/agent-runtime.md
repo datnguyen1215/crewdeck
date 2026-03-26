@@ -90,15 +90,6 @@ claude -p <prompt via stdin> \
 - The prompt is written to stdin to avoid exceeding `ARG_MAX` for large prompts.
 - `--settings '{"attribution":{"commit":"","pr":""}}'` disables AI attribution in commits and PRs.
 
-### spawnClaudeMultimodal
-
-Spawns `claude -p` with multimodal (image) support. Used by the Captain Chat service when images are attached.
-
-```
-spawnClaudeMultimodal(opts: MultimodalOpts) → Promise<SpawnResult>
-```
-
-Uses `--output-format json` (non-streaming) and passes image data via stdin alongside the text prompt.
 
 ## Monitor Action Plans
 

@@ -3,7 +3,7 @@
  *
  * Uses `claude -p` CLI to make automated orchestration decisions.
  * Handles events like issue creation, run completion, PR status changes.
- * Does not handle user chat messages — those go through chat-agent.ts.
+ * User chat goes through the PTY terminal.
  *
  * Outputs structured action plans that the backend executes deterministically.
  */

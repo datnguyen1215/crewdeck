@@ -183,19 +183,6 @@ export interface LibrarianStatus {
   completed_at: string | null;
 }
 
-// Chat session types
-export type ChatSessionStatus = "active" | "archived";
-
-export interface ChatSession {
-  id: string;
-  project_id: string;
-  title: string | null;
-  summary: string | null;
-  status: ChatSessionStatus;
-  created_at: string;
-  updated_at: string;
-}
-
 export type ChatMessageRole = "user" | "assistant";
 
 export interface ChatMessage {
@@ -322,47 +309,6 @@ export interface WsEventMap {
     cost_usd: number | null;
     duration_ms: number | null;
     completed_at: string;
-  };
-  "chat.stream": {
-    project_id: string;
-    token: string;
-  };
-  "chat.complete": {
-    project_id: string;
-    message_id: string | null;
-  };
-  "captain.thinking": {
-    project_id: string;
-  };
-  "captain.message": {
-    project_id: string;
-    content: string;
-  };
-  "captain.complete": {
-    project_id: string;
-    response: string;
-  };
-  "captain.chat.chunk": {
-    project_id: string;
-    session_id: string;
-    text: string;
-  };
-  "captain.chat.tool_call": {
-    project_id: string;
-    session_id: string;
-    tool_name: string;
-    tool_input: unknown;
-  };
-  "captain.chat.tool_result": {
-    project_id: string;
-    session_id: string;
-    tool_name: string;
-    result: unknown;
-  };
-  "captain.chat.complete": {
-    project_id: string;
-    session_id: string;
-    message_id: string;
   };
   "monitor.event_received": {
     project_id: string;

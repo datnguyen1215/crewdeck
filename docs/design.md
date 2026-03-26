@@ -161,8 +161,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │  (comment.added → claude -p → comment)      │ │
 │  └──────────────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
-│  │  Captain (Chat + Monitor)                   │ │
-│  │  Chat:  chat.message → stream-json → WS     │ │
+│  │  Captain (Monitor)                          │ │
 │  │  Monitor: events → stream-json → action plan│ │
 │  └──────────────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
@@ -186,9 +185,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity). The project layout (`+layout.svelte`) establishes shared context for WebSocket and agents data, loaded once and shared to all child pages via Svelte `setContext`/`getContext`. The layout also includes a `<div id="modal-portal">` element as a sibling to `<main>` for rendering modals outside the scroll container.
 - **Modal rendering**: Modals use a portal pattern to prevent scroll jumps. `Modal.svelte` uses a Svelte action (`use:portal`) to append modal content to `#modal-portal`, which is outside the `<main class="overflow-auto">` scroll container. This prevents the browser from auto-scrolling when modals are inserted into the DOM.
 - **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes and the Captain monitor feed. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each agent pane shows agent name, status badge, clickable issue link, an event feed with full content display, and elapsed time + cost. Events show their full content: assistant thinking/response text, user messages, tool call details (file paths, commands, patterns), and tool results. The feed auto-scrolls to new events when the user is at the bottom but preserves scroll position when the user has scrolled up to read history. The page also displays a **Captain monitor card** with cyan accent styling, which shows the automated orchestration feed. The monitor card loads history via `GET /projects/:projectId/monitor/history` on mount and subscribes to `monitor.event_received`, `monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.complete` WebSocket events for live updates. It displays "Analyzing..." during active processing and "Monitoring" when idle. Only agents with active runs are shown — idle agents are hidden; the grid renders only the Captain card and any agents with running/queued runs.
-- **Captain page** (`/projects/:id/chat`) — full-width chat interface for interactive conversation with the Captain. The sidebar has a single "Captain" entry.
-  - **Chat panel** (`ChatPanel.svelte`): interactive conversation with input area, session selector, markdown rendering, image paste support. Subscribes to `captain.chat.chunk` (token-by-token streaming), `captain.chat.tool_call`, `captain.chat.tool_result`, `captain.chat.complete`, and legacy `captain.thinking`/`captain.message`/`captain.complete` events. Includes a 60-second safety timeout that resets the sending state if no completion event arrives.
-- **Captain Terminal page** (`/projects/:id/captain-terminal`) — PTY-backed terminal interface for direct CLI access to captain chat. Uses xterm.js for terminal rendering and connects to the backend via `/terminal-ws` WebSocket for bidirectional PTY streaming. The terminal component (`Terminal.svelte`) handles resize events, reconnection with exponential backoff, and FitAddon/WebLinksAddon integration. The page auto-creates a terminal session if none exists via `POST /projects/:id/terminal`.
+- **Captain page** (`/projects/:id/chat`) — PTY-backed terminal interface for direct CLI access to captain. Uses xterm.js for terminal rendering and connects to the backend via `/terminal-ws` WebSocket for bidirectional PTY streaming. The terminal component (`Terminal.svelte`) handles resize events, reconnection with exponential backoff, and FitAddon/WebLinksAddon integration. The page auto-creates a terminal session if none exists via `POST /projects/:id/terminal`.
 - Issue detail page (`[issueId]/+page.svelte`) is a thin orchestrator (~360 lines) that loads data, manages comment CRUD state, subscribes to WebSocket events, and passes props to focused child components:
   - **`IssueTimeline.svelte`** — renders the unified chronological timeline merging comments, activity entries, and agent run summaries. Accepts `comments`, `activityEntries`, `runs`, and `liveEvents` props. Owns activity expansion state and inline run expansion (loads run events on toggle, appends live events via a reactive `$effect`). Matches `mention.spawned`/`mention.completed` activity entries to `AgentRun` records by `agent_id` + timestamp (60s tolerance) and displays colored status dots (green = running, amber = queued, red = failed, cyan = completed). Stale-fetch guard: captures `runId` before async calls and checks it after await before updating state.
   - **`RunDetailModal.svelte`** — modal showing the full event log for a selected run. Accepts a `run` prop and a `liveEvents` map. Loads events from the API on open, merges in any already-received live events, then appends new live events via a second `$effect` that uses `untrack()` to read `modalEvents` without creating a reactive dependency. Stale-fetch guard: captures `runId` before the API call and checks `runId !== run?.id` before assigning results.
@@ -255,21 +252,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Provider registry (`backend/src/vcs/registry.ts`) allows registration of multiple VCS providers and URL-based provider detection.
 - Ready for multi-VCS support — adding GitLab or Bitbucket requires only implementing the interface.
 
-**Captain (Chat + Monitor)**
+**Captain (Monitor only)**
 
-Captain is split into two independent services that run concurrently per project. Captain always runs for all projects — there is no on/off toggle. The `auto_start` and `auto_merge` settings control what Captain can do autonomously. Captain is a background service and is not dispatchable via `/dispatch`.
-
-**Chat Service** (`backend/src/orchestration/captain/chat-service.ts` + `chat-agent.ts`)
-
-- Handles interactive user conversations from the Captain chat UI.
-- Subscribes to `chat.message` and `chat.abort` events.
-- Uses `claude -p --output-format stream-json` for real-time token streaming to the frontend via `captain.chat.chunk` WebSocket events. Also emits `captain.chat.tool_call` and `captain.chat.tool_result` for tool use during chat. Falls back to `spawnClaudeMultimodal` for image-attached messages (non-streaming, emits full response as a single chunk).
-- Messages are organized into sessions (ChatSession). Only one active session per project at a time; creating a new session archives the current active one.
-- Each message is a one-shot `claude -p` call with conversation history from the active session as context.
-- **Per-session concurrency**: one in-flight message per session. Additional sends are rejected with 409 (`SESSION_BUSY`). Multiple sessions can have in-flight messages simultaneously (separate processes). Session slots are reserved synchronously before any async work (process spawning, git auth setup) to prevent race conditions.
-- **Abort handling**: users can abort in-flight messages via `POST /chat/sessions/:sessionId/abort`. The process is killed with SIGTERM → SIGKILL after 5s. Partial responses are discarded (not saved to DB). If abort is requested while the process is still being spawned (pending state), the process is killed immediately upon spawn.
-- **Timeout**: 10-minute timeout per process, with SIGTERM → SIGKILL escalation.
-- On completion, saves the full assistant response to ChatMessage table and emits `captain.chat.complete` with the saved message ID.
+Captain runs a single Monitor service per project. Captain always runs for all projects — there is no on/off toggle. The `auto_start` and `auto_merge` settings control what Captain can do autonomously. Captain is a background service and is not dispatchable via `/dispatch`.
 
 **Monitor Service** (`backend/src/orchestration/captain/monitor-service.ts` + `monitor-agent.ts`)
 
@@ -301,9 +286,9 @@ Captain is split into two independent services that run concurrently per project
 
 **Captain Wrapper** (`backend/src/orchestration/captain.ts`)
 
-- Thin wrapper that initializes and shuts down both Chat and Monitor services together.
-- `initCaptain()` starts both services for all captain-enabled projects.
-- `startCaptainForProject(projectId)` / `stopCaptainForProject(projectId)` control both services per project.
+- Thin wrapper that initializes and shuts down the Monitor service.
+- `initCaptain()` starts the Monitor service for all captain-enabled projects.
+- `startCaptainForProject(projectId)` / `stopCaptainForProject(projectId)` control the Monitor service per project.
 - Uses OAuth token from the project's linked GitHub account for merging and PR creation.
 
 **PTY Service** (`backend/src/orchestration/captain/pty-service.ts`)
@@ -359,8 +344,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 │  ├── REST API handlers    ──→  MentionHandler            │
 │  ├── MentionHandler       ──→  WebSocket broadcaster     │
 │  ├── PR Detector/Poller   ──→  Activity Logger           │
-│  ├── Chat Service         ──→  PR Detector               │
-│  ├── Monitor Service      ──→  Chat Service (chat.message)│
+│  ├── Monitor Service      ──→  PR Detector               │
 │  │                        ──→  Monitor Service (events)   │
 │  └── Worktree Cleanup     ──→  Worktree Cleanup           │
 │                                                          │
@@ -405,9 +389,7 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
 - **PR events** — PR created, status updated.
-- **Captain events** — event received, thinking, message, tool call, tool result, complete.
-- **Captain chat events** — chunk (streaming text), tool_call, tool_result, complete (session-scoped, granular streaming events).
-- **Chat events** — stream, complete (legacy, kept for backward compatibility).
+- **Monitor events** — event received, thinking, message, tool call, tool result, complete.
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
 
@@ -487,7 +469,7 @@ On startup, the backend:
 5. Initializes the MentionHandler (subscribes to `comment.added`).
 6. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 7. Starts the PR poller (polls VCS providers every 60 seconds for PR status updates).
-8. Initializes Captain services — both Chat and Monitor subscribe to the event bus for all captain-enabled projects.
+8. Initializes Captain Monitor service — subscribes to the event bus for all captain-enabled projects.
 9. Initializes PTY service — starts idle session cleanup interval (runs every 60 seconds).
 10. Starts the Express HTTP server.
 11. Starts the WebSocket server (`/ws` for events).
@@ -502,7 +484,7 @@ On SIGTERM or SIGINT, the backend:
 
 1. Stops accepting new HTTP connections.
 2. Sends SIGTERM to all active agent processes (via `shutdownMentionHandler()`).
-3. Shuts down Captain services — both Chat and Monitor unsubscribe from events; Monitor clears idle timeouts.
+3. Shuts down Captain Monitor service — unsubscribes from events and clears idle timeouts.
 4. Shuts down PTY service — kills all active tmux sessions and cleans up temporary files.
 5. Closes terminal WebSocket connections and kills all PTY attach processes.
 6. Stops the PR poller.

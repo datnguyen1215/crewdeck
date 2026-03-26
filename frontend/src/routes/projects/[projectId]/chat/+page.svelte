@@ -1,22 +1,34 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getContext } from 'svelte';
-	import { getProject, type Project } from '$lib/api/http.js';
-	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import { onMount } from 'svelte';
+	import { getProject, type Project, createTerminalSession, getTerminalSession } from '$lib/api/http.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
-	import ChatPanel from '$lib/components/ChatPanel.svelte';
-
-	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
+	import Terminal from '$lib/components/Terminal.svelte';
 
 	let projectId = $derived($page.params.projectId!);
-	let ws = $derived(getWs());
 	let project = $state<Project | null>(null);
 	let pageTitle = $derived(project?.name ? `Captain - ${project.name} - CrewDeck` : 'Captain - CrewDeck');
+	let loading = $state(true);
+	let error = $state<string | null>(null);
 
 	$effect(() => {
 		let cancelled = false;
 		getProject(projectId).then((p) => { if (!cancelled) project = p; }).catch(() => {});
 		return () => { cancelled = true; };
+	});
+
+	onMount(async () => {
+		try {
+			// Check if terminal session exists, create if not
+			const status = await getTerminalSession(projectId);
+			if (!status.exists) {
+				await createTerminalSession(projectId);
+			}
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to initialize terminal session';
+		} finally {
+			loading = false;
+		}
 	});
 </script>
 
@@ -43,13 +55,23 @@
 			</div>
 			<div class="min-w-0">
 				<h1 class="text-base md:text-lg font-bold text-primary truncate">Captain</h1>
-				<p class="text-xs text-muted">Project orchestration chat</p>
+				<p class="text-xs text-muted">Interactive terminal with Claude CLI</p>
 			</div>
 		</div>
 	</div>
 
-	<!-- Chat panel (full width) -->
-	<div class="flex-1 min-h-0">
-		<ChatPanel {projectId} {ws} />
+	<!-- Terminal (full width) -->
+	<div class="flex-1 min-h-0 p-3 md:p-4">
+		{#if loading}
+			<div class="flex items-center justify-center h-full">
+				<div class="text-muted">Initializing terminal session...</div>
+			</div>
+		{:else if error}
+			<div class="flex items-center justify-center h-full">
+				<div class="text-red">Error: {error}</div>
+			</div>
+		{:else}
+			<Terminal {projectId} />
+		{/if}
 	</div>
 </div>
