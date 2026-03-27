@@ -597,6 +597,26 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     return;
   }
 
+  // Guard against dispatching to issues with merged PRs
+  if (issue.status === IssueStatus.DONE) {
+    const prs = issuePRRepo.listIssuePRs(issueId);
+    const mergedPR = prs.find((pr) => pr.status === PRStatus.MERGED);
+    if (mergedPR) {
+      postSystemComment(
+        issueId,
+        projectId,
+        `Dispatch rejected: issue already has a merged PR (#${mergedPR.pr_number})`,
+      );
+      agentRunRepo.updateAgentRun(run.id, { status: "failed" });
+      return;
+    }
+  }
+
+  // Re-increment chain_depth (was rolled back when queued)
+  database.db
+    .prepare("UPDATE Issue SET chain_depth = chain_depth + 1 WHERE id = ?")
+    .run(issueId);
+
   postSystemComment(
     issueId,
     projectId,

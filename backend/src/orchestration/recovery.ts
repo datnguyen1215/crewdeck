@@ -103,6 +103,7 @@ export const recoverOnStartup = (): void => {
   }
 
   // Recover the dispatch queue
+  // Running runs already marked failed above; recoverQueue reports queued runs count
   const queueRecovery = dispatchQueue.recoverQueue();
   log.logger.info(
     {
