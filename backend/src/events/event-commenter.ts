@@ -6,11 +6,7 @@
 import { eventBus } from "./bus.js";
 import { createComment } from "../db/repositories/comments.js";
 import { getIssuePR } from "../db/repositories/issue-prs.js";
-import { getProject } from "../db/repositories/projects.js";
-import { getIssue } from "../db/repositories/issues.js";
-import { enqueueRun, isAgentActive } from "../orchestration/dispatch-queue.js";
 import { logger } from "../logger.js";
-import { IssueStatus } from "../constants/statuses.js";
 
 /**
  * Format duration in milliseconds to human-readable string.
@@ -40,56 +36,6 @@ function postComment(issueId: string, content: string): void {
 }
 
 /**
- * Auto-start captain if project has auto_start enabled and captain not already active.
- */
-function autoStartCaptain(
-  projectId: string,
-  issueId: string,
-  completedAgentId?: string,
-): void {
-  const project = getProject(projectId);
-  if (!project?.auto_start) return;
-
-  // Skip auto-start if the completed run was captain itself (avoid re-invoking captain on its own completion)
-  if (completedAgentId === "captain") {
-    logger.debug(
-      { projectId, issueId },
-      "Skipping auto-start: completed run was captain itself",
-    );
-    return;
-  }
-
-  // Skip auto-start if issue is in a terminal or waiting state
-  const issue = getIssue(issueId);
-  if (!issue) {
-    logger.warn({ projectId, issueId }, "Issue not found, skipping auto-start");
-    return;
-  }
-
-  // Terminal state: done (no more work needed)
-  // Waiting states: pr_created (waiting for CI/checks before ready_to_merge)
-  if (issue.status === IssueStatus.DONE || issue.status === IssueStatus.PR_CREATED) {
-    logger.debug(
-      { projectId, issueId, status: issue.status },
-      "Skipping auto-start: issue in terminal or waiting state",
-    );
-    return;
-  }
-
-  const captainId = "captain";
-  if (isAgentActive(projectId, issueId, captainId)) {
-    logger.debug(
-      { projectId, issueId },
-      "Captain already active, skipping auto-start",
-    );
-    return;
-  }
-
-  enqueueRun(projectId, issueId, captainId);
-  logger.info({ projectId, issueId }, "Auto-started captain");
-}
-
-/**
  * Initialize event commenter by subscribing to relevant events.
  */
 export function initEventCommenter(): void {
@@ -116,9 +62,6 @@ export function initEventCommenter(): void {
     ].filter(Boolean);
 
     postComment(data.issue_id, parts.join(". ") + ".");
-
-    // Auto-start captain if configured (pass agent_id to avoid re-invoking captain on its own completion)
-    autoStartCaptain(data.project_id, data.issue_id, data.agent_id);
   });
 
   // PR status changed
@@ -140,9 +83,6 @@ export function initEventCommenter(): void {
     }
 
     postComment(issuePR.issue_id, message);
-
-    // Auto-start captain if configured
-    autoStartCaptain(data.project_id, issuePR.issue_id);
   });
 
   // Issue status changed
@@ -163,9 +103,6 @@ export function initEventCommenter(): void {
 
     const message = `📊 Issue status: ${fromText} → ${toText}`;
     postComment(data.issue_id, message);
-
-    // Auto-start captain if configured
-    autoStartCaptain(data.project_id, data.issue_id);
   });
 
   logger.info("Event commenter initialized");
