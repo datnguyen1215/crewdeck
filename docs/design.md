@@ -26,7 +26,7 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - A name and description.
 - Knowledge entries for project context (conventions, structure notes, gotchas) injected into agent prompts.
 - One or more linked GitHub repositories.
-- A shared roster of 5 fixed agents (defined globally, not per-project; 4 dispatchable + Captain).
+- A shared roster of 5 fixed agents (defined globally, not per-project; all are dispatchable).
 - A concurrency limit (max simultaneous agent processes).
 - A chain depth limit (max agent dispatches per issue before requiring manual reset).
 - A default Claude model (`sonnet` or `opus`) for agent spawning, with optional per-agent overrides via AgentConfig.
@@ -35,7 +35,7 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 
 The crew is a fixed set of 5 immutable agents defined in code (Engineer, Lead, Docs, Librarian, Captain). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
-Agent names are used for `/dispatch` command matching. Captain is a background service and is not dispatchable via `/dispatch`.
+Agent names are used for `/dispatch` command matching. All crew agents, including Captain, are dispatchable via `/dispatch`.
 
 ### Orchestration via /dispatch Commands
 
@@ -159,10 +159,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  ┌──────────────────────────────────────────────┐ │
 │  │  MentionHandler + ProcessAdapter            │ │
 │  │  (comment.added → claude -p → comment)      │ │
-│  └──────────────────────────────────────────────┘ │
-│  ┌──────────────────────────────────────────────┐ │
-│  │  Captain (Monitor)                          │ │
-│  │  Monitor: events → stream-json → action plan│ │
+│  │  + Command Execution (captain commands)     │ │
 │  └──────────────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
 │  │  Centralized Error Handler + Zod Validation  │ │
@@ -184,7 +181,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Renders project dashboard, issue board, crew page (`/projects/:id/crew`), activity log, Terminals page, and Captain page (side-by-side Chat + Monitor). The crew page is project-scoped and allows per-agent model overrides: each agent card has a model dropdown ("Project default", "Sonnet", "Opus"). Selecting "Project default" removes the override (`DELETE /projects/:id/agent-config/:agentId`); selecting a model saves it (`PUT /projects/:id/agent-config/:agentId`). Captain is included in the list since it runs Claude processes. The sidebar surfaces "Crew" as a per-project nav item linking to `/projects/:id/crew`.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity). The project layout (`+layout.svelte`) establishes shared context for WebSocket and agents data, loaded once and shared to all child pages via Svelte `setContext`/`getContext`. The layout also includes a `<div id="modal-portal">` element as a sibling to `<main>` for rendering modals outside the scroll container.
 - **Modal rendering**: Modals use a portal pattern to prevent scroll jumps. `Modal.svelte` uses a Svelte action (`use:portal`) to append modal content to `#modal-portal`, which is outside the `<main class="overflow-auto">` scroll container. This prevents the browser from auto-scrolling when modals are inserted into the DOM.
-- **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes and the Captain monitor feed. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each agent pane shows agent name, status badge, clickable issue link, an event feed with full content display, and elapsed time + cost. Events show their full content: assistant thinking/response text, user messages, tool call details (file paths, commands, patterns), and tool results. The feed auto-scrolls to new events when the user is at the bottom but preserves scroll position when the user has scrolled up to read history. The page also displays a **Captain monitor card** with cyan accent styling, which shows the automated orchestration feed. The monitor card loads history via `GET /projects/:projectId/monitor/history` on mount and subscribes to `monitor.event_received`, `monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.complete` WebSocket events for live updates. It displays "Analyzing..." during active processing and "Monitoring" when idle. Only agents with active runs are shown — idle agents are hidden; the grid renders only the Captain card and any agents with running/queued runs.
+- **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each agent pane shows agent name, status badge, clickable issue link, an event feed with full content display, and elapsed time + cost. Events show their full content: assistant thinking/response text, user messages, tool call details (file paths, commands, patterns), and tool results. The feed auto-scrolls to new events when the user is at the bottom but preserves scroll position when the user has scrolled up to read history. Only agents with active runs are shown — idle agents are hidden.
 - **Captain page** (`/projects/:id/chat`) — PTY-backed terminal interface for direct CLI access to captain. Uses xterm.js for terminal rendering and connects to the backend via `/terminal-ws` WebSocket for bidirectional PTY streaming. The terminal component (`Terminal.svelte`) handles resize events, reconnection with exponential backoff, and FitAddon/WebLinksAddon integration. The page auto-creates a terminal session if none exists via `POST /projects/:id/terminal`.
 - Issue detail page (`[issueId]/+page.svelte`) is a thin orchestrator (~360 lines) that loads data, manages comment CRUD state, subscribes to WebSocket events, and passes props to focused child components:
   - **`IssueTimeline.svelte`** — renders the unified chronological timeline merging comments, activity entries, and agent run summaries. Accepts `comments`, `activityEntries`, `runs`, and `liveEvents` props. Owns activity expansion state and inline run expansion (loads run events on toggle, appends live events via a reactive `$effect`). Matches `mention.spawned`/`mention.completed` activity entries to `AgentRun` records by `agent_id` + timestamp (60s tolerance) and displays colored status dots (green = running, amber = queued, red = failed, cyan = completed). Stale-fetch guard: captures `runId` before async calls and checks it after await before updating state.
@@ -312,8 +309,8 @@ Commands are restricted to captain-only (checked via `author_type === "captain"`
 
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than calling each other directly.
-- Producers: REST API handlers, MentionHandler, PR Detector, PR Poller, Chat Service, Monitor Service, VCS Provider clients.
-- Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger, Chat Service, Monitor Service, Worktree Cleanup.
+- Producers: REST API handlers, MentionHandler, PR Detector, PR Poller, VCS Provider clients.
+- Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger, Event Commenter, Worktree Cleanup.
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
 **SQLite Database**
@@ -392,7 +389,6 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
 - **PR events** — PR created, status updated.
-- **Monitor events** — event received, thinking, message, tool call, tool result, complete.
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
 

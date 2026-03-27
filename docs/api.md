@@ -320,7 +320,7 @@ DELETE /projects/:projectId/repos/:repoId
 
 ### Crew / Agents
 
-The crew is a fixed set of 5 global agents (engineer, lead, docs, librarian, captain). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, excluding non-dispatchable agents like Captain.
+The crew is a fixed set of 5 global agents (engineer, lead, docs, librarian, captain). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, including all dispatchable agents.
 
 #### List Crew
 
@@ -329,7 +329,7 @@ GET /crew
 GET /agents
 ```
 
-Both paths return the dispatchable agents (4 agents). Captain is excluded because it is a background service, not a dispatchable agent. The `/crew` path is canonical; `/agents` is kept for compatibility.
+Both paths return all dispatchable agents (5 agents, including captain). The `/crew` path is canonical; `/agents` is kept for compatibility.
 
 **Response:** `200 OK` — Array of agent objects.
 
@@ -353,7 +353,7 @@ Both paths return the dispatchable agents (4 agents). Captain is excluded becaus
 | title         | TEXT    | Agent role title.                                                                                                                                               |
 | description   | TEXT    | Brief description of the agent's purpose.                                                                                                                       |
 | system_prompt | TEXT    | System prompt injected into agent processes.                                                                                                                    |
-| dispatchable  | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. Background services (e.g., Captain) have this set to false and are excluded from the list. |
+| dispatchable  | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. All crew agents are dispatchable. |
 
 ---
 
