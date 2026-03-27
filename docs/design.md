@@ -245,6 +245,15 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
 - Exports `pollPRs()` for external callers to trigger immediate polling.
 
+**Event Commenter**
+
+- Deterministic event-to-comment bridge that posts system comments when system events occur.
+- Subscribes to: `run.completed`, `pr.status_changed`, `issue.status_changed`.
+- Posts formatted system comments on the relevant issue (e.g., "✅ **engineer** completed (exit code 0). Cost: $0.12. Duration: 45s.").
+- After posting comment, if project has `auto_start` enabled, enqueues captain on that issue (skips if already queued/running).
+- Replaces the Monitor's need to curl APIs to learn about events — events are now automatically converted to plain comments that any agent can read.
+- See `backend/src/events/event-commenter.ts`.
+
 **VCS Provider Abstraction**
 
 - All VCS-specific operations (GitHub, GitLab, etc.) are abstracted behind a `VCSProviderClient` interface (`backend/src/vcs/types.ts`).
@@ -345,6 +354,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 │  ├── MentionHandler       ──→  WebSocket broadcaster     │
 │  ├── PR Detector/Poller   ──→  Activity Logger           │
 │  ├── Monitor Service      ──→  PR Detector               │
+│  │                        ──→  Event Commenter            │
 │  │                        ──→  Monitor Service (events)   │
 │  └── Worktree Cleanup     ──→  Worktree Cleanup           │
 │                                                          │
@@ -367,7 +377,8 @@ The backend uses an in-process typed EventEmitter as the central communication b
 5. WebSocket broadcaster receives event → sends to connected frontend clients
 6. MentionHandler receives event → parses /dispatch commands → spawns agent processes
 7. PR Detector receives event → parses PR URLs via VCS providers → creates IssuePR records
-8. API handler returns 201 to the client
+8. Event Commenter receives event → (no action for comment.added)
+9. API handler returns 201 to the client
 ```
 
 ### Example Flow: Issue Reaches Done Status
@@ -376,10 +387,11 @@ The backend uses an in-process typed EventEmitter as the central communication b
 1. REST API: PATCH /api/v1/projects/:id/issues/:issueId (status: "done")
 2. API handler updates issue status in DB
 3. API handler emits: bus.emit("issue.status_changed", { issue_id, project_id, from: "in_progress", to: "done" })
-4. Worktree Cleanup listener receives event → cleans up git worktree, always clears DB fields (in finally block)
-5. Activity Logger receives event → writes ActivityLog entry
-6. WebSocket broadcaster receives event → sends to connected frontend clients
-7. API handler returns 200 to the client
+4. Event Commenter receives event → posts system comment with status transition
+5. Worktree Cleanup listener receives event → cleans up git worktree, always clears DB fields (in finally block)
+6. Activity Logger receives event → writes ActivityLog entry
+7. WebSocket broadcaster receives event → sends to connected frontend clients
+8. API handler returns 200 to the client
 ```
 
 ## Real-Time Communication
@@ -468,15 +480,16 @@ On startup, the backend:
 2. Initializes SQLite database (runs all pending migrations from `backend/src/db/migrations/`).
 3. Initializes the activity logger (registers event listeners).
 4. Initializes the worktree cleanup listener (subscribes to `issue.status_changed`).
-5. Initializes the MentionHandler (subscribes to `comment.added`).
-6. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
-7. Starts the PR poller (polls VCS providers every 60 seconds for PR status updates).
-8. Initializes Captain Monitor service — subscribes to the event bus for all captain-enabled projects.
-9. Initializes PTY service — starts idle session cleanup interval (runs every 60 seconds).
-10. Starts the Express HTTP server.
-11. Starts the WebSocket server (`/ws` for events).
-12. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
-13. Logs startup complete via pino.
+5. Initializes the event commenter (subscribes to `run.completed`, `pr.status_changed`, `issue.status_changed`).
+6. Initializes the MentionHandler (subscribes to `comment.added`).
+7. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
+8. Starts the PR poller (polls VCS providers every 60 seconds for PR status updates).
+9. Initializes Captain Monitor service — subscribes to the event bus for all captain-enabled projects.
+10. Initializes PTY service — starts idle session cleanup interval (runs every 60 seconds).
+11. Starts the Express HTTP server.
+12. Starts the WebSocket server (`/ws` for events).
+13. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
+14. Logs startup complete via pino.
 
 Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery). Terminal sessions are also lost (clients must reconnect and recreate sessions).
 
