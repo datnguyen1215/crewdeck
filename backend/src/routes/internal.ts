@@ -27,11 +27,6 @@ import {
   UpdateKnowledgeSchema,
 } from "../schemas/validation.js";
 import { parsePRUrls } from "../pr/detector.js";
-import {
-  handleMergePR,
-  handleDispatchAgent,
-  handleScanCodebase,
-} from "../orchestration/command-handlers.js";
 
 // Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
@@ -223,73 +218,6 @@ router.post(
     verifyKnowledgeOwner(knowledge_id, project_id);
     removeKnowledge(knowledge_id);
     res.status(204).send();
-  },
-);
-
-// Captain-specific routes (merge PR, dispatch agent, scan codebase)
-
-const CaptainMergePRSchema = z.object({
-  project_id: z.string(),
-  issue_id: z.string(),
-});
-
-router.post(
-  "/captain/merge-pr",
-  validate(CaptainMergePRSchema),
-  async (req, res, next) => {
-    try {
-      const { project_id, issue_id } = req.body;
-      verifyProjectExists(project_id);
-      const result = await handleMergePR(project_id, { issue_id });
-      res.json(result);
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-const CaptainDispatchAgentSchema = z.object({
-  project_id: z.string(),
-  issue_id: z.string(),
-  agent_id: z.string(),
-  instructions: z.string().optional(),
-});
-
-router.post(
-  "/captain/dispatch-agent",
-  validate(CaptainDispatchAgentSchema),
-  async (req, res, next) => {
-    try {
-      const { project_id, issue_id, agent_id, instructions } = req.body;
-      verifyProjectExists(project_id);
-      const result = await handleDispatchAgent(project_id, {
-        issue_id,
-        agent_id,
-        instructions,
-      });
-      res.json(result);
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-const CaptainScanSchema = z.object({
-  project_id: z.string(),
-});
-
-router.post(
-  "/captain/scan-codebase",
-  validate(CaptainScanSchema),
-  async (req, res, next) => {
-    try {
-      const { project_id } = req.body;
-      verifyProjectExists(project_id);
-      const result = await handleScanCodebase(project_id);
-      res.json(result);
-    } catch (err) {
-      next(err);
-    }
   },
 );
 

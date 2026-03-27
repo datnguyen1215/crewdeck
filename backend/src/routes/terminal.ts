@@ -8,7 +8,7 @@ import {
   createTerminalSession,
   getTerminalSession,
   destroyTerminalSession,
-} from "../orchestration/captain/pty-service.js";
+} from "../orchestration/pty-service.js";
 import { getProject } from "../db/repositories/projects.js";
 import { NotFoundError } from "../middleware/errors.js";
 

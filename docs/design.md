@@ -144,7 +144,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
 │  │Terminals │ │ Activity │ │ Captain (Chat)   │ │
-│  │+ Monitor │ │   Log    │ │                  │ │
+│  │          │ │   Log    │ │                  │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 └────────────────────┬────────────────────────────┘
                      │ WebSocket + REST
@@ -248,7 +248,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Subscribes to: `run.completed`, `pr.status_changed`, `issue.status_changed`.
 - Posts formatted system comments on the relevant issue (e.g., "✅ **engineer** completed (exit code 0). Cost: $0.12. Duration: 45s.").
 - After posting comment, if project has `auto_start` enabled, enqueues captain on that issue (skips if already queued/running).
-- Replaces the Monitor's need to curl APIs to learn about events — events are now automatically converted to plain comments that any agent can read.
+- Events are automatically converted to plain comments that any agent can read.
 - See `backend/src/events/event-commenter.ts`.
 
 **VCS Provider Abstraction**
@@ -288,7 +288,7 @@ Captain's output commands are parsed by the mention handler and executed via com
 
 Commands are restricted to captain-only (checked via `author_type === "captain"` in handler.ts).
 
-**PTY Service** (`backend/src/orchestration/captain/pty-service.ts`)
+**PTY Service** (`backend/src/orchestration/pty-service.ts`)
 
 - Manages persistent tmux sessions running Claude CLI for terminal access to captain chat.
 - Each project can have one terminal session running `claude --system-prompt-file` inside tmux.
@@ -338,14 +338,11 @@ The backend uses an in-process typed EventEmitter as the central communication b
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
 │  Producers:                    Consumers:                │
-│  ├── REST API handlers    ──→  Orchestrator Manager      │
-│  ├── Agent Runtime        ──→  WebSocket broadcaster     │
-│  ├── REST API handlers    ──→  MentionHandler            │
-│  ├── MentionHandler       ──→  WebSocket broadcaster     │
-│  ├── PR Detector/Poller   ──→  Activity Logger           │
-│  ├── Monitor Service      ──→  PR Detector               │
+│  ├── REST API handlers    ──→  WebSocket broadcaster     │
+│  ├── Agent Runtime        ──→  MentionHandler            │
+│  ├── MentionHandler       ──→  Activity Logger           │
+│  ├── PR Detector/Poller   ──→  PR Detector               │
 │  │                        ──→  Event Commenter            │
-│  │                        ──→  Monitor Service (events)   │
 │  └── Worktree Cleanup     ──→  Worktree Cleanup           │
 │                                                          │
 └──────────────────────────────────────────────────────────┘

@@ -404,25 +404,6 @@ export function getMonitorHistory(projectId: string, limit?: number) {
   );
 }
 
-// Captain dispatch
-export function dispatchAgent(
-  projectId: string,
-  issueId: string,
-  agentId: string,
-  instructions?: string,
-) {
-  return request<{ success: boolean; message: string }>(
-    "POST",
-    `/internal/captain/dispatch-agent`,
-    {
-      project_id: projectId,
-      issue_id: issueId,
-      agent_id: agentId,
-      instructions,
-    },
-  );
-}
-
 // Terminal sessions
 export interface TerminalSession {
   projectId: string;

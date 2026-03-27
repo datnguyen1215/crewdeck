@@ -242,7 +242,7 @@ Tracks each agent process spawn for crash recovery and observability.
 | started_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned.                                               |
 | completed_at | DATETIME    | NULLABLE                            | When the process finished. NULL if still running.                           |
 
-**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed` and posts system comments on affected issues (if associated with an issue). The monitor service then emits `startup.scan` events to allow the Captain to evaluate current state.
+**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed` and posts system comments on affected issues (if associated with an issue).
 
 ---
 
@@ -355,7 +355,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
-| Project → ChatMessage         | One-to-Many | A project has many monitor messages (all sessionless, used by Monitor).     |
+| Project → ChatMessage         | One-to-Many | A project has many chat messages (captain and human conversations).         |
 
 ## Indexes
 

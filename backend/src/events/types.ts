@@ -103,7 +103,9 @@ export interface EventMap {
     duration_ms: number | null;
     completed_at: string;
   };
-  // Monitor LLM agent events (automated orchestration)
+  // Legacy Monitor events (deprecated - old Monitor service replaced by comment-based captain)
+  // These event types are kept for backward compatibility with MonitorPanel UI component
+  // but are no longer emitted by any backend services.
   "monitor.event_received": {
     project_id: string;
     event_type: string;

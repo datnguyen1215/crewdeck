@@ -164,7 +164,9 @@ function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "run.completed", data),
   );
 
-  // Monitor events (automated orchestration)
+  // Legacy Monitor events (deprecated - old Monitor service replaced by comment-based captain)
+  // These listeners remain for backward compatibility with MonitorPanel UI component
+  // but are never emitted by backend services.
   bus.on("monitor.event_received", ({ project_id, event_type, description }) =>
     broadcast(project_id, "monitor.event_received", {
       event_type,
