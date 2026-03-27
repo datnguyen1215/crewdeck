@@ -1,13 +1,12 @@
-import { describe, it, expect, beforeEach, beforeAll, vi } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll } from "vitest";
 import { eventBus } from "../../src/events/bus.js";
 import { initEventCommenter } from "../../src/events/event-commenter.js";
 import { listComments } from "../../src/db/repositories/comments.js";
 import { createIssue } from "../../src/db/repositories/issues.js";
-import { createProject, updateProject } from "../../src/db/repositories/projects.js";
+import { createProject } from "../../src/db/repositories/projects.js";
 import { createRepo } from "../../src/db/repositories/repos.js";
 import { createIssuePR } from "../../src/db/repositories/issue-prs.js";
 import { db } from "../../src/db/index.js";
-import * as dispatchQueue from "../../src/orchestration/dispatch-queue.js";
 
 describe("Event Commenter", () => {
   let projectId: string;
@@ -134,63 +133,6 @@ describe("Event Commenter", () => {
       expect(comments).toHaveLength(0);
     });
 
-    it("auto-starts captain if project has auto_start enabled", () => {
-      const enqueueRunSpy = vi.spyOn(dispatchQueue, "enqueueRun");
-      const isAgentActiveSpy = vi
-        .spyOn(dispatchQueue, "isAgentActive")
-        .mockReturnValue(false);
-
-      // Update project to enable auto_start
-      updateProject(projectId, { auto_start: true });
-
-      eventBus.emit("run.completed", {
-        agent_run_id: "run-1",
-        project_id: projectId,
-        issue_id: issueId,
-        agent_id: "engineer",
-        status: "completed",
-        exit_code: 0,
-        cost_usd: 0.12,
-        duration_ms: 45000,
-        completed_at: new Date().toISOString(),
-      });
-
-      expect(isAgentActiveSpy).toHaveBeenCalledWith(
-        projectId,
-        issueId,
-        "captain",
-      );
-      expect(enqueueRunSpy).toHaveBeenCalledWith(projectId, issueId, "captain");
-    });
-
-    it("does not auto-start captain if already active", () => {
-      const enqueueRunSpy = vi.spyOn(dispatchQueue, "enqueueRun");
-      const isAgentActiveSpy = vi
-        .spyOn(dispatchQueue, "isAgentActive")
-        .mockReturnValue(true);
-
-      // Update project to enable auto_start
-      updateProject(projectId, { auto_start: true });
-
-      eventBus.emit("run.completed", {
-        agent_run_id: "run-1",
-        project_id: projectId,
-        issue_id: issueId,
-        agent_id: "engineer",
-        status: "completed",
-        exit_code: 0,
-        cost_usd: 0.12,
-        duration_ms: 45000,
-        completed_at: new Date().toISOString(),
-      });
-
-      expect(isAgentActiveSpy).toHaveBeenCalledWith(
-        projectId,
-        issueId,
-        "captain",
-      );
-      expect(enqueueRunSpy).not.toHaveBeenCalled();
-    });
   });
 
   describe("pr.status_changed event", () => {

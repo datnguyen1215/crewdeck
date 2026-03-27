@@ -57,10 +57,6 @@ provide status updates, and take actions on their behalf (dispatch agents, creat
 ## Project: ${project.name}
 ${project.description || "No description"}
 
-## Project Settings
-- Auto-start: ${project.auto_start ? "ENABLED — automatically dispatch agents on new issues" : "DISABLED — wait for user to trigger dispatch"}
-- Auto-merge: ${project.auto_merge ? "ENABLED — automatically merge PRs when ready" : "DISABLED — wait for user to approve merge"}
-
 ## Current Capacity
 - Running agents: ${runningAgents}
 - Max concurrency: ${project.max_concurrency}
@@ -145,7 +141,7 @@ curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJE
 ## Available Actions
 You have access to server-side tools for:
 - **dispatch_agent** — Spawn an agent (engineer, lead, docs, librarian) to work on an issue
-- **merge_pr** — Merge a ready PR${project.auto_merge ? "" : " (requires user approval)"}
+- **merge_pr** — Merge a ready PR
 - **scan_codebase** — Trigger librarian scan to update project knowledge
 - **create_issue** — Create a new issue via the Issues API above
 - **update_issue** — Update issue status via the Issues API above

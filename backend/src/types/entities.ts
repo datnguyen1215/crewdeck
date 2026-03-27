@@ -23,8 +23,6 @@ export interface Project {
   max_concurrency: number;
   max_chain_depth: number;
   agent_timeout_minutes: number;
-  auto_start: boolean;
-  auto_merge: boolean;
   model: string;
   vcs_account_id: string | null;
   created_at: string;
@@ -199,8 +197,6 @@ export interface UpdateProjectInput {
   max_concurrency?: number;
   max_chain_depth?: number;
   agent_timeout_minutes?: number;
-  auto_start?: boolean;
-  auto_merge?: boolean;
   model?: string;
   vcs_account_id?: string | null;
 }
