@@ -380,6 +380,7 @@ export async function createTerminalSession(
     "-d",
     "-s",
     tmuxSessionName,
+    ...(worktreePath ? ["-c", worktreePath] : []),
     "claude",
     "--system-prompt-file",
     systemPromptPath,
