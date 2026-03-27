@@ -516,6 +516,45 @@ export const spawnAgent = async (
   const comments = commentRepo.listComments(issueId);
   const projectKnowledge = knowledgeRepo.listByProject(projectId);
 
+  // Build captain context if agent is captain
+  let captainContext: agentPrompt.CaptainContext | undefined;
+  if (agent.id === "captain") {
+    const runningRuns = agentRunRepo.listActiveRunsForProject(projectId);
+    const queuedRuns = agentRunRepo.listQueuedRuns(projectId);
+    const allIssues = issueRepo.listIssues(projectId);
+    const prsByIssue = new Map(
+      allIssues.map((iss) => {
+        const prs = issuePRRepo.listIssuePRs(iss.id);
+        const openPR = prs.find((pr) => pr.status === PRStatus.OPEN);
+        return [iss.id, openPR?.status];
+      }),
+    );
+
+    captainContext = {
+      maxConcurrency: project.max_concurrency ?? config.maxAgents,
+      runningAgents: runningRuns
+        .filter((run) => run.status === "running" && run.issue_id !== null)
+        .map((run) => ({
+          agent_id: run.agent_id,
+          issue_id: run.issue_id!,
+          issue_title: issueRepo.getIssue(run.issue_id!)?.title ?? "unknown",
+        })),
+      queuedAgents: queuedRuns
+        .filter((run) => run.issue_id !== null)
+        .map((run) => ({
+          agent_id: run.agent_id,
+          issue_id: run.issue_id!,
+          issue_title: issueRepo.getIssue(run.issue_id!)?.title ?? "unknown",
+        })),
+      allIssues: allIssues.map((iss) => ({
+        id: iss.id,
+        title: iss.title,
+        status: iss.status,
+        pr_status: prsByIssue.get(iss.id),
+      })),
+    };
+  }
+
   const prompt = agentPrompt.buildPrompt({
     issue: issueRepo.getIssue(issueId)!,
     comments,
@@ -523,6 +562,7 @@ export const spawnAgent = async (
     worktreePath: worktreePath ?? ".",
     agentId: agent.id,
     projectKnowledge,
+    captainContext,
   });
 
   const envVars = envVarRepo.getEnvironmentVariablesMap(projectId);
@@ -672,6 +712,45 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
   const comments = commentRepo.listComments(issueId);
   const projectKnowledge = knowledgeRepo.listByProject(projectId);
 
+  // Build captain context if agent is captain
+  let captainContext: agentPrompt.CaptainContext | undefined;
+  if (agent.id === "captain") {
+    const runningRuns = agentRunRepo.listActiveRunsForProject(projectId);
+    const queuedRuns = agentRunRepo.listQueuedRuns(projectId);
+    const allIssues = issueRepo.listIssues(projectId);
+    const prsByIssue = new Map(
+      allIssues.map((iss) => {
+        const prs = issuePRRepo.listIssuePRs(iss.id);
+        const openPR = prs.find((pr) => pr.status === PRStatus.OPEN);
+        return [iss.id, openPR?.status];
+      }),
+    );
+
+    captainContext = {
+      maxConcurrency: project.max_concurrency ?? config.maxAgents,
+      runningAgents: runningRuns
+        .filter((run) => run.status === "running" && run.issue_id !== null)
+        .map((run) => ({
+          agent_id: run.agent_id,
+          issue_id: run.issue_id!,
+          issue_title: issueRepo.getIssue(run.issue_id!)?.title ?? "unknown",
+        })),
+      queuedAgents: queuedRuns
+        .filter((run) => run.issue_id !== null)
+        .map((run) => ({
+          agent_id: run.agent_id,
+          issue_id: run.issue_id!,
+          issue_title: issueRepo.getIssue(run.issue_id!)?.title ?? "unknown",
+        })),
+      allIssues: allIssues.map((iss) => ({
+        id: iss.id,
+        title: iss.title,
+        status: iss.status,
+        pr_status: prsByIssue.get(iss.id),
+      })),
+    };
+  }
+
   const prompt = agentPrompt.buildPrompt({
     issue: issueRepo.getIssue(issueId)!,
     comments,
@@ -679,6 +758,7 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     worktreePath: worktreePath ?? ".",
     agentId: agent.id,
     projectKnowledge,
+    captainContext,
   });
 
   const envVars = envVarRepo.getEnvironmentVariablesMap(projectId);
