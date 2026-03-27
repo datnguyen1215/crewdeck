@@ -10,7 +10,7 @@ import { getVCSAccount } from "./vcs-accounts.js";
 import { buildAndRunUpdate } from "./utils.js";
 import { IssueStatus } from "../../constants/statuses.js";
 
-function fromRow(row: Record<string, unknown>): Project {
+function fromRow(row: unknown): Project {
   return row as Project;
 }
 
