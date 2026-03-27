@@ -405,13 +405,11 @@ When open issues exist and capacity allows:
 ## Output Format
 Start with commands (one per line), then add a brief explanation:
 
-\`\`\`
 /merge a3f21b78
 /dispatch engineer
 
 Merged PR #123 for authentication fix.
 Started engineer on issue b4c32d89 (Add dark mode toggle).
-\`\`\`
 
 ## Constraints
 - Never merge a PR that isn't in \`pr_ready_to_merge\` status
