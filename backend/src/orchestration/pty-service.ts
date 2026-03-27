@@ -8,9 +8,9 @@ import { spawn } from "node:child_process";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { logger } from "../../logger.js";
-import { getProject } from "../../db/repositories/projects.js";
-import { config } from "../../config.js";
+import { logger } from "../logger.js";
+import { getProject } from "../db/repositories/projects.js";
+import { config } from "../config.js";
 
 interface TerminalSession {
   projectId: string;
@@ -34,15 +34,15 @@ const buildSystemPrompt = async (projectId: string, worktreePath?: string): Prom
   const project = getProject(projectId);
   if (!project) return "";
 
-  const { getActiveProcessCount } = await import("../processes.js");
+  const { getActiveProcessCount } = await import("./processes.js");
   const runningAgents = getActiveProcessCount(projectId);
 
   // Get project knowledge
-  const { listByProject } = await import("../../db/repositories/knowledge.js");
+  const { listByProject } = await import("../db/repositories/knowledge.js");
   const projectKnowledge = listByProject(projectId);
 
   // Get repo info
-  const { listRepos } = await import("../../db/repositories/repos.js");
+  const { listRepos } = await import("../db/repositories/repos.js");
   const repos = listRepos(projectId);
   const repo = repos.length > 0 ? repos[0] : null;
 
@@ -167,13 +167,13 @@ const setupGitHubAuth = async (
   if (!project?.vcs_account_id) return undefined;
 
   const { getVCSAccount } = await import(
-    "../../db/repositories/vcs-accounts.js"
+    "../db/repositories/vcs-accounts.js"
   );
   const account = getVCSAccount(project.vcs_account_id);
   if (!account) return undefined;
 
   env.GH_TOKEN = account.token;
-  const { createGitSshEnv } = await import("../../utils/git-auth.js");
+  const { createGitSshEnv } = await import("../utils/git-auth.js");
   const ssh = createGitSshEnv(account.ssh_private_key);
   Object.assign(env, ssh.env);
   return ssh.keyPath;
@@ -187,7 +187,7 @@ async function createCaptainWorktree(
   projectId: string,
   sshPrivateKey?: string,
 ): Promise<string | null> {
-  const { listRepos } = await import("../../db/repositories/repos.js");
+  const { listRepos } = await import("../db/repositories/repos.js");
   const repos = listRepos(projectId);
   if (repos.length === 0) {
     logger.warn({ projectId }, "No repos found for project, cannot create worktree");
@@ -198,9 +198,9 @@ async function createCaptainWorktree(
   const { exec } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const execAsync = promisify(exec);
-  const { toContainerPath } = await import("../../utils/paths.js");
-  const { shellQuote } = await import("../shell.js");
-  const { createGitSshEnv, cleanupSshKey } = await import("../../utils/git-auth.js");
+  const { toContainerPath } = await import("../utils/paths.js");
+  const { shellQuote } = await import("./shell.js");
+  const { createGitSshEnv, cleanupSshKey } = await import("../utils/git-auth.js");
 
   const branchName = `crewdeck/captain-${projectId.slice(0, 8)}`;
   const repoPath = toContainerPath(repo.local_path);
@@ -331,7 +331,7 @@ export async function createTerminalSession(
   // Set up environment for worktree creation
   let sshPrivateKey: string | undefined;
   if (project.vcs_account_id) {
-    const { getVCSAccount } = await import("../../db/repositories/vcs-accounts.js");
+    const { getVCSAccount } = await import("../db/repositories/vcs-accounts.js");
     const account = getVCSAccount(project.vcs_account_id);
     if (account) {
       sshPrivateKey = account.ssh_private_key;

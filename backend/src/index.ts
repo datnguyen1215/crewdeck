@@ -15,11 +15,10 @@ import { recoverOnStartup } from "./orchestration/recovery.js";
 import { createApp } from "./app.js";
 import { initPRDetector } from "./pr/detector.js";
 import { startPRPoller, stopPRPoller } from "./pr/poller.js";
-import { initCaptain, shutdownCaptain } from "./orchestration/captain.js";
 import {
   initPtyService,
   shutdownPtyService,
-} from "./orchestration/captain/pty-service.js";
+} from "./orchestration/pty-service.js";
 
 const app = createApp();
 
@@ -33,9 +32,6 @@ async function main(): Promise<void> {
   // Initialize PR auto-detection from comments and polling
   initPRDetector();
   startPRPoller();
-
-  // Initialize Captain auto-pilot orchestrator
-  initCaptain();
 
   // Initialize PTY service for terminal sessions
   initPtyService();
@@ -69,7 +65,6 @@ async function main(): Promise<void> {
     shutdownWebSocket(wss);
     shutdownTerminalWs();
     shutdownMentionHandler();
-    shutdownCaptain();
     await shutdownPtyService();
     stopPRPoller();
     db.close();

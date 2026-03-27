@@ -3,7 +3,7 @@ import type { IncomingMessage, Server } from "http";
 import { spawn as ptySpawn, type IPty } from "node-pty";
 import { logger } from "./logger.js";
 import { homedir } from "os";
-import { getTerminalSession } from "./orchestration/captain/pty-service.js";
+import { getTerminalSession } from "./orchestration/pty-service.js";
 import { getProject } from "./db/repositories/projects.js";
 
 interface TerminalSession {
