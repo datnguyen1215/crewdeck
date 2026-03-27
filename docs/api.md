@@ -47,8 +47,6 @@ Without `?stats`:
     "description": "...",
     "max_concurrency": 3,
     "max_chain_depth": 20,
-    "auto_start": false,
-    "auto_merge": false,
     "model": "sonnet",
     "vcs_account_id": "uuid | null",
     "created_at": "ISO 8601",
@@ -67,8 +65,6 @@ With `?stats`:
     "description": "...",
     "max_concurrency": 3,
     "max_chain_depth": 20,
-    "auto_start": false,
-    "auto_merge": false,
     "model": "sonnet",
     "vcs_account_id": "uuid | null",
     "created_at": "ISO 8601",
@@ -134,7 +130,7 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, auto_start, auto_merge, model, vcs_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, model, vcs_account_id).
 
 | Field | Type | Description                                                        |
 | ----- | ---- | ------------------------------------------------------------------ |
