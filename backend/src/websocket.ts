@@ -164,36 +164,6 @@ function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "run.completed", data),
   );
 
-  // Legacy Monitor events (deprecated - old Monitor service replaced by comment-based captain)
-  // These listeners remain for backward compatibility with MonitorPanel UI component
-  // but are never emitted by backend services.
-  bus.on("monitor.event_received", ({ project_id, event_type, description }) =>
-    broadcast(project_id, "monitor.event_received", {
-      event_type,
-      description,
-    }),
-  );
-
-  bus.on("monitor.thinking", ({ project_id }) =>
-    broadcast(project_id, "monitor.thinking", {}),
-  );
-
-  bus.on("monitor.message", ({ project_id, content }) =>
-    broadcast(project_id, "monitor.message", { content }),
-  );
-
-  bus.on("monitor.tool_call", ({ project_id, tool_name, tool_input }) =>
-    broadcast(project_id, "monitor.tool_call", { tool_name, tool_input }),
-  );
-
-  bus.on("monitor.tool_result", ({ project_id, tool_name, result }) =>
-    broadcast(project_id, "monitor.tool_result", { tool_name, result }),
-  );
-
-  bus.on("monitor.complete", ({ project_id }) =>
-    broadcast(project_id, "monitor.complete", {}),
-  );
-
   // Project settings changed
   bus.on("project.settings_changed", ({ project_id, changes }) =>
     broadcast(project_id, "project.settings_changed", { changes }),

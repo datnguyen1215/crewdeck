@@ -103,35 +103,6 @@ export interface EventMap {
     duration_ms: number | null;
     completed_at: string;
   };
-  // Legacy Monitor events (deprecated - old Monitor service replaced by comment-based captain)
-  // These event types are kept for backward compatibility with MonitorPanel UI component
-  // but are no longer emitted by any backend services.
-  "monitor.event_received": {
-    project_id: string;
-    event_type: string;
-    description: string;
-  };
-  "monitor.thinking": {
-    project_id: string;
-  };
-  "monitor.message": {
-    project_id: string;
-    content: string;
-  };
-  "monitor.tool_call": {
-    project_id: string;
-    tool_name: string;
-    tool_input: unknown;
-  };
-  "monitor.tool_result": {
-    project_id: string;
-    tool_name: string;
-    result: unknown;
-  };
-  "monitor.complete": {
-    project_id: string;
-    response: string;
-  };
   // Project settings changed
   "project.settings_changed": {
     project_id: string;

@@ -395,15 +395,6 @@ export function getLibrarianStatus(projectId: string) {
   );
 }
 
-// Monitor history
-export function getMonitorHistory(projectId: string, limit?: number) {
-  const query = limit ? `?limit=${limit}` : "";
-  return request<ChatMessage[]>(
-    "GET",
-    `/projects/${e(projectId)}/monitor/history${query}`,
-  );
-}
-
 // Terminal sessions
 export interface TerminalSession {
   projectId: string;
