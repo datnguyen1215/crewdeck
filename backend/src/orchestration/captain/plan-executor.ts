@@ -15,7 +15,7 @@ import {
   handleMergePR,
   handleCreatePR,
   handleScanCodebase,
-} from "./tool-handlers.js";
+} from "../command-handlers.js";
 import type {
   Action,
   ActionPlan,

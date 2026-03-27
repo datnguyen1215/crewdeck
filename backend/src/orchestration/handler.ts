@@ -26,6 +26,11 @@ import {
   clearBatches,
 } from "./batch.js";
 import { spawnAgent, executeQueuedRun, postSystemComment } from "./spawner.js";
+import {
+  handleMergePR,
+  handleCreatePR,
+  handleCreateIssue,
+} from "./command-handlers.js";
 
 /** Cleanup interval in milliseconds (5 minutes) */
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
@@ -56,6 +61,59 @@ export const initMentionHandler = (): void => {
       comment.author_type !== "user" && comment.author_type !== "system"
         ? comment.author_type
         : undefined;
+
+    // Parse commands (captain-only)
+    if (authorAgentId === "captain") {
+      const commands = mentionParser.parseCommands(comment.content);
+      for (const command of commands) {
+        if (command.type === "merge") {
+          handleMergePR(project_id, { issue_id: command.issueId }).catch(
+            (err) => {
+              log.logger.error(
+                { err, issueId: command.issueId },
+                "Failed to merge PR",
+              );
+              postSystemComment(
+                comment.issue_id,
+                project_id,
+                `Failed to merge PR: ${err instanceof Error ? err.message : "unknown error"}`,
+              );
+            },
+          );
+        } else if (command.type === "create-pr") {
+          handleCreatePR(project_id, { issue_id: command.issueId }).catch(
+            (err) => {
+              log.logger.error(
+                { err, issueId: command.issueId },
+                "Failed to create PR",
+              );
+              postSystemComment(
+                comment.issue_id,
+                project_id,
+                `Failed to create PR: ${err instanceof Error ? err.message : "unknown error"}`,
+              );
+            },
+          );
+        } else if (command.type === "create-issue") {
+          const result = handleCreateIssue(project_id, {
+            title: command.title,
+            description: command.description,
+          });
+          if (!result.success) {
+            log.logger.error(
+              { title: command.title, message: result.message },
+              "Failed to create issue",
+            );
+            postSystemComment(
+              comment.issue_id,
+              project_id,
+              `Failed to create issue: ${result.message}`,
+            );
+          }
+        }
+      }
+    }
+
     const mentioned = mentionParser.parseDispatches(
       comment.content,
       agents,

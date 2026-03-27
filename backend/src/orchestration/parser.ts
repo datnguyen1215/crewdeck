@@ -52,3 +52,67 @@ export function parseDispatches(
 
   return matched;
 }
+
+export interface MergeCommand {
+  type: "merge";
+  issueId: string;
+}
+
+export interface CreateIssueCommand {
+  type: "create-issue";
+  title: string;
+  description?: string;
+}
+
+export interface CreatePRCommand {
+  type: "create-pr";
+  issueId: string;
+}
+
+export type Command = MergeCommand | CreateIssueCommand | CreatePRCommand;
+
+/**
+ * Parse captain-specific commands from a comment.
+ * Commands:
+ * - /merge <issue_id> - Merge a PR for an issue
+ * - /create-issue <title> - Create a new issue
+ * - /create-pr <issue_id> - Create a PR for an issue
+ *
+ * Only captain can execute these commands.
+ */
+export function parseCommands(text: string): Command[] {
+  // Remove fenced code blocks
+  const withoutFenced = text.replace(/```[\s\S]*?```/g, "");
+  // Remove inline backticks
+  const withoutCode = withoutFenced.replace(/`[^`]+`/g, "");
+
+  const commands: Command[] = [];
+
+  for (const line of withoutCode.split("\n")) {
+    const trimmedLine = line.trimStart();
+
+    // Parse /merge <issue_id>
+    const mergeMatch = trimmedLine.match(/^\/merge\s+(\S+)/i);
+    if (mergeMatch) {
+      commands.push({ type: "merge", issueId: mergeMatch[1] });
+      continue;
+    }
+
+    // Parse /create-pr <issue_id>
+    const createPRMatch = trimmedLine.match(/^\/create-pr\s+(\S+)/i);
+    if (createPRMatch) {
+      commands.push({ type: "create-pr", issueId: createPRMatch[1] });
+      continue;
+    }
+
+    // Parse /create-issue <title>
+    const createIssueMatch = trimmedLine.match(/^\/create-issue\s+(.+)$/i);
+    if (createIssueMatch) {
+      const title = createIssueMatch[1].trim();
+      commands.push({ type: "create-issue", title });
+      continue;
+    }
+  }
+
+  return commands;
+}
