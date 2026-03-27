@@ -36,6 +36,13 @@ All persistent state is stored in a local SQLite database. This document defines
 └──────────┘       └─────────────┘
 ```
 
+## Worktree Management
+
+CrewDeck uses git worktrees to isolate concurrent work:
+
+- **Issue worktrees**: Each issue gets its own worktree (path stored in `Issue.worktree_path`, branch in `Issue.branch_name`). Cleaned up when status reaches `done`.
+- **Captain worktrees**: Each project's Captain Chat terminal runs in a long-lived worktree (named `crewdeck/captain-{projectId}`). Worktree path is stored on the `TerminalSession` object (in-memory, not persisted to DB). These worktrees persist across terminal reconnects.
+
 ## Entities
 
 ### Project

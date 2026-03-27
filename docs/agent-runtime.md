@@ -258,9 +258,16 @@ When a worktree branch already exists (subsequent agent runs on the same issue),
 - Rebase only runs if the fetch succeeded (otherwise the local state is used as-is).
 - If the rebase fails (e.g. merge conflicts), it is automatically aborted and a warning is logged. The agent continues with its existing branch state.
 
+### Worktree Types
+
+CrewDeck uses two types of git worktrees:
+
+1. **Issue worktrees** — ephemeral worktrees created per issue (named `crewdeck/issue-<issueId>-<title-slug>`). Cleaned up when the issue reaches `done` status or is deleted.
+2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `crewdeck/captain-{projectId}`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck-worktrees/` and auto-rebase onto the latest default branch on creation.
+
 ### Worktree Cleanup
 
-Worktrees are automatically cleaned up when an issue reaches `done` status or when an issue is deleted. The cleanup is handled by an event listener (`initWorktreeCleanup()`) initialized at startup.
+Issue worktrees are automatically cleaned up when an issue reaches `done` status or when an issue is deleted. The cleanup is handled by an event listener (`initWorktreeCleanup()`) initialized at startup. Captain worktrees are long-lived and persist across terminal sessions.
 
 **Event-driven cleanup (`initWorktreeCleanup()`):**
 
