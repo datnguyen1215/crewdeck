@@ -24,6 +24,7 @@ import * as dispatchQueue from "./dispatch-queue.js";
 import {
   activeProcesses,
   getActiveProcessCount,
+  clearPendingSpawn,
   type ActiveProcess,
 } from "./processes.js";
 import { config } from "../config.js";
@@ -255,6 +256,10 @@ async function spawnAndTrack(opts: {
       status: "failed",
       completed_at: new Date().toISOString(),
     });
+    // Clear pending spawn marker on failure
+    if (issueId) {
+      clearPendingSpawn(agent.id, issueId);
+    }
     log.logger.error(
       { err, runId: agentRun.id, agent: agent.name },
       `${logLabel} spawn failed`,
@@ -291,7 +296,9 @@ async function spawnAndTrack(opts: {
   };
   activeProcesses.set(result.pid, entry);
 
+  // Clear pending spawn marker now that process is registered
   if (issueId) {
+    clearPendingSpawn(agent.id, issueId);
     events.eventBus.emit("mention.spawned", {
       project_id: projectId,
       issue_id: issueId,

@@ -17,6 +17,8 @@ import * as crew from "./crew.js";
 import {
   activeProcesses,
   hasActiveAgentProcess,
+  markPendingSpawn,
+  clearPendingSpawn,
 } from "./processes.js";
 import {
   batches,
@@ -192,17 +194,30 @@ export const initMentionHandler = (): void => {
         }
       }
 
-      // Skip if agent already has an active process for this issue
+      // Atomic check-and-mark to prevent duplicate spawns
+      // Check if agent is already running/pending and mark as pending in one step
       if (hasActiveAgentProcess(agent.id, comment.issue_id)) {
         log.logger.info(
           { agentId: agent.id, issueId: comment.issue_id },
-          "Skipping spawn: agent already running for this issue",
+          "Skipping spawn: agent already running or pending for this issue",
+        );
+        continue;
+      }
+
+      // Mark as pending before spawning (atomic operation)
+      if (!markPendingSpawn(agent.id, comment.issue_id)) {
+        // Another event already marked this agent+issue as pending
+        log.logger.info(
+          { agentId: agent.id, issueId: comment.issue_id },
+          "Skipping spawn: agent spawn already in progress",
         );
         continue;
       }
 
       spawnAgent(agent, comment.issue_id, project_id, authorAgentId).catch(
         (err) => {
+        // Clear pending marker on failure
+        clearPendingSpawn(agent.id, comment.issue_id);
         log.logger.error(
           { err, agent: agent.name, issueId: comment.issue_id },
           "Failed to spawn agent",
