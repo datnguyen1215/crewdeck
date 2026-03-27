@@ -224,20 +224,24 @@ async function createCaptainWorktree(
   // Prune stale worktree entries
   await execAsync(`git -C ${shellQuote(repoPath)} worktree prune`);
 
-  // Check if branch already exists
-  let branchExists = false;
+  // Check if worktree already exists and is registered
+  let worktreeExists = false;
   try {
-    await execAsync(`git -C ${shellQuote(repoPath)} rev-parse --verify ${shellQuote(branchName)}`);
-    branchExists = true;
+    const { stdout } = await execAsync(`git -C ${shellQuote(repoPath)} worktree list --porcelain`);
+    const lines = stdout.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith("worktree ") && lines[i].includes(worktreePath)) {
+        worktreeExists = true;
+        break;
+      }
+    }
   } catch {
-    // Branch doesn't exist
+    // worktree list failed, assume doesn't exist
   }
 
-  if (branchExists) {
-    // Reuse existing branch
-    await execAsync(
-      `git -C ${shellQuote(repoPath)} worktree add ${shellQuote(worktreePath)} ${shellQuote(branchName)}`,
-    );
+  if (worktreeExists) {
+    // Worktree already registered, reuse it
+    logger.info({ projectId, worktreePath }, "Reusing existing captain worktree");
 
     // Rebase onto latest base branch
     if (fetchSucceeded) {
@@ -250,10 +254,38 @@ async function createCaptainWorktree(
       }
     }
   } else {
-    // Create new branch
-    await execAsync(
-      `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
-    );
+    // Worktree not registered, need to add it
+    // Check if branch exists
+    let branchExists = false;
+    try {
+      await execAsync(`git -C ${shellQuote(repoPath)} rev-parse --verify ${shellQuote(branchName)}`);
+      branchExists = true;
+    } catch {
+      // Branch doesn't exist
+    }
+
+    if (branchExists) {
+      // Reuse existing branch
+      await execAsync(
+        `git -C ${shellQuote(repoPath)} worktree add ${shellQuote(worktreePath)} ${shellQuote(branchName)}`,
+      );
+
+      // Rebase onto latest base branch
+      if (fetchSucceeded) {
+        try {
+          await execAsync(`git -C ${shellQuote(worktreePath)} rebase ${shellQuote(startPoint)}`);
+        } catch (err) {
+          // Abort rebase if it fails
+          await execAsync(`git -C ${shellQuote(worktreePath)} rebase --abort`).catch(() => {});
+          logger.warn({ projectId, err }, "Failed to rebase captain worktree");
+        }
+      }
+    } else {
+      // Create new branch
+      await execAsync(
+        `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
+      );
+    }
   }
 
   // Inject Claude Code settings to disable AI attribution
@@ -307,7 +339,14 @@ export async function createTerminalSession(
   }
 
   // Create worktree for captain
-  const worktreePath = await createCaptainWorktree(projectId, sshPrivateKey);
+  let worktreePath: string | null = null;
+  try {
+    worktreePath = await createCaptainWorktree(projectId, sshPrivateKey);
+  } catch (err) {
+    logger.error({ err, projectId }, "Failed to create captain worktree");
+    pendingCreations.delete(projectId);
+    return null;
+  }
 
   const tmuxSessionName = `captain-${projectId.substring(0, 8)}`;
   const systemPrompt = await buildSystemPrompt(projectId, worktreePath ?? undefined);
