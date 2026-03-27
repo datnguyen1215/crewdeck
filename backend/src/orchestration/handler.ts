@@ -67,8 +67,21 @@ export const initMentionHandler = (): void => {
       const commands = mentionParser.parseCommands(comment.content);
       for (const command of commands) {
         if (command.type === "merge") {
-          handleMergePR(project_id, { issue_id: command.issueId }).catch(
-            (err) => {
+          handleMergePR(project_id, { issue_id: command.issueId })
+            .then((result) => {
+              if (!result.success) {
+                log.logger.error(
+                  { issueId: command.issueId, message: result.message },
+                  "Failed to merge PR",
+                );
+                postSystemComment(
+                  comment.issue_id,
+                  project_id,
+                  `Failed to merge PR: ${result.message}`,
+                );
+              }
+            })
+            .catch((err) => {
               log.logger.error(
                 { err, issueId: command.issueId },
                 "Failed to merge PR",
@@ -78,11 +91,23 @@ export const initMentionHandler = (): void => {
                 project_id,
                 `Failed to merge PR: ${err instanceof Error ? err.message : "unknown error"}`,
               );
-            },
-          );
+            });
         } else if (command.type === "create-pr") {
-          handleCreatePR(project_id, { issue_id: command.issueId }).catch(
-            (err) => {
+          handleCreatePR(project_id, { issue_id: command.issueId })
+            .then((result) => {
+              if (!result.success) {
+                log.logger.error(
+                  { issueId: command.issueId, message: result.message },
+                  "Failed to create PR",
+                );
+                postSystemComment(
+                  comment.issue_id,
+                  project_id,
+                  `Failed to create PR: ${result.message}`,
+                );
+              }
+            })
+            .catch((err) => {
               log.logger.error(
                 { err, issueId: command.issueId },
                 "Failed to create PR",
@@ -92,8 +117,7 @@ export const initMentionHandler = (): void => {
                 project_id,
                 `Failed to create PR: ${err instanceof Error ? err.message : "unknown error"}`,
               );
-            },
-          );
+            });
         } else if (command.type === "create-issue") {
           const result = handleCreateIssue(project_id, {
             title: command.title,

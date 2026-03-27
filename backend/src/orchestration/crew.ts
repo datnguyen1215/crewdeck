@@ -425,7 +425,7 @@ Your entire stdout is captured and posted as a comment. Commands will be execute
 ];
 
 export function listCrew(): Agent[] {
-  // Exclude non-dispatchable agents (like Captain) from the public API
+  // Return only dispatchable agents (captain is dispatchable)
   return CREW.filter((a) => a.dispatchable !== false);
 }
 

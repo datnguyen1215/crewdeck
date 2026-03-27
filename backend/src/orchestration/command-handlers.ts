@@ -165,8 +165,10 @@ export const handleCreatePR = async (
   const account = getVCSAccount(project.vcs_account_id);
   if (!account) return { success: false, message: "GitHub account not found" };
 
-  const issue = issueRepo.getIssue(input.issue_id);
-  if (!issue) return { success: false, message: "Issue not found" };
+  const resolvedId = resolveIssueId(input.issue_id, projectId);
+  if (!resolvedId) return { success: false, message: "Issue not found" };
+
+  const issue = issueRepo.getIssue(resolvedId)!;
 
   if (issue.project_id !== projectId)
     return { success: false, message: "Issue belongs to a different project" };
