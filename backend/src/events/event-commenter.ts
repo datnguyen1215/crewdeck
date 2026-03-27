@@ -35,7 +35,6 @@ function postComment(issueId: string, content: string): void {
   });
 }
 
-
 /**
  * Initialize event commenter by subscribing to relevant events.
  */
