@@ -85,7 +85,7 @@ describe("Runs API", () => {
   });
 
   describe("GET /projects/:projectId/runs/:runId", () => {
-    it("returns run with events", async () => {
+    it("returns run with limited events (default limit 20)", async () => {
       const run = createAgentRun({
         project_id: projectId,
         issue_id: issueId,
@@ -102,10 +102,49 @@ describe("Runs API", () => {
       expect(res.body.id).toBe(run.id);
       expect(res.body.agent_id).toBe("engineer");
       expect(res.body.events).toBeDefined();
+      // With default limit of 20, should return all 3 events
       expect(res.body.events.length).toBe(3);
-      expect(res.body.events[0].type).toBe("assistant");
-      expect(res.body.events[1].type).toBe("tool_use");
-      expect(res.body.events[2].type).toBe("result");
+    });
+
+    it("returns run with all events when events_limit=0", async () => {
+      const run = createAgentRun({
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: "engineer",
+      });
+      // Create 25 events
+      for (let i = 0; i < 25; i++) {
+        createAgentRunEvent(run.id, "assistant", { text: `Event ${i}` });
+      }
+
+      const res = await request(app).get(
+        `/api/v1/projects/${projectId}/runs/${run.id}?events_limit=0`
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.events.length).toBe(25);
+    });
+
+    it("respects events_limit parameter", async () => {
+      const run = createAgentRun({
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: "engineer",
+      });
+      // Create 15 events
+      for (let i = 0; i < 15; i++) {
+        createAgentRunEvent(run.id, "assistant", { text: `Event ${i}` });
+      }
+
+      const res = await request(app).get(
+        `/api/v1/projects/${projectId}/runs/${run.id}?events_limit=5`
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.events.length).toBe(5);
+      // Verify we get exactly 5 most recent events
+      // The function returns the last N events (in this case, events 10-14)
+      const texts = res.body.events.map((e: any) => e.data.text);
+      expect(texts).toContain("Event 10");
+      expect(texts).toContain("Event 14");
     });
 
     it("returns 404 for non-existent run", async () => {
@@ -143,6 +182,66 @@ describe("Runs API", () => {
         `/api/v1/projects/${projectId}/runs/${run.id}`
       );
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("GET /projects/:projectId/active-runs", () => {
+    it("returns active runs without events by default", async () => {
+      // Create a fresh project
+      const projRes = await request(app)
+        .post("/api/v1/projects")
+        .send({
+          name: "active-runs-test",
+          repo_url: "https://github.com/test/active-runs",
+        });
+      const pid = projRes.body.id;
+      const issue = createIssueInDb(pid, { title: "I", description: "D" });
+
+      // Create a running run with events
+      const run = createAgentRun({
+        project_id: pid,
+        issue_id: issue.id,
+        agent_id: "engineer",
+        status: "running",
+      });
+      createAgentRunEvent(run.id, "assistant", { text: "Hello" });
+      createAgentRunEvent(run.id, "tool_use", { tool: "Read", input: {} });
+
+      const res = await request(app).get(`/api/v1/projects/${pid}/active-runs`);
+      expect(res.status).toBe(200);
+      expect(res.body.length).toBe(1);
+      expect(res.body[0].id).toBe(run.id);
+      expect(res.body[0].events).toBeDefined();
+      expect(res.body[0].events.length).toBe(0); // No events by default
+    });
+
+    it("includes events when include_events=true", async () => {
+      // Create a fresh project
+      const projRes = await request(app)
+        .post("/api/v1/projects")
+        .send({
+          name: "active-runs-events-test",
+          repo_url: "https://github.com/test/active-runs-events",
+        });
+      const pid = projRes.body.id;
+      const issue = createIssueInDb(pid, { title: "I", description: "D" });
+
+      // Create a running run with events
+      const run = createAgentRun({
+        project_id: pid,
+        issue_id: issue.id,
+        agent_id: "engineer",
+        status: "running",
+      });
+      createAgentRunEvent(run.id, "assistant", { text: "Hello" });
+      createAgentRunEvent(run.id, "tool_use", { tool: "Read", input: {} });
+
+      const res = await request(app).get(
+        `/api/v1/projects/${pid}/active-runs?include_events=true`
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.length).toBe(1);
+      expect(res.body[0].events.length).toBe(2);
     });
   });
 
