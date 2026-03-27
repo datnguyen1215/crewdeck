@@ -330,6 +330,33 @@ async function spawnAndTrack(opts: {
         { err, runId: agentRun.id },
         `Error processing ${logLabel.toLowerCase()} stream`,
       );
+
+      // Clean up state on error
+      clearTimeout(timer);
+      activeProcesses.delete(result.pid);
+
+      // Mark run as failed in DB
+      agentRunRepo.updateAgentRun(agentRun.id, {
+        status: "failed",
+        completed_at: new Date().toISOString(),
+      });
+
+      // Emit completion event so queue can drain
+      events.eventBus.emit("mention.completed", {
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: agent.id,
+        exit_code: 1,
+      });
+
+      // Post system comment if there's an issue
+      if (issueId) {
+        postSystemComment(
+          issueId,
+          projectId,
+          `Agent ${agent.name} stream processing failed: ${err.message}`,
+        );
+      }
     })
     .finally(() => {
       onComplete?.();
@@ -875,6 +902,31 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
       log.logger.error(
         { err, runId: run.id },
         "Error processing queued agent stream",
+      );
+
+      // Clean up state on error
+      clearTimeout(timer);
+      activeProcesses.delete(result.pid);
+
+      // Mark run as failed in DB
+      agentRunRepo.updateAgentRun(run.id, {
+        status: "failed",
+        completed_at: new Date().toISOString(),
+      });
+
+      // Emit completion event so queue can drain
+      events.eventBus.emit("mention.completed", {
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: agent.id,
+        exit_code: 1,
+      });
+
+      // Post system comment
+      postSystemComment(
+        issueId,
+        projectId,
+        `Agent ${agent.name} stream processing failed: ${err.message}`,
       );
     })
     .finally(() => {
