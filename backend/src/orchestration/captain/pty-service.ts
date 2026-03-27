@@ -17,6 +17,7 @@ interface TerminalSession {
   tmuxSessionName: string;
   systemPromptPath: string;
   sshKeyPath?: string;
+  worktreePath?: string;
   createdAt: Date;
   lastAccessedAt: Date;
 }
@@ -29,11 +30,25 @@ let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 /**
  * Build the system prompt for terminal captain session.
  */
-const buildSystemPrompt = (projectId: string): string => {
+const buildSystemPrompt = async (projectId: string, worktreePath?: string): Promise<string> => {
   const project = getProject(projectId);
   if (!project) return "";
 
-  return `You are Captain, the project assistant for CrewDeck.
+  const { getActiveProcessCount } = await import("../processes.js");
+  const runningAgents = getActiveProcessCount(projectId);
+
+  // Get project knowledge
+  const { listByProject } = await import("../../db/repositories/knowledge.js");
+  const projectKnowledge = listByProject(projectId);
+
+  // Get repo info
+  const { listRepos } = await import("../../db/repositories/repos.js");
+  const repos = listRepos(projectId);
+  const repo = repos.length > 0 ? repos[0] : null;
+
+  const parts: string[] = [];
+
+  parts.push(`You are Captain, the project assistant for CrewDeck.
 
 ## Role
 You have a conversation with the user about their project. You can answer questions,
@@ -42,14 +57,103 @@ provide status updates, and take actions on their behalf (dispatch agents, creat
 ## Project: ${project.name}
 ${project.description || "No description"}
 
-## Available Tools
-You have access to server-side tools for:
-- dispatch_agent — Spawn an agent to work on an issue
-- merge_pr — Merge a ready PR
-- scan_codebase — Trigger librarian scan
+## Project Settings
+- Auto-start: ${project.auto_start ? "ENABLED — automatically dispatch agents on new issues" : "DISABLED — wait for user to trigger dispatch"}
+- Auto-merge: ${project.auto_merge ? "ENABLED — automatically merge PRs when ready" : "DISABLED — wait for user to approve merge"}
 
-Ask clarifying questions when needed. Keep responses concise and actionable.
-`;
+## Current Capacity
+- Running agents: ${runningAgents}
+- Max concurrency: ${project.max_concurrency}
+- Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}`);
+
+  // Inject project knowledge
+  const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
+  if (projectKnowledge.length > 0) {
+    const injected = projectKnowledge.filter((k) => INJECT_CATEGORIES.has(k.category));
+    if (injected.length > 0) {
+      const entries = injected
+        .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
+        .join("\n\n");
+      parts.push(`## Project Knowledge\n${entries}`);
+    }
+  }
+
+  // Repository info
+  if (repo && worktreePath) {
+    parts.push(`## Repository\n${repo.name} at ${worktreePath}`);
+  }
+
+  // API Reference
+  parts.push(`## API Reference
+The following environment variables are available:
+- CREWDECK_API_URL — base URL of the backend API
+- CREWDECK_PROJECT_ID — current project ID
+- CREWDECK_AGENT_ID — captain
+
+### Issues API
+\`\`\`bash
+# List issues (filterable by status)
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues"
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues?status=open,in_progress"
+
+# Get issue details (includes comments, PRs, runs)
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
+
+# Create issue
+curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues" \\
+  -H "Content-Type: application/json" \\
+  -d '{"title": "Issue title", "description": "Description"}'
+
+# Update issue
+curl -X PUT "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"status": "done"}'
+
+# Add comment
+curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments" \\
+  -H "Content-Type: application/json" \\
+  -d '{"content": "Comment text", "author_type": "captain"}'
+\`\`\`
+
+### Agent Runs API
+\`\`\`bash
+# List currently running/queued agents
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/active-runs"
+
+# List recent runs
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs?limit=10"
+
+# Get run details
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
+\`\`\`
+
+### Activity API
+\`\`\`bash
+# Get activity log
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20"
+\`\`\`
+
+### Knowledge API
+\`\`\`bash
+# List knowledge entries
+curl "$CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID"
+
+# Get knowledge entry
+curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
+\`\`\`
+
+## Available Actions
+You have access to server-side tools for:
+- **dispatch_agent** — Spawn an agent (engineer, lead, docs, librarian) to work on an issue
+- **merge_pr** — Merge a ready PR${project.auto_merge ? "" : " (requires user approval)"}
+- **scan_codebase** — Trigger librarian scan to update project knowledge
+- **create_issue** — Create a new issue via the Issues API above
+- **update_issue** — Update issue status via the Issues API above
+- **comment** — Post comments on issues via the Issues API above
+
+Ask clarifying questions when needed. Keep responses concise and actionable.`);
+
+  return parts.join("\n\n");
 };
 
 /**
@@ -74,6 +178,96 @@ const setupGitHubAuth = async (
   Object.assign(env, ssh.env);
   return ssh.keyPath;
 };
+
+/**
+ * Create a worktree for captain chat session.
+ * Similar to issue worktrees but long-lived and named differently.
+ */
+async function createCaptainWorktree(
+  projectId: string,
+  sshPrivateKey?: string,
+): Promise<string | null> {
+  const { listRepos } = await import("../../db/repositories/repos.js");
+  const repos = listRepos(projectId);
+  if (repos.length === 0) {
+    logger.warn({ projectId }, "No repos found for project, cannot create worktree");
+    return null;
+  }
+
+  const repo = repos[0];
+  const { exec } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execAsync = promisify(exec);
+  const { toContainerPath } = await import("../../utils/paths.js");
+  const { shellQuote } = await import("../shell.js");
+  const { createGitSshEnv, cleanupSshKey } = await import("../../utils/git-auth.js");
+
+  const branchName = `crewdeck/captain-${projectId.slice(0, 8)}`;
+  const repoPath = toContainerPath(repo.local_path);
+  const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
+
+  // Try to fetch latest from origin
+  let fetchSucceeded = false;
+  const ssh = sshPrivateKey ? createGitSshEnv(sshPrivateKey) : null;
+  try {
+    const fetchEnv = { ...process.env, ...ssh?.env, GIT_TERMINAL_PROMPT: "0" };
+    await execAsync(`git -C ${shellQuote(repoPath)} fetch origin`, { env: fetchEnv });
+    fetchSucceeded = true;
+  } catch (err) {
+    logger.warn({ projectId, err }, "Failed to fetch from origin for captain worktree");
+  } finally {
+    if (ssh) cleanupSshKey(ssh.keyPath);
+  }
+
+  const startPoint = fetchSucceeded ? `origin/${repo.default_branch}` : repo.default_branch;
+
+  // Prune stale worktree entries
+  await execAsync(`git -C ${shellQuote(repoPath)} worktree prune`);
+
+  // Check if branch already exists
+  let branchExists = false;
+  try {
+    await execAsync(`git -C ${shellQuote(repoPath)} rev-parse --verify ${shellQuote(branchName)}`);
+    branchExists = true;
+  } catch {
+    // Branch doesn't exist
+  }
+
+  if (branchExists) {
+    // Reuse existing branch
+    await execAsync(
+      `git -C ${shellQuote(repoPath)} worktree add ${shellQuote(worktreePath)} ${shellQuote(branchName)}`,
+    );
+
+    // Rebase onto latest base branch
+    if (fetchSucceeded) {
+      try {
+        await execAsync(`git -C ${shellQuote(worktreePath)} rebase ${shellQuote(startPoint)}`);
+      } catch (err) {
+        // Abort rebase if it fails
+        await execAsync(`git -C ${shellQuote(worktreePath)} rebase --abort`).catch(() => {});
+        logger.warn({ projectId, err }, "Failed to rebase captain worktree");
+      }
+    }
+  } else {
+    // Create new branch
+    await execAsync(
+      `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
+    );
+  }
+
+  // Inject Claude Code settings to disable AI attribution
+  const claudeDir = join(worktreePath, ".claude");
+  const { mkdirSync } = await import("node:fs");
+  mkdirSync(claudeDir, { recursive: true });
+  writeFileSync(
+    join(claudeDir, "settings.json"),
+    JSON.stringify({ attribution: { commit: "", pr: "" } }),
+  );
+
+  logger.info({ projectId, worktreePath }, "Captain worktree created");
+  return worktreePath;
+}
 
 /**
  * Create a new terminal session for a project.
@@ -102,8 +296,21 @@ export async function createTerminalSession(
     return null;
   }
 
+  // Set up environment for worktree creation
+  let sshPrivateKey: string | undefined;
+  if (project.vcs_account_id) {
+    const { getVCSAccount } = await import("../../db/repositories/vcs-accounts.js");
+    const account = getVCSAccount(project.vcs_account_id);
+    if (account) {
+      sshPrivateKey = account.ssh_private_key;
+    }
+  }
+
+  // Create worktree for captain
+  const worktreePath = await createCaptainWorktree(projectId, sshPrivateKey);
+
   const tmuxSessionName = `captain-${projectId.substring(0, 8)}`;
-  const systemPrompt = buildSystemPrompt(projectId);
+  const systemPrompt = await buildSystemPrompt(projectId, worktreePath ?? undefined);
   const systemPromptPath = join(tmpdir(), `captain-${projectId}-prompt.txt`);
 
   // Write system prompt to temp file
@@ -172,6 +379,7 @@ export async function createTerminalSession(
         tmuxSessionName,
         systemPromptPath,
         sshKeyPath,
+        worktreePath: worktreePath ?? undefined,
         createdAt: new Date(),
         lastAccessedAt: new Date(),
       };
@@ -179,7 +387,7 @@ export async function createTerminalSession(
       activeSessions.set(projectId, session);
       pendingCreations.delete(projectId);
       logger.info(
-        { projectId, tmuxSessionName },
+        { projectId, tmuxSessionName, worktreePath },
         "Terminal session created",
       );
       resolve(session);

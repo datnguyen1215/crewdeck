@@ -44,6 +44,9 @@ export function setupTerminalWs(server: Server): WebSocketServer {
 
       const tmuxPath = process.env.TMUX_PATH || "tmux";
 
+      // Use worktree path if available, fallback to homedir
+      const cwd = session.worktreePath || homedir();
+
       const pty = ptySpawn(
         tmuxPath,
         ["attach-session", "-t", session.tmuxSessionName],
@@ -51,7 +54,7 @@ export function setupTerminalWs(server: Server): WebSocketServer {
           name: "xterm-256color",
           cols: 80,
           rows: 24,
-          cwd: homedir(),
+          cwd,
           env: {
             HOME: homedir(),
             TERM: "xterm-256color",
