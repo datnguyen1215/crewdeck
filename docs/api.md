@@ -1379,49 +1379,6 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 
 **Side effects:** Emits `pr.created` on the event bus.
 
-#### Dispatch Agent (Internal)
-
-```
-POST /internal/dispatch-agent
-```
-
-Dispatches an agent to work on an issue. This is used by the captain command handler — the frontend does not call this endpoint.
-
-**Request Body:**
-
-```json
-{
-  "project_id": "uuid",
-  "issue_id": "uuid",
-  "agent_id": "engineer",
-  "instructions": "Optional instructions for the agent"
-}
-```
-
-| Field        | Required | Description                                                             |
-| ------------ | -------- | ----------------------------------------------------------------------- |
-| project_id   | Yes      | The project the issue belongs to.                                       |
-| issue_id     | Yes      | The issue to dispatch the agent on.                                     |
-| agent_id     | Yes      | The agent to dispatch. One of: `engineer`, `lead`, `docs`, `librarian`. |
-| instructions | No       | Optional instructions posted as a system comment before spawning.       |
-
-**Response:** `200 OK` — ToolResult object with success status and message.
-
-```json
-{
-  "success": true,
-  "message": "Dispatched engineer on issue abc123"
-}
-```
-
-**Error:** `400 VALIDATION_ERROR` — Invalid agent_id (must be engineer, lead, docs, or librarian).
-
-**Side effects:**
-
-- Posts a system comment with instructions (if provided).
-- Spawns the specified agent process.
-- Emits `run.started` event.
-
 ---
 
 ## Status Transition Rules
