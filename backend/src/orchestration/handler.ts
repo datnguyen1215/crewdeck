@@ -11,14 +11,11 @@
 import * as events from "../events/bus.js";
 import * as mentionParser from "./parser.js";
 import * as issueRepo from "../db/repositories/issues.js";
-import * as projectRepo from "../db/repositories/projects.js";
 import * as log from "../logger.js";
-import * as dispatchQueue from "./queue.js";
+import * as dispatchQueue from "./dispatch-queue.js";
 import * as crew from "./crew.js";
 import {
   activeProcesses,
-  getActiveProcessCount,
-  hasActiveProcesses,
   hasActiveAgentProcess,
 } from "./processes.js";
 import {
@@ -28,7 +25,7 @@ import {
   cleanupStaleBatches,
   clearBatches,
 } from "./batch.js";
-import { spawnAgent, postSystemComment } from "./spawner.js";
+import { spawnAgent, executeQueuedRun, postSystemComment } from "./spawner.js";
 
 /** Cleanup interval in milliseconds (5 minutes) */
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
@@ -36,74 +33,10 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
- * Process the dispatch queue for a project after an agent completes.
- * Spawns the next queued agent if concurrency allows.
+ * Wrapper for draining the queue using the DB-backed queue system.
  */
 const drainQueue = async (projectId: string): Promise<void> => {
-  const project = projectRepo.getProject(projectId);
-  if (!project) return;
-
-  while (true) {
-    const activeCount = getActiveProcessCount(projectId);
-    if (activeCount >= project.max_concurrency) return;
-
-    const next = dispatchQueue.dequeue(projectId);
-    if (!next) return;
-
-    const agent = crew.getCrewMember(next.agentId);
-    if (!agent) {
-      log.logger.warn({ agentId: next.agentId }, "Queued agent not found");
-      continue;
-    }
-
-    // Skip if agent already has an active process for this issue
-    if (hasActiveAgentProcess(agent.id, next.issueId)) {
-      log.logger.info(
-        { agentId: agent.id, issueId: next.issueId },
-        "Skipping queued spawn: agent already running for this issue",
-      );
-      continue;
-    }
-
-    postSystemComment(
-      next.issueId,
-      projectId,
-      `Agent ${agent.name} dequeued, spawning now`,
-    );
-
-    events.eventBus.emit("dispatch.dequeued", {
-      project_id: projectId,
-      issue_id: next.issueId,
-      agent_id: next.agentId,
-    });
-
-    try {
-      await spawnAgent(
-        agent,
-        next.issueId,
-        projectId,
-        next.commentAuthorAgentId,
-      );
-    } catch (err) {
-      log.logger.error(
-        { err, agent: agent.name, issueId: next.issueId },
-        "Failed to spawn queued agent",
-      );
-      events.eventBus.emit("mention.error", {
-        project_id: projectId,
-        issue_id: next.issueId,
-        agent_id: agent.id,
-        message: err instanceof Error ? err.message : "unknown error",
-      });
-      postSystemComment(
-        next.issueId,
-        projectId,
-        `Failed to spawn queued agent ${agent.name}: ${err instanceof Error ? err.message : "unknown error"}`,
-      );
-      // Spawn failed — continue draining so the slot isn't wasted
-      continue;
-    }
-  }
+  await dispatchQueue.drainQueue(projectId, executeQueuedRun);
 };
 
 /**
