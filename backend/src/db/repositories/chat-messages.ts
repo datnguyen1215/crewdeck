@@ -87,18 +87,6 @@ export function getByProjectWithSession(
   return rows.map(parseRow);
 }
 
-export function getByProjectWithoutSession(
-  projectId: string,
-  limit = 100,
-): ChatMessage[] {
-  const rows = db
-    .prepare(
-      `SELECT * FROM ChatMessage WHERE project_id = ? AND session_id IS NULL ORDER BY created_at DESC LIMIT ?`,
-    )
-    .all(projectId, limit) as ChatMessageRow[];
-  return rows.map(parseRow);
-}
-
 export function deleteByProject(projectId: string): void {
   db.prepare("DELETE FROM ChatMessage WHERE project_id = ?").run(projectId);
 }

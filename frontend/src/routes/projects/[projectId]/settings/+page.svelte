@@ -267,7 +267,7 @@
 						<input type="checkbox" bind:checked={autoStart} class="accent-cyan w-4 h-4" />
 						<span class="text-sm text-primary">Auto-start issues</span>
 					</label>
-					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Captain automatically dispatches an agent when a new issue is created</p>
+					<p class="text-muted text-xs mt-1.5 ml-7">Automatically assign an agent when a new issue is created</p>
 				</div>
 
 				<div>

@@ -26,7 +26,6 @@ export interface Project {
   auto_start: boolean;
   auto_merge: boolean;
   model: string;
-  captain_idle_timeout_ms: number | null;
   vcs_account_id: string | null;
   created_at: string;
   updated_at: string;
@@ -203,7 +202,6 @@ export interface UpdateProjectInput {
   auto_start?: boolean;
   auto_merge?: boolean;
   model?: string;
-  captain_idle_timeout_ms?: number | null;
   vcs_account_id?: string | null;
 }
 

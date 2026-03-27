@@ -1006,52 +1006,6 @@ Removes the model override for the agent, falling back to the project default.
 
 ---
 
-### Chat History
-
-#### Get Chat History
-
-```
-GET /projects/:projectId/monitor/history
-GET /projects/:projectId/monitor/history?limit=50
-```
-
-Returns stored chat messages (ChatMessage records with `session_id = null`), sorted chronologically (oldest first). Used to display captain activity and event history.
-
-**Query Parameters:**
-
-| Parameter | Type    | Description                                     |
-| --------- | ------- | ----------------------------------------------- |
-| limit     | INTEGER | Max messages to return. Default: 100. Max: 500. |
-
-**Response:** `200 OK`
-
-```json
-[
-  {
-    "id": "uuid",
-    "project_id": "uuid",
-    "session_id": null,
-    "role": "user",
-    "content": "Event batch: issue.created, run.completed",
-    "images": null,
-    "created_at": "ISO 8601"
-  },
-  {
-    "id": "uuid",
-    "project_id": "uuid",
-    "session_id": null,
-    "role": "assistant",
-    "content": "I'll dispatch the engineer to work on the new issue.",
-    "images": null,
-    "created_at": "ISO 8601"
-  }
-]
-```
-
-**Error:** `404 Not Found` — Project does not exist.
-
----
-
 ### Terminal Sessions
 
 PTY-backed terminal sessions enable direct interaction with the captain chat via a real terminal session using tmux. Sessions are persistent and shared between web UI and CLI access.
@@ -1492,19 +1446,6 @@ All events follow this structure:
 | `pr.created`        | PR recorded on an issue | `{ issue_pr, project_id }`        |
 | `pr.status_changed` | PR status updated       | `{ pr_id, project_id, from, to }` |
 
-
-#### Legacy Monitor Events (Deprecated)
-
-These events are no longer emitted as the old Monitor service has been replaced by the comment-based captain system. The event types remain defined for backward compatibility with the MonitorPanel UI component.
-
-| Event                    | Description                                | Data                                      |
-| ------------------------ | ------------------------------------------ | ----------------------------------------- |
-| `monitor.event_received` | Monitor received a system event to process | `{ project_id, event_type, description }` |
-| `monitor.thinking`       | Monitor is processing events               | `{ project_id }`                          |
-| `monitor.message`        | Monitor text response                      | `{ project_id, content }`                 |
-| `monitor.tool_call`      | Monitor invoked a tool                     | `{ project_id, tool_name, tool_input }`   |
-| `monitor.tool_result`    | Monitor tool execution completed           | `{ project_id, tool_name, result }`       |
-| `monitor.complete`       | Monitor finished processing                | `{ project_id, response }`                |
 
 #### Project Events
 
