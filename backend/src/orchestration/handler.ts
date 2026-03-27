@@ -146,6 +146,21 @@ export const initMentionHandler = (): void => {
 
     if (mentioned.length === 0) return;
 
+    // Guard: Only captain and user can dispatch agents
+    // Block dispatches from engineer, lead, docs, librarian to prevent unauthorized agent spawning
+    if (authorAgentId && authorAgentId !== "captain") {
+      log.logger.warn(
+        { authorAgentId, issueId: comment.issue_id, mentionedAgents: mentioned.map(a => a.id) },
+        "Blocked dispatch from non-captain agent",
+      );
+      postSystemComment(
+        comment.issue_id,
+        project_id,
+        `⚠️ Agent "${authorAgentId}" attempted to dispatch agents, but only captain has dispatch permission. Dispatches blocked.`,
+      );
+      return;
+    }
+
     // Create a batch when an agent dispatches other agents, so the originator is auto-invoked on completion
     if (mentioned.length >= 1 && authorAgentId) {
       const existingBatchId = issueBatches.get(comment.issue_id);
