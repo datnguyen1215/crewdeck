@@ -384,6 +384,7 @@ export async function createTerminalSession(
     "claude",
     "--system-prompt-file",
     systemPromptPath,
+    "--dangerously-skip-permissions",
   ];
 
   return new Promise((resolve) => {
