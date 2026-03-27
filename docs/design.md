@@ -295,8 +295,10 @@ Captain runs a single Monitor service per project. Captain always runs for all p
 
 - Manages persistent tmux sessions running Claude CLI for terminal access to captain chat.
 - Each project can have one terminal session running `claude --system-prompt-file` inside tmux.
+- **Worktree isolation**: Creates a long-lived git worktree per project (named `crewdeck/captain-{projectId}`) in `/tmp/crewdeck-worktrees/`. The worktree persists across PTY reconnects and auto-rebases onto the latest default branch on creation. Terminal sessions run with the worktree as the working directory.
+- **Enriched system prompt**: Injects project knowledge (workflows/conventions), API reference (Issues, Runs, Activity, Knowledge APIs), current capacity (running agents, available slots), project settings (auto-start, auto-merge), and repository context.
 - Session lifecycle: `createTerminalSession()`, `getTerminalSession()`, `destroyTerminalSession()`.
-- Auto-cleanup: 30-minute idle timeout kills sessions and removes temporary files (system prompt, SSH keys).
+- Auto-cleanup: 30-minute idle timeout kills sessions and removes temporary files (system prompt, SSH keys). Worktrees persist and are reused across session recreations.
 - Environment injection: `CREWDECK_*` vars, `GH_TOKEN`, SSH keys from project's GitHub account.
 - Concurrency control: `pendingCreations` Set guards against race conditions when multiple clients request sessions simultaneously.
 
