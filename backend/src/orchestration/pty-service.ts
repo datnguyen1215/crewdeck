@@ -4,7 +4,7 @@
  * Manages persistent tmux sessions running Claude CLI for captain terminal access.
  * Sessions run indefinitely with idle timeout cleanup.
  */
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -366,6 +366,13 @@ export async function createTerminalSession(
   } as Record<string, string>;
 
   const sshKeyPath = await setupGitHubAuth(projectId, env);
+
+  // Kill any stale tmux session from a previous server run
+  try {
+    execSync(`tmux kill-session -t ${tmuxSessionName}`, { stdio: "ignore" });
+  } catch {
+    /* no existing session — fine */
+  }
 
   // Create tmux session running Claude CLI
   const tmuxCmd = [
