@@ -288,7 +288,7 @@ Captain's output commands are parsed by the mention handler and executed via com
 
 Commands are restricted to captain-only (checked via `author_type === "captain"` in handler.ts).
 
-**PTY Service** (`backend/src/orchestration/captain/pty-service.ts`)
+**PTY Service** (`backend/src/orchestration/pty-service.ts`)
 
 - Manages persistent tmux sessions running Claude CLI for terminal access to captain chat.
 - Each project can have one terminal session running `claude --system-prompt-file` inside tmux.
@@ -338,14 +338,11 @@ The backend uses an in-process typed EventEmitter as the central communication b
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
 │  Producers:                    Consumers:                │
-│  ├── REST API handlers    ──→  Orchestrator Manager      │
-│  ├── Agent Runtime        ──→  WebSocket broadcaster     │
-│  ├── REST API handlers    ──→  MentionHandler            │
-│  ├── MentionHandler       ──→  WebSocket broadcaster     │
-│  ├── PR Detector/Poller   ──→  Activity Logger           │
-│  ├── Monitor Service      ──→  PR Detector               │
+│  ├── REST API handlers    ──→  WebSocket broadcaster     │
+│  ├── Agent Runtime        ──→  MentionHandler            │
+│  ├── MentionHandler       ──→  Activity Logger           │
+│  ├── PR Detector/Poller   ──→  PR Detector               │
 │  │                        ──→  Event Commenter            │
-│  │                        ──→  Monitor Service (events)   │
 │  └── Worktree Cleanup     ──→  Worktree Cleanup           │
 │                                                          │
 └──────────────────────────────────────────────────────────┘

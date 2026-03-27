@@ -1382,10 +1382,10 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 #### Dispatch Agent (Internal)
 
 ```
-POST /internal/captain/dispatch-agent
+POST /internal/dispatch-agent
 ```
 
-Dispatches an agent to work on an issue. This is used by the orchestration tool handler — the frontend does not call this endpoint.
+Dispatches an agent to work on an issue. This is used by the captain command handler — the frontend does not call this endpoint.
 
 **Request Body:**
 

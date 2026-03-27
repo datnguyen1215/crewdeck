@@ -317,7 +317,7 @@ Every invocation gets a complete, self-contained prompt from the database. The b
 
 ## Startup and Shutdown
 
-**Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed` and posts a system comment on each affected issue. `recoverQueue()` is then called to restore queued runs — it counts and logs the number of queued runs awaiting execution. The monitor service emits a `startup.scan` event for each project, allowing the Captain to analyze current state and resume any necessary work.
+**Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed` and posts a system comment on each affected issue. `recoverQueue()` is then called to restore queued runs — it counts and logs the number of queued runs awaiting execution.
 
 **Spawn failure handling:** If `spawnClaudeStream()` throws during `spawnAndTrack()` (e.g., process cannot be created), the `AgentRun` record is immediately marked `failed` with a `completed_at` timestamp, `onComplete()` is called for cleanup (e.g., SSH key removal), and the error is re-thrown. This prevents runs from being permanently stuck in `running` with a null PID, which would block further work on the issue.
 
