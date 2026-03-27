@@ -307,7 +307,7 @@ export interface UpdateKnowledgeInput {
   source?: string | null;
 }
 
-// Chat message types (used by monitor-agent for sessionless messages)
+// Chat message types
 export type ChatMessageRole = "user" | "assistant";
 
 export interface ChatMessage {
