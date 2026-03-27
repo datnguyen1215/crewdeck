@@ -1006,16 +1006,16 @@ Removes the model override for the agent, falling back to the project default.
 
 ---
 
-### Monitor
+### Chat History
 
-#### Get Monitor History
+#### Get Chat History
 
 ```
 GET /projects/:projectId/monitor/history
 GET /projects/:projectId/monitor/history?limit=50
 ```
 
-Returns stored monitor messages (ChatMessage records with `session_id = null`), sorted chronologically (oldest first). Used by the Monitor panel to load history on mount.
+Returns stored chat messages (ChatMessage records with `session_id = null`), sorted chronologically (oldest first). Used to display captain activity and event history.
 
 **Query Parameters:**
 
@@ -1493,7 +1493,9 @@ All events follow this structure:
 | `pr.status_changed` | PR status updated       | `{ pr_id, project_id, from, to }` |
 
 
-#### Monitor Events
+#### Legacy Monitor Events (Deprecated)
+
+These events are no longer emitted as the old Monitor service has been replaced by the comment-based captain system. The event types remain defined for backward compatibility with the MonitorPanel UI component.
 
 | Event                    | Description                                | Data                                      |
 | ------------------------ | ------------------------------------------ | ----------------------------------------- |

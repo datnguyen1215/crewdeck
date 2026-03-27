@@ -144,7 +144,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
 │  │Terminals │ │ Activity │ │ Captain (Chat)   │ │
-│  │+ Monitor │ │   Log    │ │                  │ │
+│  │          │ │   Log    │ │                  │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 └────────────────────┬────────────────────────────┘
                      │ WebSocket + REST
@@ -248,7 +248,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Subscribes to: `run.completed`, `pr.status_changed`, `issue.status_changed`.
 - Posts formatted system comments on the relevant issue (e.g., "✅ **engineer** completed (exit code 0). Cost: $0.12. Duration: 45s.").
 - After posting comment, if project has `auto_start` enabled, enqueues captain on that issue (skips if already queued/running).
-- Replaces the Monitor's need to curl APIs to learn about events — events are now automatically converted to plain comments that any agent can read.
+- Events are automatically converted to plain comments that any agent can read.
 - See `backend/src/events/event-commenter.ts`.
 
 **VCS Provider Abstraction**

@@ -355,7 +355,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
-| Project → ChatMessage         | One-to-Many | A project has many monitor messages (all sessionless, used by Monitor).     |
+| Project → ChatMessage         | One-to-Many | A project has many chat messages (captain and human conversations).         |
 
 ## Indexes
 
