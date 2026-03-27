@@ -89,7 +89,6 @@ The following environment variables are available:
 ### Issues API
 \`\`\`bash
 # List issues (filterable by status)
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues"
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues?status=open,in_progress"
 
 # Get issue details (includes comments, PRs, runs)
@@ -131,10 +130,10 @@ curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20"
 
 ### Knowledge API
 \`\`\`bash
-# List knowledge entries
-curl "$CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID"
+# List knowledge titles (returns id, title, category)
+curl "$CREWDECK_API_URL/api/v1/internal/knowledge/titles?project_id=$CREWDECK_PROJECT_ID"
 
-# Get knowledge entry
+# Get full knowledge entry
 curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
 \`\`\`
 
