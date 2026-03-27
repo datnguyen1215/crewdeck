@@ -78,7 +78,7 @@ Pull requests are tracked in the `IssuePR` table. They can be linked to an issue
 - **Manual**: the user clicks "Mark as PR Created", which transitions the issue to `pr_created` and records the PR.
 - **Auto-link**: when a comment is posted containing a GitHub PR URL (e.g. `https://github.com/owner/repo/pull/123`), the PR detector automatically creates an `IssuePR` record linking it to the issue (deduped by repo + PR number).
 - **Agent registration**: An agent can call `POST /internal/create-pr` after creating a PR with `gh pr create` to explicitly register the PR for tracking. This ensures the PR poller can auto-transition the issue to `done` when the PR is merged.
-- **Captain create-pr action**: The Captain Monitor can create a PR directly via the `create-pr` action plan type. This calls the GitHub API (`POST /repos/{owner}/{repo}/pulls`), creates an `IssuePR` record, emits `pr.created`, and transitions the issue to `pr_created`. The PR body uses a structured format with Summary and Description sections.
+- **Captain create-pr command**: Captain can create a PR by outputting `/create-pr <issue_id>` in a comment. The backend parses the command and calls the VCS provider to create the PR, creates an `IssuePR` record, emits `pr.created`, and transitions the issue to `pr_created`.
 
 ## Issue Lifecycle
 
@@ -261,44 +261,35 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Provider registry (`backend/src/vcs/registry.ts`) allows registration of multiple VCS providers and URL-based provider detection.
 - Ready for multi-VCS support — adding GitLab or Bitbucket requires only implementing the interface.
 
-**Captain (Monitor only)**
+**Captain**
 
-Captain runs a single Monitor service per project. Captain always runs for all projects — there is no on/off toggle. The `auto_start` and `auto_merge` settings control what Captain can do autonomously. Captain is a background service and is not dispatchable via `/dispatch`.
+Captain is a dispatchable agent invoked via `/dispatch captain` in issue comments. When invoked, Captain reads the issue context and all comments to understand project state, then outputs orchestration commands.
 
-**Monitor Service** (`backend/src/orchestration/captain/monitor-service.ts` + `monitor-agent.ts`)
+**Commands**:
+- `/dispatch <agent>` — Dispatch an agent to work on the current issue
+- `/merge <issue_id>` — Merge a PR for an issue (requires `auto_merge` enabled, only works on `pr_ready_to_merge` status)
+- `/create-pr <issue_id>` — Create a PR for an issue (after engineer has pushed code)
+- `/create-issue <title>` — Create a new issue
 
-- Automated event-driven orchestrator — no polling. Wakes only when events occur:
-  - `issue.created` (user-created issues only — agent-created issues are ignored to prevent chain reactions)
-  - `issue.updated`, `issue.status_changed`
-  - `run.completed` (agent finished)
-  - `startup.scan` (emitted when monitor service starts for each project — gives Captain full visibility into existing issues)
-  - `pr.status_changed` (from PR poller)
-  - `comment.added` (user comments only)
-  - `project.settings_changed` (project configuration updates — e.g., `auto_merge_enabled`, `max_concurrency`)
-  - `idle.check` (configurable per-project idle timeout)
-- Has its own queue namespace (`monitor:{projectId}`) — a long monitor batch won't block user chat, and vice versa.
-- Event batching: accumulates events while processing, drains all pending events at once.
-- Uses `claude -p --output-format stream-json` for orchestration decisions with read-only tool access.
-- **Structured action plans**: Instead of making curl calls for write operations, the Monitor outputs a JSON action plan that the backend executes deterministically. This enables parallel dispatch execution and faster mutex release.
-- Maintains its own conversation history (last 100 sessionless messages in ChatMessage table, i.e. `session_id IS NULL`), separate from chat session history.
-- **Read-only curl access**: Monitor can still use curl for read operations (list issues, get issue details, list knowledge) to gather state before making decisions.
-- **Action types**: dispatch, merge, scan, comment, create-issue, update-issue, create-pr, skip. Action schemas are validated with Zod (`action-schema.ts`) and executed by `plan-executor.ts`. Before execution, any truncated issue ID prefixes (≥8 chars but shorter than a full UUID) are resolved to full UUIDs via a project-scoped prefix match in the database.
-- Decision priorities (encoded in system prompt, conditional on `auto_merge` and `auto_start` settings):
-  1. **Merge ready PRs** — if PR is in `pr_ready_to_merge` status (when `auto_merge` is true); otherwise, **Report ready PRs** — note they are ready for manual merge
-  2. **Fix broken PRs** — dispatch engineer for `pr_conflict` or `pr_failed_actions`
-  3. **Update knowledge** — after a PR is merged, evaluate whether the changes warrant a librarian rescan (e.g., new files/modules, API changes, restructuring). Skip for bug fixes, style changes, dependency updates, or docs-only changes.
-  4. **Start new work** — dispatch appropriate agent on open issues when capacity allows (when `auto_start` is true, skipping issues blocked by unfinished dependencies)
-- When `auto_merge` is false, the merge action is excluded and a constraint is added preventing merge attempts.
-- When `auto_start` is false, Captain will not automatically dispatch agents on new issues — the user must explicitly trigger dispatch.
-- **Dependency awareness**: Before dispatching work on an issue, Monitor checks its description for dependency references (e.g., "depends on #12", "blocked by #14", "requires #", "after #", "waiting on #"). If a blocking issue is not yet in `done` or `pr_created` status, Monitor skips the blocked issue and works on unblocked ones instead. Blocked issues are re-evaluated when completion or merge events arrive for their blockers.
-- Task-type reasoning: Monitor analyzes each issue and decides which agents to dispatch based on task type (research → librarian, docs-only → docs, code change → engineer then lead, etc.).
+**Captain Context** (`backend/src/orchestration/prompt.ts`)
 
-**Captain Wrapper** (`backend/src/orchestration/captain.ts`)
+When spawning Captain, the backend injects project-specific context:
+- `max_concurrency` — maximum concurrent agents
+- `runningAgents` — list of currently running agents with issue IDs and titles
+- `queuedAgents` — list of queued agents waiting for capacity
+- `allIssues` — all issues with their status and PR status
 
-- Thin wrapper that initializes and shuts down the Monitor service.
-- `initCaptain()` starts the Monitor service for all captain-enabled projects.
-- `startCaptainForProject(projectId)` / `stopCaptainForProject(projectId)` control the Monitor service per project.
-- Uses OAuth token from the project's linked GitHub account for merging and PR creation.
+This context enables Captain to make informed orchestration decisions based on current project state.
+
+**Command Execution** (`backend/src/orchestration/command-handlers.ts`)
+
+Captain's output commands are parsed by the mention handler and executed via command-handlers.ts:
+- `handleDispatchAgent()` — spawns the specified agent on the issue
+- `handleMergePR()` — merges the PR using the VCS provider
+- `handleCreatePR()` — creates a PR using the VCS provider
+- `handleCreateIssue()` — creates a new issue
+
+Commands are restricted to captain-only (checked via `author_type === "captain"` in handler.ts).
 
 **PTY Service** (`backend/src/orchestration/captain/pty-service.ts`)
 
@@ -484,9 +475,7 @@ On startup, the backend:
 6. Initializes the MentionHandler (subscribes to `comment.added`).
 7. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 8. Starts the PR poller (polls VCS providers every 60 seconds for PR status updates).
-9. Initializes Captain Monitor service — subscribes to the event bus for all captain-enabled projects.
-10. Initializes PTY service — starts idle session cleanup interval (runs every 60 seconds).
-11. Starts the Express HTTP server.
+9. Starts the Express HTTP server.
 12. Starts the WebSocket server (`/ws` for events).
 13. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
 14. Logs startup complete via pino.
@@ -499,12 +488,9 @@ On SIGTERM or SIGINT, the backend:
 
 1. Stops accepting new HTTP connections.
 2. Sends SIGTERM to all active agent processes (via `shutdownMentionHandler()`).
-3. Shuts down Captain Monitor service — unsubscribes from events and clears idle timeouts.
-4. Shuts down PTY service — kills all active tmux sessions and cleans up temporary files.
-5. Closes terminal WebSocket connections and kills all PTY attach processes.
-6. Stops the PR poller.
-7. Closes the SQLite database connection.
-8. Exits the process.
+3. Stops the PR poller.
+4. Closes the SQLite database connection.
+5. Exits the process.
 
 ## Security and Access
 

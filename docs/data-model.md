@@ -260,19 +260,19 @@ Immutable audit trail of every action in the system.
 
 ### ChatMessage
 
-Stores conversation history for the Captain Monitor LLM agent. All messages are sessionless (used only by Monitor for automated orchestration).
+Legacy table originally designed for chat sessions. No longer actively used after the captain refactor to comment-based orchestration.
 
-| Field      | Type        | Constraints                                          | Description                                                                  |
-| ---------- | ----------- | ---------------------------------------------------- | ---------------------------------------------------------------------------- |
-| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                           |
-| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                              |
-| session_id | TEXT        | NULLABLE                                             | Always NULL (legacy field retained for Monitor's sessionless message store). |
-| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role. `user` for event batches, `assistant` for Monitor responses.   |
-| content    | TEXT        | NOT NULL                                             | Message content.                                                             |
-| images     | TEXT        | NULLABLE                                             | Always NULL (not used by Monitor).                                           |
-| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created.                                                |
+| Field      | Type        | Constraints                                          | Description                                     |
+| ---------- | ----------- | ---------------------------------------------------- | ----------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                              |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                 |
+| session_id | TEXT        | NULLABLE                                             | Session identifier (legacy, no longer used).    |
+| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role.                                   |
+| content    | TEXT        | NOT NULL                                             | Message content.                                |
+| images     | TEXT        | NULLABLE                                             | Image attachments (legacy, no longer used).     |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created.                   |
 
-**Note:** This table was originally designed for chat sessions but is now used exclusively by the Monitor service for its conversation history (`session_id = NULL`). The table and `session_id` column are retained for compatibility with existing migrations. Monitor queries use `WHERE session_id IS NULL` to retrieve its history.
+**Note:** This table is retained for compatibility with existing migrations but is no longer populated. Captain now operates via comment-based orchestration instead of maintaining conversation history.
 
 ### AgentConfig
 

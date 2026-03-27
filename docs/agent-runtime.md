@@ -59,7 +59,7 @@ claude -p <prompt> \
 
 ### spawnClaudeStream
 
-Spawns `claude -p` with streaming JSON output for real-time token delivery. Used by the Captain Chat service and Monitor service.
+Spawns `claude -p` with streaming JSON output for real-time token delivery. Used for real-time event streaming from agent runs.
 
 ```
 spawnClaudeStream(opts: SpawnOpts) → Promise<StreamSpawnResult>
@@ -91,69 +91,51 @@ claude -p <prompt via stdin> \
 - `--settings '{"attribution":{"commit":"","pr":""}}'` disables AI attribution in commits and PRs.
 
 
-## Monitor Action Plans
+## Captain Command Execution
 
-`backend/src/orchestration/captain/action-schema.ts` + `plan-executor.ts`
+`backend/src/orchestration/command-handlers.ts`
 
-The Monitor service uses structured action plans instead of curl calls for write operations. This enables parallel dispatch execution and faster mutex release.
+Captain outputs commands in comments which are parsed and executed by the backend. Commands include `/dispatch`, `/merge`, `/create-pr`, and `/create-issue`.
 
 ### Flow
 
 ```
-events arrive (issue.created, run.completed, etc.)
+captain reads issue comments and project state
     │
-    ├── Monitor service batches events
+    ├── captain outputs commands in comment
     │
-    ├── spawnClaudeStream with system prompt
-    │       └── LLM can use curl for READ operations (list issues, get issue, list knowledge)
+    ├── comment.added event fires
     │
-    ├── LLM outputs JSON action plan as final response
+    ├── handler.ts parses commands (captain-only)
     │
-    └── Backend executes plan via plan-executor.ts
-            ├── Validate action plan with Zod schemas
-            ├── Resolve truncated issue IDs to full UUIDs (see below)
-            ├── Execute dispatch actions in parallel (Promise.all)
-            └── Execute other actions sequentially
+    └── command-handlers.ts executes each command
+            ├── /dispatch → spawnAgent()
+            ├── /merge → handleMergePR()
+            ├── /create-pr → handleCreatePR()
+            └── /create-issue → handleCreateIssue()
 ```
 
 ### Truncated Issue ID Resolution
 
-The Monitor LLM sometimes outputs truncated 8-character issue ID prefixes (e.g. `3d97b21f`) instead of full UUIDs, because it sees short ID references in event data and comments (e.g. `#3d97b21f`). The plan executor resolves these before executing any action:
+Captain sometimes outputs truncated 8-character issue ID prefixes (e.g. `3d97b21f`) instead of full UUIDs in commands. The command handlers resolve these before executing:
 
 1. Try exact match via `getIssue(id)`.
 2. If no match and the ID is shorter than 36 characters (full UUID length) but at least 8 characters, try a `LIKE prefix%` query scoped to the project via `getIssueByPrefix(prefix, projectId)`.
 3. The prefix query returns a match only if exactly one issue matches (ambiguous prefixes return null).
-4. If resolution fails, the action is rejected with an error result.
+4. If resolution fails, the command is rejected with an error result.
 
-This resolution is applied to all action types that take an `issue_id` (dispatch, merge, comment, update-issue, skip).
+This resolution is applied to all commands that take an `issue_id` (dispatch, merge, create-pr).
 
-### Action Types
+### Commands
 
-| Type         | Fields                            | Description                           |
-| ------------ | --------------------------------- | ------------------------------------- |
-| dispatch     | issue_id, agent_id, instructions? | Dispatch agent to work on issue       |
-| merge        | issue_id                          | Merge PR for issue                    |
-| scan         | (none)                            | Trigger librarian codebase scan       |
-| comment      | issue_id, content                 | Add comment to issue                  |
-| create-issue | title, description?               | Create new issue                      |
-| update-issue | issue_id, status?, title?         | Update issue status/title             |
-| create-pr    | issue_id                          | Create GitHub PR for issue            |
-| skip         | issue_id, reason                  | Skip issue (logged for observability) |
+| Command       | Format                               | Description                     |
+| ------------- | ------------------------------------ | ------------------------------- |
+| /dispatch     | `/dispatch agent_id`                 | Dispatch agent to work on issue |
+| /merge        | `/merge issue_id`                    | Merge PR for issue              |
+| /create-pr    | `/create-pr issue_id`                | Create GitHub PR for issue      |
+| /create-issue | `/create-issue title`                | Create new issue                |
 
-### Action Plan Format
-
-```json
-{
-  "reasoning": "Brief explanation of decisions",
-  "actions": [
-    { "type": "dispatch", "issue_id": "abc", "agent_id": "engineer" },
-    { "type": "dispatch", "issue_id": "def", "agent_id": "lead" },
-    { "type": "merge", "issue_id": "ghi" }
-  ]
-}
-```
-
-The executor validates the plan using Zod schemas and executes dispatches in parallel. If multiple issues need work and slots are available, they all start simultaneously.
+Commands are parsed from captain's comment output and executed sequentially. Only captain can execute these orchestration commands (restricted by `author_type` check).
 
 ## MentionHandler
 
