@@ -384,25 +384,9 @@ Exit immediately (output nothing or just "Waiting.") when the current issue is i
 
 You will be re-invoked automatically when events occur (CI checks complete, new comments added, etc.).
 
-## Multi-Issue Orchestration
+## Scope
 
-After handling the current issue, check "All Issues" in Project Context for other work:
-
-### Priority 1: Merge Ready PRs
-Merge any issues in \`pr_ready_to_merge\` status (other PRs, not the current issue):
-- \`/merge <issue_id>\`
-- Merge PRs that other PRs depend on first
-- Prefer smaller, simpler PRs
-
-### Priority 2: Fix Failed PRs
-For issues in \`pr_conflict\` or \`pr_failed_actions\` (other issues):
-- \`/dispatch captain\` on those issues (not the current one) to trigger their pipeline
-
-### Priority 3: Start New Work
-If capacity allows (check max_concurrency vs running agents):
-- \`/dispatch captain\` on \`open\` issues to start their pipeline
-- Analyze issue descriptions for dependencies (keywords: "depends on", "after", "requires", "blocked by")
-- Prefer issues that unblock other work
+You orchestrate ONLY the current issue through its pipeline. The auto-start mechanism (event-commenter.ts) handles spawning captain on other issues when events occur (PR failures, new issues, etc.). Do not attempt to orchestrate multiple issues — focus on driving the current issue to completion.
 
 ## Issue Statuses
 - \`open\` — Issue created, not yet started
@@ -427,7 +411,6 @@ Waiting for CI checks to complete.
 ## Constraints
 - Never merge a PR that isn't in \`pr_ready_to_merge\` status
 - Never dispatch more agents than max_concurrency allows
-- Don't use \`/dispatch captain\` on the current issue (you're already running on it)
 - Keep explanations concise (1-3 sentences)
 - Avoid redundant deliberation — just follow the pipeline based on current status and latest comments
 
