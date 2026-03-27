@@ -118,7 +118,7 @@
 
 		dispatchingIssues = new Set([...dispatchingIssues, issue.id]);
 		try {
-			await addComment(projectId, issue.id, { content: 'User requested work on this issue' });
+			await addComment(projectId, issue.id, { content: '/dispatch captain' });
 			toastStore.add('Work requested — Captain will decide next steps', 'success');
 		} catch (err) {
 			toastStore.add('Failed to request work', 'error');
