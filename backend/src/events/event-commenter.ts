@@ -6,8 +6,6 @@
 import { eventBus } from "./bus.js";
 import { createComment } from "../db/repositories/comments.js";
 import { getIssuePR } from "../db/repositories/issue-prs.js";
-import { getProject } from "../db/repositories/projects.js";
-import { enqueueRun, isAgentActive } from "../orchestration/dispatch-queue.js";
 import { logger } from "../logger.js";
 
 /**
@@ -37,25 +35,6 @@ function postComment(issueId: string, content: string): void {
   });
 }
 
-/**
- * Auto-start captain if project has auto_start enabled and captain not already active.
- */
-function autoStartCaptain(projectId: string, issueId: string): void {
-  const project = getProject(projectId);
-  if (!project?.auto_start) return;
-
-  const captainId = "captain";
-  if (isAgentActive(projectId, issueId, captainId)) {
-    logger.debug(
-      { projectId, issueId },
-      "Captain already active, skipping auto-start",
-    );
-    return;
-  }
-
-  enqueueRun(projectId, issueId, captainId);
-  logger.info({ projectId, issueId }, "Auto-started captain");
-}
 
 /**
  * Initialize event commenter by subscribing to relevant events.
@@ -84,9 +63,6 @@ export function initEventCommenter(): void {
     ].filter(Boolean);
 
     postComment(data.issue_id, parts.join(". ") + ".");
-
-    // Auto-start captain if configured
-    autoStartCaptain(data.project_id, data.issue_id);
   });
 
   // PR status changed
@@ -108,9 +84,6 @@ export function initEventCommenter(): void {
     }
 
     postComment(issuePR.issue_id, message);
-
-    // Auto-start captain if configured
-    autoStartCaptain(data.project_id, issuePR.issue_id);
   });
 
   // Issue status changed
@@ -131,9 +104,6 @@ export function initEventCommenter(): void {
 
     const message = `📊 Issue status: ${fromText} → ${toText}`;
     postComment(data.issue_id, message);
-
-    // Auto-start captain if configured
-    autoStartCaptain(data.project_id, data.issue_id);
   });
 
   logger.info("Event commenter initialized");

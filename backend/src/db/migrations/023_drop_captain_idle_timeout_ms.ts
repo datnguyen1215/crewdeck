@@ -20,8 +20,6 @@ export function run(db: Database.Database): void {
           max_concurrency INTEGER NOT NULL DEFAULT 1,
           max_chain_depth INTEGER NOT NULL DEFAULT 20,
           agent_timeout_minutes INTEGER NOT NULL DEFAULT 10,
-          auto_start INTEGER NOT NULL DEFAULT 0,
-          auto_merge INTEGER NOT NULL DEFAULT 0,
           memory TEXT,
           model TEXT NOT NULL DEFAULT 'sonnet',
           vcs_account_id TEXT REFERENCES VCSAccount(id) ON DELETE SET NULL,
@@ -29,10 +27,10 @@ export function run(db: Database.Database): void {
           updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         INSERT INTO Project_new (id, name, description, max_concurrency, max_chain_depth,
-          agent_timeout_minutes, auto_start, auto_merge, memory, model,
+          agent_timeout_minutes, memory, model,
           vcs_account_id, created_at, updated_at)
         SELECT id, name, description, max_concurrency, max_chain_depth,
-          agent_timeout_minutes, auto_start, auto_merge, memory, model,
+          agent_timeout_minutes, memory, model,
           vcs_account_id, created_at, updated_at
         FROM Project;
         DROP TABLE Project;
