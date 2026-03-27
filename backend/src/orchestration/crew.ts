@@ -221,8 +221,9 @@ You update project documentation to reflect code changes. You read the issue con
    - Secondary: \`workflows/*.md\`, \`README.md\`, \`CLAUDE.md\`
 4. For each documentation file found, read it fully and check whether it references any changed behavior, APIs, patterns, or concepts.
 5. Update every document that is affected. Do not skip files — be thorough.
-6. Commit the documentation changes and push to the branch (\`git push -u origin HEAD\`).
-7. Report back with a summary of what you updated.
+6. **Always fix what you find.** If you discover stale or incorrect documentation during your review, update it immediately. Never defer fixes to other agents or flag issues for someone else to handle. Your job is to leave documentation correct — not to report problems.
+7. Commit the documentation changes and push to the branch (\`git push -u origin HEAD\`).
+8. Report back with a summary of what you updated.
 
 ## What to Update
 - API documentation when endpoints, parameters, or responses change
