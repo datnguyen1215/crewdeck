@@ -432,3 +432,44 @@ export function listRecentAgentRunEvents(
     }),
   );
 }
+
+/**
+ * List queued runs in FIFO order (oldest created_at first).
+ * Used by the dispatch queue to process runs in order.
+ */
+export function listQueuedRuns(projectId?: string): AgentRun[] {
+  if (projectId) {
+    return db
+      .prepare(
+        "SELECT * FROM AgentRun WHERE project_id = ? AND status = 'queued' ORDER BY created_at ASC",
+      )
+      .all(projectId) as AgentRun[];
+  }
+  return db
+    .prepare("SELECT * FROM AgentRun WHERE status = 'queued' ORDER BY created_at ASC")
+    .all() as AgentRun[];
+}
+
+/**
+ * Count running agent runs globally (across all projects).
+ * Used to enforce global concurrency limits.
+ */
+export function countRunningGlobal(): number {
+  const result = db
+    .prepare("SELECT COUNT(*) as count FROM AgentRun WHERE status = 'running'")
+    .get() as { count: number };
+  return result.count;
+}
+
+/**
+ * Count running agent runs for a specific project.
+ * Used to enforce per-project concurrency limits.
+ */
+export function countRunningForProject(projectId: string): number {
+  const result = db
+    .prepare(
+      "SELECT COUNT(*) as count FROM AgentRun WHERE project_id = ? AND status = 'running'",
+    )
+    .get(projectId) as { count: number };
+  return result.count;
+}

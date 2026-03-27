@@ -22,4 +22,5 @@ export const config = {
   logFilePath: optional("LOG_FILE_PATH", "./data/server.log"),
   reposHostPath: process.env.CREWDECK_REPOS_HOST_PATH || "",
   reposContainerPath: process.env.CREWDECK_REPOS_CONTAINER_PATH || "",
+  maxAgents: parseIntEnv("MAX_AGENTS", 10),
 };

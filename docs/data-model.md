@@ -151,18 +151,18 @@ Records a single execution of an agent. Can be associated with an issue (for `/d
 
 | Field        | Type        | Constraints                         | Description                                                                    |
 | ------------ | ----------- | ----------------------------------- | ------------------------------------------------------------------------------ |
-| id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                             |
-| project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                |
-| issue_id     | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | The issue this run was triggered by. NULL for standalone runs (e.g., scans).   |
-| agent_id     | TEXT        | NOT NULL                            | The agent that was spawned (e.g., `engineer`).                                 |
-| pid          | INTEGER     | NULLABLE                            | OS process ID. NULL until the process is spawned.                              |
-| status       | TEXT        | NOT NULL, DEFAULT 'queued'          | Current status. One of: `queued`, `running`, `completed`, `failed`, `timeout`. |
-| exit_code    | INTEGER     | NULLABLE                            | Process exit code. NULL if not yet completed or if status is `timeout`.        |
-| cost_usd     | REAL        | NULLABLE                            | Estimated cost in USD from the Claude API. NULL until run completes.           |
-| duration_ms  | INTEGER     | NULLABLE                            | Wall-clock duration in milliseconds. NULL until run completes.                 |
-| started_at   | DATETIME    | NULLABLE                            | When the agent process started. NULL while queued.                             |
-| completed_at | DATETIME    | NULLABLE                            | When the agent process ended. NULL while running.                              |
-| created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the run record was created.                                               |
+| id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                 |
+| project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                    |
+| issue_id     | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | The issue this run was triggered by. NULL for standalone runs (e.g., scans).                                       |
+| agent_id     | TEXT        | NOT NULL                            | The agent that was spawned (e.g., `engineer`).                                                                     |
+| pid          | INTEGER     | NULLABLE                            | OS process ID. NULL until the process is spawned (i.e., while `status='queued'`).                                  |
+| status       | TEXT        | NOT NULL, DEFAULT 'queued'          | Current status. One of: `queued`, `running`, `completed`, `failed`, `timeout`. Runs start in `queued` status.      |
+| exit_code    | INTEGER     | NULLABLE                            | Process exit code. NULL if not yet completed or if status is `timeout`.                                            |
+| cost_usd     | REAL        | NULLABLE                            | Estimated cost in USD from the Claude API. NULL until run completes.                                               |
+| duration_ms  | INTEGER     | NULLABLE                            | Wall-clock duration in milliseconds. NULL until run completes.                                                     |
+| started_at   | DATETIME    | NULLABLE                            | When the agent process started. NULL while queued.                                                                 |
+| completed_at | DATETIME    | NULLABLE                            | When the agent process ended. NULL while running.                                                                  |
+| created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the run record was created (i.e., when queued). Used for FIFO ordering of queued runs (oldest created first). |
 
 ### AgentRunEvent
 

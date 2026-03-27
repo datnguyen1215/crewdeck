@@ -58,6 +58,7 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 | -------------------- | ----------------------- | -------------------------------------------------- |
 | `DB_PATH`            | `/app/data/crewdeck.db` | SQLite database location                           |
 | `CREWDECK_REPOS_DIR` | `/app/data/repos`       | Where repos are cloned                             |
+| `MAX_AGENTS`         | `10`                    | Global concurrency limit (all projects)            |
 | `ANTHROPIC_API_KEY`  | _(your API key)_        | Anthropic API key (required for Captain LLM agent) |
 
 **Frontend**:

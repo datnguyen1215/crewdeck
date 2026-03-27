@@ -452,9 +452,11 @@ This approach ensures:
 
 ### Concurrency Control
 
-- Each project has a configurable concurrency limit (`max_concurrency`).
-- The MentionHandler counts active processes for the project before each spawn.
-- If the limit is reached, the dispatch is placed in an in-memory per-project FIFO queue and a system comment is posted with the queue position. When a running process exits, the handler dequeues the next pending dispatch and spawns it automatically. Queued dispatches are lost on restart.
+- Two-level concurrency limits:
+  - **Global limit** (`MAX_AGENTS` env var, default 10): maximum agents running across all projects
+  - **Per-project limit** (`max_concurrency`): maximum agents per project
+- The MentionHandler checks both limits before each spawn.
+- If either limit is reached, the dispatch is placed in a DB-backed FIFO queue (using `AgentRun` table with `status='queued'`) and a system comment is posted with the queue position. When a running process exits, the handler dequeues the next pending dispatch and spawns it automatically. Queued runs persist across server restarts.
 
 ## Process Lifecycle
 
