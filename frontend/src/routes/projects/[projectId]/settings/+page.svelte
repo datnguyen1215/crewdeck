@@ -25,8 +25,6 @@
 	let maxConcurrency = $state(1);
 	let maxChainDepth = $state(20);
 	let agentTimeoutMinutes = $state(10);
-	let autoStart = $state(false);
-	let autoMerge = $state(false);
 	let model = $state('sonnet');
 
 	// Environment variables state
@@ -54,8 +52,6 @@
 				maxConcurrency = p.max_concurrency;
 				maxChainDepth = p.max_chain_depth;
 				agentTimeoutMinutes = p.agent_timeout_minutes;
-				autoStart = p.auto_start;
-				autoMerge = p.auto_merge;
 				model = p.model ?? 'sonnet';
 			},
 			onError: 'Failed to load project',
@@ -152,8 +148,6 @@
 			maxConcurrency !== project.max_concurrency ||
 			maxChainDepth !== project.max_chain_depth ||
 			agentTimeoutMinutes !== project.agent_timeout_minutes ||
-			autoStart !== project.auto_start ||
-			autoMerge !== project.auto_merge ||
 			model !== (project.model ?? 'sonnet')
 		)
 	);
@@ -168,8 +162,6 @@
 				max_concurrency: Number(maxConcurrency),
 				max_chain_depth: Number(maxChainDepth),
 				agent_timeout_minutes: Number(agentTimeoutMinutes),
-				auto_start: autoStart,
-				auto_merge: autoMerge,
 				model,
 			});
 			project = updated;
@@ -178,8 +170,6 @@
 			maxConcurrency = updated.max_concurrency;
 			maxChainDepth = updated.max_chain_depth;
 			agentTimeoutMinutes = updated.agent_timeout_minutes;
-			autoStart = updated.auto_start;
-			autoMerge = updated.auto_merge;
 			model = updated.model ?? 'sonnet';
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
@@ -196,8 +186,6 @@
 		maxConcurrency = project.max_concurrency;
 		maxChainDepth = project.max_chain_depth;
 		agentTimeoutMinutes = project.agent_timeout_minutes;
-		autoStart = project.auto_start;
-		autoMerge = project.auto_merge;
 		model = project.model ?? 'sonnet';
 	}
 </script>
@@ -260,22 +248,6 @@
 						<option value="opus">Opus</option>
 					</select>
 					<p class="text-muted text-xs mt-1">Claude model used when spawning agents</p>
-				</div>
-
-				<div>
-					<label class="flex items-center gap-3 cursor-pointer">
-						<input type="checkbox" bind:checked={autoStart} class="accent-cyan w-4 h-4" />
-						<span class="text-sm text-primary">Auto-start issues</span>
-					</label>
-					<p class="text-muted text-xs mt-1.5 ml-7">Automatically assign an agent when a new issue is created</p>
-				</div>
-
-				<div>
-					<label class="flex items-center gap-3 cursor-pointer">
-						<input type="checkbox" bind:checked={autoMerge} class="accent-cyan w-4 h-4" />
-						<span class="text-sm text-primary">Auto-merge PRs</span>
-					</label>
-					<p class="text-muted text-xs mt-1.5 ml-7">When enabled, Captain automatically merges PRs that pass all checks</p>
 				</div>
 
 				<div class="flex gap-3 mt-2">
