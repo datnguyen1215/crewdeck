@@ -686,6 +686,16 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     return;
   }
 
+  // Guard: reject spawn if issue is paused
+  if (issueRepo.pausedIssues.has(issueId)) {
+    log.logger.warn(
+      { agentId, issueId, reason: "issue_paused" },
+      "Queued spawn blocked: issue is paused",
+    );
+    agentRunRepo.updateAgentRun(run.id, { status: "failed" });
+    return;
+  }
+
   const agent = crew.getCrewMember(agentId);
   if (!agent) {
     log.logger.error({ agentId, runId: run.id }, "Agent not found");
