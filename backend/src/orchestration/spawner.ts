@@ -24,6 +24,7 @@ import * as dispatchQueue from "./dispatch-queue.js";
 import {
   activeProcesses,
   getActiveProcessCount,
+  clearPendingSpawn,
   type ActiveProcess,
 } from "./processes.js";
 import { config } from "../config.js";
@@ -255,6 +256,10 @@ async function spawnAndTrack(opts: {
       status: "failed",
       completed_at: new Date().toISOString(),
     });
+    // Clear pending spawn marker on failure
+    if (issueId) {
+      clearPendingSpawn(agent.id, issueId);
+    }
     log.logger.error(
       { err, runId: agentRun.id, agent: agent.name },
       `${logLabel} spawn failed`,
@@ -291,7 +296,9 @@ async function spawnAndTrack(opts: {
   };
   activeProcesses.set(result.pid, entry);
 
+  // Clear pending spawn marker now that process is registered
   if (issueId) {
+    clearPendingSpawn(agent.id, issueId);
     events.eventBus.emit("mention.spawned", {
       project_id: projectId,
       issue_id: issueId,
@@ -350,10 +357,16 @@ export const spawnAgent = async (
   options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> => {
   const project = projectRepo.getProject(projectId);
-  if (!project) return;
+  if (!project) {
+    clearPendingSpawn(agent.id, issueId);
+    return;
+  }
 
   const issue = issueRepo.getIssue(issueId);
-  if (!issue) return;
+  if (!issue) {
+    clearPendingSpawn(agent.id, issueId);
+    return;
+  }
 
   const maxChainDepth = project.max_chain_depth ?? DEFAULT_MAX_CHAIN_DEPTH;
 
@@ -375,6 +388,7 @@ export const spawnAgent = async (
       issue_id: issueId,
       project_id: projectId,
     });
+    clearPendingSpawn(agent.id, issueId);
     return;
   }
 
@@ -393,6 +407,7 @@ export const spawnAgent = async (
       database.db
         .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
         .run(issueId);
+      clearPendingSpawn(agent.id, issueId);
       return;
     }
     // Queue the run
@@ -414,6 +429,7 @@ export const spawnAgent = async (
     database.db
       .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
       .run(issueId);
+    clearPendingSpawn(agent.id, issueId);
     return;
   }
 
@@ -431,6 +447,7 @@ export const spawnAgent = async (
       database.db
         .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
         .run(issueId);
+      clearPendingSpawn(agent.id, issueId);
       return;
     }
     // Queue the run
@@ -452,6 +469,7 @@ export const spawnAgent = async (
     database.db
       .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
       .run(issueId);
+    clearPendingSpawn(agent.id, issueId);
     return;
   }
 
@@ -469,6 +487,7 @@ export const spawnAgent = async (
       database.db
         .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
         .run(issueId);
+      clearPendingSpawn(agent.id, issueId);
       return;
     }
   }
