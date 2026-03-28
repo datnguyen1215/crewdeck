@@ -1,5 +1,4 @@
 import type { ActivityLog } from "$lib/api/http.js";
-import type { WsEventMap } from "$lib/api/types.js";
 import { parseUTC } from "$lib/utils/time.js";
 
 export interface TerminalLine {
@@ -356,7 +355,7 @@ export function formatWsEvent(
     actor,
     actorType,
     message,
-    issueId,
+    issueId: issueId || undefined,
     severity,
     raw: data,
   };
