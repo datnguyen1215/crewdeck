@@ -109,8 +109,6 @@ describe("buildPrompt options form", () => {
     },
   ];
 
-  // Note: Captain has been removed. All sub-agents (engineer, lead, docs, librarian) have no API access.
-
   it("engineer gets no API access (stdout is the comment)", () => {
     const prompt = buildPrompt({
       issue,
@@ -139,9 +137,7 @@ describe("buildPrompt options form", () => {
     }
   });
 
-  // Note: Project issues section was Captain-specific and has been removed.
-
-  it("agents do not get project issues section (Captain removed)", () => {
+  it("agents do not get project issues section", () => {
     const prompt = buildPrompt({
       issue,
       comments: [],

@@ -5,6 +5,8 @@ export interface Project {
   max_concurrency: number;
   max_chain_depth: number;
   agent_timeout_minutes: number;
+  auto_start: boolean;
+  auto_merge: boolean;
   model: string;
   vcs_account_id: string | null;
   created_at: string;
@@ -200,6 +202,16 @@ export interface AgentConfig {
   model: string | null;
 }
 
+export interface MonitorEntry {
+  id: string;
+  type: "event" | "thinking" | "message" | "tool_call" | "tool_result";
+  content: string;
+  timestamp: Date;
+  toolName?: string;
+  toolInput?: unknown;
+  success?: boolean;
+}
+
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
 // but only includes events the frontend receives (excludes backend-only events)
 export interface WsEventMap {
@@ -306,4 +318,10 @@ export interface WsEventMap {
     issue_id: string;
     project_id: string;
   };
+  "monitor.event_received": { project_id: string; event_type: string; description: string };
+  "monitor.thinking": { project_id: string };
+  "monitor.message": { project_id: string; content: string };
+  "monitor.tool_call": { project_id: string; tool_name: string; tool_input: unknown };
+  "monitor.tool_result": { project_id: string; tool_name: string; result: unknown };
+  "monitor.complete": { project_id: string; response: string };
 }

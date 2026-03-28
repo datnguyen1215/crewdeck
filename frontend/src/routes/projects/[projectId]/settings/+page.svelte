@@ -26,6 +26,8 @@
 	let maxChainDepth = $state(20);
 	let agentTimeoutMinutes = $state(10);
 	let model = $state('sonnet');
+	let autoStart = $state(false);
+	let autoMerge = $state(false);
 
 	// Environment variables state
 	let envVars = $state<EnvironmentVariable[]>([]);
@@ -53,6 +55,8 @@
 				maxChainDepth = p.max_chain_depth;
 				agentTimeoutMinutes = p.agent_timeout_minutes;
 				model = p.model ?? 'sonnet';
+				autoStart = p.auto_start;
+				autoMerge = p.auto_merge;
 			},
 			onError: 'Failed to load project',
 			onLoading: (v) => { loading = v; },
@@ -148,7 +152,9 @@
 			maxConcurrency !== project.max_concurrency ||
 			maxChainDepth !== project.max_chain_depth ||
 			agentTimeoutMinutes !== project.agent_timeout_minutes ||
-			model !== (project.model ?? 'sonnet')
+			model !== (project.model ?? 'sonnet') ||
+			autoStart !== project.auto_start ||
+			autoMerge !== project.auto_merge
 		)
 	);
 
@@ -163,6 +169,8 @@
 				max_chain_depth: Number(maxChainDepth),
 				agent_timeout_minutes: Number(agentTimeoutMinutes),
 				model,
+				auto_start: autoStart,
+				auto_merge: autoMerge,
 			});
 			project = updated;
 			name = updated.name;
@@ -171,6 +179,8 @@
 			maxChainDepth = updated.max_chain_depth;
 			agentTimeoutMinutes = updated.agent_timeout_minutes;
 			model = updated.model ?? 'sonnet';
+			autoStart = updated.auto_start;
+			autoMerge = updated.auto_merge;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -187,6 +197,8 @@
 		maxChainDepth = project.max_chain_depth;
 		agentTimeoutMinutes = project.agent_timeout_minutes;
 		model = project.model ?? 'sonnet';
+		autoStart = project.auto_start;
+		autoMerge = project.auto_merge;
 	}
 </script>
 
@@ -248,6 +260,25 @@
 						<option value="opus">Opus</option>
 					</select>
 					<p class="text-muted text-xs mt-1">Claude model used when spawning agents</p>
+				</div>
+
+				<!-- Captain Settings -->
+				<div class="space-y-3">
+					<h3 class="text-xs text-muted uppercase tracking-widest">Captain</h3>
+					<label class="flex items-center gap-3 cursor-pointer">
+						<input type="checkbox" bind:checked={autoStart} class="accent-cyan w-4 h-4" />
+						<div>
+							<span class="text-sm text-primary">Auto-start issues</span>
+							<p class="text-xs text-muted">Captain automatically dispatches agents for new issues</p>
+						</div>
+					</label>
+					<label class="flex items-center gap-3 cursor-pointer">
+						<input type="checkbox" bind:checked={autoMerge} class="accent-cyan w-4 h-4" />
+						<div>
+							<span class="text-sm text-primary">Auto-merge PRs</span>
+							<p class="text-xs text-muted">Captain automatically merges PRs when checks pass</p>
+						</div>
+					</label>
 				</div>
 
 				<div class="flex gap-3 mt-2">

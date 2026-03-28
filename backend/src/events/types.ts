@@ -116,4 +116,31 @@ export interface EventMap {
     project_id: string;
     changes: Partial<Project>;
   };
+  // Monitor events (captain orchestration)
+  "monitor.event_received": {
+    project_id: string;
+    event_type: string;
+    description: string;
+  };
+  "monitor.thinking": {
+    project_id: string;
+  };
+  "monitor.message": {
+    project_id: string;
+    content: string;
+  };
+  "monitor.tool_call": {
+    project_id: string;
+    tool_name: string;
+    tool_input: unknown;
+  };
+  "monitor.tool_result": {
+    project_id: string;
+    tool_name: string;
+    result: unknown;
+  };
+  "monitor.complete": {
+    project_id: string;
+    response: string;
+  };
 }

@@ -18,7 +18,17 @@ export const enqueueRun = (
   projectId: string,
   issueId: string,
   agentId: string,
-): string => {
+): string | null => {
+  // Reject non-dispatchable agents (captain is a background monitor, not spawnable)
+  const agent = crew.getCrewMember(agentId);
+  if (agent?.dispatchable === false) {
+    log.logger.warn(
+      { projectId, issueId, agentId },
+      "Rejected enqueue for non-dispatchable agent",
+    );
+    return null;
+  }
+
   const run = agentRunRepo.createAgentRun({
     project_id: projectId,
     issue_id: issueId,
@@ -133,6 +143,16 @@ export const drainQueue = async (
       log.logger.warn(
         { agentId: run.agent_id, runId: run.id },
         "Queued agent not found",
+      );
+      agentRunRepo.updateAgentRun(run.id, { status: "failed" });
+      continue;
+    }
+
+    // Skip non-dispatchable agents (e.g. captain is a background monitor, not spawnable)
+    if (agent.dispatchable === false) {
+      log.logger.warn(
+        { agentId: agent.id, runId: run.id },
+        "Queued agent is not dispatchable, marking as failed",
       );
       agentRunRepo.updateAgentRun(run.id, { status: "failed" });
       continue;

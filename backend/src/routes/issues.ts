@@ -27,8 +27,6 @@ import { TRANSITIONS, IssueStatus } from "../constants/statuses.js";
 import type { IssueFilters } from "../types/entities.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as batch from "../orchestration/batch.js";
-import { spawnAgent } from "../orchestration/spawner.js";
-import { getCrewMember } from "../orchestration/crew.js";
 
 function assertTransition(from: string, to: string): void {
   const allowed = TRANSITIONS[from as keyof typeof TRANSITIONS] ?? [];
@@ -229,20 +227,6 @@ router.post("/:issueId/resume", verifyIssueOwnership, async (req, res) => {
     issue_id: issue.id,
     project_id: issue.project_id,
   });
-
-  // Step 4: Auto-dispatch captain to pick up where it left off
-  const captain = getCrewMember("captain");
-  if (captain) {
-    logger.info({ issueId: issue.id }, "Auto-dispatching captain after resume");
-    spawnAgent(captain, issue.id, issue.project_id).catch((err) => {
-      logger.error(
-        { err, issueId: issue.id },
-        "Failed to auto-dispatch captain after resume"
-      );
-    });
-  } else {
-    logger.warn({ issueId: issue.id }, "Captain agent not found for auto-dispatch");
-  }
 
   logger.info({ issueId: issue.id }, "Issue resumed");
 

@@ -17,6 +17,7 @@ import type {
   LibrarianStatus,
   ChatMessage,
   AgentConfig,
+  MonitorEntry,
 } from "./types.js";
 
 export type {
@@ -42,6 +43,7 @@ export type {
   LibrarianStatus,
   ChatMessage,
   AgentConfig,
+  MonitorEntry,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -447,4 +449,28 @@ export function destroyTerminalSession(projectId: string) {
     "DELETE",
     `/projects/${e(projectId)}/terminal`,
   );
+}
+
+// Captain dispatch
+export function dispatchAgent(
+  projectId: string,
+  issueId: string,
+  agentId: string,
+  instructions?: string,
+): Promise<{ success: boolean; message: string }> {
+  return request("POST", `/internal/captain/dispatch-agent`, {
+    project_id: projectId,
+    issue_id: issueId,
+    agent_id: agentId,
+    instructions,
+  });
+}
+
+// Monitor history
+export function getMonitorHistory(
+  projectId: string,
+  limit?: number,
+): Promise<ChatMessage[]> {
+  const params = limit ? `?limit=${limit}` : "";
+  return request("GET", `/projects/${e(projectId)}/monitor/history${params}`);
 }

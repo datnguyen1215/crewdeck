@@ -1,0 +1,540 @@
+/**
+ * Monitor LLM Agent
+ *
+ * Uses `claude -p` CLI to make automated orchestration decisions.
+ * Handles events like issue creation, run completion, PR status changes.
+ * User chat goes through the PTY terminal.
+ *
+ * Outputs structured action plans that the backend executes deterministically.
+ */
+import { logger } from "../../logger.js";
+import { eventBus } from "../../events/bus.js";
+import { getProject } from "../../db/repositories/projects.js";
+import { getActiveProcessCount } from "../processes.js";
+import { spawnClaudeStream } from "../process.js";
+import { resolveModel } from "../../db/repositories/agent-config.js";
+import { parseActionPlan, extractJsonFromResponse } from "./action-schema.js";
+import { executePlan, formatResults } from "./plan-executor.js";
+import type { ActionPlan } from "./action-schema.js";
+
+import * as chatRepo from "../../db/repositories/chat-messages.js";
+import type { CaptainEvent } from "./queue.js";
+
+/**
+ * Build the system prompt for Monitor — focused on orchestration decisions.
+ */
+const buildSystemPrompt = (projectId: string): string => {
+  const project = getProject(projectId);
+  if (!project) return "";
+
+  const runningAgents = getActiveProcessCount(projectId);
+
+  const canAutoStart = project.auto_start;
+  const canMerge = project.auto_merge;
+
+  return `You are the Monitor, the autonomous orchestrator for a CrewDeck project.
+
+## Role
+You react to system events and make orchestration decisions automatically.
+You can ${canMerge ? "merge PRs, " : ""}dispatch agents to work on issues, create new issues, and manage project knowledge.
+You do NOT handle user chat — that is handled separately.
+
+## Project: ${project.name}
+${project.description || "No description"}
+
+## Autonomy Settings
+- Auto-start: ${canAutoStart ? "ENABLED — automatically dispatch agents on new issues" : "DISABLED — wait for user to trigger dispatch"}
+- Auto-merge: ${canMerge ? "ENABLED — automatically merge PRs when ready" : "DISABLED — wait for user to approve merge"}
+
+## Current Capacity
+- Running agents: ${runningAgents}
+- Max concurrency: ${project.max_concurrency}
+- Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}
+
+## API Reference (Read-Only)
+Use curl to fetch current state before making decisions. Base: \`$CREWDECK_API_URL/api/v1\`
+
+### Issues
+\`\`\`bash
+# Actionable issues (recommended — filters out done)
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues?status=open,in_progress,pr_created"
+
+# All issues (use sparingly)
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues"
+
+# Issue details — includes comments, PRs, and agent runs
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
+
+# Comments on an issue
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments"
+\`\`\`
+
+### Agent Runs
+\`\`\`bash
+# Currently running/queued agents
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/active-runs"
+
+# Recent runs across all issues
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs?limit=10"
+
+# Runs for a specific issue
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/runs"
+
+# Single run with events
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
+\`\`\`
+
+### Activity & Knowledge
+\`\`\`bash
+# Activity log (filterable: issue_id, actor_type, action, since, limit)
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20"
+
+# Knowledge entries
+curl "$CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID"
+\`\`\`
+
+## Action Plan Output
+
+After gathering information, output a JSON action plan wrapped in <action> tags. The system will parse the tags and execute all actions deterministically.
+
+**IMPORTANT**: You MUST wrap your action plan in <action> tags exactly like this:
+
+<action>
+{
+  "reasoning": "Brief explanation of your decisions",
+  "actions": [
+    { "type": "dispatch", "issue_id": "<id>", "agent_id": "engineer", "instructions": "optional instructions" },
+    { "type": "dispatch", "issue_id": "<id>", "agent_id": "lead" },
+    { "type": "merge", "issue_id": "<id>" },
+    { "type": "create-pr", "issue_id": "<id>" },
+    { "type": "comment", "issue_id": "<id>", "content": "Comment text" },
+    { "type": "create-issue", "title": "Title", "description": "Description" },
+    { "type": "update-issue", "issue_id": "<id>", "status": "pr_created" },
+    { "type": "scan" },
+    { "type": "skip", "issue_id": "<id>", "reason": "Why skipping" }
+  ]
+}
+</action>
+
+You can include reasoning text before the <action> tags, but the tags MUST be present. If no actions are needed, use an empty actions array: <action>{"reasoning": "waiting for CI", "actions": []}</action>
+
+**Never use null values.** Omit optional fields entirely instead of setting them to null.
+
+### Action Types
+| Type | Required Fields | Description |
+|------|-----------------|-------------|
+| dispatch | issue_id, agent_id | Dispatch agent (engineer/lead/docs/librarian) to work on issue |
+| merge | issue_id | Merge the PR for an issue |
+| create-pr | issue_id | Create a GitHub PR for the issue (uses issue branch_name, base_branch, repo_id) |
+| comment | issue_id, content | Add a comment to an issue |
+| create-issue | title | Create a new issue (description optional) |
+| update-issue | issue_id | Update issue status/title |
+| scan | (none) | Trigger librarian codebase scan |
+| skip | issue_id, reason | Skip an issue (logged for observability) |
+
+### Parallel Execution
+List ALL dispatch actions needed. The system handles capacity limits and executes dispatches in parallel.
+If 3 issues need work and 5 slots are available, list all 3 dispatches — they'll run simultaneously.
+
+## Golden Rule
+**Always fetch current state before deciding. Never assume from history.**
+Your conversation history may be stale. Always curl the API to check the actual current state of issues and agents before outputting actions.
+
+**An issue being \`in_progress\` does NOT mean an agent is running.** Always check \`active-runs\` to verify before waiting.
+
+## Event Response Rules
+- **issue.created**: ${canAutoStart ? "Dispatch engineer to work on the new issue." : "Acknowledge only — wait for user to trigger dispatch."}
+- **run.completed**: Fetch the issue to read the agent's report. Decide the next step based on the report.
+- **issue.status_changed → done**: Fetch all issues to find new work. Consider a librarian scan if the completed work changed project structure.
+- **issue.status_changed** (other): Check if any blocked issues are now unblocked.
+- **pr.status_changed**: If merged, mark done. If failed, dispatch engineer to fix.
+- **comment.added**: Read the comment and act on user feedback.
+- **startup.scan**: Fetch all issues, assess project state, take any needed actions.
+- **idle.check**: Look for stuck issues (in_progress with no running agents).
+- **project.settings_changed**: Acknowledge and adjust behavior.
+
+## Code Review Loop
+Engineer → Lead review → fix cycle → Docs → Create PR. Read the lead's report each time to decide whether to iterate or move forward.
+
+## Dispatch Rules
+- Don't dispatch if an agent is already running on that issue (check current state first)
+- Check issue descriptions for dependency references ("depends on", "blocked by", "after") — skip blocked issues
+- List ALL needed dispatches — the system handles capacity and parallel execution
+- ${canMerge ? "Merge ready PRs before starting new work" : "Report ready PRs — auto-merge is disabled"}
+
+## Constraints
+- You can only manage this project
+- Use curl only for READ operations (list issues, get issue, list knowledge)
+- All WRITE operations must be in the action plan JSON
+- Don't make assumptions about external systems${!canMerge ? "\n- You cannot merge PRs. Auto-merge is disabled for this project." : ""}${!canAutoStart ? "\n- You cannot automatically start work on new issues. Auto-start is disabled — wait for user to dispatch." : ""}`;
+};
+
+/**
+ * Format events for the LLM.
+ */
+export const formatEvents = (events: CaptainEvent[]): string => {
+  if (events.length === 0) return "";
+
+  return events
+    .map((e) => {
+      const ts = e.timestamp.toISOString().slice(11, 19);
+      switch (e.type) {
+        case "issue.created": {
+          const data = e.data as { issue: { title: string; id: string } };
+          return `[${ts}] Issue created: "${data.issue.title}" (${data.issue.id})`;
+        }
+        case "issue.status_changed": {
+          const data = e.data as { issue_id: string; from: string; to: string };
+          return `[${ts}] Issue ${data.issue_id} status: ${data.from} → ${data.to}`;
+        }
+        case "run.completed": {
+          const data = e.data as {
+            agent_id: string;
+            issue_id: string | null;
+            status: string;
+          };
+          return `[${ts}] Agent ${data.agent_id} completed (${data.status})${data.issue_id ? ` on issue ${data.issue_id}` : ""}`;
+        }
+        case "pr.status_changed": {
+          const data = e.data as { pr_id: string; from: string; to: string };
+          return `[${ts}] PR status: ${data.from} → ${data.to}`;
+        }
+        case "issue.updated": {
+          const data = e.data as {
+            issue_id: string;
+            changes: Record<string, unknown>;
+          };
+          const changedFields = Object.keys(data.changes || {}).join(", ");
+          return `[${ts}] Issue ${data.issue_id} updated: ${changedFields || "unknown fields"}`;
+        }
+        case "comment.added": {
+          const data = e.data as {
+            comment: {
+              id: string;
+              issue_id: string;
+              author_type: string;
+              content: string;
+            };
+            project_id: string;
+          };
+          const preview =
+            data.comment.content.length > 200
+              ? data.comment.content.slice(0, 200) + "…"
+              : data.comment.content;
+          return `[${ts}] Comment on issue ${data.comment.issue_id} by ${data.comment.author_type}: ${preview}`;
+        }
+        case "startup.scan":
+          return `[${ts}] Startup scan: analyze current project state and take any needed actions`;
+        case "idle.check":
+          return `[${ts}] Idle check: checking for stuck issues`;
+        case "project.settings_changed": {
+          const data = e.data as { changes: Record<string, unknown> };
+          const formatted = Object.entries(data.changes || {})
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+          return `[${ts}] Project settings changed: ${formatted || "unknown changes"}`;
+        }
+        default:
+          return `[${ts}] Event: ${e.type}`;
+      }
+    })
+    .join("\n");
+};
+
+const MAX_CONTEXT_MESSAGES = 100;
+
+/**
+ * Get monitor conversation history from DB.
+ * Monitor messages are stored without a session_id.
+ */
+const getMonitorHistory = (projectId: string): string => {
+  // Get recent messages without a session (monitor messages)
+  const messages = chatRepo
+    .getByProjectWithoutSession(projectId, MAX_CONTEXT_MESSAGES)
+    .reverse();
+  if (messages.length === 0) return "";
+
+  return messages
+    .map((m: { role: string; content: string }) => {
+      if (m.role === "user") return `Event batch:\n${m.content}`;
+      return `Monitor response: ${m.content}`;
+    })
+    .join("\n\n");
+};
+
+/**
+ * Set up GitHub auth environment variables for Captain.
+ */
+const setupGitHubAuth = async (
+  projectId: string,
+  env: Record<string, string>,
+): Promise<string | undefined> => {
+  const project = getProject(projectId);
+  if (!project?.vcs_account_id) return undefined;
+
+  const { getVCSAccount } =
+    await import("../../db/repositories/vcs-accounts.js");
+  const account = getVCSAccount(project.vcs_account_id);
+  if (!account) return undefined;
+
+  env.GH_TOKEN = account.token;
+  const { createGitSshEnv } = await import("../../utils/git-auth.js");
+  const ssh = createGitSshEnv(account.ssh_private_key);
+  Object.assign(env, ssh.env);
+  return ssh.keyPath;
+};
+
+/**
+ * Extract action plan from Claude stream events.
+ * Looks for the final result message and parses JSON from it.
+ */
+function extractActionPlanFromEvents(
+  events: Array<{ type: string; [key: string]: unknown }>,
+): ActionPlan | null {
+  // Find the result event (final assistant message)
+  const resultEvent = events.find((e) => e.type === "result");
+  if (!resultEvent) return null;
+
+  const resultText =
+    typeof resultEvent.result === "string" ? resultEvent.result : null;
+  if (!resultText) return null;
+
+  const json = extractJsonFromResponse(resultText);
+  if (!json) return null;
+
+  return parseActionPlan(json);
+}
+
+/**
+ * Process monitor events with the LLM via claude -p with streaming.
+ * Returns the action plan execution results.
+ */
+export const processWithLLM = async (
+  projectId: string,
+  events: CaptainEvent[],
+): Promise<string> => {
+  const systemPrompt = buildSystemPrompt(projectId);
+  if (!systemPrompt) return "Error: Project not found";
+
+  const eventText = formatEvents(events);
+  const eventSection = eventText
+    ? `## Events\n${eventText}\n\nProcess these events and output a JSON action plan.`
+    : "Check current project state and output a JSON action plan with any needed actions.";
+
+  const history = getMonitorHistory(projectId);
+  const sections = [];
+  if (history) sections.push(`## Recent Monitor History\n${history}`);
+  sections.push(eventSection);
+  const userPrompt = sections.join("\n\n");
+
+  // Save event message to DB (no session — monitor messages are sessionless)
+  chatRepo.create(projectId, "user", eventSection);
+
+  // Emit captain.event_received for each event so frontend can show them
+  for (const event of events) {
+    const description = formatEvents([event]).replace(
+      /^\[\d{2}:\d{2}:\d{2}\]\s*/,
+      "",
+    );
+    eventBus.emit("monitor.event_received", {
+      project_id: projectId,
+      event_type: event.type,
+      description,
+    });
+  }
+
+  eventBus.emit("monitor.thinking", { project_id: projectId });
+
+  const env: Record<string, string> = {
+    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
+    CREWDECK_PROJECT_ID: projectId,
+    CREWDECK_AGENT_ID: "captain",
+  };
+
+  const sshKeyPath = await setupGitHubAuth(projectId, env);
+  let finalResponse = "";
+  let actionPlan: ActionPlan | null = null;
+
+  try {
+    const model = resolveModel(projectId, "captain");
+
+    const result = await spawnClaudeStream({
+      prompt: userPrompt,
+      systemPrompt,
+      workdir: ".",
+      env,
+      model,
+    });
+
+    // Collect all events for processing
+    const collectedEvents: Array<{ type: string; [key: string]: unknown }> = [];
+    let resultText = "";
+
+    for await (const event of result.events) {
+      collectedEvents.push(event);
+
+      // Emit streaming events for frontend visibility
+      // Wrapped in try-catch for defensive handling of malformed events
+      try {
+        if (event.type === "assistant") {
+          const content = event.message as
+            | { content?: Array<{ text?: string }> }
+            | undefined;
+          const text = content?.content?.[0]?.text;
+          if (text) {
+            eventBus.emit("monitor.message", {
+              project_id: projectId,
+              content: text,
+            });
+          }
+        } else if (event.type === "tool_use") {
+          eventBus.emit("monitor.tool_call", {
+            project_id: projectId,
+            tool_name: (event.name as string) ?? "unknown",
+            tool_input: event.input,
+          });
+        } else if (event.type === "tool_result") {
+          eventBus.emit("monitor.tool_result", {
+            project_id: projectId,
+            tool_name: "bash",
+            result: event.content,
+          });
+        } else if (event.type === "result") {
+          resultText = typeof event.result === "string" ? event.result : "";
+        }
+      } catch (eventErr) {
+        logger.warn(
+          { eventErr, eventType: event.type },
+          "Monitor: Failed to process stream event",
+        );
+      }
+    }
+
+    const exitResult = await result.exitPromise;
+
+    if (exitResult.code !== 0) {
+      logger.warn(
+        { projectId, code: exitResult.code },
+        "Monitor claude -p exited non-zero",
+      );
+    }
+
+    // Try to extract action plan from result
+    if (resultText) {
+      const json = extractJsonFromResponse(resultText);
+      if (json) {
+        actionPlan = parseActionPlan(json);
+      }
+    }
+
+    // Fallback: try extracting from collected events
+    if (!actionPlan) {
+      actionPlan = extractActionPlanFromEvents(collectedEvents);
+    }
+
+    // If we have an action plan, execute it.
+    // Note: The mutex is still held during plan execution. While the issue
+    // description mentions narrowing mutex scope as an optimization, this
+    // implementation keeps the mutex held for simplicity. The main performance
+    // benefit comes from the LLM no longer waiting for curl responses — all
+    // actions are executed after the LLM completes.
+    if (actionPlan) {
+      logger.info(
+        {
+          projectId,
+          reasoning: actionPlan.reasoning,
+          actionCount: actionPlan.actions.length,
+        },
+        "Monitor: Executing action plan",
+      );
+
+      const results = await executePlan(projectId, actionPlan);
+      finalResponse = formatResults(results);
+
+      if (actionPlan.reasoning) {
+        finalResponse = `${actionPlan.reasoning}\n\n${finalResponse}`;
+      }
+    } else {
+      // No valid action plan — retry with a minimal extraction prompt
+      logger.warn(
+        { projectId, responsePreview: (resultText || "").slice(0, 200) },
+        "Monitor: Could not parse action plan, retrying extraction",
+      );
+
+      try {
+        const retryResult = await spawnClaudeStream({
+          prompt:
+            "Extract the actions from the following text and output them as JSON wrapped in <action> tags.\n\n" +
+            "Available action types: dispatch (issue_id, agent_id, instructions?), merge (issue_id), " +
+            "create-pr (issue_id), comment (issue_id, content), create-issue (title, description?), " +
+            "update-issue (issue_id, status?, title?), scan, skip (issue_id, reason).\n\n" +
+            "If no actions are described, output: <action>{\"reasoning\": \"no actions\", \"actions\": []}</action>\n\n" +
+            "Text to extract from:\n---\n" + (resultText || "No response") + "\n---",
+          systemPrompt: "You extract structured actions from text. Output ONLY <action>{JSON}</action> tags. No other text.",
+          workdir: ".",
+          env,
+          model,
+        });
+
+        let retryText = "";
+        for await (const event of retryResult.events) {
+          if (event.type === "result") {
+            retryText = typeof event.result === "string" ? event.result : "";
+          }
+        }
+        await retryResult.exitPromise;
+
+        if (retryText) {
+          const retryJson = extractJsonFromResponse(retryText);
+          if (retryJson) {
+            actionPlan = parseActionPlan(retryJson);
+          }
+        }
+
+        if (actionPlan) {
+          logger.info(
+            { projectId, actionCount: actionPlan.actions.length },
+            "Monitor: Retry extraction succeeded",
+          );
+          const results = await executePlan(projectId, actionPlan);
+          finalResponse = formatResults(results);
+          if (actionPlan.reasoning) {
+            finalResponse = `${actionPlan.reasoning}\n\n${finalResponse}`;
+          }
+        } else {
+          finalResponse = resultText || "No action plan generated";
+          logger.warn(
+            { projectId },
+            "Monitor: Retry extraction also failed",
+          );
+        }
+      } catch (retryErr) {
+        logger.error({ retryErr, projectId }, "Monitor: Retry extraction failed");
+        finalResponse = resultText || "No action plan generated";
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Monitor claude -p call failed");
+    finalResponse = "Error: Failed to process events";
+  } finally {
+    if (sshKeyPath) {
+      const { cleanupSshKey } = await import("../../utils/git-auth.js");
+      cleanupSshKey(sshKeyPath);
+    }
+  }
+
+  if (finalResponse) {
+    eventBus.emit("monitor.message", {
+      project_id: projectId,
+      content: finalResponse,
+    });
+    chatRepo.create(projectId, "assistant", finalResponse);
+  }
+
+  eventBus.emit("monitor.complete", {
+    project_id: projectId,
+    response: finalResponse,
+  });
+
+  return finalResponse;
+};

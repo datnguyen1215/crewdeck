@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, createIssue, addComment, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
+	import { listIssues, createIssue, dispatchAgent, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
@@ -121,10 +121,10 @@
 
 		dispatchingIssues = new Set([...dispatchingIssues, issue.id]);
 		try {
-			await addComment(projectId, issue.id, { content: '/dispatch captain' });
-			toastStore.add('Work requested — Captain will decide next steps', 'success');
+			await dispatchAgent(projectId, issue.id, 'engineer');
+			toastStore.add('Engineer dispatched to work on issue', 'success');
 		} catch (err) {
-			toastStore.add('Failed to request work', 'error');
+			toastStore.add('Failed to dispatch agent', 'error');
 		} finally {
 			dispatchingIssues = new Set([...dispatchingIssues].filter(id => id !== issue.id));
 		}
