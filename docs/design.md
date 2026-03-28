@@ -187,7 +187,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - **`IssueTimeline.svelte`** — renders the unified chronological timeline merging comments, activity entries, and agent run summaries. Accepts `comments`, `activityEntries`, `runs`, and `liveEvents` props. Owns activity expansion state and inline run expansion (loads run events on toggle, appends live events via a reactive `$effect`). Matches `mention.spawned`/`mention.completed` activity entries to `AgentRun` records by `agent_id` + timestamp (60s tolerance) and displays colored status dots (green = running, amber = queued, red = failed, cyan = completed). Stale-fetch guard: captures `runId` before async calls and checks it after await before updating state.
   - **`RunDetailModal.svelte`** — modal showing the full event log for a selected run. Accepts a `run` prop and a `liveEvents` map. Loads events from the API on open, merges in any already-received live events, then appends new live events via a second `$effect` that uses `untrack()` to read `modalEvents` without creating a reactive dependency. Stale-fetch guard: captures `runId` before the API call and checks `runId !== run?.id` before assigning results.
   - **`DispatchInput.svelte`** — comment textarea with `/dispatch` autocomplete dropdown. Reads the `agents` list from Svelte context (`getContext('agents')`). Accepts `onSubmit` callback and `posting` prop. Owns all autocomplete state (`showMentions`, `mentionFilter`, `mentionIdx`, `textareaEl`) and keyboard navigation logic. Emits comment text via `onSubmit` on submit.
-- **Mission Control terminal** (`ActivityTerminal.svelte`) — fixed-height terminal panel at the bottom of the issues list page displaying real-time activity log. Receives `issues` prop for issue title resolution. Uses `terminal.ts` formatters to convert API activity entries and WebSocket events into `TerminalLine` objects. Each line displays `[timestamp] Issue Title › message` with the issue title rendered as a clickable link to `/projects/:id/issues/:issueId` (truncated at 25 chars with full text in tooltip). Issue title resolution uses 3-tier fallback: API enrichment (`issue_title` field) → WebSocket payload → issues prop lookup. Color-coded by severity: cyan for started events (spawned, run started), green for success, red for errors, amber for warnings and status transitions, gray for info. Auto-scrolls to bottom as new events arrive.
+- **Mission Control terminal** (`ActivityTerminal.svelte`) — fixed-height terminal panel at the bottom of the issues list page displaying real-time activity log. Receives `issues` prop for issue title resolution. Uses `terminal.ts` formatters to convert API activity entries and WebSocket events into `TerminalLine` objects. Each line displays `[timestamp] Issue Title › message` with the issue title rendered as a clickable link to `/projects/:id/issues/:issueId` (truncated at 25 chars with full text in tooltip). Issue title resolution uses 3-tier fallback: API enrichment (`issue_title` field) → WebSocket payload → issues prop lookup. Color-coded by severity: cyan for started events (spawned, run started), green for success, red for errors, amber for warnings and status transitions, gray for info. Auto-scrolls to bottom as new events arrive. Messages include agent names (e.g., "Engineer spawned", "Engineer finished — success") with human-readable exit code descriptions. Both API-path and WebSocket-path formatters use `agent_name` when available, falling back to `agent_id`.
 - Provides autocomplete for `/dispatch` commands in comment input (via `DispatchInput.svelte`).
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
@@ -263,6 +263,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 Captain is a dispatchable agent invoked via `/dispatch captain` in issue comments. When invoked, Captain reads the issue context and all comments to understand project state, then outputs orchestration commands.
 
 **Commands**:
+
 - `/dispatch <agent>` — Dispatch an agent to work on the current issue
 - `/merge <issue_id>` — Merge a PR for an issue (only works on `pr_ready_to_merge` status)
 - `/create-pr <issue_id>` — Create a PR for an issue (after engineer has pushed code)
@@ -271,6 +272,7 @@ Captain is a dispatchable agent invoked via `/dispatch captain` in issue comment
 **Captain Context** (`backend/src/orchestration/prompt.ts`)
 
 When spawning Captain, the backend injects project-specific context:
+
 - `max_concurrency` — maximum concurrent agents
 - `runningAgents` — list of currently running agents with issue IDs and titles
 - `queuedAgents` — list of queued agents waiting for capacity
@@ -281,6 +283,7 @@ This context enables Captain to make informed orchestration decisions based on c
 **Command Execution** (`backend/src/orchestration/command-handlers.ts`)
 
 Captain's output commands are parsed by the mention handler and executed via command-handlers.ts:
+
 - `handleDispatchAgent()` — spawns the specified agent on the issue
 - `handleMergePR()` — merges the PR using the VCS provider
 - `handleCreatePR()` — creates a PR using the VCS provider
@@ -443,6 +446,7 @@ Worktrees are automatically cleaned up via event-driven and synchronous mechanis
 - **Synchronous cleanup on deletion** — DELETE `/issues/:issueId` and POST `/issues/:issueId/discard` routes call cleanup before deleting database records to prevent worktree leaks
 
 This approach ensures:
+
 - No unbounded disk usage from abandoned worktrees
 - Database never points to broken or partially-cleaned worktree state
 - Cleanup failures don't block issue status transitions or deletions
@@ -471,9 +475,9 @@ On startup, the backend:
 7. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 8. Starts the PR poller (polls VCS providers every 60 seconds for PR status updates).
 9. Starts the Express HTTP server.
-12. Starts the WebSocket server (`/ws` for events).
-13. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
-14. Logs startup complete via pino.
+10. Starts the WebSocket server (`/ws` for events).
+11. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
+12. Logs startup complete via pino.
 
 Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery). Terminal sessions are also lost (clients must reconnect and recreate sessions).
 
