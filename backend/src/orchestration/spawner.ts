@@ -405,6 +405,16 @@ export const spawnAgent = async (
     return;
   }
 
+  // Guard: Don't spawn on paused issues
+  if (issueRepo.isIssuePaused(issueId)) {
+    log.logger.info(
+      { issueId, agentId: agent.id },
+      "Skipping spawn: issue is paused"
+    );
+    clearPendingSpawn(agent.id, issueId);
+    return;
+  }
+
   const maxChainDepth = project.max_chain_depth ?? DEFAULT_MAX_CHAIN_DEPTH;
 
   // Atomic check-and-increment to prevent concurrent mentions from exceeding the limit.

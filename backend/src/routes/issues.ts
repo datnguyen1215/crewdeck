@@ -6,6 +6,9 @@ import {
   updateIssue,
   deleteIssue,
   getIssue,
+  pausedIssues,
+  pauseIssue as pauseIssueRepo,
+  resumeIssue as resumeIssueRepo,
 } from "../db/repositories/issues.js";
 import { getRepo } from "../db/repositories/repos.js";
 import { validate } from "../middleware/validate.js";
@@ -19,9 +22,13 @@ import { CreateIssueSchema, UpdateIssueSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
 import { cleanupWorktree } from "../orchestration/worktree.js";
 import { logger } from "../logger.js";
-import { hasActiveProcesses } from "../orchestration/processes.js";
+import { hasActiveProcesses, activeProcesses } from "../orchestration/processes.js";
 import { TRANSITIONS, IssueStatus } from "../constants/statuses.js";
 import type { IssueFilters } from "../types/entities.js";
+import * as agentRunRepo from "../db/repositories/agent-runs.js";
+import * as batch from "../orchestration/batch.js";
+import { spawnAgent } from "../orchestration/spawner.js";
+import { getCrewMember } from "../orchestration/crew.js";
 
 function assertTransition(from: string, to: string): void {
   const allowed = TRANSITIONS[from as keyof typeof TRANSITIONS] ?? [];
@@ -129,6 +136,121 @@ router.delete("/:issueId", verifyIssueOwnership, async (req, res) => {
 
   deleteIssue(issue.id);
   res.status(204).send();
+});
+
+router.post("/:issueId/pause", verifyIssueOwnership, (req, res) => {
+  const issue = req.issue!;
+
+  // Validate issue is not already paused
+  if (pausedIssues.has(issue.id)) {
+    throw new ValidationError("Issue is already paused");
+  }
+
+  // Validate issue is not done
+  if (issue.status === IssueStatus.DONE) {
+    throw new ValidationError("Cannot pause a completed issue");
+  }
+
+  // Step 1: Set in-memory paused flag FIRST (prevents race conditions)
+  pausedIssues.add(issue.id);
+
+  // Step 2: Kill all active agent processes for this issue
+  for (const [pid, proc] of activeProcesses.entries()) {
+    if (proc.issueId === issue.id) {
+      logger.info(
+        { pid, issueId: issue.id, agentId: proc.agentId },
+        "Killing agent process for paused issue"
+      );
+      proc.process.kill("SIGTERM");
+      clearTimeout(proc.timer);
+      activeProcesses.delete(pid);
+    }
+  }
+
+  // Step 3: Purge all queued dispatches for this issue
+  const queuedRuns = agentRunRepo.listQueuedRuns(issue.project_id);
+  for (const run of queuedRuns) {
+    if (run.issue_id === issue.id) {
+      logger.info(
+        { runId: run.id, issueId: issue.id, agentId: run.agent_id },
+        "Cancelling queued run for paused issue"
+      );
+      agentRunRepo.updateAgentRun(run.id, { status: "failed" });
+    }
+  }
+
+  // Step 4: Clear batch tracking for this issue
+  const batchId = batch.issueBatches.get(issue.id);
+  if (batchId) {
+    logger.info({ batchId, issueId: issue.id }, "Clearing batch for paused issue");
+    batch.batches.delete(batchId);
+    batch.issueBatches.delete(issue.id);
+  }
+
+  // Step 5: Persist paused = true to DB
+  pauseIssueRepo(issue.id);
+
+  // Step 6: Emit issue.paused event
+  eventBus.emit("issue.paused", {
+    issue_id: issue.id,
+    project_id: issue.project_id,
+  });
+
+  logger.info({ issueId: issue.id }, "Issue paused");
+
+  res.json({
+    success: true,
+    issue_id: issue.id,
+    paused: true,
+  });
+});
+
+router.post("/:issueId/resume", verifyIssueOwnership, async (req, res) => {
+  const issue = req.issue!;
+
+  // Validate issue is currently paused
+  if (!pausedIssues.has(issue.id)) {
+    throw new ValidationError("Issue is not paused");
+  }
+
+  // Validate issue is not done
+  if (issue.status === IssueStatus.DONE) {
+    throw new ValidationError("Cannot resume a completed issue");
+  }
+
+  // Step 1: Unset in-memory paused flag
+  pausedIssues.delete(issue.id);
+
+  // Step 2: Persist paused = false to DB
+  resumeIssueRepo(issue.id);
+
+  // Step 3: Emit issue.resumed event
+  eventBus.emit("issue.resumed", {
+    issue_id: issue.id,
+    project_id: issue.project_id,
+  });
+
+  // Step 4: Auto-dispatch captain to pick up where it left off
+  const captain = getCrewMember("captain");
+  if (captain) {
+    logger.info({ issueId: issue.id }, "Auto-dispatching captain after resume");
+    spawnAgent(captain, issue.id, issue.project_id).catch((err) => {
+      logger.error(
+        { err, issueId: issue.id },
+        "Failed to auto-dispatch captain after resume"
+      );
+    });
+  } else {
+    logger.warn({ issueId: issue.id }, "Captain agent not found for auto-dispatch");
+  }
+
+  logger.info({ issueId: issue.id }, "Issue resumed");
+
+  res.json({
+    success: true,
+    issue_id: issue.id,
+    paused: false,
+  });
 });
 
 export default router;
