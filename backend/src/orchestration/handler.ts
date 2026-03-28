@@ -252,6 +252,15 @@ export const initMentionHandler = (): void => {
     if (agent_id === "captain") return;
     if (!issue_id) return;
 
+    // Guard: Don't auto-dispatch on paused issues
+    if (issueRepo.isIssuePaused(issue_id)) {
+      log.logger.debug(
+        { issueId: issue_id },
+        "Skipping captain auto-dispatch: issue is paused",
+      );
+      return;
+    }
+
     const issue = issueRepo.getIssue(issue_id);
     if (!issue || issue.status === "done") return;
 

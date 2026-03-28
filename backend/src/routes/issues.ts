@@ -182,11 +182,9 @@ router.post("/:issueId/pause", verifyIssueOwnership, (req, res) => {
   // Step 4: Clear batch tracking for this issue
   const batchId = batch.issueBatches.get(issue.id);
   if (batchId) {
-    const batchData = batch.batches.get(batchId);
-    if (batchData) {
-      logger.info({ batchId, issueId: issue.id }, "Clearing batch for paused issue");
-      batch.handleBatchComplete(batchData);
-    }
+    logger.info({ batchId, issueId: issue.id }, "Clearing batch for paused issue");
+    batch.batches.delete(batchId);
+    batch.issueBatches.delete(issue.id);
   }
 
   // Step 5: Persist paused = true to DB
