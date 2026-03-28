@@ -16,9 +16,64 @@ import { resolveModel } from "../../db/repositories/agent-config.js";
 import { parseActionPlan, extractJsonFromResponse } from "./action-schema.js";
 import { executePlan, formatResults } from "./plan-executor.js";
 import type { ActionPlan } from "./action-schema.js";
+import { getIssue, listIssues } from "../../db/repositories/issues.js";
+import { listActiveRunsForProject } from "../../db/repositories/agent-runs.js";
+import { listByProject as listKnowledge } from "../../db/repositories/knowledge.js";
+import { listComments } from "../../db/repositories/comments.js";
+import { getIssuePR, listIssuePRs } from "../../db/repositories/issue-prs.js";
+import { getCrewMember } from "../crew.js";
+import type { Issue } from "../../types/entities.js";
 
 import * as chatRepo from "../../db/repositories/chat-messages.js";
 import type { CaptainEvent } from "./queue.js";
+
+/**
+ * Build a compact snapshot of current project state to inject into the prompt,
+ * eliminating the need for initial curl calls.
+ */
+function buildStateSnapshot(projectId: string): string {
+  const parts: string[] = [];
+
+  // Compact issues (non-closed, no descriptions)
+  const issues = listIssues(projectId, {
+    status: ["open", "in_progress", "pr_created", "pr_ready_to_merge", "pr_conflict", "pr_failed_actions"],
+  });
+  if (issues.length > 0) {
+    const rows = issues.map((i) => {
+      const agent = i.running_agent_id ? ` [agent: ${i.running_agent_id}]` : "";
+      const paused = i.paused ? " (paused)" : "";
+      return `- ${i.id} | ${i.status}${paused}${agent} | ${i.title}`;
+    });
+    parts.push(`### Issues (non-closed)\n${rows.join("\n")}`);
+  } else {
+    parts.push("### Issues (non-closed)\nNone");
+  }
+
+  // Active runs
+  const runs = listActiveRunsForProject(projectId);
+  if (runs.length > 0) {
+    const rows = runs.map((r) => {
+      const agent = getCrewMember(r.agent_id);
+      const name = agent?.name ?? r.agent_id;
+      const issue = r.issue_id ? ` on issue ${r.issue_id}` : "";
+      return `- ${r.id} | ${name} (${r.status})${issue}`;
+    });
+    parts.push(`### Active Runs\n${rows.join("\n")}`);
+  } else {
+    parts.push("### Active Runs\nNone");
+  }
+
+  // Knowledge titles
+  const knowledge = listKnowledge(projectId);
+  if (knowledge.length > 0) {
+    const rows = knowledge.map((k) => `- ${k.id} | [${k.category}] ${k.title}`);
+    parts.push(`### Knowledge Entries\n${rows.join("\n")}`);
+  } else {
+    parts.push("### Knowledge Entries\nNone");
+  }
+
+  return parts.join("\n\n");
+}
 
 /**
  * Build the system prompt for Monitor — focused on orchestration decisions.
@@ -31,6 +86,8 @@ const buildSystemPrompt = (projectId: string): string => {
 
   const canAutoStart = project.auto_start;
   const canMerge = project.auto_merge;
+
+  const snapshot = buildStateSnapshot(projectId);
 
   return `You are the Monitor, the autonomous orchestrator for a CrewDeck project.
 
@@ -51,45 +108,31 @@ ${project.description || "No description"}
 - Max concurrency: ${project.max_concurrency}
 - Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}
 
-## API Reference (Read-Only)
-Use curl to fetch current state before making decisions. Base: \`$CREWDECK_API_URL/api/v1\`
+## Current State (pre-fetched snapshot)
+${snapshot}
 
-### Issues
+This snapshot was fetched at prompt build time. Use it for your initial decisions. Only curl for details (full issue, run events, comments) when you need more information for a specific decision.
+
+## API Reference (Read-Only — for fetching details)
+Base: \`$CREWDECK_API_URL/api/v1\`
+
 \`\`\`bash
-# Actionable issues — compact list without descriptions (use this first)
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues?status=open,in_progress,pr_created&compact=true"
-
-# Full issue details — only fetch when you need description, comments, PRs, or activity
+# Full issue details — only when you need description, comments, PRs, or activity
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
 
 # Comments on an issue
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments"
-\`\`\`
-
-### Agent Runs
-\`\`\`bash
-# Currently running/queued agents
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/active-runs"
-
-# Recent runs across all issues
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs?limit=10"
 
 # Runs for a specific issue
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/runs"
 
 # Single run with events
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
-\`\`\`
 
-### Activity & Knowledge
-\`\`\`bash
-# Activity log — compact strips verbose details (filterable: issue_id, actor_type, action, since, limit)
+# Activity log (filterable: issue_id, actor_type, action, since, limit)
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true"
 
-# Knowledge titles (lightweight — returns id, title, category only)
-curl "$CREWDECK_API_URL/api/v1/internal/knowledge/titles?project_id=$CREWDECK_PROJECT_ID"
-
-# Full knowledge entry (only when you need the content)
+# Full knowledge entry
 curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
 \`\`\`
 
@@ -137,22 +180,23 @@ List ALL dispatch actions needed. The system handles capacity limits and execute
 If 3 issues need work and 5 slots are available, list all 3 dispatches — they'll run simultaneously.
 
 ## Golden Rule
-**Always fetch current state before deciding. Never assume from history.**
-Your conversation history may be stale. Always curl the API to check the actual current state of issues and agents before outputting actions.
+**Use the pre-fetched snapshot above for initial decisions.** It contains the current issues, active runs, and knowledge titles. Only curl for detailed information (full issue description, comments, run events) when needed for a specific decision.
 
-**Use compact lists first.** Start with \`?compact=true\` to get issue titles and statuses without descriptions. Only fetch individual issue details when you need the description, comments, or PR info for a specific decision.
-
-**An issue being \`in_progress\` does NOT mean an agent is running.** Always check \`active-runs\` to verify before waiting.
+**An issue being \`in_progress\` does NOT mean an agent is running.** Check the Active Runs section in the snapshot to verify.
 
 ## Event Response Rules
-- **issue.created**: ${canAutoStart ? "Dispatch engineer to work on the new issue." : "Acknowledge only — wait for user to trigger dispatch."}
-- **run.completed**: Fetch the issue to read the agent's report. Decide the next step based on the report.
-- **issue.status_changed → done**: Fetch all issues to find new work. Consider a librarian scan if the completed work changed project structure.
+Events include full context (issue title, status, PR info, agent reports). Use this information directly — no need to curl for it.
+- **issue.created**: ${canAutoStart ? "Dispatch engineer to work on the new issue. The description is included in the event." : "Acknowledge only — wait for user to trigger dispatch."}
+- **run.completed**: The agent's report is included in the event. Decide the next step based on the report. Pass relevant context in dispatch instructions so the next agent doesn't start blind.
+- **issue.status_changed → done**: Check the snapshot for remaining work. Consider a librarian scan if the completed work changed project structure.
+- **issue.status_changed → pr_conflict**: Dispatch engineer to resolve merge conflicts. Include the PR URL in dispatch instructions.
+- **issue.status_changed → pr_failed_actions**: Dispatch engineer to fix CI failures. Include the PR URL in dispatch instructions.
+- **issue.status_changed → pr_ready_to_merge**: ${canMerge ? "Merge the PR." : "Report that the PR is ready — auto-merge is disabled."}
 - **issue.status_changed** (other): Check if any blocked issues are now unblocked.
-- **pr.status_changed**: If merged, mark done. If failed, dispatch engineer to fix.
-- **comment.added**: Read the comment and act on user feedback.
-- **startup.scan**: Fetch all issues, assess project state, take any needed actions.
-- **idle.check**: Look for stuck issues (in_progress with no running agents).
+- **pr.status_changed**: Issue and PR info are included. If merged, mark done. If closed, investigate.
+- **comment.added**: The full comment is included. Act on user feedback.
+- **startup.scan**: Use the snapshot above to assess project state and take any needed actions.
+- **idle.check**: Use the snapshot to find stuck issues (in_progress with no running agents).
 - **project.settings_changed**: Acknowledge and adjust behavior.
 
 ## Code Review Loop
@@ -172,7 +216,39 @@ Engineer → Lead review → fix cycle → Docs → Create PR. Read the lead's r
 };
 
 /**
- * Format events for the LLM.
+ * Get PR info for an issue (latest open PR).
+ */
+function getPRInfo(issueId: string): string {
+  const prs = listIssuePRs(issueId);
+  if (prs.length === 0) return "";
+  const pr = prs[prs.length - 1]; // most recent
+  return `\n  PR: #${pr.pr_number} (${pr.status})${pr.pr_url ? ` — ${pr.pr_url}` : ""}`;
+}
+
+/**
+ * Get the latest agent comment on an issue (the agent's report).
+ */
+function getLatestAgentComment(issueId: string): string {
+  const comments = listComments(issueId);
+  // Walk backwards to find the last non-user comment
+  for (let i = comments.length - 1; i >= 0; i--) {
+    if (comments[i].author_type !== "user") {
+      return `\n  Report (${comments[i].author_type}):\n${comments[i].content}`;
+    }
+  }
+  return "";
+}
+
+/**
+ * Format issue context line: id, title, status.
+ */
+function formatIssueContext(issue: Issue): string {
+  return `\n  Issue: ${issue.id} | "${issue.title}" | status: ${issue.status}`;
+}
+
+/**
+ * Format events for the LLM with enriched context from DB lookups.
+ * Each event includes enough information for the captain to act immediately.
  */
 export const formatEvents = (events: CaptainEvent[]): string => {
   if (events.length === 0) return "";
@@ -182,12 +258,18 @@ export const formatEvents = (events: CaptainEvent[]): string => {
       const ts = e.timestamp.toISOString().slice(11, 19);
       switch (e.type) {
         case "issue.created": {
-          const data = e.data as { issue: { title: string; id: string } };
-          return `[${ts}] Issue created: "${data.issue.title}" (${data.issue.id})`;
+          const data = e.data as { issue: Issue };
+          const desc = data.issue.description
+            ? `\n  Description: ${data.issue.description}`
+            : "";
+          return `[${ts}] Issue created: "${data.issue.title}" (${data.issue.id})${desc}`;
         }
         case "issue.status_changed": {
           const data = e.data as { issue_id: string; from: string; to: string };
-          return `[${ts}] Issue ${data.issue_id} status: ${data.from} → ${data.to}`;
+          const issue = getIssue(data.issue_id);
+          const title = issue ? ` "${issue.title}"` : "";
+          const prInfo = issue ? getPRInfo(data.issue_id) : "";
+          return `[${ts}] Issue ${data.issue_id}${title} status: ${data.from} → ${data.to}${prInfo}`;
         }
         case "run.completed": {
           const data = e.data as {
@@ -195,19 +277,36 @@ export const formatEvents = (events: CaptainEvent[]): string => {
             issue_id: string | null;
             status: string;
           };
-          return `[${ts}] Agent ${data.agent_id} completed (${data.status})${data.issue_id ? ` on issue ${data.issue_id}` : ""}`;
+          const agentName = getCrewMember(data.agent_id)?.name ?? data.agent_id;
+          let context = "";
+          if (data.issue_id) {
+            const issue = getIssue(data.issue_id);
+            if (issue) context += formatIssueContext(issue);
+            context += getPRInfo(data.issue_id);
+            context += getLatestAgentComment(data.issue_id);
+          }
+          return `[${ts}] Agent ${agentName} (${data.agent_id}) completed (${data.status})${data.issue_id ? ` on issue ${data.issue_id}` : ""}${context}`;
         }
         case "pr.status_changed": {
           const data = e.data as { pr_id: string; from: string; to: string };
-          return `[${ts}] PR status: ${data.from} → ${data.to}`;
+          const pr = getIssuePR(data.pr_id);
+          let context = "";
+          if (pr) {
+            const issue = getIssue(pr.issue_id);
+            context += `\n  Issue: ${pr.issue_id}${issue ? ` | "${issue.title}"` : ""}`;
+            context += `\n  PR: #${pr.pr_number}${pr.pr_url ? ` — ${pr.pr_url}` : ""}`;
+          }
+          return `[${ts}] PR status: ${data.from} → ${data.to}${context}`;
         }
         case "issue.updated": {
           const data = e.data as {
             issue_id: string;
             changes: Record<string, unknown>;
           };
+          const issue = getIssue(data.issue_id);
+          const title = issue ? ` "${issue.title}"` : "";
           const changedFields = Object.keys(data.changes || {}).join(", ");
-          return `[${ts}] Issue ${data.issue_id} updated: ${changedFields || "unknown fields"}`;
+          return `[${ts}] Issue ${data.issue_id}${title} updated: ${changedFields || "unknown fields"}`;
         }
         case "comment.added": {
           const data = e.data as {
@@ -219,11 +318,9 @@ export const formatEvents = (events: CaptainEvent[]): string => {
             };
             project_id: string;
           };
-          const preview =
-            data.comment.content.length > 200
-              ? data.comment.content.slice(0, 200) + "…"
-              : data.comment.content;
-          return `[${ts}] Comment on issue ${data.comment.issue_id} by ${data.comment.author_type}: ${preview}`;
+          const issue = getIssue(data.comment.issue_id);
+          const title = issue ? ` "${issue.title}"` : "";
+          return `[${ts}] Comment on issue ${data.comment.issue_id}${title} by ${data.comment.author_type}:\n${data.comment.content}`;
         }
         case "startup.scan":
           return `[${ts}] Startup scan: analyze current project state and take any needed actions`;
@@ -240,7 +337,7 @@ export const formatEvents = (events: CaptainEvent[]): string => {
           return `[${ts}] Event: ${e.type}`;
       }
     })
-    .join("\n");
+    .join("\n\n");
 };
 
 const MAX_CONTEXT_MESSAGES = 100;

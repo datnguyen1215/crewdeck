@@ -6,11 +6,41 @@ import type {
 } from "../types/entities.js";
 import { escapeXml } from "../utils/xml.js";
 
+/** Max characters for truncated older agent comments. */
+const AGENT_COMMENT_TRUNCATE = 200;
+
+/**
+ * Format comments for agent prompts with trimming to reduce token usage.
+ *
+ * - User comments are always included in full (they contain instructions).
+ * - The most recent comment per agent type is included in full.
+ * - Older agent comments are truncated to a short preview.
+ */
 function formatComments(comments: Comment[]): string {
+  // Find the index of the last comment per agent author_type
+  const lastByAgent = new Map<string, number>();
+  for (let i = 0; i < comments.length; i++) {
+    if (comments[i].author_type !== "user") {
+      lastByAgent.set(comments[i].author_type, i);
+    }
+  }
+
   return comments
-    .map((c) => {
+    .map((c, i) => {
       const time = c.created_at.replace("T", " ").slice(0, 19);
-      return `[${time}] (${c.author_type}) ${c.content}`;
+      const isUser = c.author_type === "user";
+      const isLatestForAgent = lastByAgent.get(c.author_type) === i;
+
+      if (isUser || isLatestForAgent) {
+        return `[${time}] (${c.author_type}) ${c.content}`;
+      }
+
+      // Truncate older agent comments
+      const preview =
+        c.content.length > AGENT_COMMENT_TRUNCATE
+          ? c.content.slice(0, AGENT_COMMENT_TRUNCATE) + "… (truncated)"
+          : c.content;
+      return `[${time}] (${c.author_type}) ${preview}`;
     })
     .join("\n\n");
 }

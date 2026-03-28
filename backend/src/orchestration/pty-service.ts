@@ -10,6 +10,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { logger } from "../logger.js";
 import { getProject } from "../db/repositories/projects.js";
+import { listIssues } from "../db/repositories/issues.js";
+import { listActiveRunsForProject } from "../db/repositories/agent-runs.js";
+import { getCrewMember } from "./crew.js";
 import { config } from "../config.js";
 
 interface TerminalSession {
@@ -62,7 +65,7 @@ ${project.description || "No description"}
 - Max concurrency: ${project.max_concurrency}
 - Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}`);
 
-  // Inject project knowledge
+  // Inject project knowledge (full content for workflows/conventions)
   const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
   if (projectKnowledge.length > 0) {
     const injected = projectKnowledge.filter((k) => INJECT_CATEGORIES.has(k.category));
@@ -79,19 +82,51 @@ ${project.description || "No description"}
     parts.push(`## Repository\n${repo.name} at ${worktreePath}`);
   }
 
-  // API Reference
+  // Build state snapshot
+  const snapshotParts: string[] = [];
+
+  const issues = listIssues(projectId, {
+    status: ["open", "in_progress", "pr_created", "pr_ready_to_merge", "pr_conflict", "pr_failed_actions"],
+  });
+  if (issues.length > 0) {
+    const rows = issues.map((i) => {
+      const agent = i.running_agent_id ? ` [agent: ${i.running_agent_id}]` : "";
+      const paused = i.paused ? " (paused)" : "";
+      return `- ${i.id} | ${i.status}${paused}${agent} | ${i.title}`;
+    });
+    snapshotParts.push(`### Issues (non-closed)\n${rows.join("\n")}`);
+  } else {
+    snapshotParts.push("### Issues (non-closed)\nNone");
+  }
+
+  const activeRuns = listActiveRunsForProject(projectId);
+  if (activeRuns.length > 0) {
+    const rows = activeRuns.map((r) => {
+      const agent = getCrewMember(r.agent_id);
+      const name = agent?.name ?? r.agent_id;
+      const issue = r.issue_id ? ` on issue ${r.issue_id}` : "";
+      return `- ${r.id} | ${name} (${r.status})${issue}`;
+    });
+    snapshotParts.push(`### Active Runs\n${rows.join("\n")}`);
+  } else {
+    snapshotParts.push("### Active Runs\nNone");
+  }
+
+  if (projectKnowledge.length > 0) {
+    const rows = projectKnowledge.map((k) => `- ${k.id} | [${k.category}] ${k.title}`);
+    snapshotParts.push(`### Knowledge Entries\n${rows.join("\n")}`);
+  } else {
+    snapshotParts.push("### Knowledge Entries\nNone");
+  }
+
+  parts.push(`## Current State (pre-fetched snapshot)\n${snapshotParts.join("\n\n")}\n\nThis snapshot was fetched at session start. Use curl to refresh or get details as needed.`);
+
+  // API Reference — only detail endpoints, since snapshot covers listing
   parts.push(`## API Reference
-The following environment variables are available:
-- CREWDECK_API_URL — base URL of the backend API
-- CREWDECK_PROJECT_ID — current project ID
-- CREWDECK_AGENT_ID — captain
+Environment variables: CREWDECK_API_URL, CREWDECK_PROJECT_ID, CREWDECK_AGENT_ID
 
-### Issues API
 \`\`\`bash
-# List issues (filterable by status)
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues?status=open,in_progress"
-
-# Get issue details (includes comments, PRs, runs)
+# Full issue details
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
 
 # Create issue
@@ -108,32 +143,14 @@ curl -X PUT "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSU
 curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments" \\
   -H "Content-Type: application/json" \\
   -d '{"content": "Comment text", "author_type": "captain"}'
-\`\`\`
 
-### Agent Runs API
-\`\`\`bash
-# List currently running/queued agents (no events by default)
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/active-runs"
-
-# List recent runs
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs?limit=10"
-
-# Get run details (20 most recent events by default, use events_limit=0 for all)
+# Run details
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
-\`\`\`
 
-### Activity API
-\`\`\`bash
-# Get activity log
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20"
-\`\`\`
+# Activity log
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true"
 
-### Knowledge API
-\`\`\`bash
-# List knowledge titles (returns id, title, category)
-curl "$CREWDECK_API_URL/api/v1/internal/knowledge/titles?project_id=$CREWDECK_PROJECT_ID"
-
-# Get full knowledge entry
+# Full knowledge entry
 curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
 \`\`\`
 
