@@ -51,7 +51,7 @@ describe("buildPrompt", () => {
   it("includes @mention clarification for non-captain agents", () => {
     const prompt = buildPrompt({ issue, comments: [], repo, worktreePath: "/tmp/work", agentId: "engineer" });
     expect(prompt).toContain("@mentions are cosmetic references only");
-    expect(prompt).not.toContain("/dispatch"); // Non-captain agents don't get dispatch instructions
+    expect(prompt).not.toContain("/dispatch"); // Non-captain agents don't dispatch
   });
 
   it("includes comments when provided", () => {
