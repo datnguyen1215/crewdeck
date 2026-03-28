@@ -183,6 +183,21 @@ describe("Runs API", () => {
       );
       expect(res.status).toBe(404);
     });
+
+    it("returns 400 when events_limit is not a valid number", async () => {
+      const run = createAgentRun({
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: "engineer",
+      });
+
+      const res = await request(app).get(
+        `/api/v1/projects/${projectId}/runs/${run.id}?events_limit=abc`
+      );
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+      expect(res.body.error.message).toBe("events_limit must be a valid number");
+    });
   });
 
   describe("GET /projects/:projectId/active-runs", () => {

@@ -112,13 +112,13 @@ curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISS
 
 ### Agent Runs API
 \`\`\`bash
-# List currently running/queued agents
+# List currently running/queued agents (no events by default)
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/active-runs"
 
 # List recent runs
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs?limit=10"
 
-# Get run details
+# Get run details (20 most recent events by default, use events_limit=0 for all)
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
 \`\`\`
 

@@ -69,8 +69,20 @@ router.get(
   verifyProject,
   (req: Request<{ projectId: string; runId: string }>, res) => {
     const eventsLimitParam = req.query.events_limit as string | undefined;
-    const eventsLimit =
-      eventsLimitParam !== undefined ? parseInt(eventsLimitParam, 10) : 20;
+    let eventsLimit = 20;
+    if (eventsLimitParam !== undefined) {
+      const parsed = parseInt(eventsLimitParam, 10);
+      if (isNaN(parsed)) {
+        res.status(400).json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "events_limit must be a valid number",
+          },
+        });
+        return;
+      }
+      eventsLimit = parsed;
+    }
 
     const run = getAgentRunWithEvents(req.params.runId, eventsLimit);
     if (!run) {
