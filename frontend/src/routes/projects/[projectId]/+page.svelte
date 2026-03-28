@@ -5,6 +5,7 @@
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
+	import ActivityTerminal from '$lib/components/ActivityTerminal.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
 	import { parseUTC, relTimeDiff } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
@@ -145,7 +146,8 @@
 	<title>{pageTitle}</title>
 </svelte:head>
 
-<div class="p-4 md:p-6 h-full overflow-auto pt-14 md:pt-6">
+<div class="h-full flex flex-col pt-14 md:pt-6">
+	<div class="flex-1 overflow-auto p-4 md:p-6 min-h-0">
 	<!-- Header -->
 	<div class="flex items-center justify-between mb-5 gap-3">
 		<div class="min-w-0">
@@ -468,6 +470,12 @@
 				</div>
 			</div>
 	{/if}
+	</div>
+
+	<!-- Activity Terminal -->
+	<div class="border-t border-edge">
+		<ActivityTerminal {projectId} />
+	</div>
 </div>
 
 <!-- New Issue Modal -->
