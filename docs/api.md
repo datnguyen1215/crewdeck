@@ -487,6 +487,32 @@ Permanently deletes an issue and cleans up associated resources.
 
 **Error:** `404 Not Found` — Issue does not exist.
 
+#### Pause Issue
+
+```
+POST /projects/:projectId/issues/:issueId/pause
+```
+
+Pauses an issue, preventing new agent dispatches until resumed.
+
+**Response:** `200 OK`
+
+**Side effects:**
+- WebSocket event emitted: `issue.paused`.
+
+#### Resume Issue
+
+```
+POST /projects/:projectId/issues/:issueId/resume
+```
+
+Resumes a paused issue, allowing agent dispatches again.
+
+**Response:** `200 OK`
+
+**Side effects:**
+- WebSocket event emitted: `issue.resumed`.
+
 ---
 
 ### Comments
@@ -1407,6 +1433,8 @@ All events follow this structure:
 | `issue.created`        | New issue created    | `{ issue }` — full Issue object                              |
 | `issue.updated`        | Issue fields changed | `{ issue_id, project_id, changes }`                          |
 | `issue.status_changed` | Status transition (triggers automatic worktree cleanup when `to === "done"` — DB fields always cleared in finally block) | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
+| `issue.paused`         | Issue paused         | `{ issue_id, project_id }`                                   |
+| `issue.resumed`        | Issue resumed        | `{ issue_id, project_id }`                                   |
 
 #### Comment Events
 
