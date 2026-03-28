@@ -383,6 +383,16 @@ export const spawnAgent = async (
   commentAuthorAgentId?: string,
   options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> => {
+  // Guard: reject spawn attempts for paused issues
+  if (issueRepo.pausedIssues.has(issueId)) {
+    log.logger.warn(
+      { agentId: agent.id, issueId, reason: "issue_paused" },
+      "Spawn blocked: issue is paused",
+    );
+    clearPendingSpawn(agent.id, issueId);
+    return;
+  }
+
   const project = projectRepo.getProject(projectId);
   if (!project) {
     clearPendingSpawn(agent.id, issueId);
@@ -672,6 +682,16 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
   const issue = issueRepo.getIssue(issueId);
   if (!issue) {
     log.logger.error({ issueId, runId: run.id }, "Issue not found");
+    agentRunRepo.updateAgentRun(run.id, { status: "failed" });
+    return;
+  }
+
+  // Guard: reject spawn if issue is paused
+  if (issueRepo.pausedIssues.has(issueId)) {
+    log.logger.warn(
+      { agentId, issueId, reason: "issue_paused" },
+      "Queued spawn blocked: issue is paused",
+    );
     agentRunRepo.updateAgentRun(run.id, { status: "failed" });
     return;
   }
