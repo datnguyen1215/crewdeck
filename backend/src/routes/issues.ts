@@ -39,7 +39,7 @@ const router = Router({ mergeParams: true });
 
 router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
-  const { status, created_by, sort, order } = req.query as Record<
+  const { status, created_by, sort, order, compact } = req.query as Record<
     string,
     string
   >;
@@ -50,7 +50,13 @@ router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   if (sort === "created_at" || sort === "updated_at") filters.sort = sort;
   if (order === "asc" || order === "desc") filters.order = order;
 
-  res.json(listIssues(projectId, filters));
+  const issues = listIssues(projectId, filters);
+
+  if (compact === "true") {
+    res.json(issues.map(({ description, ...rest }) => rest));
+  } else {
+    res.json(issues);
+  }
 });
 
 router.get("/:issueId", verifyIssueWithDetails, (req, res) => {

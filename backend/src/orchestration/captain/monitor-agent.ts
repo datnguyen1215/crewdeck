@@ -56,13 +56,10 @@ Use curl to fetch current state before making decisions. Base: \`$CREWDECK_API_U
 
 ### Issues
 \`\`\`bash
-# Actionable issues (recommended — filters out done)
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues?status=open,in_progress,pr_created"
+# Actionable issues — compact list without descriptions (use this first)
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues?status=open,in_progress,pr_created&compact=true"
 
-# All issues (use sparingly)
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues"
-
-# Issue details — includes comments, PRs, and agent runs
+# Full issue details — only fetch when you need description, comments, PRs, or activity
 curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
 
 # Comments on an issue
@@ -86,11 +83,14 @@ curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
 
 ### Activity & Knowledge
 \`\`\`bash
-# Activity log (filterable: issue_id, actor_type, action, since, limit)
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20"
+# Activity log — compact strips verbose details (filterable: issue_id, actor_type, action, since, limit)
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true"
 
-# Knowledge entries
-curl "$CREWDECK_API_URL/api/v1/internal/knowledge/list?project_id=$CREWDECK_PROJECT_ID"
+# Knowledge titles (lightweight — returns id, title, category only)
+curl "$CREWDECK_API_URL/api/v1/internal/knowledge/titles?project_id=$CREWDECK_PROJECT_ID"
+
+# Full knowledge entry (only when you need the content)
+curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
 \`\`\`
 
 ## Action Plan Output
@@ -139,6 +139,8 @@ If 3 issues need work and 5 slots are available, list all 3 dispatches — they'
 ## Golden Rule
 **Always fetch current state before deciding. Never assume from history.**
 Your conversation history may be stale. Always curl the API to check the actual current state of issues and agents before outputting actions.
+
+**Use compact lists first.** Start with \`?compact=true\` to get issue titles and statuses without descriptions. Only fetch individual issue details when you need the description, comments, or PR info for a specific decision.
 
 **An issue being \`in_progress\` does NOT mean an agent is running.** Always check \`active-runs\` to verify before waiting.
 

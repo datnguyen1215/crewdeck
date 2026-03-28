@@ -39,19 +39,22 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
   }
 
   const entries = listActivity(projectId, filters);
+  const isCompact = (req.query as Record<string, string>).compact === "true";
 
   // Resolve agent names for display. Old activity logs may have UUID actor_ids
   // from before the fixed crew migration — they'll display without actor_name.
   const agentCache = new Map<string, string | null>();
   const enriched = entries.map((entry: ActivityLog) => {
+    const { details, ...rest } = entry;
+    const base = isCompact ? rest : entry;
     if (entry.actor_type === 'agent' && entry.actor_id) {
       if (!agentCache.has(entry.actor_id)) {
         agentCache.set(entry.actor_id, getCrewMember(entry.actor_id)?.name ?? null);
       }
       const name = agentCache.get(entry.actor_id);
-      if (name) return { ...entry, actor_name: name };
+      if (name) return { ...base, actor_name: name };
     }
-    return entry;
+    return base;
   });
 
   res.json(enriched);

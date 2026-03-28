@@ -80,17 +80,17 @@ export function buildPrompt(opts: BuildPromptOptions): string {
     `## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`,
   );
 
-  // Inject project knowledge entries (workflows and conventions only)
+  // List available knowledge entries (titles only — agents fetch content on demand)
   const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
   if (projectKnowledge && projectKnowledge.length > 0) {
-    const injected = projectKnowledge.filter((k) =>
+    const relevant = projectKnowledge.filter((k) =>
       INJECT_CATEGORIES.has(k.category),
     );
-    if (injected.length > 0) {
-      const entries = injected
-        .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
-        .join("\n\n");
-      parts.push(`## Project Knowledge\n${entries}`);
+    if (relevant.length > 0) {
+      const listing = relevant
+        .map((k) => `- [${k.category}] ${k.title} (id: ${k.id})`)
+        .join("\n");
+      parts.push(`## Project Knowledge\nThe following knowledge entries are available. Fetch any you need before starting work using the knowledge API.\n${listing}`);
     }
   }
 
@@ -136,18 +136,12 @@ export function buildScanPrompt(opts: BuildScanPromptOptions): string {
     "## Task\nScan the codebase and update knowledge entries for this project.",
   );
 
-  // Inject project knowledge entries (workflows and conventions only)
-  const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
+  // List existing knowledge entries (titles only — librarian fetches content on demand)
   if (projectKnowledge && projectKnowledge.length > 0) {
-    const injected = projectKnowledge.filter((k) =>
-      INJECT_CATEGORIES.has(k.category),
-    );
-    if (injected.length > 0) {
-      const entries = injected
-        .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
-        .join("\n\n");
-      parts.push(`## Existing Knowledge\n${entries}`);
-    }
+    const listing = projectKnowledge
+      .map((k) => `- [${k.category}] ${k.title} (id: ${k.id})`)
+      .join("\n");
+    parts.push(`## Existing Knowledge\nThe following knowledge entries exist. Fetch any you need to review before creating or updating entries.\n${listing}`);
   }
 
   if (repo)
