@@ -42,9 +42,15 @@ async function queueAndProcess(event: CaptainEvent): Promise<void> {
 
   enqueue({ ...event, projectId: queueKey });
 
-  // Update pending count in DB so REST callers can see queued events
+  // Update pending count in DB so REST callers can see queued events.
+  // Only set receiving if not already in a more advanced phase (thinking/executing)
+  // to avoid regressing the status while the processor is mid-flight.
   try {
-    updateCaptainStatus(projectId, "receiving", null, pendingCount(queueKey));
+    const current = getProject(projectId);
+    const currentStatus = current?.captain_status ?? "idle";
+    if (currentStatus === "idle" || currentStatus === "receiving") {
+      updateCaptainStatus(projectId, "receiving", null, pendingCount(queueKey));
+    }
   } catch (err) {
     logger.warn(
       { err, projectId },

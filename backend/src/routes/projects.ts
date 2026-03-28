@@ -115,7 +115,7 @@ router.get("/:id/captain/status", (req, res) => {
   if (!project) throw new NotFoundError("Project not found");
 
   const processingDurationMs = project.captain_processing_since
-    ? Date.now() - new Date(project.captain_processing_since).getTime()
+    ? Date.now() - new Date(project.captain_processing_since + "Z").getTime()
     : null;
 
   res.json({
