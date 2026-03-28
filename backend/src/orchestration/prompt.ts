@@ -158,15 +158,21 @@ export function buildPrompt(opts: BuildPromptOptions): string {
 
   parts.push(buildApiSection(agentId));
 
-  parts.push(`## Instructions
-Work on the issue described above. Your entire stdout will be captured and posted as a comment on the issue.${diffInstruction}
+  if (agentId === "captain") {
+    parts.push(`## Instructions
+Read the issue and comment history above. Determine the current pipeline stage and dispatch the appropriate agent. Your entire stdout will be captured and posted as a comment on the issue.
 
-To trigger another agent after you're done, use \`/dispatch agent-name\` at the start of a line.
-For example: "/dispatch engineer" followed by your summary of completed work.
+Do NOT implement changes, write code, or edit files yourself. Your job is to orchestrate — decide what needs to happen next and dispatch the right crew member to do it.
+
+Do your best work.`);
+  } else {
+    parts.push(`## Instructions
+Work on the issue described above. Your entire stdout will be captured and posted as a comment on the issue.${diffInstruction}
 
 Note: @mentions are cosmetic references only — they do NOT trigger agent spawns.
 
 Do your best work.`);
+  }
 
   return parts.join("\n\n");
 }
