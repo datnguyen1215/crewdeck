@@ -148,6 +148,47 @@ DELETE /projects/:id
 
 **Side effects:** Kills any active agent processes, cleans up worktrees, deletes all related data (cascading).
 
+#### Get Captain Status
+
+```
+GET /projects/:id/captain/status
+```
+
+Returns the current captain monitor phase for the project. Use this on page load to hydrate UI state (show spinner, action detail, etc.) without waiting for WebSocket events.
+
+**Response:** `200 OK`
+
+```json
+{
+  "status": "idle",
+  "detail": null,
+  "pending_count": 0,
+  "processing_since": null,
+  "processing_duration_ms": null
+}
+```
+
+| Field                  | Type             | Description                                                                                       |
+| ---------------------- | ---------------- | ------------------------------------------------------------------------------------------------- |
+| status                 | TEXT             | Current phase. One of: `idle`, `receiving`, `thinking`, `executing`.                              |
+| detail                 | TEXT \| null     | Human-readable detail for the current phase (e.g. `"Analyzing 3 events"`). NULL when idle.        |
+| pending_count          | INTEGER          | Number of events queued for the captain to process.                                               |
+| processing_since       | DATETIME \| null | UTC timestamp (SQLite `CURRENT_TIMESTAMP` format) when the current cycle started. NULL when idle. |
+| processing_duration_ms | INTEGER \| null  | Milliseconds elapsed since `processing_since`. Computed server-side. NULL when idle.              |
+
+**Phase transitions:**
+
+- `idle` → `receiving` — a new event arrives while the captain is idle
+- `receiving` → `thinking` — the event queue is drained and the LLM call begins
+- `thinking` → `executing` — the LLM produced an action plan and the backend is executing it
+- `executing` → `idle` — all actions complete (or the cycle errors out)
+
+**Note:** When a new event arrives while the captain is already `thinking` or `executing`, the status is **not** regressed to `receiving` — the more-advanced phase is preserved. WebSocket events (`monitor.thinking`, `monitor.tool_call`, `monitor.tool_result`, `monitor.complete`) continue to provide real-time granularity; this REST endpoint is for hydration on page load only.
+
+**Error:** `404 Not Found` — Project does not exist.
+
+---
+
 #### Get Librarian Status
 
 ```
@@ -342,13 +383,13 @@ Both paths return all dispatchable agents (5 agents, including captain). The `/c
 ]
 ```
 
-| Field         | Type    | Description                                                                                                                                                     |
-| ------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id            | TEXT    | Agent identifier.                                                                                                                                               |
-| name          | TEXT    | Display name.                                                                                                                                                   |
-| title         | TEXT    | Agent role title.                                                                                                                                               |
-| description   | TEXT    | Brief description of the agent's purpose.                                                                                                                       |
-| system_prompt | TEXT    | System prompt injected into agent processes.                                                                                                                    |
+| Field         | Type    | Description                                                                                            |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| id            | TEXT    | Agent identifier.                                                                                      |
+| name          | TEXT    | Display name.                                                                                          |
+| title         | TEXT    | Agent role title.                                                                                      |
+| description   | TEXT    | Brief description of the agent's purpose.                                                              |
+| system_prompt | TEXT    | System prompt injected into agent processes.                                                           |
 | dispatchable  | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. All crew agents are dispatchable. |
 
 ---
@@ -479,6 +520,7 @@ Permanently deletes an issue and cleans up associated resources.
 **Response:** `204 No Content`
 
 **Side effects:**
+
 - If the issue has a worktree (`worktree_path`, `branch_name`), it is cleaned up before deletion
 - Git worktree is removed from disk
 - Associated branch is deleted
@@ -498,6 +540,7 @@ Pauses an issue, preventing new agent dispatches until resumed.
 **Response:** `200 OK`
 
 **Side effects:**
+
 - WebSocket event emitted: `issue.paused`.
 
 #### Resume Issue
@@ -511,6 +554,7 @@ Resumes a paused issue, allowing agent dispatches again.
 **Response:** `200 OK`
 
 **Side effects:**
+
 - WebSocket event emitted: `issue.resumed`.
 
 ---
@@ -1055,6 +1099,7 @@ Creates a new terminal session running `claude --system-prompt-file` inside a tm
 **Error:** `500 Internal Server Error` — Failed to create tmux session.
 
 **Side effects:**
+
 - Creates tmux session named `captain-{projectId:0:8}`
 - Spawns Claude CLI with captain system prompt
 - Injects environment variables (`CREWDECK_*`, `GH_TOKEN`, SSH keys)
@@ -1206,10 +1251,10 @@ Agent retrieves full content of a knowledge entry. Available to all agents.
 
 **Query Parameters:**
 
-| Parameter    | Required | Description        |
-| ------------ | -------- | ------------------ |
-| project_id   | Yes      | The project ID.    |
-| knowledge_id | Yes      | The entry ID.      |
+| Parameter    | Required | Description     |
+| ------------ | -------- | --------------- |
+| project_id   | Yes      | The project ID. |
+| knowledge_id | Yes      | The entry ID.   |
 
 **Response:** `200 OK` — Full knowledge entry object.
 
@@ -1394,10 +1439,12 @@ ws://localhost:<port>/terminal-ws?projectId=<uuid>
 ```
 
 Establishes a WebSocket connection for PTY streaming. Connects to the project's tmux session and provides bidirectional I/O:
+
 - **Server → Client**: Raw PTY output bytes (terminal escape sequences, text)
 - **Client → Server**: Raw keyboard input or resize messages
 
 **Resize message format:**
+
 ```json
 {
   "type": "resize",
@@ -1428,13 +1475,13 @@ All events follow this structure:
 
 #### Issue Events
 
-| Event                  | Description          | Data                                                         |
-| ---------------------- | -------------------- | ------------------------------------------------------------ |
-| `issue.created`        | New issue created    | `{ issue }` — full Issue object                              |
-| `issue.updated`        | Issue fields changed | `{ issue_id, project_id, changes }`                          |
+| Event                  | Description                                                                                                              | Data                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `issue.created`        | New issue created                                                                                                        | `{ issue }` — full Issue object                              |
+| `issue.updated`        | Issue fields changed                                                                                                     | `{ issue_id, project_id, changes }`                          |
 | `issue.status_changed` | Status transition (triggers automatic worktree cleanup when `to === "done"` — DB fields always cleared in finally block) | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
-| `issue.paused`         | Issue paused         | `{ issue_id, project_id }`                                   |
-| `issue.resumed`        | Issue resumed        | `{ issue_id, project_id }`                                   |
+| `issue.paused`         | Issue paused                                                                                                             | `{ issue_id, project_id }`                                   |
+| `issue.resumed`        | Issue resumed                                                                                                            | `{ issue_id, project_id }`                                   |
 
 #### Comment Events
 
@@ -1469,7 +1516,6 @@ All events follow this structure:
 | ------------------- | ----------------------- | --------------------------------- |
 | `pr.created`        | PR recorded on an issue | `{ issue_pr, project_id }`        |
 | `pr.status_changed` | PR status updated       | `{ pr_id, project_id, from, to }` |
-
 
 #### Project Events
 

@@ -49,18 +49,22 @@ CrewDeck uses git worktrees to isolate concurrent work:
 
 Represents a body of work tied to one or more GitHub repositories.
 
-| Field                   | Type        | Constraints                                                  | Description                                                                                                                            |
-| ----------------------- | ----------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| id                      | TEXT (UUID) | PRIMARY KEY                                                  | Unique identifier.                                                                                                                     |
-| name                    | TEXT        | NOT NULL                                                     | Human-readable project name.                                                                                                           |
-| description             | TEXT        |                                                              | Optional project description.                                                                                                          |
-| max_concurrency         | INTEGER     | NOT NULL, DEFAULT 1                                          | Maximum number of agent processes running simultaneously.                                                                              |
-| max_chain_depth         | INTEGER     | NOT NULL, DEFAULT 20                                         | Maximum agent dispatches per issue before requiring manual reset.                                                                      |
-| model                   | TEXT        | NOT NULL, DEFAULT 'sonnet'                                | Default Claude model for agent spawning. One of: `sonnet`, `opus`.                                                                     |
-| vcs_account_id          | TEXT        | FOREIGN KEY → VCSAccount.id, NULLABLE, ON DELETE SET NULL | VCS account used for cloning repos and agent git operations.                                                                           |
-| created_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                                        |
-| memory                  | TEXT        |                                                           | Legacy field for project memory/notes. Superseded by ProjectKnowledge.                                                                 |
-| updated_at              | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                                        |
+| Field                    | Type        | Constraints                                               | Description                                                                                                               |
+| ------------------------ | ----------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| id                       | TEXT (UUID) | PRIMARY KEY                                               | Unique identifier.                                                                                                        |
+| name                     | TEXT        | NOT NULL                                                  | Human-readable project name.                                                                                              |
+| description              | TEXT        |                                                           | Optional project description.                                                                                             |
+| max_concurrency          | INTEGER     | NOT NULL, DEFAULT 1                                       | Maximum number of agent processes running simultaneously.                                                                 |
+| max_chain_depth          | INTEGER     | NOT NULL, DEFAULT 20                                      | Maximum agent dispatches per issue before requiring manual reset.                                                         |
+| model                    | TEXT        | NOT NULL, DEFAULT 'sonnet'                                | Default Claude model for agent spawning. One of: `sonnet`, `opus`.                                                        |
+| vcs_account_id           | TEXT        | FOREIGN KEY → VCSAccount.id, NULLABLE, ON DELETE SET NULL | VCS account used for cloning repos and agent git operations.                                                              |
+| captain_status           | TEXT        | NOT NULL, DEFAULT 'idle'                                  | Current captain monitor phase. One of: `idle`, `receiving`, `thinking`, `executing`.                                      |
+| captain_status_detail    | TEXT        | NULLABLE                                                  | Human-readable detail for the current phase (e.g. "Analyzing 3 events", "Dispatching agent for issue X"). NULL when idle. |
+| captain_pending_count    | INTEGER     | NOT NULL, DEFAULT 0                                       | Number of events queued for the captain monitor to process.                                                               |
+| captain_processing_since | DATETIME    | NULLABLE                                                  | UTC timestamp when the current processing cycle started. NULL when idle.                                                  |
+| created_at               | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                           |
+| memory                   | TEXT        |                                                           | Legacy field for project memory/notes. Superseded by ProjectKnowledge.                                                    |
+| updated_at               | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                           |
 
 ### VCSAccount
 
@@ -154,8 +158,8 @@ Links an issue to a GitHub pull request.
 
 Records a single execution of an agent. Can be associated with an issue (for `/dispatch` spawns) or run standalone (for scans).
 
-| Field        | Type        | Constraints                         | Description                                                                    |
-| ------------ | ----------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| Field        | Type        | Constraints                         | Description                                                                                                        |
+| ------------ | ----------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                 |
 | project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                    |
 | issue_id     | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | The issue this run was triggered by. NULL for standalone runs (e.g., scans).                                       |
@@ -267,15 +271,15 @@ Immutable audit trail of every action in the system.
 
 Legacy table originally designed for chat sessions. No longer actively used after the captain refactor to comment-based orchestration.
 
-| Field      | Type        | Constraints                                          | Description                                     |
-| ---------- | ----------- | ---------------------------------------------------- | ----------------------------------------------- |
-| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                              |
-| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                 |
-| session_id | TEXT        | NULLABLE                                             | Session identifier (legacy, no longer used).    |
-| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role.                                   |
-| content    | TEXT        | NOT NULL                                             | Message content.                                |
-| images     | TEXT        | NULLABLE                                             | Image attachments (legacy, no longer used).     |
-| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created.                   |
+| Field      | Type        | Constraints                                          | Description                                  |
+| ---------- | ----------- | ---------------------------------------------------- | -------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                           |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                              |
+| session_id | TEXT        | NULLABLE                                             | Session identifier (legacy, no longer used). |
+| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role.                                |
+| content    | TEXT        | NOT NULL                                             | Message content.                             |
+| images     | TEXT        | NULLABLE                                             | Image attachments (legacy, no longer used).  |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created.                |
 
 **Note:** This table is retained for compatibility with existing migrations but is no longer populated. Captain now operates via comment-based orchestration instead of maintaining conversation history.
 
@@ -302,11 +306,11 @@ Per-agent model override for a project. When set, the agent uses the specified m
 
 Internal table that tracks which database migrations have been applied. Used by the file-based migration system to ensure each migration runs exactly once.
 
-| Field      | Type     | Constraints                         | Description                                                            |
-| ---------- | -------- | ----------------------------------- | ---------------------------------------------------------------------- |
-| id         | INTEGER  | PRIMARY KEY AUTOINCREMENT           | Auto-incrementing identifier.                                          |
+| Field      | Type     | Constraints                         | Description                                                           |
+| ---------- | -------- | ----------------------------------- | --------------------------------------------------------------------- |
+| id         | INTEGER  | PRIMARY KEY AUTOINCREMENT           | Auto-incrementing identifier.                                         |
 | name       | TEXT     | NOT NULL, UNIQUE                    | Migration name derived from filename (e.g., `001_initial_migration`). |
-| applied_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the migration was applied.                                        |
+| applied_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the migration was applied.                                       |
 
 **Migration System:**
 

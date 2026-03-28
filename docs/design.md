@@ -181,7 +181,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Renders project dashboard, issue board, crew page (`/projects/:id/crew`), activity log (Mission Control terminal at bottom of issues page showing activity entries with clickable issue title links), Terminals page, and Captain page (side-by-side Chat + Monitor). The crew page is project-scoped and allows per-agent model overrides: each agent card has a model dropdown ("Project default", "Sonnet", "Opus"). Selecting "Project default" removes the override (`DELETE /projects/:id/agent-config/:agentId`); selecting a model saves it (`PUT /projects/:id/agent-config/:agentId`). Captain is included in the list since it runs Claude processes. The sidebar surfaces "Crew" as a per-project nav item linking to `/projects/:id/crew`.
 - Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity). The project layout (`+layout.svelte`) establishes shared context for WebSocket and agents data, loaded once and shared to all child pages via Svelte `setContext`/`getContext`. The layout also includes a `<div id="modal-portal">` element as a sibling to `<main>` for rendering modals outside the scroll container.
 - **Modal rendering**: Modals use a portal pattern to prevent scroll jumps. `Modal.svelte` uses a Svelte action (`use:portal`) to append modal content to `#modal-portal`, which is outside the `<main class="overflow-auto">` scroll container. This prevents the browser from auto-scrolling when modals are inserted into the DOM.
-- **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each agent pane shows agent name, status badge, clickable issue link, an event feed with full content display, and elapsed time + cost. Events show their full content: assistant thinking/response text, user messages, tool call details (file paths, commands, patterns), and tool results. The feed auto-scrolls to new events when the user is at the bottom but preserves scroll position when the user has scrolled up to read history. Only agents with active runs are shown — idle agents are hidden.
+- **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each agent pane shows agent name, status badge, clickable issue link, an event feed with full content display, and elapsed time + cost. Events show their full content: assistant thinking/response text, user messages, tool call details (file paths, commands, patterns), and tool results. The feed auto-scrolls to new events when the user is at the bottom but preserves scroll position when the user has scrolled up to read history. Only agents with active runs are shown — idle agents are hidden. On mount, also fetches `GET /projects/:id/captain/status` to hydrate the captain monitor state immediately (shows spinner if `thinking`/`executing`, idle otherwise) — WebSocket events then provide live granularity.
 - **Captain page** (`/projects/:id/chat`) — PTY-backed terminal interface for direct CLI access to captain. Uses xterm.js for terminal rendering and connects to the backend via `/terminal-ws` WebSocket for bidirectional PTY streaming. The terminal component (`Terminal.svelte`) handles resize events, reconnection with exponential backoff, and FitAddon/WebLinksAddon integration. The page auto-creates a terminal session if none exists via `POST /projects/:id/terminal`.
 - Issue detail page (`[issueId]/+page.svelte`) is a thin orchestrator (~360 lines) that loads data, manages comment CRUD state, subscribes to WebSocket events, and passes props to focused child components:
   - **`IssueTimeline.svelte`** — renders the unified chronological timeline merging comments, activity entries, and agent run summaries. Accepts `comments`, `activityEntries`, `runs`, and `liveEvents` props. Owns activity expansion state and inline run expansion (loads run events on toggle, appends live events via a reactive `$effect`). Matches `mention.spawned`/`mention.completed` activity entries to `AgentRun` records by `agent_id` + timestamp (60s tolerance) and displays colored status dots (green = running, amber = queued, red = failed, cyan = completed). Stale-fetch guard: captures `runId` before async calls and checks it after await before updating state.
@@ -263,6 +263,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 Captain is a dispatchable agent invoked via `/dispatch captain` in issue comments. When invoked, Captain reads the issue context and all comments to understand project state, then outputs orchestration commands.
 
 **Commands**:
+
 - `/dispatch <agent>` — Dispatch an agent to work on the current issue
 - `/merge <issue_id>` — Merge a PR for an issue (only works on `pr_ready_to_merge` status)
 - `/create-pr <issue_id>` — Create a PR for an issue (after engineer has pushed code)
@@ -271,6 +272,7 @@ Captain is a dispatchable agent invoked via `/dispatch captain` in issue comment
 **Captain Context** (`backend/src/orchestration/prompt.ts`)
 
 When spawning Captain, the backend injects project-specific context:
+
 - `max_concurrency` — maximum concurrent agents
 - `runningAgents` — list of currently running agents with issue IDs and titles
 - `queuedAgents` — list of queued agents waiting for capacity
@@ -281,6 +283,7 @@ This context enables Captain to make informed orchestration decisions based on c
 **Command Execution** (`backend/src/orchestration/command-handlers.ts`)
 
 Captain's output commands are parsed by the mention handler and executed via command-handlers.ts:
+
 - `handleDispatchAgent()` — spawns the specified agent on the issue
 - `handleMergePR()` — merges the PR using the VCS provider
 - `handleCreatePR()` — creates a PR using the VCS provider
@@ -443,6 +446,7 @@ Worktrees are automatically cleaned up via event-driven and synchronous mechanis
 - **Synchronous cleanup on deletion** — DELETE `/issues/:issueId` and POST `/issues/:issueId/discard` routes call cleanup before deleting database records to prevent worktree leaks
 
 This approach ensures:
+
 - No unbounded disk usage from abandoned worktrees
 - Database never points to broken or partially-cleaned worktree state
 - Cleanup failures don't block issue status transitions or deletions
@@ -471,9 +475,9 @@ On startup, the backend:
 7. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
 8. Starts the PR poller (polls VCS providers every 60 seconds for PR status updates).
 9. Starts the Express HTTP server.
-12. Starts the WebSocket server (`/ws` for events).
-13. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
-14. Logs startup complete via pino.
+10. Starts the WebSocket server (`/ws` for events).
+11. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
+12. Logs startup complete via pino.
 
 Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery). Terminal sessions are also lost (clients must reconnect and recreate sessions).
 
