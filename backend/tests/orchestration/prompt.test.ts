@@ -48,9 +48,10 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("CREWDECK_ISSUE_ID");
   });
 
-  it("includes mention disclaimer", () => {
-    const prompt = buildPrompt({ issue, comments: [], repo, worktreePath: "/tmp/work", agentId: "" });
+  it("includes @mention clarification for non-captain agents", () => {
+    const prompt = buildPrompt({ issue, comments: [], repo, worktreePath: "/tmp/work", agentId: "engineer" });
     expect(prompt).toContain("@mentions are cosmetic references only");
+    expect(prompt).not.toContain("/dispatch"); // Non-captain agents don't dispatch
   });
 
   it("includes comments when provided", () => {

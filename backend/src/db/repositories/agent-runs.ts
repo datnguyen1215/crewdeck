@@ -297,10 +297,16 @@ export function listAgentRunsForProject(
     .all(projectId, limit, offset) as AgentRun[];
 }
 
-export function getAgentRunWithEvents(id: string): AgentRunWithEvents | null {
+export function getAgentRunWithEvents(
+  id: string,
+  eventsLimit: number = 0,
+): AgentRunWithEvents | null {
   const run = getAgentRun(id);
   if (!run) return null;
-  const events = listAgentRunEvents(id);
+  const events =
+    eventsLimit === 0
+      ? listAgentRunEvents(id)
+      : listRecentAgentRunEvents(id, eventsLimit);
   return { ...run, events };
 }
 

@@ -323,9 +323,10 @@ export function listIssueRuns(projectId: string, issueId: string) {
   );
 }
 export function getRun(projectId: string, runId: string) {
+  // Frontend displays full run details, so use events_limit=0 for all events
   return request<AgentRunWithEvents>(
     "GET",
-    `/projects/${e(projectId)}/runs/${e(runId)}`,
+    `/projects/${e(projectId)}/runs/${e(runId)}?events_limit=0`,
   );
 }
 export function listProjectRuns(
@@ -340,7 +341,11 @@ export function listProjectRuns(
 
 // Active Runs (for Terminals page)
 export function listActiveRuns(projectId: string) {
-  return request<ActiveRun[]>("GET", `/projects/${e(projectId)}/active-runs`);
+  // Frontend UI displays events, so include them
+  return request<ActiveRun[]>(
+    "GET",
+    `/projects/${e(projectId)}/active-runs?include_events=true`,
+  );
 }
 
 // Knowledge

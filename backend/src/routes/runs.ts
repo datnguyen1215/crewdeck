@@ -30,17 +30,22 @@ router.get(
 
 /**
  * GET /projects/:projectId/active-runs
- * Returns currently running/queued agent runs with agent info, issue info, and recent events
+ * Returns currently running/queued agent runs with agent info, issue info, and optional recent events
+ * Query params:
+ *   - include_events=true: Include recent events (default: false)
  */
 router.get(
   "/active-runs",
   verifyProject,
   (req: Request<{ projectId: string }>, res) => {
+    const includeEvents = req.query.include_events === "true";
     const runs = listActiveRunsForProject(req.params.projectId);
     const result = runs.map((run) => {
       const agent = getCrewMember(run.agent_id);
       const issue = run.issue_id ? getIssue(run.issue_id) : null;
-      const recentEvents = listRecentAgentRunEvents(run.id, 50);
+      const recentEvents = includeEvents
+        ? listRecentAgentRunEvents(run.id, 50)
+        : [];
       return {
         ...run,
         agent_name: agent?.name ?? run.agent_id,
@@ -56,12 +61,30 @@ router.get(
 /**
  * GET /projects/:projectId/runs/:runId
  * Get a single run with its events
+ * Query params:
+ *   - events_limit=N: Limit number of events returned (default: 20, use 0 for all events)
  */
 router.get(
   "/runs/:runId",
   verifyProject,
   (req: Request<{ projectId: string; runId: string }>, res) => {
-    const run = getAgentRunWithEvents(req.params.runId);
+    const eventsLimitParam = req.query.events_limit as string | undefined;
+    let eventsLimit = 20;
+    if (eventsLimitParam !== undefined) {
+      const parsed = parseInt(eventsLimitParam, 10);
+      if (isNaN(parsed)) {
+        res.status(400).json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "events_limit must be a valid number",
+          },
+        });
+        return;
+      }
+      eventsLimit = parsed;
+    }
+
+    const run = getAgentRunWithEvents(req.params.runId, eventsLimit);
     if (!run) {
       res
         .status(404)
