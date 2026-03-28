@@ -14,6 +14,15 @@ import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
 import { buildAndRunUpdate } from "./utils.js";
 
+function fromRowWithRunningAgent(
+  row: Record<string, unknown>,
+): IssueWithRunningAgent {
+  return {
+    ...(row as Omit<IssueWithRunningAgent, "paused">),
+    paused: Boolean(row.paused),
+  };
+}
+
 export function listIssues(
   projectId: string,
   filters: IssueFilters = {},
@@ -56,13 +65,22 @@ export function listIssues(
     ORDER BY i.${sortCol} ${order}
   `;
 
-  return db.prepare(sql).all(...values) as IssueWithRunningAgent[];
+  const rows = db.prepare(sql).all(...values) as Record<string, unknown>[];
+  return rows.map(fromRowWithRunningAgent);
+}
+
+function fromRow(row: Record<string, unknown>): Issue {
+  return {
+    ...(row as Omit<Issue, "paused">),
+    paused: Boolean(row.paused),
+  };
 }
 
 export function getIssue(id: string): Issue | null {
-  return (
-    (db.prepare("SELECT * FROM Issue WHERE id = ?").get(id) as Issue) ?? null
-  );
+  const row = db.prepare("SELECT * FROM Issue WHERE id = ?").get(id) as
+    | Record<string, unknown>
+    | undefined;
+  return row ? fromRow(row) : null;
 }
 
 /**
@@ -78,8 +96,8 @@ export function getIssueByPrefix(
     .prepare(
       "SELECT * FROM Issue WHERE id LIKE ? || '%' AND project_id = ? LIMIT 2",
     )
-    .all(prefix, projectId) as Issue[];
-  return rows.length === 1 ? rows[0] : null;
+    .all(prefix, projectId) as Record<string, unknown>[];
+  return rows.length === 1 ? fromRow(rows[0]) : null;
 }
 
 export function getIssueWithDetails(id: string): IssueWithDetails | null {
@@ -116,12 +134,17 @@ export function createIssue(projectId: string, input: CreateIssueInput): Issue {
 }
 
 export function updateIssue(id: string, input: UpdateIssueInput): Issue {
-  buildAndRunUpdate("Issue", id, input);
+  const overrides: Record<string, unknown> = {};
+  if (input.paused !== undefined) {
+    overrides.paused = input.paused ? 1 : 0;
+  }
+  buildAndRunUpdate("Issue", id, input, overrides);
   return getIssue(id)!;
 }
 
 export function deleteIssue(id: string): void {
   db.transaction(() => {
+    pausedIssues.delete(id);
     db.prepare("DELETE FROM AgentRun WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM ActivityLog WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM IssuePR WHERE issue_id = ?").run(id);

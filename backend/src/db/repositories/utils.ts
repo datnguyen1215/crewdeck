@@ -14,6 +14,7 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
     "base_branch",
     "repo_id",
     "agent_id",
+    "paused",
   ]),
   Project: new Set([
     "name",
