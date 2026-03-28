@@ -25,48 +25,53 @@
 
 	let scrollContainer: HTMLDivElement | undefined = $state();
 	let newEntryIds = $state<Set<string>>(new Set());
+	let isInitialized = $state(false);
 
-	// Load collapsed state from localStorage
+	// Load state from localStorage on mount, then save on subsequent changes
 	$effect(() => {
-		const stored = localStorage.getItem('crewdeck:terminal:collapsed');
-		if (stored !== null) {
-			collapsed = stored === 'true';
-		}
-	});
-
-	// Load height from localStorage
-	$effect(() => {
-		const stored = localStorage.getItem('crewdeck:terminal:height');
-		if (stored !== null) {
-			const parsed = parseInt(stored, 10);
-			if (!isNaN(parsed) && parsed >= MIN_HEIGHT && parsed <= MAX_HEIGHT) {
-				height = parsed;
+		if (!isInitialized) {
+			// Load from localStorage
+			const storedCollapsed = localStorage.getItem('crewdeck:terminal:collapsed');
+			if (storedCollapsed !== null) {
+				collapsed = storedCollapsed === 'true';
 			}
+
+			const storedHeight = localStorage.getItem('crewdeck:terminal:height');
+			if (storedHeight !== null) {
+				const parsed = parseInt(storedHeight, 10);
+				if (!isNaN(parsed) && parsed >= MIN_HEIGHT && parsed <= MAX_HEIGHT) {
+					height = parsed;
+				}
+			}
+
+			isInitialized = true;
+		} else {
+			// Save to localStorage on subsequent changes
+			localStorage.setItem('crewdeck:terminal:collapsed', String(collapsed));
+			localStorage.setItem('crewdeck:terminal:height', String(height));
 		}
-	});
-
-	// Save collapsed state to localStorage
-	$effect(() => {
-		localStorage.setItem('crewdeck:terminal:collapsed', String(collapsed));
-	});
-
-	// Save height to localStorage
-	$effect(() => {
-		localStorage.setItem('crewdeck:terminal:height', String(height));
 	});
 
 	// Fetch initial activity
 	$effect(() => {
+		let cancelled = false;
 		loading = true;
+
 		listActivity(projectId, { limit: 50 })
 			.then((data) => {
+				if (cancelled) return;
 				entries = data.reverse();
 				loading = false;
 				scrollToBottom();
 			})
 			.catch(() => {
+				if (cancelled) return;
 				loading = false;
 			});
+
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	// Subscribe to WebSocket events
@@ -89,32 +94,35 @@
 		const unsubscribers = relevantEvents.map((event) =>
 			ws!.on(event, () => {
 				// Refetch activity when relevant events arrive
-				listActivity(projectId, { limit: 50 }).then((data) => {
-					const reversed = data.reverse();
-					const oldIds = new Set(entries.map((e) => e.id));
-					const newIds = reversed.filter((e) => !oldIds.has(e.id)).map((e) => e.id);
+				listActivity(projectId, { limit: 50 })
+					.then((data) => {
+						const reversed = data.reverse();
+						const oldIds = new Set(entries.map((e) => e.id));
+						const newIds = reversed.filter((e) => !oldIds.has(e.id)).map((e) => e.id);
 
-					entries = reversed;
+						entries = reversed;
 
-					// Track new entries for highlight animation
-					newIds.forEach((id) => newEntryIds.add(id));
+						// Track new entries for highlight animation
+						newEntryIds = new Set([...newEntryIds, ...newIds]);
 
-					// Scroll to bottom if not manually scrolled up
-					if (!userScrolled) {
-						scrollToBottom();
-					}
+						// Scroll to bottom if not manually scrolled up
+						if (!userScrolled) {
+							scrollToBottom();
+						}
 
-					// Remove highlight after animation duration
-					setTimeout(() => {
-						newIds.forEach((id) => newEntryIds.delete(id));
-						newEntryIds = newEntryIds;
-					}, 1000);
+						// Remove highlight after animation duration
+						setTimeout(() => {
+							newEntryIds = new Set([...newEntryIds].filter((id) => !newIds.includes(id)));
+						}, 1000);
 
-					// Cap entries at MAX_ENTRIES
-					if (entries.length > MAX_ENTRIES) {
-						entries = entries.slice(-MAX_ENTRIES);
-					}
-				});
+						// Cap entries at MAX_ENTRIES
+						if (entries.length > MAX_ENTRIES) {
+							entries = entries.slice(-MAX_ENTRIES);
+						}
+					})
+					.catch((err) => {
+						console.error('Failed to fetch activity:', err);
+					});
 			})
 		);
 
@@ -225,7 +233,6 @@
 
 	// Determine entry color
 	function entryColor(entry: ActivityLog): string {
-		const details = (entry.details as Record<string, unknown>) ?? {};
 		switch (entry.action) {
 			case 'mention.spawned':
 			case 'run.started':
@@ -236,17 +243,19 @@
 				return 'text-green border-green/30';
 			case 'mention.error':
 				return 'text-red border-red/30';
-			case 'issue.status_changed':
+			case 'issue.status_changed': {
+				const details = (entry.details as Record<string, unknown>) ?? {};
 				if (details.to === 'done') return 'text-green border-green/30';
 				if (details.to === 'discarded') return 'text-red border-red/30';
 				return 'text-amber border-amber/30';
+			}
 			default:
 				return 'text-secondary border-edge';
 		}
 	}
 
 	// Filter entries
-	let filteredEntries = $derived(() => {
+	let filteredEntries = $derived.by(() => {
 		let result = entries;
 		if (filterAgents) {
 			result = result.filter((e) => e.actor_type === 'agent');
@@ -326,11 +335,11 @@
 		>
 			{#if loading}
 				<div class="flex items-center justify-center h-full text-muted text-sm">Loading...</div>
-			{:else if filteredEntries().length === 0}
+			{:else if filteredEntries.length === 0}
 				<div class="flex items-center justify-center h-full text-muted text-sm">No activity</div>
 			{:else}
 				<div class="p-4 space-y-0.5">
-					{#each filteredEntries() as entry (entry.id)}
+					{#each filteredEntries as entry (entry.id)}
 						{@const isNew = newEntryIds.has(entry.id)}
 						{@const colors = entryColor(entry)}
 						<div
