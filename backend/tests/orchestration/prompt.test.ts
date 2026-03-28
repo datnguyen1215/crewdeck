@@ -180,10 +180,9 @@ describe("buildPrompt options form", () => {
       ],
     });
     expect(prompt).toContain("## Project Knowledge");
-    expect(prompt).toContain("### Build Commands (workflows)");
-    expect(prompt).toContain("Run npm install and npm run build");
-    expect(prompt).toContain("### Code Style (conventions)");
-    expect(prompt).toContain("Use TypeScript strict mode");
+    expect(prompt).toContain("The following knowledge entries are available");
+    expect(prompt).toContain("- [workflows] Build Commands (id: k1)");
+    expect(prompt).toContain("- [conventions] Code Style (id: k2)");
   });
 
   it("omits project knowledge section when array is empty", () => {
