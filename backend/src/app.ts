@@ -46,7 +46,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/projects/:projectId/activity`, activityRouter);
   app.use(`${v1}/projects/:projectId/environment`, environmentRouter);
   app.use(`${v1}/projects/:projectId/knowledge`, knowledgeRouter);
-  app.use(`${v1}/projects/:projectId/agent-config`, agentConfigRouter);
+  app.use(`${v1}/agent-config`, agentConfigRouter);
   app.use(`${v1}/projects/:projectId`, terminalRouter);
   app.use(`${v1}/projects/:projectId`, chatRouter);
   app.use(`${v1}/internal`, internalRouter);

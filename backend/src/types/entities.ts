@@ -206,13 +206,11 @@ export interface UpdateProjectInput {
   agent_timeout_minutes?: number;
   auto_start?: boolean;
   auto_merge?: boolean;
-  model?: string;
   vcs_account_id?: string | null;
 }
 
 export interface AgentConfig {
   id: string;
-  project_id: string;
   agent_id: string;
   model: string | null;
 }

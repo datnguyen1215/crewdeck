@@ -1009,12 +1009,12 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 
 ### Agent Config
 
-Per-agent model overrides for a project. Allows configuring which Claude model (`sonnet` or `opus`) each agent uses, overriding the project default.
+Global per-agent model configuration. Applies machine-wide regardless of project. Allows configuring which Claude model (`sonnet` or `opus`) each agent uses.
 
 #### List Agent Configs
 
 ```
-GET /projects/:projectId/agent-config
+GET /agent-config
 ```
 
 **Response:** `200 OK` — Array of agent config objects.
@@ -1023,22 +1023,19 @@ GET /projects/:projectId/agent-config
 [
   {
     "id": "uuid",
-    "project_id": "uuid",
     "agent_id": "engineer",
     "model": "opus"
   }
 ]
 ```
 
-**Error:** `404 Not Found` — Project does not exist.
-
-#### Set Agent Model Override
+#### Set Agent Model
 
 ```
-PUT /projects/:projectId/agent-config/:agentId
+PUT /agent-config/:agentId
 ```
 
-Creates or updates the model override for a specific agent in the project.
+Creates or updates the model for a specific agent globally.
 
 **Request Body:**
 
@@ -1054,19 +1051,15 @@ Creates or updates the model override for a specific agent in the project.
 
 **Response:** `200 OK` — The created or updated agent config object.
 
-**Error:** `404 Not Found` — Project does not exist.
-
 #### Remove Agent Model Override
 
 ```
-DELETE /projects/:projectId/agent-config/:agentId
+DELETE /agent-config/:agentId
 ```
 
-Removes the model override for the agent, falling back to the project default.
+Removes the model override for the agent, falling back to `"sonnet"`.
 
 **Response:** `204 No Content`
-
-**Error:** `404 Not Found` — Project does not exist.
 
 ---
 

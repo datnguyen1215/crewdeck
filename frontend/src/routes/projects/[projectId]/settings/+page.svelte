@@ -25,7 +25,6 @@
 	let maxConcurrency = $state(1);
 	let maxChainDepth = $state(20);
 	let agentTimeoutMinutes = $state(10);
-	let model = $state('sonnet');
 	let autoStart = $state(false);
 	let autoMerge = $state(false);
 
@@ -54,7 +53,6 @@
 				maxConcurrency = p.max_concurrency;
 				maxChainDepth = p.max_chain_depth;
 				agentTimeoutMinutes = p.agent_timeout_minutes;
-				model = p.model ?? 'sonnet';
 				autoStart = p.auto_start;
 				autoMerge = p.auto_merge;
 			},
@@ -152,7 +150,6 @@
 			maxConcurrency !== project.max_concurrency ||
 			maxChainDepth !== project.max_chain_depth ||
 			agentTimeoutMinutes !== project.agent_timeout_minutes ||
-			model !== (project.model ?? 'sonnet') ||
 			autoStart !== project.auto_start ||
 			autoMerge !== project.auto_merge
 		)
@@ -168,7 +165,6 @@
 				max_concurrency: Number(maxConcurrency),
 				max_chain_depth: Number(maxChainDepth),
 				agent_timeout_minutes: Number(agentTimeoutMinutes),
-				model,
 				auto_start: autoStart,
 				auto_merge: autoMerge,
 			});
@@ -178,7 +174,6 @@
 			maxConcurrency = updated.max_concurrency;
 			maxChainDepth = updated.max_chain_depth;
 			agentTimeoutMinutes = updated.agent_timeout_minutes;
-			model = updated.model ?? 'sonnet';
 			autoStart = updated.auto_start;
 			autoMerge = updated.auto_merge;
 			toastStore.add('Settings saved', 'success');
@@ -196,7 +191,6 @@
 		maxConcurrency = project.max_concurrency;
 		maxChainDepth = project.max_chain_depth;
 		agentTimeoutMinutes = project.agent_timeout_minutes;
-		model = project.model ?? 'sonnet';
 		autoStart = project.auto_start;
 		autoMerge = project.auto_merge;
 	}
@@ -251,15 +245,6 @@
 					<label for="settings-agent-timeout" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Agent Timeout (minutes)</label>
 					<input id="settings-agent-timeout" type="number" bind:value={agentTimeoutMinutes} min="1" max="60" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
 					<p class="text-muted text-xs mt-1">Maximum time an agent can run before being terminated (1-60 minutes)</p>
-				</div>
-
-				<div>
-					<label for="settings-model" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Default Model</label>
-					<select id="settings-model" bind:value={model} class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors">
-						<option value="sonnet">Sonnet</option>
-						<option value="opus">Opus</option>
-					</select>
-					<p class="text-muted text-xs mt-1">Claude model used when spawning agents</p>
 				</div>
 
 				<!-- Captain Settings -->

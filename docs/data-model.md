@@ -56,7 +56,6 @@ Represents a body of work tied to one or more GitHub repositories.
 | description              | TEXT        |                                                           | Optional project description.                                                                                             |
 | max_concurrency          | INTEGER     | NOT NULL, DEFAULT 1                                       | Maximum number of agent processes running simultaneously.                                                                 |
 | max_chain_depth          | INTEGER     | NOT NULL, DEFAULT 20                                      | Maximum agent dispatches per issue before requiring manual reset.                                                         |
-| model                    | TEXT        | NOT NULL, DEFAULT 'sonnet'                                | Default Claude model for agent spawning. One of: `sonnet`, `opus`.                                                        |
 | vcs_account_id           | TEXT        | FOREIGN KEY → VCSAccount.id, NULLABLE, ON DELETE SET NULL | VCS account used for cloning repos and agent git operations.                                                              |
 | captain_status           | TEXT        | NOT NULL, DEFAULT 'idle'                                  | Current captain monitor phase. One of: `idle`, `receiving`, `thinking`, `executing`.                                      |
 | captain_status_detail    | TEXT        | NULLABLE                                                  | Human-readable detail for the current phase (e.g. "Analyzing 3 events", "Dispatching agent for issue X"). NULL when idle. |
@@ -285,20 +284,19 @@ Legacy table originally designed for chat sessions. No longer actively used afte
 
 ### AgentConfig
 
-Per-agent model override for a project. When set, the agent uses the specified model instead of the project default.
+Global per-agent model configuration. Applies machine-wide regardless of project.
 
-| Field      | Type        | Constraints                                          | Description                                                               |
-| ---------- | ----------- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
-| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                        |
-| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                           |
-| agent_id   | TEXT        | NOT NULL                                             | Agent identifier (e.g., `engineer`, `lead`, `captain`).                   |
-| model      | TEXT        | NULLABLE                                             | Model override. One of: `sonnet`, `opus`. NULL means use project default. |
+| Field    | Type        | Constraints      | Description                                                                |
+| -------- | ----------- | ---------------- | -------------------------------------------------------------------------- |
+| id       | TEXT (UUID) | PRIMARY KEY      | Unique identifier.                                                         |
+| agent_id | TEXT        | NOT NULL, UNIQUE | Agent identifier (e.g., `engineer`, `lead`, `captain`).                    |
+| model    | TEXT        | NULLABLE         | Model override. One of: `sonnet`, `opus`. NULL means use default fallback. |
 
 **Constraints:**
 
-- UNIQUE(project_id, agent_id) — one config entry per agent per project.
+- UNIQUE(agent_id) — one global config entry per agent.
 
-**Model resolution order:** AgentConfig.model → Project.model → `"sonnet"` (hardcoded fallback).
+**Model resolution order:** AgentConfig.model → `"sonnet"` (hardcoded fallback).
 
 ---
 
@@ -350,7 +348,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Project → ActivityLog         | One-to-Many | A project has many activity log entries.                                    |
 | Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes.     |
 | Project → ProjectKnowledge    | One-to-Many | A project has many knowledge entries for agent context.                     |
-| Project → AgentConfig         | One-to-Many | A project has many per-agent model override configs.                        |
+| AgentConfig                   | Global      | One global model config per agent (no project scope).                       |
 | Issue → Comment               | One-to-Many | An issue has many comments.                                                 |
 | Issue → IssuePR               | One-to-Many | An issue can have multiple PRs (across repos).                              |
 | Issue → ActivityLog           | One-to-Many | An issue has many activity log entries.                                     |

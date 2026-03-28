@@ -478,7 +478,7 @@ export const processWithLLM = async (
   let actionPlan: ActionPlan | null = null;
 
   try {
-    const model = resolveModel(projectId, "captain");
+    const model = resolveModel("captain");
 
     const result = await spawnClaudeStream({
       prompt: userPrompt,
