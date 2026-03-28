@@ -4,6 +4,7 @@ import { getProject } from "../db/repositories/projects.js";
 import { getCrewMember } from "../orchestration/crew.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import type { ActivityFilters, ActivityLog } from "../types/entities.js";
+import { db } from "../db/index.js";
 
 const router = Router({ mergeParams: true });
 
@@ -44,17 +45,44 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
   // Resolve agent names for display. Old activity logs may have UUID actor_ids
   // from before the fixed crew migration — they'll display without actor_name.
   const agentCache = new Map<string, string | null>();
+
+  // Collect unique issue IDs and batch-lookup issue titles
+  const issueIds = Array.from(new Set(
+    entries.map(e => e.issue_id).filter((id): id is string => id != null)
+  ));
+  const issueTitleCache = new Map<string, string>();
+  if (issueIds.length > 0) {
+    const placeholders = issueIds.map(() => "?").join(", ");
+    const rows = db.prepare(`SELECT id, title FROM Issue WHERE id IN (${placeholders})`).all(...issueIds) as { id: string; title: string }[];
+    for (const row of rows) {
+      issueTitleCache.set(row.id, row.title);
+    }
+  }
+
   const enriched = entries.map((entry: ActivityLog) => {
     const { details, ...rest } = entry;
     const base = isCompact ? rest : entry;
+
+    // Build enrichments object
+    const enrichments: any = {};
+
+    // Enrich with actor_name
     if (entry.actor_type === 'agent' && entry.actor_id) {
       if (!agentCache.has(entry.actor_id)) {
         agentCache.set(entry.actor_id, getCrewMember(entry.actor_id)?.name ?? null);
       }
       const name = agentCache.get(entry.actor_id);
-      if (name) return { ...base, actor_name: name };
+      if (name) enrichments.actor_name = name;
     }
-    return base;
+
+    // Enrich with issue_title
+    if (entry.issue_id) {
+      const title = issueTitleCache.get(entry.issue_id);
+      if (title) enrichments.issue_title = title;
+    }
+
+    // Return base with enrichments if any exist
+    return Object.keys(enrichments).length > 0 ? { ...base, ...enrichments } : base;
   });
 
   res.json(enriched);
