@@ -357,10 +357,16 @@ export const spawnAgent = async (
   options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> => {
   const project = projectRepo.getProject(projectId);
-  if (!project) return;
+  if (!project) {
+    clearPendingSpawn(agent.id, issueId);
+    return;
+  }
 
   const issue = issueRepo.getIssue(issueId);
-  if (!issue) return;
+  if (!issue) {
+    clearPendingSpawn(agent.id, issueId);
+    return;
+  }
 
   const maxChainDepth = project.max_chain_depth ?? DEFAULT_MAX_CHAIN_DEPTH;
 
@@ -382,6 +388,7 @@ export const spawnAgent = async (
       issue_id: issueId,
       project_id: projectId,
     });
+    clearPendingSpawn(agent.id, issueId);
     return;
   }
 
@@ -400,6 +407,7 @@ export const spawnAgent = async (
       database.db
         .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
         .run(issueId);
+      clearPendingSpawn(agent.id, issueId);
       return;
     }
     // Queue the run
@@ -421,6 +429,7 @@ export const spawnAgent = async (
     database.db
       .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
       .run(issueId);
+    clearPendingSpawn(agent.id, issueId);
     return;
   }
 
@@ -438,6 +447,7 @@ export const spawnAgent = async (
       database.db
         .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
         .run(issueId);
+      clearPendingSpawn(agent.id, issueId);
       return;
     }
     // Queue the run
@@ -459,6 +469,7 @@ export const spawnAgent = async (
     database.db
       .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
       .run(issueId);
+    clearPendingSpawn(agent.id, issueId);
     return;
   }
 
@@ -476,6 +487,7 @@ export const spawnAgent = async (
       database.db
         .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
         .run(issueId);
+      clearPendingSpawn(agent.id, issueId);
       return;
     }
   }
