@@ -105,5 +105,15 @@ export function initEventCommenter(): void {
     postComment(data.issue_id, message);
   });
 
+  // Issue paused
+  eventBus.on("issue.paused", (data) => {
+    postComment(data.issue_id, "⏸️ Issue paused. All agent activity halted.");
+  });
+
+  // Issue resumed
+  eventBus.on("issue.resumed", (data) => {
+    postComment(data.issue_id, "▶️ Issue resumed. Pipeline continuing.");
+  });
+
   logger.info("Event commenter initialized");
 }

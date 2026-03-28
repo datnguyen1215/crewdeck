@@ -58,6 +58,14 @@ function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "issue.status_changed", { issue_id, from, to }),
   );
 
+  bus.on("issue.paused", ({ issue_id, project_id }) =>
+    broadcast(project_id, "issue.paused", { issue_id }),
+  );
+
+  bus.on("issue.resumed", ({ issue_id, project_id }) =>
+    broadcast(project_id, "issue.resumed", { issue_id }),
+  );
+
   bus.on("comment.added", ({ comment, project_id }) =>
     broadcast(project_id, "comment.added", comment),
   );
