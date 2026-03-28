@@ -370,7 +370,7 @@ export function formatWsEvent(eventType: string, data: unknown): TerminalLine {
       const agentId = String(d.agent_id || "");
       actor = `agent:${agentId}`;
       actorType = "agent";
-      message = `${capitalize(agentId)} run started`;
+      message = `${capitalize(String(d.agent_name || agentId))} run started`;
       issueId = String(d.issue_id || "");
       severity = "started";
       break;
@@ -392,7 +392,7 @@ export function formatWsEvent(eventType: string, data: unknown): TerminalLine {
       const duration = d.duration_ms
         ? `${(Number(d.duration_ms) / 1000).toFixed(1)}s`
         : "—";
-      message = `Run finished (${status}). Cost: ${cost}. Duration: ${duration}`;
+      message = `${capitalize(String(d.agent_name || agentId))} run finished (${status}). Cost: ${cost}. Duration: ${duration}`;
       issueId = String(d.issue_id || "");
       severity = status === "completed" ? "success" : "error";
       break;
