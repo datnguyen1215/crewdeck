@@ -142,9 +142,15 @@
 			});
 		};
 
+		const handlePausedResumed = (data: { issue_id: string }) => {
+			if (data.issue_id === issueId) reloadIssue();
+		};
+
 		const unsubs = [
 			ws.on('issue.updated', reloadIssue),
 			ws.on('issue.status_changed', reloadIssue),
+			ws.on('issue.paused', handlePausedResumed),
+			ws.on('issue.resumed', handlePausedResumed),
 			ws.on('comment.added', reloadIssue),
 			ws.on('comment.updated', reloadIssue),
 			ws.on('comment.deleted', reloadIssue),

@@ -210,6 +210,18 @@ export function deleteIssue(projectId: string, issueId: string) {
     `/projects/${e(projectId)}/issues/${e(issueId)}`,
   );
 }
+export function pauseIssue(projectId: string, issueId: string) {
+  return request<void>(
+    "POST",
+    `/projects/${e(projectId)}/issues/${e(issueId)}/pause`,
+  );
+}
+export function resumeIssue(projectId: string, issueId: string) {
+  return request<void>(
+    "POST",
+    `/projects/${e(projectId)}/issues/${e(issueId)}/resume`,
+  );
+}
 
 // Comments
 export function addComment(
