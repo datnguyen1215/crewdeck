@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { updateIssue, deleteIssue, type IssueWithDetails, type Project } from '$lib/api/http.js';
+	import { updateIssue, deleteIssue, pauseIssue, resumeIssue, type IssueWithDetails, type Project } from '$lib/api/http.js';
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { STATUS_CFG, PR_STATUS } from '$lib/config/status.js';
@@ -79,6 +79,24 @@
 		await navigator.clipboard.writeText(issue.branch_name);
 		copied = true;
 		setTimeout(() => (copied = false), 2000);
+	}
+
+	async function handlePauseResume() {
+		working = true;
+		try {
+			if (issue.paused) {
+				await resumeIssue(projectId, issue.id);
+				toastStore.add('Issue resumed', 'success');
+			} else {
+				await pauseIssue(projectId, issue.id);
+				toastStore.add('Issue paused', 'success');
+			}
+			onStatusChange();
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to pause/resume issue', 'error');
+		} finally {
+			working = false;
+		}
 	}
 </script>
 
@@ -164,6 +182,13 @@
 	<div class="bg-surface border border-edge rounded p-4">
 		<div class="text-xs text-muted uppercase tracking-widest mb-3">Actions</div>
 		<div class="flex flex-col gap-2 text-xs">
+			{#if issue.status !== 'done'}
+				<button onclick={handlePauseResume} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-amber text-amber rounded hover:bg-amber/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0 flex items-center gap-2">
+					<span>{issue.paused ? '▶️' : '⏸️'}</span>
+					<span>{issue.paused ? 'Resume' : 'Pause'}</span>
+				</button>
+			{/if}
+
 			{#if issue.status === 'in_progress'}
 				<button onclick={handleMarkPrCreated} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0">Mark as PR Created</button>
 			{/if}

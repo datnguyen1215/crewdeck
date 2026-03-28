@@ -57,6 +57,8 @@
 			ws.on('issue.created', reload),
 			ws.on('issue.updated', reload),
 			ws.on('issue.status_changed', reload),
+			ws.on('issue.paused', reload),
+			ws.on('issue.resumed', reload),
 			ws.on('mention.completed', reload),
 			ws.on('run.started', reload),
 			ws.on('run.completed', reload),
@@ -330,11 +332,14 @@
 				{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
 				<a
 					href="/projects/{projectId}/issues/{issue.id}"
-					class="block bg-surface border border-edge rounded-lg p-4 hover:bg-surface-hi hover:border-edge-hi transition-colors active:scale-[0.99] {issue.status === 'in_progress' ? 'border-l-green border-l-2' : ''}"
+					class="block bg-surface border border-edge rounded-lg p-4 hover:bg-surface-hi hover:border-edge-hi transition-colors active:scale-[0.99] {issue.status === 'in_progress' ? 'border-l-green border-l-2' : ''} {issue.paused ? 'opacity-60' : ''}"
 					style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 				>
 					<div class="flex items-start justify-between gap-3 mb-3">
-						<p class="text-primary text-sm font-medium leading-snug flex-1 min-w-0">
+						<p class="text-primary text-sm font-medium leading-snug flex-1 min-w-0 flex items-center gap-2">
+							{#if issue.paused}
+								<span class="text-amber" title="Paused">⏸️</span>
+							{/if}
 							{issue.title}
 						</p>
 						<button
@@ -401,12 +406,15 @@
 						{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
 						<a
 							href="/projects/{projectId}/issues/{issue.id}"
-							class="issue-row grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''}"
+							class="issue-row grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
 							style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 						>
 							<!-- Title -->
 							<div class="px-3 py-3 self-center min-w-0">
-								<p class="text-primary text-sm truncate group-hover:text-cyan transition-colors">
+								<p class="text-primary text-sm truncate group-hover:text-cyan transition-colors flex items-center gap-2">
+									{#if issue.paused}
+										<span class="text-amber flex-shrink-0" title="Paused">⏸️</span>
+									{/if}
 									{issue.title}
 								</p>
 								{#if issue.created_by === 'agent'}

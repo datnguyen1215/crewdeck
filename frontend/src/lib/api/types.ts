@@ -56,6 +56,7 @@ export interface Issue {
   base_branch: string | null;
   repo_id: string | null;
   agent_id: string | null;
+  paused: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -296,5 +297,13 @@ export interface WsEventMap {
     cost_usd: number | null;
     duration_ms: number | null;
     completed_at: string;
+  };
+  "issue.paused": {
+    issue_id: string;
+    project_id: string;
+  };
+  "issue.resumed": {
+    issue_id: string;
+    project_id: string;
   };
 }
