@@ -264,6 +264,36 @@ export const initMentionHandler = (): void => {
     });
   });
 
+  // Auto-dispatch captain when issue status changes to a PR state that needs action
+  const CAPTAIN_TRIGGER_STATUSES = new Set(["pr_failed_actions", "pr_conflict", "pr_ready_to_merge"]);
+
+  events.eventBus.on("issue.status_changed", ({ issue_id, project_id, to }) => {
+    if (!CAPTAIN_TRIGGER_STATUSES.has(to)) return;
+
+    if (hasActiveAgentProcess("captain", issue_id)) {
+      log.logger.debug(
+        { issueId: issue_id, status: to },
+        "Skipping captain auto-dispatch on status change: captain already running",
+      );
+      return;
+    }
+
+    const captain = crew.getCrewMember("captain");
+    if (!captain) return;
+
+    log.logger.info(
+      { issueId: issue_id, status: to },
+      "Auto-dispatching captain after issue status change",
+    );
+
+    spawnAgent(captain, issue_id, project_id).catch((err) => {
+      log.logger.error(
+        { err, issueId: issue_id },
+        "Failed to auto-dispatch captain on status change",
+      );
+    });
+  });
+
   // Start periodic cleanup of stale batches
   cleanupInterval = setInterval(() => {
     cleanupStaleBatches();
