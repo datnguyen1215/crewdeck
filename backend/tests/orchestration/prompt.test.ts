@@ -48,9 +48,8 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("CREWDECK_ISSUE_ID");
   });
 
-  it("includes dispatch-based trigger instructions", () => {
+  it("includes mention disclaimer", () => {
     const prompt = buildPrompt({ issue, comments: [], repo, worktreePath: "/tmp/work", agentId: "" });
-    expect(prompt).toContain("/dispatch agent-name");
     expect(prompt).toContain("@mentions are cosmetic references only");
   });
 
