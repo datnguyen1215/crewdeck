@@ -203,8 +203,9 @@ export function formatWsEvent(
       break;
 
     case "issue.status_changed": {
+      const rawTo = String(d.to || "");
       const from = String(d.from || "").replace(/_/g, " ");
-      const to = String(d.to || "").replace(/_/g, " ");
+      const to = rawTo.replace(/_/g, " ");
       message = `Status: ${from} → ${to}`;
       issueId = String(d.issue_id || "");
       if (d.actor_type) {
@@ -215,7 +216,7 @@ export function formatWsEvent(
           undefined,
         );
       }
-      if (to === "pr_conflict" || to === "pr_failed_actions")
+      if (rawTo === "pr_conflict" || rawTo === "pr_failed_actions")
         severity = "warning";
       break;
     }
