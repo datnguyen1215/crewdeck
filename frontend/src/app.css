@@ -135,6 +135,101 @@ a[role="button"]:active {
 	animation: shimmer 1.5s ease-in-out infinite;
 }
 
+/* ---- Terminal Effects ---- */
+
+/* Scanline overlay for CRT terminal feel */
+.terminal-scanlines {
+	position: relative;
+}
+
+.terminal-scanlines::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: repeating-linear-gradient(
+		0deg,
+		rgba(255, 255, 255, 0.02) 0px,
+		rgba(0, 0, 0, 0.02) 1px,
+		transparent 1px,
+		transparent 2px
+	);
+	pointer-events: none;
+	z-index: 1;
+}
+
+/* Blinking cursor */
+@keyframes terminal-blink {
+	0%, 60% {
+		opacity: 1;
+	}
+	61%, 100% {
+		opacity: 0;
+	}
+}
+
+.terminal-cursor {
+	display: inline-block;
+	width: 8px;
+	height: 1em;
+	background-color: var(--color-cyan);
+	animation: terminal-blink 1s step-end infinite;
+	vertical-align: text-bottom;
+}
+
+/* New entry fade-in with slide-up and glow */
+@keyframes terminal-entry-enter {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+		box-shadow: var(--glow-cyan);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+		box-shadow: none;
+	}
+}
+
+.terminal-entry-enter {
+	animation: terminal-entry-enter 150ms ease-out both;
+}
+
+/* New entry highlight flash */
+@keyframes terminal-entry-highlight {
+	from {
+		background-color: rgba(34, 211, 238, 0.2);
+		box-shadow: var(--glow-cyan);
+	}
+	to {
+		background-color: transparent;
+		box-shadow: none;
+	}
+}
+
+.terminal-entry-new {
+	animation: terminal-entry-highlight 1s ease-out both;
+}
+
+/* Severity border colors */
+.terminal-severity-info {
+	border-left: 3px solid var(--color-cyan);
+}
+
+.terminal-severity-success {
+	border-left: 3px solid var(--color-green);
+}
+
+.terminal-severity-error {
+	border-left: 3px solid var(--color-red);
+}
+
+.terminal-severity-warning {
+	border-left: 3px solid var(--color-amber);
+}
+
 /* ---- Reduced motion: disable all animations ---- */
 
 @media (prefers-reduced-motion: reduce) {
