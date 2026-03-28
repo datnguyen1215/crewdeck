@@ -129,3 +129,49 @@ export function deleteIssue(id: string): void {
     db.prepare("DELETE FROM Issue WHERE id = ?").run(id);
   })();
 }
+
+/**
+ * In-memory set of paused issue IDs for fast checks without DB reads.
+ * Initialized on server startup and updated by pauseIssue/resumeIssue.
+ */
+export const pausedIssues = new Set<string>();
+
+/**
+ * Initialize the pausedIssues set from the database.
+ * Called on server startup.
+ */
+export function initializePausedIssues(): void {
+  const rows = db
+    .prepare("SELECT id FROM Issue WHERE paused = 1")
+    .all() as { id: string }[];
+  pausedIssues.clear();
+  for (const row of rows) {
+    pausedIssues.add(row.id);
+  }
+}
+
+/**
+ * Pause an issue (sets paused = 1).
+ * Updates both in-memory set and database atomically.
+ */
+export function pauseIssue(issueId: string): void {
+  pausedIssues.add(issueId);
+  db.prepare("UPDATE Issue SET paused = 1 WHERE id = ?").run(issueId);
+}
+
+/**
+ * Resume an issue (sets paused = 0).
+ * Updates both in-memory set and database atomically.
+ */
+export function resumeIssue(issueId: string): void {
+  pausedIssues.delete(issueId);
+  db.prepare("UPDATE Issue SET paused = 0 WHERE id = ?").run(issueId);
+}
+
+/**
+ * Check if an issue is paused without loading the full issue.
+ * Uses in-memory set for performance.
+ */
+export function isIssuePaused(issueId: string): boolean {
+  return pausedIssues.has(issueId);
+}
