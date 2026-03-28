@@ -230,11 +230,6 @@
 		return title.slice(0, maxLength) + '…';
 	}
 
-	// Navigate to issue detail page
-	function navigateToIssue(issueId: string, e: Event) {
-		e.stopPropagation();
-		goto(`/projects/${projectId}/issues/${issueId}`);
-	}
 </script>
 
 <div class="activity-terminal bg-base border border-edge rounded overflow-hidden flex flex-col">
@@ -309,8 +304,9 @@
 							info: 'text-secondary border-edge',
 							success: 'text-green border-green/30',
 							error: 'text-red border-red/30',
-							warning: 'text-amber border-amber/30'
-						}}
+							warning: 'text-amber border-amber/30',
+							started: 'text-cyan border-cyan/30'
+						} as const}
 						{@const colors = severityColors[line.severity]}
 						<div
 							class="text-xs font-mono leading-relaxed border-l-2 pl-2 py-0.5 transition-all {colors}"
@@ -323,7 +319,6 @@
 									href="/projects/{projectId}/issues/{line.issueId}"
 									class="text-secondary/80 hover:text-cyan hover:underline transition-colors"
 									title={issueTitle}
-									onclick={(e) => navigateToIssue(line.issueId!, e)}
 									data-sveltekit-preload-data
 								>
 									{truncateTitle(issueTitle)}

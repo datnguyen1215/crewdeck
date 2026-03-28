@@ -9,7 +9,7 @@ export interface TerminalLine {
   message: string;
   issueId?: string;
   issueTitle?: string;
-  severity: "info" | "success" | "error" | "warning";
+  severity: "info" | "success" | "error" | "warning" | "started";
   raw?: unknown;
 }
 
@@ -56,8 +56,10 @@ function getSeverityForAction(
   // Status changes - check for warning states
   if (action === "issue.status_changed") {
     const to = String(details.to || "");
-    if (to === "pr_conflict" || to === "pr_failed_actions") return "warning";
-    return "info";
+    if (to === "done") return "success";
+    if (to === "discarded") return "error";
+    // All other status changes default to warning (amber) for visibility
+    return "warning";
   }
 
   // Completion events - check exit code
@@ -73,13 +75,16 @@ function getSeverityForAction(
   }
 
   // PR events
-  if (action === "pr.created") return "success";
+  if (action === "pr.created") return "started";
   if (action === "pr.status_changed") {
     const to = String(details.to || "");
     if (to === "merged") return "success";
     if (to === "closed") return "warning";
     return "info";
   }
+
+  // Started events
+  if (action === "mention.spawned" || action === "run.started") return "started";
 
   // Default to info
   return "info";
@@ -219,8 +224,9 @@ export function formatWsEvent(
           undefined,
         );
       }
-      if (rawTo === "pr_conflict" || rawTo === "pr_failed_actions")
-        severity = "warning";
+      if (rawTo === "done") severity = "success";
+      else if (rawTo === "discarded") severity = "error";
+      else severity = "warning"; // All other status changes default to warning (amber)
       break;
     }
 
@@ -246,7 +252,7 @@ export function formatWsEvent(
       const prNumber = (d.issue_pr as any)?.pr_number || "?";
       message = `PR #${prNumber} created`;
       issueId = String((d.issue_pr as any)?.issue_id || "");
-      severity = "success";
+      severity = "started";
       break;
     }
 
@@ -268,7 +274,7 @@ export function formatWsEvent(
       issueTitle = d.issue_title ? String(d.issue_title) : undefined;
       const shortId = issueId.slice(0, 8);
       message = `Spawned on issue ${shortId}`;
-      severity = "info";
+      severity = "started";
       break;
     }
 
@@ -326,6 +332,7 @@ export function formatWsEvent(
       actorType = "agent";
       message = "Run started";
       issueId = String(d.issue_id || "");
+      severity = "started";
       break;
     }
 
