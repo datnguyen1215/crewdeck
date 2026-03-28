@@ -263,8 +263,20 @@ export const initMentionHandler = (): void => {
       return;
     }
 
+    // Mark as pending before spawning (atomic operation)
+    if (!markPendingSpawn("captain", issue_id)) {
+      log.logger.debug(
+        { issueId: issue_id },
+        "Skipping captain auto-dispatch: spawn already in progress",
+      );
+      return;
+    }
+
     const captain = crew.getCrewMember("captain");
-    if (!captain) return;
+    if (!captain) {
+      clearPendingSpawn("captain", issue_id);
+      return;
+    }
 
     log.logger.info(
       { issueId: issue_id, completedAgent: agent_id },
@@ -272,6 +284,7 @@ export const initMentionHandler = (): void => {
     );
 
     spawnAgent(captain, issue_id, project_id).catch((err) => {
+      clearPendingSpawn("captain", issue_id);
       log.logger.error(
         { err, issueId: issue_id },
         "Failed to auto-dispatch captain",
@@ -293,8 +306,20 @@ export const initMentionHandler = (): void => {
       return;
     }
 
+    // Mark as pending before spawning (atomic operation)
+    if (!markPendingSpawn("captain", issue_id)) {
+      log.logger.debug(
+        { issueId: issue_id, status: to },
+        "Skipping captain auto-dispatch on status change: spawn already in progress",
+      );
+      return;
+    }
+
     const captain = crew.getCrewMember("captain");
-    if (!captain) return;
+    if (!captain) {
+      clearPendingSpawn("captain", issue_id);
+      return;
+    }
 
     log.logger.info(
       { issueId: issue_id, status: to },
@@ -302,6 +327,7 @@ export const initMentionHandler = (): void => {
     );
 
     spawnAgent(captain, issue_id, project_id).catch((err) => {
+      clearPendingSpawn("captain", issue_id);
       log.logger.error(
         { err, issueId: issue_id },
         "Failed to auto-dispatch captain on status change",
