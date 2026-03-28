@@ -9,9 +9,12 @@ const ISSUE_ID = "issue-test";
 
 beforeAll(() => {
   // Seed required foreign key rows
-  db.prepare("INSERT INTO Project (id, name) VALUES (?, ?)").run(PROJECT_ID, "Test Project");
+  db.prepare("INSERT INTO Project (id, name) VALUES (?, ?)").run(
+    PROJECT_ID,
+    "Test Project",
+  );
   db.prepare(
-    "INSERT INTO Issue (id, project_id, title, description, status, created_by) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO Issue (id, project_id, title, description, status, created_by) VALUES (?, ?, ?, ?, ?, ?)",
   ).run(ISSUE_ID, PROJECT_ID, "Test Issue", "desc", "open", "user");
 
   initActivityLogger();
@@ -22,7 +25,9 @@ beforeEach(() => {
 });
 
 function getLog() {
-  return db.prepare("SELECT * FROM ActivityLog ORDER BY created_at").all() as Array<{
+  return db
+    .prepare("SELECT * FROM ActivityLog ORDER BY created_at")
+    .all() as Array<{
     id: string;
     project_id: string;
     issue_id: string | null;
@@ -96,7 +101,10 @@ describe("ActivityLogger", () => {
       actor_type: "system",
       action: "issue.status_changed",
     });
-    expect(JSON.parse(logs[0].details!)).toEqual({ from: "open", to: "in_progress" });
+    expect(JSON.parse(logs[0].details!)).toEqual({
+      from: "open",
+      to: "in_progress",
+    });
   });
 
   it("logs comment.added with author info and content preview", () => {
@@ -117,7 +125,9 @@ describe("ActivityLogger", () => {
       actor_id: null,
       action: "comment.added",
     });
-    expect(JSON.parse(logs[0].details!)).toEqual({ content_preview: "Hello world" });
+    expect(JSON.parse(logs[0].details!)).toEqual({
+      content_preview: "Hello world",
+    });
   });
 
   it("logs comment.added from agent with author_type as actor_id", () => {
@@ -189,7 +199,8 @@ describe("ActivityLogger", () => {
     expect(logs[0]).toMatchObject({
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
-      actor_type: "system",
+      actor_type: "agent",
+      actor_id: "a1",
       action: "mention.spawned",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "a1", pid: 1234 });
@@ -207,15 +218,24 @@ describe("ActivityLogger", () => {
     expect(logs[0]).toMatchObject({
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
-      actor_type: "system",
+      actor_type: "agent",
+      actor_id: "a1",
       action: "mention.completed",
     });
-    expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "a1", exit_code: 0 });
+    expect(JSON.parse(logs[0].details!)).toEqual({
+      agent_id: "a1",
+      exit_code: 0,
+    });
   });
 
   it("unsubscribed events are not logged", () => {
     // Events not subscribed to by activity logger should produce no logs
-    eventBus.emit("pr.status_changed", { pr_id: "pr1", project_id: PROJECT_ID, from: "open", to: "closed" });
+    eventBus.emit("pr.status_changed", {
+      pr_id: "pr1",
+      project_id: PROJECT_ID,
+      from: "open",
+      to: "closed",
+    });
     expect(getLog()).toHaveLength(0);
   });
 
@@ -231,10 +251,14 @@ describe("ActivityLogger", () => {
     expect(logs[0]).toMatchObject({
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
-      actor_type: "system",
+      actor_type: "agent",
+      actor_id: "engineer",
       action: "agent.queued",
     });
-    expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "engineer", position: 2 });
+    expect(JSON.parse(logs[0].details!)).toEqual({
+      agent_id: "engineer",
+      position: 2,
+    });
   });
 
   it("logs dispatch.dequeued as agent.dequeued", () => {
@@ -248,7 +272,8 @@ describe("ActivityLogger", () => {
     expect(logs[0]).toMatchObject({
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
-      actor_type: "system",
+      actor_type: "agent",
+      actor_id: "captain",
       action: "agent.dequeued",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "captain" });

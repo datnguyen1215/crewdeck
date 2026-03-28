@@ -84,10 +84,33 @@ function getSeverityForAction(
   }
 
   // Started events
-  if (action === "mention.spawned" || action === "run.started") return "started";
+  if (action === "mention.spawned" || action === "run.started")
+    return "started";
 
   // Default to info
   return "info";
+}
+
+/**
+ * Capitalize the first letter of a string
+ */
+function capitalize(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+/**
+ * Humanize an exit code number into a descriptive string
+ */
+function humanizeExitCode(exitCode: unknown): string {
+  const code = Number(exitCode);
+  if (exitCode === null || exitCode === undefined || exitCode === "?")
+    return "exit ?";
+  if (code === 0) return "success";
+  if (code === 1) return "error (exit 1)";
+  if (code === 2) return "misuse (exit 2)";
+  if (code === 130) return "interrupted (exit 130)";
+  if (code === 143) return "terminated (exit 143)";
+  return `exit ${code}`;
 }
 
 /**
@@ -96,7 +119,14 @@ function getSeverityForAction(
 function formatActivityMessage(
   action: string,
   details: Record<string, unknown>,
+  actorName?: string | null,
 ): string {
+  const agentLabel = actorName
+    ? capitalize(actorName)
+    : details.agent_id
+      ? capitalize(String(details.agent_id))
+      : "Agent";
+
   switch (action) {
     case "issue.created":
       return "Created issue";
@@ -108,8 +138,7 @@ function formatActivityMessage(
     }
 
     case "comment.added": {
-      const authorType = details.author_type || "unknown";
-      return `Comment by ${authorType}`;
+      return `${agentLabel} posted a comment`;
     }
 
     case "pr.created": {
@@ -125,23 +154,20 @@ function formatActivityMessage(
     }
 
     case "mention.spawned": {
-      const issueId = String(details.issue_id || "");
-      const shortId = issueId.slice(0, 8);
-      return `Spawned on issue ${shortId}`;
+      return `${agentLabel} spawned`;
     }
 
     case "mention.completed": {
-      const exitCode = details.exit_code ?? "?";
-      return `Completed (exit ${exitCode})`;
+      return `${agentLabel} finished — ${humanizeExitCode(details.exit_code)}`;
     }
 
     case "mention.error": {
       const message = String(details.message || "Unknown error");
-      return message;
+      return `${agentLabel} error: ${message}`;
     }
 
     case "run.started":
-      return "Run started";
+      return `${agentLabel} run started`;
 
     case "run.completed": {
       const status = String(details.status || "unknown");
@@ -151,7 +177,7 @@ function formatActivityMessage(
       const duration = details.duration_ms
         ? `${(Number(details.duration_ms) / 1000).toFixed(1)}s`
         : "—";
-      return `Run finished (${status}). Cost: ${cost}. Duration: ${duration}`;
+      return `${agentLabel} run finished (${status}). Cost: ${cost}. Duration: ${duration}`;
     }
 
     default:
@@ -167,12 +193,19 @@ export function formatActivityEntry(entry: ActivityLog): TerminalLine {
   const details = (entry.details || {}) as Record<string, unknown>;
   const actorType = entry.actor_type as "agent" | "system" | "user";
 
+  // Resolve display name: prefer enriched actor_name, then details.agent_id
+  const actorName =
+    entry.actor_name ||
+    (typeof (details as any).agent_id === "string"
+      ? ((details as any).agent_id as string)
+      : null);
+
   return {
     id: entry.id,
     timestamp: formatTimestamp(entry.created_at),
     actor: formatActor(entry.actor_type, entry.actor_id, entry.actor_name),
     actorType,
-    message: formatActivityMessage(entry.action, details),
+    message: formatActivityMessage(entry.action, details, actorName),
     issueId: entry.issue_id || undefined,
     issueTitle: entry.issue_title,
     severity: getSeverityForAction(entry.action, details),
@@ -183,10 +216,7 @@ export function formatActivityEntry(entry: ActivityLog): TerminalLine {
 /**
  * Format a WebSocket event into a TerminalLine
  */
-export function formatWsEvent(
-  eventType: string,
-  data: unknown,
-): TerminalLine {
+export function formatWsEvent(eventType: string, data: unknown): TerminalLine {
   const d = (data || {}) as Record<string, unknown>;
   const timestamp = String(d.timestamp || new Date().toISOString());
   const id = String(d.id || `ws-${Date.now()}-${Math.random()}`);
@@ -214,7 +244,6 @@ export function formatWsEvent(
       const rawTo = String(d.to || "");
       const from = String(d.from || "").replace(/_/g, " ");
       const to = rawTo.replace(/_/g, " ");
-      message = `Status: ${from} → ${to}`;
       issueId = String(d.issue_id || "");
       if (d.actor_type) {
         actorType = String(d.actor_type) as any;
@@ -224,6 +253,13 @@ export function formatWsEvent(
           undefined,
         );
       }
+      // Include actor name in message when it's an agent
+      if (d.actor_type === "agent" && d.actor_id) {
+        const actorLabel = capitalize(String(d.actor_id));
+        message = `${actorLabel}: status ${from} → ${to}`;
+      } else {
+        message = `Status: ${from} → ${to}`;
+      }
       if (rawTo === "done") severity = "success";
       else if (rawTo === "discarded") severity = "error";
       else severity = "warning"; // All other status changes default to warning (amber)
@@ -232,8 +268,10 @@ export function formatWsEvent(
 
     case "comment.added": {
       const comment = d.comment as any;
-      const authorType = comment?.author_type || "unknown";
-      message = `Comment by ${authorType}`;
+      const authorId = comment?.author_type || "unknown";
+      // author_type for agent comments is the agent id (e.g. "engineer")
+      const commentLabel = capitalize(String(authorId));
+      message = `${commentLabel} posted a comment`;
       issueId = String(comment?.issue_id || "");
       break;
     }
@@ -272,8 +310,7 @@ export function formatWsEvent(
       actorType = "agent";
       issueId = String(d.issue_id || "");
       issueTitle = d.issue_title ? String(d.issue_title) : undefined;
-      const shortId = issueId.slice(0, 8);
-      message = `Spawned on issue ${shortId}`;
+      message = `${capitalize(agentName)} spawned`;
       severity = "started";
       break;
     }
@@ -285,8 +322,7 @@ export function formatWsEvent(
       actorType = "agent";
       issueId = String(d.issue_id || "");
       issueTitle = d.issue_title ? String(d.issue_title) : undefined;
-      const exitCode = d.exit_code ?? "?";
-      message = `Completed (exit ${exitCode})`;
+      message = `${capitalize(agentName)} finished — ${humanizeExitCode(d.exit_code)}`;
       severity = Number(d.exit_code) === 0 ? "success" : "error";
       break;
     }
@@ -298,7 +334,7 @@ export function formatWsEvent(
       actorType = "agent";
       issueId = String(d.issue_id || "");
       issueTitle = d.issue_title ? String(d.issue_title) : undefined;
-      message = String(d.message || "Unknown error");
+      message = `${capitalize(agentName)} error: ${String(d.message || "Unknown error")}`;
       severity = "error";
       break;
     }
@@ -313,15 +349,19 @@ export function formatWsEvent(
 
     case "dispatch.queued": {
       const agentId = String(d.agent_id || "");
+      const agentName = d.agent_name ? String(d.agent_name) : agentId;
       const position = d.position ?? "?";
-      message = `Queued ${agentId} (position ${position})`;
+      issueTitle = d.issue_title ? String(d.issue_title) : undefined;
+      message = `${capitalize(agentName)} queued (position ${position})`;
       issueId = String(d.issue_id || "");
       break;
     }
 
     case "dispatch.dequeued": {
       const agentId = String(d.agent_id || "");
-      message = `Dequeued ${agentId}`;
+      const agentName = d.agent_name ? String(d.agent_name) : agentId;
+      issueTitle = d.issue_title ? String(d.issue_title) : undefined;
+      message = `${capitalize(agentName)} dequeued`;
       issueId = String(d.issue_id || "");
       break;
     }
@@ -330,7 +370,7 @@ export function formatWsEvent(
       const agentId = String(d.agent_id || "");
       actor = `agent:${agentId}`;
       actorType = "agent";
-      message = "Run started";
+      message = `${capitalize(agentId)} run started`;
       issueId = String(d.issue_id || "");
       severity = "started";
       break;
@@ -348,9 +388,7 @@ export function formatWsEvent(
       actor = `agent:${agentId}`;
       actorType = "agent";
       const status = String(d.status || "unknown");
-      const cost = d.cost_usd
-        ? `$${Number(d.cost_usd).toFixed(4)}`
-        : "—";
+      const cost = d.cost_usd ? `$${Number(d.cost_usd).toFixed(4)}` : "—";
       const duration = d.duration_ms
         ? `${(Number(d.duration_ms) / 1000).toFixed(1)}s`
         : "—";
