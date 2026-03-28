@@ -63,6 +63,7 @@ export interface Issue {
   base_branch: string | null;
   repo_id: string | null;
   agent_id: string | null;
+  paused: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -231,6 +232,7 @@ export interface UpdateIssueInput {
   base_branch?: string | null;
   repo_id?: string | null;
   agent_id?: string | null;
+  paused?: boolean;
 }
 
 export interface IssueFilters {

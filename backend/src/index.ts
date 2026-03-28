@@ -19,6 +19,7 @@ import {
   initPtyService,
   shutdownPtyService,
 } from "./orchestration/pty-service.js";
+import { initializePausedIssues } from "./db/repositories/issues.js";
 
 const app = createApp();
 
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
   initWorktreeCleanup();
   initEventCommenter();
   initMentionHandler();
+  initializePausedIssues();
   recoverOnStartup();
 
   // Initialize PR auto-detection from comments and polling

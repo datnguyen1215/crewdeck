@@ -14,6 +14,15 @@ import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
 import { buildAndRunUpdate } from "./utils.js";
 
+function fromRowWithRunningAgent(
+  row: Record<string, unknown>,
+): IssueWithRunningAgent {
+  return {
+    ...(row as Omit<IssueWithRunningAgent, "paused">),
+    paused: Boolean(row.paused),
+  };
+}
+
 export function listIssues(
   projectId: string,
   filters: IssueFilters = {},
@@ -56,13 +65,22 @@ export function listIssues(
     ORDER BY i.${sortCol} ${order}
   `;
 
-  return db.prepare(sql).all(...values) as IssueWithRunningAgent[];
+  const rows = db.prepare(sql).all(...values) as Record<string, unknown>[];
+  return rows.map(fromRowWithRunningAgent);
+}
+
+function fromRow(row: Record<string, unknown>): Issue {
+  return {
+    ...(row as Omit<Issue, "paused">),
+    paused: Boolean(row.paused),
+  };
 }
 
 export function getIssue(id: string): Issue | null {
-  return (
-    (db.prepare("SELECT * FROM Issue WHERE id = ?").get(id) as Issue) ?? null
-  );
+  const row = db.prepare("SELECT * FROM Issue WHERE id = ?").get(id) as
+    | Record<string, unknown>
+    | undefined;
+  return row ? fromRow(row) : null;
 }
 
 /**
@@ -78,8 +96,8 @@ export function getIssueByPrefix(
     .prepare(
       "SELECT * FROM Issue WHERE id LIKE ? || '%' AND project_id = ? LIMIT 2",
     )
-    .all(prefix, projectId) as Issue[];
-  return rows.length === 1 ? rows[0] : null;
+    .all(prefix, projectId) as Record<string, unknown>[];
+  return rows.length === 1 ? fromRow(rows[0]) : null;
 }
 
 export function getIssueWithDetails(id: string): IssueWithDetails | null {
@@ -116,16 +134,73 @@ export function createIssue(projectId: string, input: CreateIssueInput): Issue {
 }
 
 export function updateIssue(id: string, input: UpdateIssueInput): Issue {
-  buildAndRunUpdate("Issue", id, input);
+  const overrides: Record<string, unknown> = {};
+  if (input.paused !== undefined) {
+    overrides.paused = input.paused ? 1 : 0;
+    // Update in-memory set before DB write (set-first ordering prevents race conditions)
+    if (input.paused) {
+      pausedIssues.add(id);
+    } else {
+      pausedIssues.delete(id);
+    }
+  }
+  buildAndRunUpdate("Issue", id, input, overrides);
   return getIssue(id)!;
 }
 
 export function deleteIssue(id: string): void {
   db.transaction(() => {
+    pausedIssues.delete(id);
     db.prepare("DELETE FROM AgentRun WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM ActivityLog WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM IssuePR WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM Comment WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM Issue WHERE id = ?").run(id);
   })();
+}
+
+/**
+ * In-memory set of paused issue IDs for fast checks without DB reads.
+ * Initialized on server startup and updated by pauseIssue/resumeIssue.
+ */
+export const pausedIssues = new Set<string>();
+
+/**
+ * Initialize the pausedIssues set from the database.
+ * Called on server startup.
+ */
+export function initializePausedIssues(): void {
+  const rows = db
+    .prepare("SELECT id FROM Issue WHERE paused = 1")
+    .all() as { id: string }[];
+  pausedIssues.clear();
+  for (const row of rows) {
+    pausedIssues.add(row.id);
+  }
+}
+
+/**
+ * Pause an issue (sets paused = 1).
+ * Updates both in-memory set and database atomically.
+ */
+export function pauseIssue(issueId: string): void {
+  pausedIssues.add(issueId);
+  db.prepare("UPDATE Issue SET paused = 1 WHERE id = ?").run(issueId);
+}
+
+/**
+ * Resume an issue (sets paused = 0).
+ * Updates both in-memory set and database atomically.
+ */
+export function resumeIssue(issueId: string): void {
+  pausedIssues.delete(issueId);
+  db.prepare("UPDATE Issue SET paused = 0 WHERE id = ?").run(issueId);
+}
+
+/**
+ * Check if an issue is paused without loading the full issue.
+ * Uses in-memory set for performance.
+ */
+export function isIssuePaused(issueId: string): boolean {
+  return pausedIssues.has(issueId);
 }
