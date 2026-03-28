@@ -4,7 +4,10 @@ import { eventBus } from "./bus.js";
 
 const BASE_ACTOR_TYPES = new Set(["user", "system"]);
 
-function deriveActorType(authorType: string): { type: string; id: string | null } {
+function deriveActorType(authorType: string): {
+  type: string;
+  id: string | null;
+} {
   if (BASE_ACTOR_TYPES.has(authorType)) {
     return { type: authorType, id: null };
   }
@@ -89,7 +92,8 @@ export function initActivityLogger(): void {
     log({
       project_id,
       issue_id,
-      actor_type: "system",
+      actor_type: "agent",
+      actor_id: agent_id,
       action: "mention.spawned",
       details: { agent_id, pid },
     });
@@ -101,7 +105,8 @@ export function initActivityLogger(): void {
       log({
         project_id,
         issue_id,
-        actor_type: "system",
+        actor_type: "agent",
+        actor_id: agent_id,
         action: "mention.completed",
         details: { agent_id, exit_code },
       });
@@ -114,7 +119,8 @@ export function initActivityLogger(): void {
       log({
         project_id,
         issue_id,
-        actor_type: "system",
+        actor_type: "agent",
+        actor_id: agent_id,
         action: "agent.queued",
         details: { agent_id, position },
       });
@@ -125,7 +131,8 @@ export function initActivityLogger(): void {
     log({
       project_id,
       issue_id,
-      actor_type: "system",
+      actor_type: "agent",
+      actor_id: agent_id,
       action: "agent.dequeued",
       details: { agent_id },
     });

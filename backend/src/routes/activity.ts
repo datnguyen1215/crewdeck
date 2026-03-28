@@ -12,7 +12,8 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
 
-  const { issue_id, actor_type, action, since, limit, offset } = req.query as Record<string, string>;
+  const { issue_id, actor_type, action, since, limit, offset } =
+    req.query as Record<string, string>;
   const filters: ActivityFilters = {};
   if (issue_id) filters.issue_id = issue_id;
   if (actor_type) filters.actor_type = actor_type;
@@ -47,13 +48,17 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
   const agentCache = new Map<string, string | null>();
 
   // Collect unique issue IDs and batch-lookup issue titles
-  const issueIds = Array.from(new Set(
-    entries.map(e => e.issue_id).filter((id): id is string => id != null)
-  ));
+  const issueIds = Array.from(
+    new Set(
+      entries.map((e) => e.issue_id).filter((id): id is string => id != null),
+    ),
+  );
   const issueTitleCache = new Map<string, string>();
   if (issueIds.length > 0) {
     const placeholders = issueIds.map(() => "?").join(", ");
-    const rows = db.prepare(`SELECT id, title FROM Issue WHERE id IN (${placeholders})`).all(...issueIds) as { id: string; title: string }[];
+    const rows = db
+      .prepare(`SELECT id, title FROM Issue WHERE id IN (${placeholders})`)
+      .all(...issueIds) as { id: string; title: string }[];
     for (const row of rows) {
       issueTitleCache.set(row.id, row.title);
     }
@@ -66,12 +71,25 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
     // Build enrichments object
     const enrichments: any = {};
 
-    // Enrich with actor_name
-    if (entry.actor_type === 'agent' && entry.actor_id) {
-      if (!agentCache.has(entry.actor_id)) {
-        agentCache.set(entry.actor_id, getCrewMember(entry.actor_id)?.name ?? null);
+    // Enrich with actor_name. Also handle historical entries where actor_type is
+    // still "system" but details.agent_id exists (logged before the fix).
+    const agentIdForName =
+      entry.actor_type === "agent" && entry.actor_id
+        ? entry.actor_id
+        : entry.actor_type === "system" &&
+            entry.details &&
+            typeof (entry.details as any).agent_id === "string"
+          ? ((entry.details as any).agent_id as string)
+          : null;
+
+    if (agentIdForName) {
+      if (!agentCache.has(agentIdForName)) {
+        agentCache.set(
+          agentIdForName,
+          getCrewMember(agentIdForName)?.name ?? null,
+        );
       }
-      const name = agentCache.get(entry.actor_id);
+      const name = agentCache.get(agentIdForName);
       if (name) enrichments.actor_name = name;
     }
 
@@ -82,7 +100,9 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
     }
 
     // Return base with enrichments if any exist
-    return Object.keys(enrichments).length > 0 ? { ...base, ...enrichments } : base;
+    return Object.keys(enrichments).length > 0
+      ? { ...base, ...enrichments }
+      : base;
   });
 
   res.json(enriched);

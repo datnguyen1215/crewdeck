@@ -342,13 +342,13 @@ Both paths return all dispatchable agents (5 agents, including captain). The `/c
 ]
 ```
 
-| Field         | Type    | Description                                                                                                                                                     |
-| ------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id            | TEXT    | Agent identifier.                                                                                                                                               |
-| name          | TEXT    | Display name.                                                                                                                                                   |
-| title         | TEXT    | Agent role title.                                                                                                                                               |
-| description   | TEXT    | Brief description of the agent's purpose.                                                                                                                       |
-| system_prompt | TEXT    | System prompt injected into agent processes.                                                                                                                    |
+| Field         | Type    | Description                                                                                            |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| id            | TEXT    | Agent identifier.                                                                                      |
+| name          | TEXT    | Display name.                                                                                          |
+| title         | TEXT    | Agent role title.                                                                                      |
+| description   | TEXT    | Brief description of the agent's purpose.                                                              |
+| system_prompt | TEXT    | System prompt injected into agent processes.                                                           |
 | dispatchable  | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. All crew agents are dispatchable. |
 
 ---
@@ -479,6 +479,7 @@ Permanently deletes an issue and cleans up associated resources.
 **Response:** `204 No Content`
 
 **Side effects:**
+
 - If the issue has a worktree (`worktree_path`, `branch_name`), it is cleaned up before deletion
 - Git worktree is removed from disk
 - Associated branch is deleted
@@ -498,6 +499,7 @@ Pauses an issue, preventing new agent dispatches until resumed.
 **Response:** `200 OK`
 
 **Side effects:**
+
 - WebSocket event emitted: `issue.paused`.
 
 #### Resume Issue
@@ -511,6 +513,7 @@ Resumes a paused issue, allowing agent dispatches again.
 **Response:** `200 OK`
 
 **Side effects:**
+
 - WebSocket event emitted: `issue.resumed`.
 
 ---
@@ -756,7 +759,7 @@ GET /projects/:projectId/activity
 | limit      | INTEGER  | Max entries to return. Default: 50. Max: 500.                                                                                                             |
 | offset     | INTEGER  | Pagination offset. Default: 0.                                                                                                                            |
 
-**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Entries where `actor_type` is `agent` include an additional `actor_name` field (string) with the agent's display name. Entries with an associated issue include an additional `issue_title` field (string) with the issue's title, resolved via batch lookup at query time.
+**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Entries where `actor_type` is `agent` include an additional `actor_name` field (string) with the agent's display name. Historical entries where `actor_type` is `system` but `details.agent_id` is present are also enriched with `actor_name`. Entries with an associated issue include an additional `issue_title` field (string) with the issue's title, resolved via batch lookup at query time.
 
 ---
 
@@ -1055,6 +1058,7 @@ Creates a new terminal session running `claude --system-prompt-file` inside a tm
 **Error:** `500 Internal Server Error` — Failed to create tmux session.
 
 **Side effects:**
+
 - Creates tmux session named `captain-{projectId:0:8}`
 - Spawns Claude CLI with captain system prompt
 - Injects environment variables (`CREWDECK_*`, `GH_TOKEN`, SSH keys)
@@ -1206,10 +1210,10 @@ Agent retrieves full content of a knowledge entry. Available to all agents.
 
 **Query Parameters:**
 
-| Parameter    | Required | Description        |
-| ------------ | -------- | ------------------ |
-| project_id   | Yes      | The project ID.    |
-| knowledge_id | Yes      | The entry ID.      |
+| Parameter    | Required | Description     |
+| ------------ | -------- | --------------- |
+| project_id   | Yes      | The project ID. |
+| knowledge_id | Yes      | The entry ID.   |
 
 **Response:** `200 OK` — Full knowledge entry object.
 
@@ -1394,10 +1398,12 @@ ws://localhost:<port>/terminal-ws?projectId=<uuid>
 ```
 
 Establishes a WebSocket connection for PTY streaming. Connects to the project's tmux session and provides bidirectional I/O:
+
 - **Server → Client**: Raw PTY output bytes (terminal escape sequences, text)
 - **Client → Server**: Raw keyboard input or resize messages
 
 **Resize message format:**
+
 ```json
 {
   "type": "resize",
@@ -1428,13 +1434,13 @@ All events follow this structure:
 
 #### Issue Events
 
-| Event                  | Description          | Data                                                         |
-| ---------------------- | -------------------- | ------------------------------------------------------------ |
-| `issue.created`        | New issue created    | `{ issue }` — full Issue object                              |
-| `issue.updated`        | Issue fields changed | `{ issue_id, project_id, changes }`                          |
+| Event                  | Description                                                                                                              | Data                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `issue.created`        | New issue created                                                                                                        | `{ issue }` — full Issue object                              |
+| `issue.updated`        | Issue fields changed                                                                                                     | `{ issue_id, project_id, changes }`                          |
 | `issue.status_changed` | Status transition (triggers automatic worktree cleanup when `to === "done"` — DB fields always cleared in finally block) | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
-| `issue.paused`         | Issue paused         | `{ issue_id, project_id }`                                   |
-| `issue.resumed`        | Issue resumed        | `{ issue_id, project_id }`                                   |
+| `issue.paused`         | Issue paused                                                                                                             | `{ issue_id, project_id }`                                   |
+| `issue.resumed`        | Issue resumed                                                                                                            | `{ issue_id, project_id }`                                   |
 
 #### Comment Events
 
@@ -1452,16 +1458,16 @@ All events follow this structure:
 | `mention.completed`           | Agent process finished                                                    | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
 | `mention.error`               | Agent process failed                                                      | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, message }`   |
 | `mention.chain_depth_reached` | Issue chain depth limit reached (per project's `max_chain_depth` setting) | `{ project_id, issue_id, issue_title? }`                                   |
-| `dispatch.queued`             | Agent dispatch queued (concurrency limit reached)                         | `{ project_id, issue_id, agent_id, position }`                             |
-| `dispatch.dequeued`           | Agent dispatch dequeued and starting                                      | `{ project_id, issue_id, agent_id }`                                       |
+| `dispatch.queued`             | Agent dispatch queued (concurrency limit reached)                         | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, position }`  |
+| `dispatch.dequeued`           | Agent dispatch dequeued and starting                                      | `{ project_id, issue_id, agent_id, agent_name?, issue_title? }`            |
 
 #### Agent Run Events
 
-| Event           | Description                             | Data                                                                                                       |
-| --------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `run.started`   | Agent run started (process spawned)     | `{ agent_run_id, project_id, issue_id, agent_id, status, started_at }`                                     |
-| `run.event`     | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }` — `data` is normalized (see Agent Runs)   |
-| `run.completed` | Agent run finished                      | `{ agent_run_id, project_id, issue_id, agent_id, status, exit_code, cost_usd, duration_ms, completed_at }` |
+| Event           | Description                             | Data                                                                                                                    |
+| --------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `run.started`   | Agent run started (process spawned)     | `{ agent_run_id, project_id, issue_id, agent_id, agent_name?, status, started_at }`                                     |
+| `run.event`     | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }` — `data` is normalized (see Agent Runs)                |
+| `run.completed` | Agent run finished                      | `{ agent_run_id, project_id, issue_id, agent_id, agent_name?, status, exit_code, cost_usd, duration_ms, completed_at }` |
 
 #### PR Events
 
@@ -1469,7 +1475,6 @@ All events follow this structure:
 | ------------------- | ----------------------- | --------------------------------- |
 | `pr.created`        | PR recorded on an issue | `{ issue_pr, project_id }`        |
 | `pr.status_changed` | PR status updated       | `{ pr_id, project_id, from, to }` |
-
 
 #### Project Events
 
