@@ -155,6 +155,16 @@ export async function spawnClaudeStream(
 
   const rl = createInterface({ input: child.stdout!, crlfDelay: Infinity });
 
+  // Close readline interface when the process exits to allow 'close' event to fire
+  child.on("exit", () => {
+    rl.close();
+  });
+
+  // Handle readline errors to prevent silent failures
+  rl.on("error", (err) => {
+    logger.error({ pid: child.pid, err }, "Readline interface error");
+  });
+
   async function* eventGenerator(): AsyncIterable<ClaudeStreamEvent> {
     for await (const line of rl) {
       if (!line.trim()) continue;
