@@ -3,7 +3,6 @@ import { mkdirSync } from "fs";
 import { dirname } from "path";
 import { config } from "../config.js";
 import { preloadMigrations, runMigrationsSync } from "./runner.js";
-import { initializePausedIssues } from "./repositories/issues.js";
 
 // Preload migration modules at import time (top-level await)
 await preloadMigrations();
@@ -24,6 +23,3 @@ export function createDb(path: string): Database.Database {
 }
 
 export const db = createDb(config.dbPath);
-
-// Initialize in-memory paused issues set from database
-initializePausedIssues();
