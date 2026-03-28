@@ -232,6 +232,38 @@ export const initMentionHandler = (): void => {
     });
   });
 
+  // Auto-dispatch captain when a non-captain agent completes on an issue
+  events.eventBus.on("mention.completed", ({ project_id, issue_id, agent_id }) => {
+    if (agent_id === "captain") return;
+    if (!issue_id) return;
+
+    const issue = issueRepo.getIssue(issue_id);
+    if (!issue || issue.status === "done") return;
+
+    if (hasActiveAgentProcess("captain", issue_id)) {
+      log.logger.debug(
+        { issueId: issue_id },
+        "Skipping captain auto-dispatch: captain already running",
+      );
+      return;
+    }
+
+    const captain = crew.getCrewMember("captain");
+    if (!captain) return;
+
+    log.logger.info(
+      { issueId: issue_id, completedAgent: agent_id },
+      "Auto-dispatching captain after agent completion",
+    );
+
+    spawnAgent(captain, issue_id, project_id).catch((err) => {
+      log.logger.error(
+        { err, issueId: issue_id },
+        "Failed to auto-dispatch captain",
+      );
+    });
+  });
+
   // Start periodic cleanup of stale batches
   cleanupInterval = setInterval(() => {
     cleanupStaleBatches();
