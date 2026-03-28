@@ -18,6 +18,7 @@ import type {
   ChatMessage,
   AgentConfig,
   MonitorEntry,
+  CaptainStatus,
 } from "./types.js";
 
 export type {
@@ -44,6 +45,7 @@ export type {
   ChatMessage,
   AgentConfig,
   MonitorEntry,
+  CaptainStatus,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -431,10 +433,7 @@ export interface TerminalSessionStatus {
 }
 
 export function createTerminalSession(projectId: string) {
-  return request<TerminalSession>(
-    "POST",
-    `/projects/${e(projectId)}/terminal`,
-  );
+  return request<TerminalSession>("POST", `/projects/${e(projectId)}/terminal`);
 }
 
 export function getTerminalSession(projectId: string) {
@@ -473,4 +472,9 @@ export function getMonitorHistory(
 ): Promise<ChatMessage[]> {
   const params = limit ? `?limit=${limit}` : "";
   return request("GET", `/projects/${e(projectId)}/monitor/history${params}`);
+}
+
+// Captain status
+export function getCaptainStatus(projectId: string): Promise<CaptainStatus> {
+  return request("GET", `/projects/${e(projectId)}/captain/status`);
 }

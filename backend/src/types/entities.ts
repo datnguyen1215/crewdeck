@@ -27,6 +27,10 @@ export interface Project {
   auto_merge: boolean;
   model: string;
   vcs_account_id: string | null;
+  captain_status: "idle" | "receiving" | "thinking" | "executing";
+  captain_status_detail: string | null;
+  captain_pending_count: number;
+  captain_processing_since: string | null;
   created_at: string;
   updated_at: string;
 }

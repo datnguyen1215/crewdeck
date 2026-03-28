@@ -213,6 +213,14 @@ export interface MonitorEntry {
   success?: boolean;
 }
 
+export interface CaptainStatus {
+  status: "idle" | "receiving" | "thinking" | "executing";
+  detail: string | null;
+  pending_count: number;
+  processing_since: string | null;
+  processing_duration_ms: number | null;
+}
+
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
 // but only includes events the frontend receives (excludes backend-only events)
 export interface WsEventMap {
@@ -319,10 +327,22 @@ export interface WsEventMap {
     issue_id: string;
     project_id: string;
   };
-  "monitor.event_received": { project_id: string; event_type: string; description: string };
+  "monitor.event_received": {
+    project_id: string;
+    event_type: string;
+    description: string;
+  };
   "monitor.thinking": { project_id: string };
   "monitor.message": { project_id: string; content: string };
-  "monitor.tool_call": { project_id: string; tool_name: string; tool_input: unknown };
-  "monitor.tool_result": { project_id: string; tool_name: string; result: unknown };
+  "monitor.tool_call": {
+    project_id: string;
+    tool_name: string;
+    tool_input: unknown;
+  };
+  "monitor.tool_result": {
+    project_id: string;
+    tool_name: string;
+    result: unknown;
+  };
   "monitor.complete": { project_id: string; response: string };
 }

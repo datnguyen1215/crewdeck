@@ -47,7 +47,11 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
 
     let metadata;
     try {
-      metadata = await vcsClient.fetchRepoMetadata({ owner, name: repoName, token });
+      metadata = await vcsClient.fetchRepoMetadata({
+        owner,
+        name: repoName,
+        token,
+      });
     } catch (err) {
       // If a GitHub account was explicitly selected, surface the error —
       // the user likely expects private repo access and should know it failed.
@@ -103,6 +107,23 @@ router.get("/:id/librarian-status", (req, res) => {
     status: run.status,
     started_at: run.started_at,
     completed_at: run.completed_at,
+  });
+});
+
+router.get("/:id/captain/status", (req, res) => {
+  const project = getProject(req.params.id);
+  if (!project) throw new NotFoundError("Project not found");
+
+  const processingDurationMs = project.captain_processing_since
+    ? Date.now() - new Date(project.captain_processing_since).getTime()
+    : null;
+
+  res.json({
+    status: project.captain_status ?? "idle",
+    detail: project.captain_status_detail ?? null,
+    pending_count: project.captain_pending_count ?? 0,
+    processing_since: project.captain_processing_since ?? null,
+    processing_duration_ms: processingDurationMs,
   });
 });
 

@@ -124,10 +124,45 @@ export function createProject(input: CreateProjectInput): Project {
 export function updateProject(id: string, input: UpdateProjectInput): Project {
   // Convert booleans to integers for SQLite
   const overrides: Record<string, unknown> = {};
-  if (input.auto_start !== undefined) overrides.auto_start = input.auto_start ? 1 : 0;
-  if (input.auto_merge !== undefined) overrides.auto_merge = input.auto_merge ? 1 : 0;
+  if (input.auto_start !== undefined)
+    overrides.auto_start = input.auto_start ? 1 : 0;
+  if (input.auto_merge !== undefined)
+    overrides.auto_merge = input.auto_merge ? 1 : 0;
   buildAndRunUpdate("Project", id, input, overrides);
   return getProject(id)!;
+}
+
+export type CaptainStatus = "idle" | "receiving" | "thinking" | "executing";
+
+export function updateCaptainStatus(
+  id: string,
+  status: CaptainStatus,
+  detail?: string | null,
+  pendingCount?: number,
+): void {
+  if (status === "idle") {
+    db.prepare(
+      `UPDATE Project SET captain_status = 'idle', captain_status_detail = NULL,
+       captain_pending_count = 0, captain_processing_since = NULL WHERE id = ?`,
+    ).run(id);
+  } else if (status === "receiving") {
+    // Only set processing_since if not already processing
+    db.prepare(
+      `UPDATE Project SET captain_status = 'receiving',
+       captain_status_detail = ?,
+       captain_pending_count = ?,
+       captain_processing_since = COALESCE(captain_processing_since, CURRENT_TIMESTAMP)
+       WHERE id = ?`,
+    ).run(detail ?? null, pendingCount ?? 0, id);
+  } else {
+    db.prepare(
+      `UPDATE Project SET captain_status = ?,
+       captain_status_detail = ?,
+       captain_pending_count = ?,
+       captain_processing_since = COALESCE(captain_processing_since, CURRENT_TIMESTAMP)
+       WHERE id = ?`,
+    ).run(status, detail ?? null, pendingCount ?? 0, id);
+  }
 }
 
 export function deleteProject(id: string): void {
