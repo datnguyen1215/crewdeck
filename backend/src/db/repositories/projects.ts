@@ -11,7 +11,12 @@ import { buildAndRunUpdate } from "./utils.js";
 import { IssueStatus } from "../../constants/statuses.js";
 
 function fromRow(row: unknown): Project {
-  return row as Project;
+  const r = row as Record<string, unknown>;
+  return {
+    ...r,
+    auto_start: Boolean(r.auto_start),
+    auto_merge: Boolean(r.auto_merge),
+  } as Project;
 }
 
 export function listProjects(): Project[] {
@@ -117,7 +122,11 @@ export function createProject(input: CreateProjectInput): Project {
 }
 
 export function updateProject(id: string, input: UpdateProjectInput): Project {
-  buildAndRunUpdate("Project", id, input);
+  // Convert booleans to integers for SQLite
+  const overrides: Record<string, unknown> = {};
+  if (input.auto_start !== undefined) overrides.auto_start = input.auto_start ? 1 : 0;
+  if (input.auto_merge !== undefined) overrides.auto_merge = input.auto_merge ? 1 : 0;
+  buildAndRunUpdate("Project", id, input, overrides);
   return getProject(id)!;
 }
 

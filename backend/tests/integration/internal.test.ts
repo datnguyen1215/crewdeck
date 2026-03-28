@@ -147,3 +147,33 @@ describe("POST /api/v1/internal/create-pr", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("POST /api/v1/internal/captain/dispatch-agent", () => {
+  it("rejects captain agent_id", async () => {
+    const res = await request(app)
+      .post(`${BASE}/captain/dispatch-agent`)
+      .send({ project_id: projectId, issue_id: issueId, agent_id: "captain" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects unknown agent_id", async () => {
+    const res = await request(app)
+      .post(`${BASE}/captain/dispatch-agent`)
+      .send({ project_id: projectId, issue_id: issueId, agent_id: "unknown_agent" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for missing agent_id", async () => {
+    const res = await request(app)
+      .post(`${BASE}/captain/dispatch-agent`)
+      .send({ project_id: projectId, issue_id: issueId });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for missing issue_id", async () => {
+    const res = await request(app)
+      .post(`${BASE}/captain/dispatch-agent`)
+      .send({ project_id: projectId, agent_id: "engineer" });
+    expect(res.status).toBe(400);
+  });
+});

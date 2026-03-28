@@ -176,6 +176,26 @@ function subscribeEvents(bus: EventBus): void {
   bus.on("project.settings_changed", ({ project_id, changes }) =>
     broadcast(project_id, "project.settings_changed", { changes }),
   );
+
+  // Monitor events (captain orchestration)
+  bus.on("monitor.event_received", (data) => {
+    broadcast(data.project_id, "monitor.event_received", data);
+  });
+  bus.on("monitor.thinking", (data) => {
+    broadcast(data.project_id, "monitor.thinking", data);
+  });
+  bus.on("monitor.message", (data) => {
+    broadcast(data.project_id, "monitor.message", data);
+  });
+  bus.on("monitor.tool_call", (data) => {
+    broadcast(data.project_id, "monitor.tool_call", data);
+  });
+  bus.on("monitor.tool_result", (data) => {
+    broadcast(data.project_id, "monitor.tool_result", data);
+  });
+  bus.on("monitor.complete", (data) => {
+    broadcast(data.project_id, "monitor.complete", data);
+  });
 }
 
 interface ExtendedWebSocket extends WebSocket {

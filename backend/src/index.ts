@@ -11,6 +11,7 @@ import {
   initMentionHandler,
   shutdownMentionHandler,
 } from "./orchestration/handler.js";
+import { initCaptain, shutdownCaptain } from "./orchestration/captain.js";
 import { recoverOnStartup } from "./orchestration/recovery.js";
 import { createApp } from "./app.js";
 import { initPRDetector } from "./pr/detector.js";
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
   initWorktreeCleanup();
   initEventCommenter();
   initMentionHandler();
+  initCaptain();
   initializePausedIssues();
   recoverOnStartup();
 
@@ -66,6 +68,7 @@ async function main(): Promise<void> {
   async function shutdown() {
     shutdownWebSocket(wss);
     shutdownTerminalWs();
+    shutdownCaptain();
     shutdownMentionHandler();
     await shutdownPtyService();
     stopPRPoller();

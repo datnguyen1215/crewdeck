@@ -62,6 +62,7 @@ export function initEventCommenter(): void {
     ].filter(Boolean);
 
     postComment(data.issue_id, parts.join(". ") + ".");
+
   });
 
   // PR status changed
@@ -103,6 +104,7 @@ export function initEventCommenter(): void {
 
     const message = `📊 Issue status: ${fromText} → ${toText}`;
     postComment(data.issue_id, message);
+
   });
 
   // Issue paused

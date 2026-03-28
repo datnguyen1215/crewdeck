@@ -15,6 +15,7 @@ import runsRouter from "./routes/runs.js";
 import knowledgeRouter from "./routes/knowledge.js";
 import agentConfigRouter from "./routes/agent-config.js";
 import terminalRouter from "./routes/terminal.js";
+import chatRouter from "./routes/chat.js";
 
 export interface CreateAppOpts {
   silent?: boolean;
@@ -47,6 +48,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/projects/:projectId/knowledge`, knowledgeRouter);
   app.use(`${v1}/projects/:projectId/agent-config`, agentConfigRouter);
   app.use(`${v1}/projects/:projectId`, terminalRouter);
+  app.use(`${v1}/projects/:projectId`, chatRouter);
   app.use(`${v1}/internal`, internalRouter);
   app.use(`${v1}/vcs-accounts`, vcsAccountsRouter);
 

@@ -28,11 +28,6 @@ import {
   clearBatches,
 } from "./batch.js";
 import { spawnAgent, executeQueuedRun, postSystemComment } from "./spawner.js";
-import {
-  handleMergePR,
-  handleCreatePR,
-  handleCreateIssue,
-} from "./command-handlers.js";
 
 /** Cleanup interval in milliseconds (5 minutes) */
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
@@ -63,82 +58,6 @@ export const initMentionHandler = (): void => {
       comment.author_type !== "user" && comment.author_type !== "system"
         ? comment.author_type
         : undefined;
-
-    // Parse commands (captain-only)
-    if (authorAgentId === "captain") {
-      const commands = mentionParser.parseCommands(comment.content);
-      for (const command of commands) {
-        if (command.type === "merge") {
-          handleMergePR(project_id, { issue_id: command.issueId })
-            .then((result) => {
-              if (!result.success) {
-                log.logger.error(
-                  { issueId: command.issueId, message: result.message },
-                  "Failed to merge PR",
-                );
-                postSystemComment(
-                  comment.issue_id,
-                  project_id,
-                  `Failed to merge PR: ${result.message}`,
-                );
-              }
-            })
-            .catch((err) => {
-              log.logger.error(
-                { err, issueId: command.issueId },
-                "Failed to merge PR",
-              );
-              postSystemComment(
-                comment.issue_id,
-                project_id,
-                `Failed to merge PR: ${err instanceof Error ? err.message : "unknown error"}`,
-              );
-            });
-        } else if (command.type === "create-pr") {
-          handleCreatePR(project_id, { issue_id: command.issueId })
-            .then((result) => {
-              if (!result.success) {
-                log.logger.error(
-                  { issueId: command.issueId, message: result.message },
-                  "Failed to create PR",
-                );
-                postSystemComment(
-                  comment.issue_id,
-                  project_id,
-                  `Failed to create PR: ${result.message}`,
-                );
-              }
-            })
-            .catch((err) => {
-              log.logger.error(
-                { err, issueId: command.issueId },
-                "Failed to create PR",
-              );
-              postSystemComment(
-                comment.issue_id,
-                project_id,
-                `Failed to create PR: ${err instanceof Error ? err.message : "unknown error"}`,
-              );
-            });
-        } else if (command.type === "create-issue") {
-          const result = handleCreateIssue(project_id, {
-            title: command.title,
-            description: command.description,
-          });
-          if (!result.success) {
-            log.logger.error(
-              { title: command.title, message: result.message },
-              "Failed to create issue",
-            );
-            postSystemComment(
-              comment.issue_id,
-              project_id,
-              `Failed to create issue: ${result.message}`,
-            );
-          }
-        }
-      }
-    }
 
     const mentioned = mentionParser.parseDispatches(
       comment.content,
@@ -243,103 +162,6 @@ export const initMentionHandler = (): void => {
       log.logger.error(
         { err, projectId: project_id },
         "Failed to drain dispatch queue",
-      );
-    });
-  });
-
-  // Auto-dispatch captain when a non-captain agent completes on an issue
-  events.eventBus.on("mention.completed", ({ project_id, issue_id, agent_id }) => {
-    if (agent_id === "captain") return;
-    if (!issue_id) return;
-
-    // Guard: Don't auto-dispatch on paused issues
-    if (issueRepo.isIssuePaused(issue_id)) {
-      log.logger.debug(
-        { issueId: issue_id },
-        "Skipping captain auto-dispatch: issue is paused",
-      );
-      return;
-    }
-
-    const issue = issueRepo.getIssue(issue_id);
-    if (!issue || issue.status === "done") return;
-
-    if (hasActiveAgentProcess("captain", issue_id)) {
-      log.logger.debug(
-        { issueId: issue_id },
-        "Skipping captain auto-dispatch: captain already running",
-      );
-      return;
-    }
-
-    // Mark as pending before spawning (atomic operation)
-    if (!markPendingSpawn("captain", issue_id)) {
-      log.logger.debug(
-        { issueId: issue_id },
-        "Skipping captain auto-dispatch: spawn already in progress",
-      );
-      return;
-    }
-
-    const captain = crew.getCrewMember("captain");
-    if (!captain) {
-      clearPendingSpawn("captain", issue_id);
-      return;
-    }
-
-    log.logger.info(
-      { issueId: issue_id, completedAgent: agent_id },
-      "Auto-dispatching captain after agent completion",
-    );
-
-    spawnAgent(captain, issue_id, project_id).catch((err) => {
-      clearPendingSpawn("captain", issue_id);
-      log.logger.error(
-        { err, issueId: issue_id },
-        "Failed to auto-dispatch captain",
-      );
-    });
-  });
-
-  // Auto-dispatch captain when issue status changes to a PR state that needs action
-  const CAPTAIN_TRIGGER_STATUSES = new Set(["pr_failed_actions", "pr_conflict", "pr_ready_to_merge"]);
-
-  events.eventBus.on("issue.status_changed", ({ issue_id, project_id, to }) => {
-    if (!CAPTAIN_TRIGGER_STATUSES.has(to)) return;
-
-    if (hasActiveAgentProcess("captain", issue_id)) {
-      log.logger.debug(
-        { issueId: issue_id, status: to },
-        "Skipping captain auto-dispatch on status change: captain already running",
-      );
-      return;
-    }
-
-    // Mark as pending before spawning (atomic operation)
-    if (!markPendingSpawn("captain", issue_id)) {
-      log.logger.debug(
-        { issueId: issue_id, status: to },
-        "Skipping captain auto-dispatch on status change: spawn already in progress",
-      );
-      return;
-    }
-
-    const captain = crew.getCrewMember("captain");
-    if (!captain) {
-      clearPendingSpawn("captain", issue_id);
-      return;
-    }
-
-    log.logger.info(
-      { issueId: issue_id, status: to },
-      "Auto-dispatching captain after issue status change",
-    );
-
-    spawnAgent(captain, issue_id, project_id).catch((err) => {
-      clearPendingSpawn("captain", issue_id);
-      log.logger.error(
-        { err, issueId: issue_id },
-        "Failed to auto-dispatch captain on status change",
       );
     });
   });

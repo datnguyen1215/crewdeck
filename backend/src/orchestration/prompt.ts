@@ -63,15 +63,6 @@ export interface BuildPromptOptions {
   agentId: string;
   /** Knowledge entries filtered for this agent. */
   projectKnowledge?: ProjectKnowledge[];
-  /** Captain-specific context (project settings, running agents, queue) */
-  captainContext?: CaptainContext;
-}
-
-export interface CaptainContext {
-  maxConcurrency: number;
-  runningAgents: Array<{ agent_id: string; issue_id: string; issue_title: string }>;
-  queuedAgents: Array<{ agent_id: string; issue_id: string; issue_title: string }>;
-  allIssues: Array<{ id: string; title: string; status: string; pr_status?: string }>;
 }
 
 export interface BuildScanPromptOptions {
@@ -81,7 +72,7 @@ export interface BuildScanPromptOptions {
 }
 
 export function buildPrompt(opts: BuildPromptOptions): string {
-  const { issue, comments, repo, worktreePath, agentId, projectKnowledge, captainContext } =
+  const { issue, comments, repo, worktreePath, agentId, projectKnowledge } =
     opts;
   const parts: string[] = [];
 
@@ -89,52 +80,18 @@ export function buildPrompt(opts: BuildPromptOptions): string {
     `## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`,
   );
 
-  // Inject project knowledge entries (workflows and conventions only)
+  // List available knowledge entries (titles only — agents fetch content on demand)
   const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
   if (projectKnowledge && projectKnowledge.length > 0) {
-    const injected = projectKnowledge.filter((k) =>
+    const relevant = projectKnowledge.filter((k) =>
       INJECT_CATEGORIES.has(k.category),
     );
-    if (injected.length > 0) {
-      const entries = injected
-        .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
-        .join("\n\n");
-      parts.push(`## Project Knowledge\n${entries}`);
+    if (relevant.length > 0) {
+      const listing = relevant
+        .map((k) => `- [${k.category}] ${k.title} (id: ${k.id})`)
+        .join("\n");
+      parts.push(`## Project Knowledge\nThe following knowledge entries are available. Fetch any you need before starting work using the knowledge API.\n${listing}`);
     }
-  }
-
-  // Inject captain-specific context
-  if (agentId === "captain" && captainContext) {
-    const ctx = captainContext;
-    const lines: string[] = [
-      "## Project Context",
-      `Max Concurrency: ${ctx.maxConcurrency}`,
-      `Running Agents: ${ctx.runningAgents.length}`,
-    ];
-
-    if (ctx.runningAgents.length > 0) {
-      lines.push("\n### Running Agents");
-      for (const agent of ctx.runningAgents) {
-        lines.push(`- ${agent.agent_id} on ${agent.issue_id.slice(0, 8)} (${agent.issue_title})`);
-      }
-    }
-
-    if (ctx.queuedAgents.length > 0) {
-      lines.push("\n### Queued Agents");
-      for (const agent of ctx.queuedAgents) {
-        lines.push(`- ${agent.agent_id} on ${agent.issue_id.slice(0, 8)} (${agent.issue_title})`);
-      }
-    }
-
-    if (ctx.allIssues.length > 0) {
-      lines.push("\n### All Issues");
-      for (const iss of ctx.allIssues) {
-        const prStatus = iss.pr_status ? ` [PR: ${iss.pr_status}]` : "";
-        lines.push(`- ${iss.id.slice(0, 8)}: ${iss.title} (${iss.status})${prStatus}`);
-      }
-    }
-
-    parts.push(lines.join("\n"));
   }
 
   if (repo)
@@ -158,21 +115,12 @@ export function buildPrompt(opts: BuildPromptOptions): string {
 
   parts.push(buildApiSection(agentId));
 
-  if (agentId === "captain") {
-    parts.push(`## Instructions
-Read the issue and comment history above. Determine the current pipeline stage and dispatch the appropriate agent. Your entire stdout will be captured and posted as a comment on the issue.
-
-Do NOT implement changes, write code, or edit files yourself. Your job is to orchestrate — decide what needs to happen next and dispatch the right crew member to do it.
-
-Do your best work.`);
-  } else {
-    parts.push(`## Instructions
+  parts.push(`## Instructions
 Work on the issue described above. Your entire stdout will be captured and posted as a comment on the issue.${diffInstruction}
 
 Note: @mentions are cosmetic references only — they do NOT trigger agent spawns.
 
 Do your best work.`);
-  }
 
   return parts.join("\n\n");
 }
@@ -188,18 +136,12 @@ export function buildScanPrompt(opts: BuildScanPromptOptions): string {
     "## Task\nScan the codebase and update knowledge entries for this project.",
   );
 
-  // Inject project knowledge entries (workflows and conventions only)
-  const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
+  // List existing knowledge entries (titles only — librarian fetches content on demand)
   if (projectKnowledge && projectKnowledge.length > 0) {
-    const injected = projectKnowledge.filter((k) =>
-      INJECT_CATEGORIES.has(k.category),
-    );
-    if (injected.length > 0) {
-      const entries = injected
-        .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
-        .join("\n\n");
-      parts.push(`## Existing Knowledge\n${entries}`);
-    }
+    const listing = projectKnowledge
+      .map((k) => `- [${k.category}] ${k.title} (id: ${k.id})`)
+      .join("\n");
+    parts.push(`## Existing Knowledge\nThe following knowledge entries exist. Fetch any you need to review before creating or updating entries.\n${listing}`);
   }
 
   if (repo)

@@ -40,6 +40,7 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
   }
 
   const entries = listActivity(projectId, filters);
+  const isCompact = (req.query as Record<string, string>).compact === "true";
 
   // Resolve agent names for display. Old activity logs may have UUID actor_ids
   // from before the fixed crew migration — they'll display without actor_name.
@@ -59,7 +60,11 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
   }
 
   const enriched = entries.map((entry: ActivityLog) => {
-    let result: any = { ...entry };
+    const { details, ...rest } = entry;
+    const base = isCompact ? rest : entry;
+
+    // Build enrichments object
+    const enrichments: any = {};
 
     // Enrich with actor_name
     if (entry.actor_type === 'agent' && entry.actor_id) {
@@ -67,16 +72,17 @@ router.get("/", (req: Request<{ projectId: string }>, res) => {
         agentCache.set(entry.actor_id, getCrewMember(entry.actor_id)?.name ?? null);
       }
       const name = agentCache.get(entry.actor_id);
-      if (name) result.actor_name = name;
+      if (name) enrichments.actor_name = name;
     }
 
     // Enrich with issue_title
     if (entry.issue_id) {
       const title = issueTitleCache.get(entry.issue_id);
-      if (title) result.issue_title = title;
+      if (title) enrichments.issue_title = title;
     }
 
-    return result;
+    // Return base with enrichments if any exist
+    return Object.keys(enrichments).length > 0 ? { ...base, ...enrichments } : base;
   });
 
   res.json(enriched);
