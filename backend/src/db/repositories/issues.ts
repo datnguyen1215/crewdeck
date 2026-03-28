@@ -137,6 +137,12 @@ export function updateIssue(id: string, input: UpdateIssueInput): Issue {
   const overrides: Record<string, unknown> = {};
   if (input.paused !== undefined) {
     overrides.paused = input.paused ? 1 : 0;
+    // Update in-memory set before DB write (set-first ordering prevents race conditions)
+    if (input.paused) {
+      pausedIssues.add(id);
+    } else {
+      pausedIssues.delete(id);
+    }
   }
   buildAndRunUpdate("Issue", id, input, overrides);
   return getIssue(id)!;
