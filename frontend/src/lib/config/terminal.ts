@@ -8,6 +8,7 @@ export interface TerminalLine {
   actorType: "agent" | "system" | "user";
   message: string;
   issueId?: string;
+  issueTitle?: string;
   severity: "info" | "success" | "error" | "warning";
   raw?: unknown;
 }
@@ -168,6 +169,7 @@ export function formatActivityEntry(entry: ActivityLog): TerminalLine {
     actorType,
     message: formatActivityMessage(entry.action, details),
     issueId: entry.issue_id || undefined,
+    issueTitle: entry.issue_title,
     severity: getSeverityForAction(entry.action, details),
     raw: entry,
   };
@@ -189,6 +191,7 @@ export function formatWsEvent(
   let actorType: "agent" | "system" | "user" = "system";
   let message = eventType.replace(/\./g, " ");
   let issueId: string | undefined;
+  let issueTitle: string | undefined;
   let severity: Severity = "info";
 
   switch (eventType) {
@@ -262,6 +265,7 @@ export function formatWsEvent(
       actor = `agent:${agentName}`;
       actorType = "agent";
       issueId = String(d.issue_id || "");
+      issueTitle = d.issue_title ? String(d.issue_title) : undefined;
       const shortId = issueId.slice(0, 8);
       message = `Spawned on issue ${shortId}`;
       severity = "info";
@@ -274,6 +278,7 @@ export function formatWsEvent(
       actor = `agent:${agentName}`;
       actorType = "agent";
       issueId = String(d.issue_id || "");
+      issueTitle = d.issue_title ? String(d.issue_title) : undefined;
       const exitCode = d.exit_code ?? "?";
       message = `Completed (exit ${exitCode})`;
       severity = Number(d.exit_code) === 0 ? "success" : "error";
@@ -286,6 +291,7 @@ export function formatWsEvent(
       actor = `agent:${agentName}`;
       actorType = "agent";
       issueId = String(d.issue_id || "");
+      issueTitle = d.issue_title ? String(d.issue_title) : undefined;
       message = String(d.message || "Unknown error");
       severity = "error";
       break;
@@ -294,6 +300,7 @@ export function formatWsEvent(
     case "mention.chain_depth_reached": {
       message = "Chain depth limit reached";
       issueId = String(d.issue_id || "");
+      issueTitle = d.issue_title ? String(d.issue_title) : undefined;
       severity = "warning";
       break;
     }
@@ -357,6 +364,7 @@ export function formatWsEvent(
     actorType,
     message,
     issueId: issueId || undefined,
+    issueTitle,
     severity,
     raw: data,
   };

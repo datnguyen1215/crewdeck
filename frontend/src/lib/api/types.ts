@@ -98,6 +98,7 @@ export interface ActivityLog {
   actor_type: string;
   actor_id: string | null;
   actor_name?: string;
+  issue_title?: string;
   action: string;
   details: Record<string, unknown>;
   created_at: string;

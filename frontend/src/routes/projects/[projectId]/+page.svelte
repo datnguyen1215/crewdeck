@@ -474,7 +474,7 @@
 
 	<!-- Activity Terminal -->
 	<div class="border-t border-edge">
-		<ActivityTerminal {projectId} />
+		<ActivityTerminal {projectId} {issues} />
 	</div>
 </div>
 

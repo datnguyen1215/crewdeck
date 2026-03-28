@@ -1,11 +1,17 @@
 <script lang="ts">
-	import type { ActivityLog } from '$lib/api/http.js';
+	import type { ActivityLog, Issue } from '$lib/api/http.js';
 	import type { ProjectWebSocket, WsEvent } from '$lib/api/ws.svelte.js';
 	import { listActivity } from '$lib/api/http.js';
-	import { parseUTC } from '$lib/utils/time.js';
+	import { formatActivityEntry, type TerminalLine } from '$lib/config/terminal.js';
 	import { getContext } from 'svelte';
+	import { goto } from '$app/navigation';
 
-	let { projectId }: { projectId: string } = $props();
+	let { projectId, issues = [] }: { projectId: string; issues?: Issue[] } = $props();
+
+	// Build a lookup map for issue titles
+	let issueTitleMap = $derived(
+		new Map(issues.map((issue) => [issue.id, issue.title]))
+	);
 
 	const getProjectWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	let ws: ProjectWebSocket | null = null;
@@ -185,92 +191,49 @@
 		};
 	});
 
-	// Terminal formatter
-	function formatEntry(entry: ActivityLog): string {
-		const timestamp = parseUTC(entry.created_at);
-		const time = timestamp
-			.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-			.replace(/:/g, ':');
-
-		const actorName = entry.actor_type === 'agent' ? entry.actor_name ?? 'agent' : entry.actor_type;
-		const details = (entry.details as Record<string, unknown>) ?? {};
-
-		let message = '';
-		switch (entry.action) {
-			case 'mention.spawned':
-				message = `${actorName} spawned (pid ${details.pid})`;
-				break;
-			case 'mention.completed':
-				message = `${actorName} completed (exit ${details.exit_code})`;
-				break;
-			case 'mention.error':
-				message = `${actorName} error: ${details.message}`;
-				break;
-			case 'run.started':
-				message = `${actorName} run started`;
-				break;
-			case 'run.completed':
-				message = `${actorName} run completed (status: ${details.status})`;
-				break;
-			case 'issue.status_changed':
-				message = `issue status: ${details.from} → ${details.to}`;
-				break;
-			case 'comment.added':
-				message = `${actorName} commented`;
-				break;
-			case 'pr.created':
-				message = `PR #${details.pr_number} created`;
-				break;
-			case 'pr.status_changed':
-				message = `PR status: ${details.from} → ${details.to}`;
-				break;
-			default:
-				message = entry.action;
-		}
-
-		return `[${time}] ${message}`;
-	}
-
-	// Determine entry color
-	function entryColor(entry: ActivityLog): string {
-		switch (entry.action) {
-			case 'mention.spawned':
-			case 'run.started':
-			case 'pr.created':
-				return 'text-cyan border-cyan/30';
-			case 'mention.completed':
-			case 'run.completed':
-				return 'text-green border-green/30';
-			case 'mention.error':
-				return 'text-red border-red/30';
-			case 'issue.status_changed': {
-				const details = (entry.details as Record<string, unknown>) ?? {};
-				if (details.to === 'done') return 'text-green border-green/30';
-				if (details.to === 'discarded') return 'text-red border-red/30';
-				return 'text-amber border-amber/30';
-			}
-			default:
-				return 'text-secondary border-edge';
-		}
-	}
+	// Format entries using terminal formatter
+	let formattedEntries = $derived.by(() => {
+		return entries.map(formatActivityEntry);
+	});
 
 	// Filter entries
 	let filteredEntries = $derived.by(() => {
-		let result = entries;
+		let result = formattedEntries;
 		if (filterAgents) {
-			result = result.filter((e) => e.actor_type === 'agent');
+			result = result.filter((e) => e.actorType === 'agent');
 		}
 		if (filterErrors) {
-			result = result.filter((e) => e.action.includes('error'));
+			result = result.filter((e) => e.severity === 'error');
 		}
 		return result;
 	});
 
-	// Handle entry click for navigation
-	function handleEntryClick(entry: ActivityLog) {
-		if (entry.issue_id) {
-			window.location.href = `/projects/${projectId}/issues/${entry.issue_id}`;
+	// Resolve issue title using 3-tier fallback
+	function resolveIssueTitle(line: TerminalLine): string | undefined {
+		// 1. From API enrichment
+		if (line.issueTitle) return line.issueTitle;
+
+		// 2. From WebSocket event payload (already extracted by formatter)
+		// (already checked above, issueTitle includes this)
+
+		// 3. From issues prop lookup
+		if (line.issueId && issueTitleMap.has(line.issueId)) {
+			return issueTitleMap.get(line.issueId);
 		}
+
+		return undefined;
+	}
+
+	// Truncate title to max length
+	function truncateTitle(title: string, maxLength: number = 25): string {
+		if (title.length <= maxLength) return title;
+		return title.slice(0, maxLength) + '…';
+	}
+
+	// Navigate to issue detail page
+	function navigateToIssue(issueId: string, e: Event) {
+		e.stopPropagation();
+		goto(`/projects/${projectId}/issues/${issueId}`);
 	}
 </script>
 
@@ -339,19 +302,35 @@
 				<div class="flex items-center justify-center h-full text-muted text-sm">No activity</div>
 			{:else}
 				<div class="p-4 space-y-0.5">
-					{#each filteredEntries as entry (entry.id)}
-						{@const isNew = newEntryIds.has(entry.id)}
-						{@const colors = entryColor(entry)}
+					{#each filteredEntries as line (line.id)}
+						{@const isNew = newEntryIds.has(line.id)}
+						{@const issueTitle = resolveIssueTitle(line)}
+						{@const severityColors = {
+							info: 'text-secondary border-edge',
+							success: 'text-green border-green/30',
+							error: 'text-red border-red/30',
+							warning: 'text-amber border-amber/30'
+						}}
+						{@const colors = severityColors[line.severity]}
 						<div
-							class="text-xs font-mono leading-relaxed border-l-2 pl-2 py-0.5 transition-all cursor-pointer hover:bg-surface/50 {colors}"
+							class="text-xs font-mono leading-relaxed border-l-2 pl-2 py-0.5 transition-all {colors}"
 							class:new-entry={isNew}
-							onclick={() => handleEntryClick(entry)}
-							role="button"
-							tabindex="0"
-							onkeydown={(e) => e.key === 'Enter' && handleEntryClick(entry)}
 							style={isNew ? 'animation: entry-slide-in 150ms ease-out, entry-glow 1s ease-out' : ''}
 						>
-							{formatEntry(entry)}
+							<span class="text-muted">[{line.timestamp}]</span>
+							{#if issueTitle && line.issueId}
+								<a
+									href="/projects/{projectId}/issues/{line.issueId}"
+									class="text-secondary/80 hover:text-cyan hover:underline transition-colors"
+									title={issueTitle}
+									onclick={(e) => navigateToIssue(line.issueId!, e)}
+									data-sveltekit-preload-data
+								>
+									{truncateTitle(issueTitle)}
+								</a>
+								<span class="text-muted"> › </span>
+							{/if}
+							<span>{line.message}</span>
 						</div>
 					{/each}
 					<!-- Blinking cursor -->
