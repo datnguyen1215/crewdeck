@@ -21,6 +21,14 @@ export interface EventMap {
     actor_type?: "user" | "agent" | "system";
     actor_id?: string;
   };
+  "issue.paused": {
+    issue_id: string;
+    project_id: string;
+  };
+  "issue.resumed": {
+    issue_id: string;
+    project_id: string;
+  };
   "comment.added": { comment: Comment; project_id: string };
   "comment.updated": { comment: Comment; project_id: string };
   "comment.deleted": {
