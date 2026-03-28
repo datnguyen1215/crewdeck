@@ -145,29 +145,15 @@ export function listAllAgents() {
   return request<Agent[]>("GET", "/crew?all=true");
 }
 
-// Agent Config (per-project model overrides)
-export function listAgentConfig(projectId: string) {
-  return request<AgentConfig[]>(
-    "GET",
-    `/projects/${e(projectId)}/agent-config`,
-  );
+// Agent Config (global model overrides)
+export function listAgentConfig() {
+  return request<AgentConfig[]>("GET", `/agent-config`);
 }
-export function setAgentModel(
-  projectId: string,
-  agentId: string,
-  model: string,
-) {
-  return request<AgentConfig>(
-    "PUT",
-    `/projects/${e(projectId)}/agent-config/${e(agentId)}`,
-    { model },
-  );
+export function setAgentModel(agentId: string, model: string) {
+  return request<AgentConfig>("PUT", `/agent-config/${e(agentId)}`, { model });
 }
-export function deleteAgentConfig(projectId: string, agentId: string) {
-  return request<void>(
-    "DELETE",
-    `/projects/${e(projectId)}/agent-config/${e(agentId)}`,
-  );
+export function deleteAgentConfig(agentId: string) {
+  return request<void>("DELETE", `/agent-config/${e(agentId)}`);
 }
 
 // Issues

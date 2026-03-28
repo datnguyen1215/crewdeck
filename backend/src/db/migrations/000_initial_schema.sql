@@ -183,13 +183,11 @@ CREATE INDEX IF NOT EXISTS idx_chat_message_project ON ChatMessage(project_id);
 CREATE INDEX IF NOT EXISTS idx_chat_message_session ON ChatMessage(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_message_created ON ChatMessage(project_id, created_at DESC);
 
--- Per-agent model overrides
+-- Global per-agent model overrides (machine-level, not per-project)
 CREATE TABLE IF NOT EXISTS AgentConfig (
   id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
-  agent_id TEXT NOT NULL,
-  model TEXT,
-  UNIQUE(project_id, agent_id)
+  agent_id TEXT NOT NULL UNIQUE,
+  model TEXT
 );
 
 -- Migration version tracking

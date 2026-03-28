@@ -409,7 +409,7 @@ export const spawnAgent = async (
   if (issueRepo.isIssuePaused(issueId)) {
     log.logger.info(
       { issueId, agentId: agent.id },
-      "Skipping spawn: issue is paused"
+      "Skipping spawn: issue is paused",
     );
     clearPendingSpawn(agent.id, issueId);
     return;
@@ -459,7 +459,11 @@ export const spawnAgent = async (
     }
     // Queue the run
     dispatchQueue.enqueueRun(projectId, issueId, agent.id);
-    const position = dispatchQueue.getQueuePosition(projectId, issueId, agent.id);
+    const position = dispatchQueue.getQueuePosition(
+      projectId,
+      issueId,
+      agent.id,
+    );
     const ahead = position;
     postSystemComment(
       issueId,
@@ -499,7 +503,11 @@ export const spawnAgent = async (
     }
     // Queue the run
     dispatchQueue.enqueueRun(projectId, issueId, agent.id);
-    const position = dispatchQueue.getQueuePosition(projectId, issueId, agent.id);
+    const position = dispatchQueue.getQueuePosition(
+      projectId,
+      issueId,
+      agent.id,
+    );
     const ahead = position;
     postSystemComment(
       issueId,
@@ -612,7 +620,7 @@ export const spawnAgent = async (
   const timeoutMinutes =
     project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
 
-  const model = agentConfigRepo.resolveModel(projectId, agent.id);
+  const model = agentConfigRepo.resolveModel(agent.id);
 
   await spawnAndTrack({
     agent,
@@ -778,7 +786,7 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
   const timeoutMinutes =
     project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
 
-  const model = agentConfigRepo.resolveModel(projectId, agent.id);
+  const model = agentConfigRepo.resolveModel(agent.id);
 
   // Update run status to 'running' and set started_at
   agentRunRepo.updateAgentRun(run.id, {
@@ -944,7 +952,7 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   const timeoutMinutes =
     project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
 
-  const model = agentConfigRepo.resolveModel(projectId, agent.id);
+  const model = agentConfigRepo.resolveModel(agent.id);
 
   return spawnAndTrack({
     agent,

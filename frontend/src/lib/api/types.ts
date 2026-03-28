@@ -198,7 +198,6 @@ export interface ChatMessage {
 
 export interface AgentConfig {
   id: string;
-  project_id: string;
   agent_id: string;
   model: string | null;
 }
