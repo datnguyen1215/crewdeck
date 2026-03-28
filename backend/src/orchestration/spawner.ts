@@ -383,6 +383,16 @@ export const spawnAgent = async (
   commentAuthorAgentId?: string,
   options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> => {
+  // Guard: reject spawn attempts for paused issues
+  if (issueRepo.pausedIssues.has(issueId)) {
+    log.logger.warn(
+      { agentId: agent.id, issueId, reason: "issue_paused" },
+      "Spawn blocked: issue is paused",
+    );
+    clearPendingSpawn(agent.id, issueId);
+    return;
+  }
+
   const project = projectRepo.getProject(projectId);
   if (!project) {
     clearPendingSpawn(agent.id, issueId);
