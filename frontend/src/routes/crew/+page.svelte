@@ -1,6 +1,6 @@
 <script lang="ts">
 	import {
-		listAgents,
+		listAllAgents,
 		listAgentConfig,
 		setAgentModel,
 		deleteAgentConfig,
@@ -17,7 +17,7 @@
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
-		Promise.all([listAgents(), listAgentConfig()])
+		Promise.all([listAllAgents(), listAgentConfig()])
 			.then(([a, c]) => {
 				if (cancelled) return;
 				agents = a;
