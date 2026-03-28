@@ -9,7 +9,10 @@
  */
 import { logger } from "../../logger.js";
 import { eventBus } from "../../events/bus.js";
-import { getProject } from "../../db/repositories/projects.js";
+import {
+  getProject,
+  updateCaptainStatus,
+} from "../../db/repositories/projects.js";
 import { getActiveProcessCount } from "../processes.js";
 import { spawnClaudeStream } from "../process.js";
 import { resolveModel } from "../../db/repositories/agent-config.js";
@@ -36,7 +39,14 @@ function buildStateSnapshot(projectId: string): string {
 
   // Compact issues (non-closed, no descriptions)
   const issues = listIssues(projectId, {
-    status: ["open", "in_progress", "pr_created", "pr_ready_to_merge", "pr_conflict", "pr_failed_actions"],
+    status: [
+      "open",
+      "in_progress",
+      "pr_created",
+      "pr_ready_to_merge",
+      "pr_conflict",
+      "pr_failed_actions",
+    ],
   });
   if (issues.length > 0) {
     const rows = issues.map((i) => {
@@ -444,6 +454,19 @@ export const processWithLLM = async (
 
   eventBus.emit("monitor.thinking", { project_id: projectId });
 
+  try {
+    updateCaptainStatus(
+      projectId,
+      "thinking",
+      `Analyzing ${events.length} event${events.length !== 1 ? "s" : ""}`,
+    );
+  } catch (err) {
+    logger.warn(
+      { err, projectId },
+      "Monitor: Failed to update captain status to thinking",
+    );
+  }
+
   const env: Record<string, string> = {
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
     CREWDECK_PROJECT_ID: projectId,
@@ -547,6 +570,21 @@ export const processWithLLM = async (
         "Monitor: Executing action plan",
       );
 
+      try {
+        updateCaptainStatus(
+          projectId,
+          "executing",
+          actionPlan.reasoning
+            ? actionPlan.reasoning.slice(0, 120)
+            : `Executing ${actionPlan.actions.length} action${actionPlan.actions.length !== 1 ? "s" : ""}`,
+        );
+      } catch (err) {
+        logger.warn(
+          { err, projectId },
+          "Monitor: Failed to update captain status to executing",
+        );
+      }
+
       const results = await executePlan(projectId, actionPlan);
       finalResponse = formatResults(results);
 
@@ -567,9 +605,12 @@ export const processWithLLM = async (
             "Available action types: dispatch (issue_id, agent_id, instructions?), merge (issue_id), " +
             "create-pr (issue_id), comment (issue_id, content), create-issue (title, description?), " +
             "update-issue (issue_id, status?, title?), scan, skip (issue_id, reason).\n\n" +
-            "If no actions are described, output: <action>{\"reasoning\": \"no actions\", \"actions\": []}</action>\n\n" +
-            "Text to extract from:\n---\n" + (resultText || "No response") + "\n---",
-          systemPrompt: "You extract structured actions from text. Output ONLY <action>{JSON}</action> tags. No other text.",
+            'If no actions are described, output: <action>{"reasoning": "no actions", "actions": []}</action>\n\n' +
+            "Text to extract from:\n---\n" +
+            (resultText || "No response") +
+            "\n---",
+          systemPrompt:
+            "You extract structured actions from text. Output ONLY <action>{JSON}</action> tags. No other text.",
           workdir: ".",
           env,
           model,
@@ -602,13 +643,13 @@ export const processWithLLM = async (
           }
         } else {
           finalResponse = resultText || "No action plan generated";
-          logger.warn(
-            { projectId },
-            "Monitor: Retry extraction also failed",
-          );
+          logger.warn({ projectId }, "Monitor: Retry extraction also failed");
         }
       } catch (retryErr) {
-        logger.error({ retryErr, projectId }, "Monitor: Retry extraction failed");
+        logger.error(
+          { retryErr, projectId },
+          "Monitor: Retry extraction failed",
+        );
         finalResponse = resultText || "No action plan generated";
       }
     }

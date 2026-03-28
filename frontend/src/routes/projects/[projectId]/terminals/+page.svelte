@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext, onMount } from 'svelte';
-	import { listActiveRuns, getProject, getMonitorHistory, type ActiveRun, type Project } from '$lib/api/http.js';
+	import { listActiveRuns, getProject, getMonitorHistory, getCaptainStatus, type ActiveRun, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { MonitorEntry, WsEventMap } from '$lib/api/types.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -30,11 +30,17 @@
 		}
 	);
 
-	// Load monitor history on mount
+	// Load monitor history and captain status on mount
 	onMount(async () => {
 		try {
-			const history = await getMonitorHistory(projectId, 20);
+			const [history, captainStatus] = await Promise.all([
+				getMonitorHistory(projectId, 20),
+				getCaptainStatus(projectId).catch(() => null),
+			]);
 			monitorEntries = history.map(mapMessageToEntry);
+			if (captainStatus && captainStatus.status !== 'idle') {
+				isAnalyzing = true;
+			}
 		} catch (err) {
 			console.error('Failed to load monitor history:', err);
 		} finally {

@@ -7,9 +7,20 @@
  */
 import { eventBus } from "../../events/bus.js";
 import { logger } from "../../logger.js";
-import { getProject, listProjects } from "../../db/repositories/projects.js";
+import {
+  getProject,
+  listProjects,
+  updateCaptainStatus,
+} from "../../db/repositories/projects.js";
 import { isIssuePaused } from "../../db/repositories/issues.js";
-import { enqueue, tryAcquire, release, drain, hasPending } from "./queue.js";
+import {
+  enqueue,
+  tryAcquire,
+  release,
+  drain,
+  hasPending,
+  pendingCount,
+} from "./queue.js";
 import { processWithLLM } from "./monitor-agent.js";
 import { RECOVERY_DELAY_MS } from "../recovery.js";
 import type { CaptainEvent } from "./queue.js";
@@ -31,6 +42,22 @@ async function queueAndProcess(event: CaptainEvent): Promise<void> {
 
   enqueue({ ...event, projectId: queueKey });
 
+  // Update pending count in DB so REST callers can see queued events.
+  // Only set receiving if not already in a more advanced phase (thinking/executing)
+  // to avoid regressing the status while the processor is mid-flight.
+  try {
+    const current = getProject(projectId);
+    const currentStatus = current?.captain_status ?? "idle";
+    if (currentStatus === "idle" || currentStatus === "receiving") {
+      updateCaptainStatus(projectId, "receiving", null, pendingCount(queueKey));
+    }
+  } catch (err) {
+    logger.warn(
+      { err, projectId },
+      "Monitor: Failed to update captain status to receiving",
+    );
+  }
+
   if (!tryAcquire(queueKey)) {
     logger.debug(
       { projectId, eventType: event.type },
@@ -43,6 +70,14 @@ async function queueAndProcess(event: CaptainEvent): Promise<void> {
     await processQueue(projectId, queueKey);
   } finally {
     release(queueKey);
+    try {
+      updateCaptainStatus(projectId, "idle");
+    } catch (err) {
+      logger.warn(
+        { err, projectId },
+        "Monitor: Failed to update captain status to idle",
+      );
+    }
   }
 }
 
@@ -78,7 +113,12 @@ async function processQueue(
  */
 function createProjectHandlers(projectId: string): () => void {
   const handleIssueCreated = (data: {
-    issue: { project_id: string; id: string; title: string; created_by: string };
+    issue: {
+      project_id: string;
+      id: string;
+      title: string;
+      created_by: string;
+    };
   }) => {
     if (data.issue.project_id !== projectId) return;
     // Ignore agent-created issues to prevent chain reactions where Monitor
@@ -176,7 +216,6 @@ function createProjectHandlers(projectId: string): () => void {
       );
     });
   };
-
 
   const handleCommentAdded = (data: {
     comment: {

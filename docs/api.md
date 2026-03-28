@@ -148,6 +148,47 @@ DELETE /projects/:id
 
 **Side effects:** Kills any active agent processes, cleans up worktrees, deletes all related data (cascading).
 
+#### Get Captain Status
+
+```
+GET /projects/:id/captain/status
+```
+
+Returns the current captain monitor phase for the project. Use this on page load to hydrate UI state (show spinner, action detail, etc.) without waiting for WebSocket events.
+
+**Response:** `200 OK`
+
+```json
+{
+  "status": "idle",
+  "detail": null,
+  "pending_count": 0,
+  "processing_since": null,
+  "processing_duration_ms": null
+}
+```
+
+| Field                  | Type             | Description                                                                                       |
+| ---------------------- | ---------------- | ------------------------------------------------------------------------------------------------- |
+| status                 | TEXT             | Current phase. One of: `idle`, `receiving`, `thinking`, `executing`.                              |
+| detail                 | TEXT \| null     | Human-readable detail for the current phase (e.g. `"Analyzing 3 events"`). NULL when idle.        |
+| pending_count          | INTEGER          | Number of events queued for the captain to process.                                               |
+| processing_since       | DATETIME \| null | UTC timestamp (SQLite `CURRENT_TIMESTAMP` format) when the current cycle started. NULL when idle. |
+| processing_duration_ms | INTEGER \| null  | Milliseconds elapsed since `processing_since`. Computed server-side. NULL when idle.              |
+
+**Phase transitions:**
+
+- `idle` → `receiving` — a new event arrives while the captain is idle
+- `receiving` → `thinking` — the event queue is drained and the LLM call begins
+- `thinking` → `executing` — the LLM produced an action plan and the backend is executing it
+- `executing` → `idle` — all actions complete (or the cycle errors out)
+
+**Note:** When a new event arrives while the captain is already `thinking` or `executing`, the status is **not** regressed to `receiving` — the more-advanced phase is preserved. WebSocket events (`monitor.thinking`, `monitor.tool_call`, `monitor.tool_result`, `monitor.complete`) continue to provide real-time granularity; this REST endpoint is for hydration on page load only.
+
+**Error:** `404 Not Found` — Project does not exist.
+
+---
+
 #### Get Librarian Status
 
 ```
