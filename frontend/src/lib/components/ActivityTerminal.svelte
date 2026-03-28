@@ -4,7 +4,6 @@
 	import { listActivity } from '$lib/api/http.js';
 	import { formatActivityEntry, type TerminalLine } from '$lib/config/terminal.js';
 	import { getContext } from 'svelte';
-	import { goto } from '$app/navigation';
 
 	let { projectId, issues = [] }: { projectId: string; issues?: Issue[] } = $props();
 
