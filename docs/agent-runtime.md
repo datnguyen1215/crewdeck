@@ -90,7 +90,6 @@ claude -p <prompt via stdin> \
 - The prompt is written to stdin to avoid exceeding `ARG_MAX` for large prompts.
 - `--settings '{"attribution":{"commit":"","pr":""}}'` disables AI attribution in commits and PRs.
 
-
 ## Captain Command Execution
 
 `backend/src/orchestration/command-handlers.ts`
@@ -128,12 +127,12 @@ This resolution is applied to all commands that take an `issue_id` (dispatch, me
 
 ### Commands
 
-| Command       | Format                               | Description                     |
-| ------------- | ------------------------------------ | ------------------------------- |
-| /dispatch     | `/dispatch agent_id`                 | Dispatch agent to work on issue |
-| /merge        | `/merge issue_id`                    | Merge PR for issue              |
-| /create-pr    | `/create-pr issue_id`                | Create GitHub PR for issue      |
-| /create-issue | `/create-issue title`                | Create new issue                |
+| Command       | Format                | Description                     |
+| ------------- | --------------------- | ------------------------------- |
+| /dispatch     | `/dispatch agent_id`  | Dispatch agent to work on issue |
+| /merge        | `/merge issue_id`     | Merge PR for issue              |
+| /create-pr    | `/create-pr issue_id` | Create GitHub PR for issue      |
+| /create-issue | `/create-issue title` | Create new issue                |
 
 Commands are parsed from captain's comment output and executed sequentially. Only captain can execute these orchestration commands (restricted by `author_type` check).
 
@@ -203,7 +202,12 @@ If either limit is reached, the dispatch is placed in a DB-backed FIFO queue (us
 
 ### Timeouts
 
-Each process is given a 10-minute timeout. On timeout, SIGTERM is sent; if the process does not exit within 5 seconds, SIGKILL is sent. A system comment is posted on the issue.
+Each spawned agent process is given a 10-minute timeout. On timeout, SIGTERM is sent; if the process does not exit within 5 seconds, SIGKILL is sent. A system comment is posted on the issue.
+
+The captain monitor's `processWithLLM()` function (in `monitor-agent.ts`) applies separate timeouts to its internal `claude -p` calls:
+
+- **Main LLM call** — 2-minute timeout. On timeout, SIGTERM is sent to the `claude -p` process; if it does not exit within 5 seconds, SIGKILL is sent. This prevents a hung process from holding the queue mutex and blocking all subsequent event processing.
+- **Retry extraction call** — 30-second timeout (same SIGTERM/SIGKILL pattern). This covers the simpler JSON extraction prompt used on retry.
 
 ## MentionParser
 
@@ -263,12 +267,14 @@ Issue worktrees are automatically cleaned up when an issue reaches `done` status
 **Synchronous cleanup on deletion:**
 
 When an issue is deleted via `DELETE /issues/:issueId`, cleanup runs synchronously before database deletion:
+
 - Checks if worktree path exists on disk
 - Calls `cleanupWorktree()` if present
 - Logs warnings on failure but continues with deletion
 - Prevents worktree leaks when issues are removed
 
 **Implementation guarantees:**
+
 - Database fields are always cleared when status reaches `done`, even if git cleanup fails
 - This prevents DB from pointing to broken or partially-cleaned worktree state
 - Early exit optimization when path already gone (no unnecessary git operations)
