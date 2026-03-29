@@ -240,6 +240,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - **Merge conflicts** — via the `mergeable` field. If `false`, transitions issue to `pr_conflict`.
   - **CI status** — checks all configured CI systems. If any check failed, transitions issue to `pr_failed_actions`. If all checks pass and mergeable, transitions to `pr_ready_to_merge`.
 - Issues in intermediate states (`pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) are transitioned back to `pr_created` when conditions become pending (e.g., new commits pushed).
+- **Only processes issues in PR-related statuses** (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`). Issues in `in_progress` are skipped. When an agent is dispatched to fix a conflict or CI failure, the spawner regresses the issue to `in_progress` — the captain monitor restores it back to `pr_created` after the agent completes, so the poller picks it up again.
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
 - Exports `pollPRs()` for external callers to trigger immediate polling.
 
@@ -279,6 +280,14 @@ When spawning Captain, the backend injects project-specific context:
 - `allIssues` — all issues with their status and PR status
 
 This context enables Captain to make informed orchestration decisions based on current project state.
+
+**Captain Monitor State Snapshot** (`backend/src/orchestration/captain/monitor-agent.ts`)
+
+The captain monitor builds a state snapshot for each LLM call via `buildStateSnapshot()`. For each non-closed issue the snapshot includes the issue ID, status, paused flag, running agent (if any), title, and — if the issue has an open PR — the PR number and URL in the format `[PR: #<number> <url>]`. This lets the captain see which `in_progress` issues already have open PRs, even when the issue was regressed from a PR-related status.
+
+**Captain Monitor Event Response Rules**
+
+When the captain monitor handles a `run.completed` event: if the completed issue has an open PR (visible in the snapshot or event context), the captain sets the issue status back to `pr_created`. This ensures the PR poller re-evaluates CI and mergeability from GitHub, since the poller skips `in_progress` issues.
 
 **Command Execution** (`backend/src/orchestration/command-handlers.ts`)
 
