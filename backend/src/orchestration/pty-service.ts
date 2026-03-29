@@ -15,6 +15,7 @@ import { listActiveRunsForProject } from "../db/repositories/agent-runs.js";
 import { getCrewMember } from "./crew.js";
 import { config } from "../config.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
+import { shellQuote } from "./shell.js";
 
 interface TerminalSession {
   projectId: string;
@@ -412,16 +413,24 @@ export async function createTerminalSession(
   // Write system prompt to temp file
   writeFileSync(systemPromptPath, systemPrompt, "utf-8");
 
-  // Set up environment variables — project-defined vars first, then platform vars override
+  // Set up environment variables.
+  // project-defined vars and platform-specific vars are baked into the tmux
+  // command via `env KEY=VAL ...` so they reach the shell inside the session
+  // (which inherits the tmux server's env, not the client's).
+  // process.env is passed via spawn's env option for everything else.
   const projectEnvVars = getEnvironmentVariablesMap(projectId);
-  const env: Record<string, string> = {
-    ...process.env,
+  const captainEnvVars: Record<string, string> = {
     ...projectEnvVars,
     CREWDECK_API_URL: `http://${config.host}:${config.port}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: "captain",
     TERM: "xterm-256color",
     GIT_TERMINAL_PROMPT: "0",
+  };
+  // Full env for the tmux spawn process itself (inherits all of process.env)
+  const env: Record<string, string> = {
+    ...process.env,
+    ...captainEnvVars,
   } as Record<string, string>;
 
   const sshKeyPath = await setupGitHubAuth(projectId, env);
@@ -441,9 +450,9 @@ export async function createTerminalSession(
     tmuxSessionName,
     ...(worktreePath ? ["-c", worktreePath] : []),
     "env",
-    ...Object.entries(env)
-      .filter(([, v]) => v !== undefined)
-      .map(([k, v]) => `${k}=${String(v)}`),
+    ...Object.entries(captainEnvVars).map(
+      ([k, v]) => `${shellQuote(k)}=${shellQuote(String(v))}`,
+    ),
     "claude",
     "--system-prompt-file",
     systemPromptPath,
