@@ -417,6 +417,16 @@ export async function createTerminalSession(
   // project-defined vars and platform-specific vars are baked into the tmux
   // command via `env KEY=VAL ...` so they reach the shell inside the session
   // (which inherits the tmux server's env, not the client's).
+  // Full env for the tmux spawn process itself (inherits all of process.env)
+  const env: Record<string, string> = { ...process.env } as Record<
+    string,
+    string
+  >;
+
+  // setupGitHubAuth mutates env with GH_TOKEN and GIT_SSH_COMMAND — call it first
+  // so those vars are captured in captainEnvVars and baked into the tmux command.
+  const sshKeyPath = await setupGitHubAuth(projectId, env);
+
   // process.env is passed via spawn's env option for everything else.
   const projectEnvVars = getEnvironmentVariablesMap(projectId);
   const captainEnvVars: Record<string, string> = {
@@ -426,14 +436,12 @@ export async function createTerminalSession(
     CREWDECK_AGENT_ID: "captain",
     TERM: "xterm-256color",
     GIT_TERMINAL_PROMPT: "0",
+    // Include GitHub auth vars added by setupGitHubAuth
+    ...(env.GH_TOKEN ? { GH_TOKEN: env.GH_TOKEN } : {}),
+    ...(env.GIT_SSH_COMMAND ? { GIT_SSH_COMMAND: env.GIT_SSH_COMMAND } : {}),
   };
-  // Full env for the tmux spawn process itself (inherits all of process.env)
-  const env: Record<string, string> = {
-    ...process.env,
-    ...captainEnvVars,
-  } as Record<string, string>;
-
-  const sshKeyPath = await setupGitHubAuth(projectId, env);
+  // Merge captainEnvVars back into env for the spawn call
+  Object.assign(env, captainEnvVars);
 
   // Kill any stale tmux session from a previous server run
   try {
