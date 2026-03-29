@@ -52,7 +52,12 @@ function buildStateSnapshot(projectId: string): string {
     const rows = issues.map((i) => {
       const agent = i.running_agent_id ? ` [agent: ${i.running_agent_id}]` : "";
       const paused = i.paused ? " (paused)" : "";
-      return `- ${i.id} | ${i.status}${paused}${agent} | ${i.title}`;
+      const prs = listIssuePRs(i.id);
+      const openPR = prs.filter((p) => p.status === "open").at(-1);
+      const prInfo = openPR
+        ? ` [PR: #${openPR.pr_number}${openPR.pr_url ? ` ${openPR.pr_url}` : ""}]`
+        : "";
+      return `- ${i.id} | ${i.status}${paused}${agent}${prInfo} | ${i.title}`;
     });
     parts.push(`### Issues (non-closed)\n${rows.join("\n")}`);
   } else {
@@ -197,7 +202,7 @@ If 3 issues need work and 5 slots are available, list all 3 dispatches — they'
 ## Event Response Rules
 Events include full context (issue title, status, PR info, agent reports). Use this information directly — no need to curl for it.
 - **issue.created**: ${canAutoStart ? "Dispatch engineer to work on the new issue. The description is included in the event." : "Acknowledge only — wait for user to trigger dispatch."}
-- **run.completed**: The agent's report is included in the event. Decide the next step based on the report. Pass relevant context in dispatch instructions so the next agent doesn't start blind.
+- **run.completed**: The agent's report is included in the event. Decide the next step based on the report. Pass relevant context in dispatch instructions so the next agent doesn't start blind. **If the issue has an open PR (visible in the snapshot or event context), set its status back to \`pr_created\` so the PR poller re-evaluates CI and mergeability from GitHub.** Do this before dispatching a follow-up agent if needed.
 - **issue.status_changed → done**: Check the snapshot for remaining work. Consider a librarian scan if the completed work changed project structure.
 - **issue.status_changed → pr_conflict**: Dispatch engineer to resolve merge conflicts. Include the PR URL in dispatch instructions.
 - **issue.status_changed → pr_failed_actions**: Dispatch engineer to fix CI failures. Include the PR URL in dispatch instructions.
