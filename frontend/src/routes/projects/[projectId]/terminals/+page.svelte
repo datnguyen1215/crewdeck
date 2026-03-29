@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext, onMount } from 'svelte';
+	import { tick } from 'svelte';
 	import { listActiveRuns, getProject, getMonitorHistory, getCaptainStatus, type ActiveRun, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { MonitorEntry, WsEventMap } from '$lib/api/types.js';
@@ -14,6 +15,7 @@
 	let monitorEntries = $state<MonitorEntry[]>([]);
 	let monitorLoading = $state(true);
 	let isAnalyzing = $state(false);
+	let monitorScrollToBottom: (() => void) | null = null;
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	let projectId = $derived($page.params.projectId!);
@@ -45,6 +47,8 @@
 			console.error('Failed to load monitor history:', err);
 		} finally {
 			monitorLoading = false;
+			await tick();
+			monitorScrollToBottom?.();
 		}
 	});
 
@@ -350,7 +354,7 @@
 			</div>
 
 			<div
-				use:autoscroll
+				use:autoscroll={(fn) => { monitorScrollToBottom = fn; }}
 				class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs bg-black/20"
 			>
 				{#if monitorLoading}
