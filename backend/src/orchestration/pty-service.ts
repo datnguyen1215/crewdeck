@@ -14,6 +14,8 @@ import { listIssues } from "../db/repositories/issues.js";
 import { listActiveRunsForProject } from "../db/repositories/agent-runs.js";
 import { getCrewMember } from "./crew.js";
 import { config } from "../config.js";
+import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
+import { shellQuote } from "./shell.js";
 
 interface TerminalSession {
   projectId: string;
@@ -33,7 +35,10 @@ let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 /**
  * Build the system prompt for terminal captain session.
  */
-const buildSystemPrompt = async (projectId: string, worktreePath?: string): Promise<string> => {
+const buildSystemPrompt = async (
+  projectId: string,
+  worktreePath?: string,
+): Promise<string> => {
   const project = getProject(projectId);
   if (!project) return "";
 
@@ -68,7 +73,9 @@ ${project.description || "No description"}
   // Inject project knowledge (full content for workflows/conventions)
   const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
   if (projectKnowledge.length > 0) {
-    const injected = projectKnowledge.filter((k) => INJECT_CATEGORIES.has(k.category));
+    const injected = projectKnowledge.filter((k) =>
+      INJECT_CATEGORIES.has(k.category),
+    );
     if (injected.length > 0) {
       const entries = injected
         .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
@@ -86,7 +93,14 @@ ${project.description || "No description"}
   const snapshotParts: string[] = [];
 
   const issues = listIssues(projectId, {
-    status: ["open", "in_progress", "pr_created", "pr_ready_to_merge", "pr_conflict", "pr_failed_actions"],
+    status: [
+      "open",
+      "in_progress",
+      "pr_created",
+      "pr_ready_to_merge",
+      "pr_conflict",
+      "pr_failed_actions",
+    ],
   });
   if (issues.length > 0) {
     const rows = issues.map((i) => {
@@ -113,13 +127,17 @@ ${project.description || "No description"}
   }
 
   if (projectKnowledge.length > 0) {
-    const rows = projectKnowledge.map((k) => `- ${k.id} | [${k.category}] ${k.title}`);
+    const rows = projectKnowledge.map(
+      (k) => `- ${k.id} | [${k.category}] ${k.title}`,
+    );
     snapshotParts.push(`### Knowledge Entries\n${rows.join("\n")}`);
   } else {
     snapshotParts.push("### Knowledge Entries\nNone");
   }
 
-  parts.push(`## Current State (pre-fetched snapshot)\n${snapshotParts.join("\n\n")}\n\nThis snapshot was fetched at session start. Use curl to refresh or get details as needed.`);
+  parts.push(
+    `## Current State (pre-fetched snapshot)\n${snapshotParts.join("\n\n")}\n\nThis snapshot was fetched at session start. Use curl to refresh or get details as needed.`,
+  );
 
   // API Reference — only detail endpoints, since snapshot covers listing
   parts.push(`## API Reference
@@ -178,9 +196,7 @@ const setupGitHubAuth = async (
   const project = getProject(projectId);
   if (!project?.vcs_account_id) return undefined;
 
-  const { getVCSAccount } = await import(
-    "../db/repositories/vcs-accounts.js"
-  );
+  const { getVCSAccount } = await import("../db/repositories/vcs-accounts.js");
   const account = getVCSAccount(project.vcs_account_id);
   if (!account) return undefined;
 
@@ -202,7 +218,10 @@ async function createCaptainWorktree(
   const { listRepos } = await import("../db/repositories/repos.js");
   const repos = listRepos(projectId);
   if (repos.length === 0) {
-    logger.warn({ projectId }, "No repos found for project, cannot create worktree");
+    logger.warn(
+      { projectId },
+      "No repos found for project, cannot create worktree",
+    );
     return null;
   }
 
@@ -212,7 +231,8 @@ async function createCaptainWorktree(
   const execAsync = promisify(exec);
   const { toContainerPath } = await import("../utils/paths.js");
   const { shellQuote } = await import("./shell.js");
-  const { createGitSshEnv, cleanupSshKey } = await import("../utils/git-auth.js");
+  const { createGitSshEnv, cleanupSshKey } =
+    await import("../utils/git-auth.js");
 
   const branchName = `crewdeck/captain-${projectId.slice(0, 8)}`;
   const repoPath = toContainerPath(repo.local_path);
@@ -223,15 +243,22 @@ async function createCaptainWorktree(
   const ssh = sshPrivateKey ? createGitSshEnv(sshPrivateKey) : null;
   try {
     const fetchEnv = { ...process.env, ...ssh?.env, GIT_TERMINAL_PROMPT: "0" };
-    await execAsync(`git -C ${shellQuote(repoPath)} fetch origin`, { env: fetchEnv });
+    await execAsync(`git -C ${shellQuote(repoPath)} fetch origin`, {
+      env: fetchEnv,
+    });
     fetchSucceeded = true;
   } catch (err) {
-    logger.warn({ projectId, err }, "Failed to fetch from origin for captain worktree");
+    logger.warn(
+      { projectId, err },
+      "Failed to fetch from origin for captain worktree",
+    );
   } finally {
     if (ssh) cleanupSshKey(ssh.keyPath);
   }
 
-  const startPoint = fetchSucceeded ? `origin/${repo.default_branch}` : repo.default_branch;
+  const startPoint = fetchSucceeded
+    ? `origin/${repo.default_branch}`
+    : repo.default_branch;
 
   // Prune stale worktree entries
   await execAsync(`git -C ${shellQuote(repoPath)} worktree prune`);
@@ -239,7 +266,9 @@ async function createCaptainWorktree(
   // Check if worktree already exists and is registered
   let worktreeExists = false;
   try {
-    const { stdout } = await execAsync(`git -C ${shellQuote(repoPath)} worktree list --porcelain`);
+    const { stdout } = await execAsync(
+      `git -C ${shellQuote(repoPath)} worktree list --porcelain`,
+    );
     const lines = stdout.split("\n");
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].startsWith("worktree ") && lines[i].includes(worktreePath)) {
@@ -253,15 +282,22 @@ async function createCaptainWorktree(
 
   if (worktreeExists) {
     // Worktree already registered, reuse it
-    logger.info({ projectId, worktreePath }, "Reusing existing captain worktree");
+    logger.info(
+      { projectId, worktreePath },
+      "Reusing existing captain worktree",
+    );
 
     // Rebase onto latest base branch
     if (fetchSucceeded) {
       try {
-        await execAsync(`git -C ${shellQuote(worktreePath)} rebase ${shellQuote(startPoint)}`);
+        await execAsync(
+          `git -C ${shellQuote(worktreePath)} rebase ${shellQuote(startPoint)}`,
+        );
       } catch (err) {
         // Abort rebase if it fails
-        await execAsync(`git -C ${shellQuote(worktreePath)} rebase --abort`).catch(() => {});
+        await execAsync(
+          `git -C ${shellQuote(worktreePath)} rebase --abort`,
+        ).catch(() => {});
         logger.warn({ projectId, err }, "Failed to rebase captain worktree");
       }
     }
@@ -270,7 +306,9 @@ async function createCaptainWorktree(
     // Check if branch exists
     let branchExists = false;
     try {
-      await execAsync(`git -C ${shellQuote(repoPath)} rev-parse --verify ${shellQuote(branchName)}`);
+      await execAsync(
+        `git -C ${shellQuote(repoPath)} rev-parse --verify ${shellQuote(branchName)}`,
+      );
       branchExists = true;
     } catch {
       // Branch doesn't exist
@@ -285,10 +323,14 @@ async function createCaptainWorktree(
       // Rebase onto latest base branch
       if (fetchSucceeded) {
         try {
-          await execAsync(`git -C ${shellQuote(worktreePath)} rebase ${shellQuote(startPoint)}`);
+          await execAsync(
+            `git -C ${shellQuote(worktreePath)} rebase ${shellQuote(startPoint)}`,
+          );
         } catch (err) {
           // Abort rebase if it fails
-          await execAsync(`git -C ${shellQuote(worktreePath)} rebase --abort`).catch(() => {});
+          await execAsync(
+            `git -C ${shellQuote(worktreePath)} rebase --abort`,
+          ).catch(() => {});
           logger.warn({ projectId, err }, "Failed to rebase captain worktree");
         }
       }
@@ -343,7 +385,8 @@ export async function createTerminalSession(
   // Set up environment for worktree creation
   let sshPrivateKey: string | undefined;
   if (project.vcs_account_id) {
-    const { getVCSAccount } = await import("../db/repositories/vcs-accounts.js");
+    const { getVCSAccount } =
+      await import("../db/repositories/vcs-accounts.js");
     const account = getVCSAccount(project.vcs_account_id);
     if (account) {
       sshPrivateKey = account.ssh_private_key;
@@ -361,23 +404,44 @@ export async function createTerminalSession(
   }
 
   const tmuxSessionName = `captain-${projectId.substring(0, 8)}`;
-  const systemPrompt = await buildSystemPrompt(projectId, worktreePath ?? undefined);
+  const systemPrompt = await buildSystemPrompt(
+    projectId,
+    worktreePath ?? undefined,
+  );
   const systemPromptPath = join(tmpdir(), `captain-${projectId}-prompt.txt`);
 
   // Write system prompt to temp file
   writeFileSync(systemPromptPath, systemPrompt, "utf-8");
 
-  // Set up environment variables
-  const env: Record<string, string> = {
-    ...process.env,
+  // Set up environment variables.
+  // project-defined vars and platform-specific vars are baked into the tmux
+  // command via `env KEY=VAL ...` so they reach the shell inside the session
+  // (which inherits the tmux server's env, not the client's).
+  // Full env for the tmux spawn process itself (inherits all of process.env)
+  const env: Record<string, string> = { ...process.env } as Record<
+    string,
+    string
+  >;
+
+  // setupGitHubAuth mutates env with GH_TOKEN and GIT_SSH_COMMAND — call it first
+  // so those vars are captured in captainEnvVars and baked into the tmux command.
+  const sshKeyPath = await setupGitHubAuth(projectId, env);
+
+  // process.env is passed via spawn's env option for everything else.
+  const projectEnvVars = getEnvironmentVariablesMap(projectId);
+  const captainEnvVars: Record<string, string> = {
+    ...projectEnvVars,
     CREWDECK_API_URL: `http://${config.host}:${config.port}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: "captain",
     TERM: "xterm-256color",
     GIT_TERMINAL_PROMPT: "0",
-  } as Record<string, string>;
-
-  const sshKeyPath = await setupGitHubAuth(projectId, env);
+    // Include GitHub auth vars added by setupGitHubAuth
+    ...(env.GH_TOKEN ? { GH_TOKEN: env.GH_TOKEN } : {}),
+    ...(env.GIT_SSH_COMMAND ? { GIT_SSH_COMMAND: env.GIT_SSH_COMMAND } : {}),
+  };
+  // Merge captainEnvVars back into env for the spawn call
+  Object.assign(env, captainEnvVars);
 
   // Kill any stale tmux session from a previous server run
   try {
@@ -393,6 +457,10 @@ export async function createTerminalSession(
     "-s",
     tmuxSessionName,
     ...(worktreePath ? ["-c", worktreePath] : []),
+    "env",
+    ...Object.entries(captainEnvVars).map(
+      ([k, v]) => `${shellQuote(k)}=${shellQuote(String(v))}`,
+    ),
     "claude",
     "--system-prompt-file",
     systemPromptPath,
@@ -458,9 +526,7 @@ export async function createTerminalSession(
 /**
  * Get an existing terminal session.
  */
-export function getTerminalSession(
-  projectId: string,
-): TerminalSession | null {
+export function getTerminalSession(projectId: string): TerminalSession | null {
   const session = activeSessions.get(projectId);
   if (session) {
     session.lastAccessedAt = new Date();
@@ -512,10 +578,7 @@ export async function destroyTerminalSession(
       if (resolved) return;
       resolved = true;
 
-      logger.error(
-        { err, projectId },
-        "Failed to kill tmux session",
-      );
+      logger.error({ err, projectId }, "Failed to kill tmux session");
       resolve(false);
     });
   });
