@@ -488,6 +488,21 @@ export const processWithLLM = async (
       model,
     });
 
+    // 2-minute timeout: kill the process if it hangs
+    const mainTimer = setTimeout(
+      () => {
+        logger.warn(
+          { projectId, pid: result.pid },
+          "Monitor: claude -p timed out after 2 minutes, sending SIGTERM",
+        );
+        result.process.kill("SIGTERM");
+        setTimeout(() => {
+          if (!result.process.killed) result.process.kill("SIGKILL");
+        }, 5000);
+      },
+      2 * 60 * 1000,
+    );
+
     // Collect all events for processing
     const collectedEvents: Array<{ type: string; [key: string]: unknown }> = [];
     let resultText = "";
@@ -533,6 +548,7 @@ export const processWithLLM = async (
     }
 
     const exitResult = await result.exitPromise;
+    clearTimeout(mainTimer);
 
     if (exitResult.code !== 0) {
       logger.warn(
@@ -616,6 +632,19 @@ export const processWithLLM = async (
           model,
         });
 
+        // 30-second timeout for simple extraction retry
+        const retryTimer = setTimeout(() => {
+          logger.warn(
+            { projectId, pid: retryResult.pid },
+            "Monitor: retry extraction timed out after 30 seconds, sending SIGTERM",
+          );
+          retryResult.process.kill("SIGTERM");
+          setTimeout(() => {
+            if (!retryResult.process.killed)
+              retryResult.process.kill("SIGKILL");
+          }, 5000);
+        }, 30 * 1000);
+
         let retryText = "";
         for await (const event of retryResult.events) {
           if (event.type === "result") {
@@ -623,6 +652,7 @@ export const processWithLLM = async (
           }
         }
         await retryResult.exitPromise;
+        clearTimeout(retryTimer);
 
         if (retryText) {
           const retryJson = extractJsonFromResponse(retryText);
