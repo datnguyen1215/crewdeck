@@ -299,7 +299,7 @@ Commands are restricted to captain-only (checked via `author_type === "captain"`
 - **Enriched system prompt**: Injects project knowledge (workflows/conventions), API reference (Issues, Runs, Activity, Knowledge APIs), current capacity (running agents, available slots), project settings, and repository context.
 - Session lifecycle: `createTerminalSession()`, `getTerminalSession()`, `destroyTerminalSession()`.
 - Auto-cleanup: 30-minute idle timeout kills sessions and removes temporary files (system prompt, SSH keys). Worktrees persist and are reused across session recreations.
-- Environment injection: `CREWDECK_*` vars, `GH_TOKEN`, SSH keys from project's GitHub account.
+- Environment injection: project-defined env vars (from project settings), `CREWDECK_*` vars, `GH_TOKEN`, and `GIT_SSH_COMMAND` from the project's GitHub account. These are baked directly into the tmux `new-session` command as `env KEY=VAL ... claude ...` so the shell inside the session receives them regardless of tmux server environment state.
 - Concurrency control: `pendingCreations` Set guards against race conditions when multiple clients request sessions simultaneously.
 
 **Terminal WebSocket Server** (`backend/src/terminal-ws.ts`)
