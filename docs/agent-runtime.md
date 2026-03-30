@@ -136,6 +136,19 @@ This resolution is applied to all commands that take an `issue_id` (dispatch, me
 
 Commands are parsed from captain's comment output and executed sequentially. Only captain can execute these orchestration commands (restricted by `author_type` check).
 
+**Manual Approval Workflow:**
+
+When `auto_start` or `auto_merge` settings are disabled, users can manually approve specific issues:
+
+- **Play button** → `POST /issues/:id/approve-start` → `issue.approved_to_start` event → Captain dispatches engineer
+- **Merge button** → `POST /issues/:id/approve-merge` → `issue.approved_to_merge` event → Captain merges PR
+
+The approval flags are checked in `handleDispatchAgent()` and `handleMergePR()`:
+- `canStart = approvedToStart.has(issueId) || project.auto_start`
+- `canMerge = approvedToMerge.has(issueId) || project.auto_merge`
+
+Flags are cleared after successful dispatch/merge and stored in-memory (reset on server restart).
+
 ## MentionHandler
 
 `backend/src/orchestration/handler.ts`

@@ -557,6 +557,59 @@ Resumes a paused issue, allowing agent dispatches again.
 
 - WebSocket event emitted: `issue.resumed`.
 
+#### Approve Issue to Start
+
+```
+POST /projects/:projectId/issues/:issueId/approve-start
+```
+
+Manually approves an issue for work, bypassing the `auto_start` setting. Used when the user clicks the play button on an issue.
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "issue_id": "uuid",
+  "approved_to_start": true
+}
+```
+
+**Validation:**
+- Issue must not be paused
+- Issue must not be `done`
+
+**Side effects:**
+- Issue ID added to in-memory `approvedToStart` Set
+- WebSocket event emitted: `issue.approved_to_start`
+- Captain receives event and dispatches engineer
+
+#### Approve Issue to Merge
+
+```
+POST /projects/:projectId/issues/:issueId/approve-merge
+```
+
+Manually approves an issue for merge, bypassing the `auto_merge` setting. Used when the user clicks the merge button on an issue with a PR.
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "issue_id": "uuid",
+  "approved_to_merge": true
+}
+```
+
+**Validation:**
+- Issue status must start with `pr_` (has a PR)
+
+**Side effects:**
+- Issue ID added to in-memory `approvedToMerge` Set
+- WebSocket event emitted: `issue.approved_to_merge`
+- Captain receives event and merges PR
+
 ---
 
 ### Comments

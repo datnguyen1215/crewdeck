@@ -283,7 +283,20 @@ This context enables Captain to make informed orchestration decisions based on c
 
 **Captain Monitor State Snapshot** (`backend/src/orchestration/captain/monitor-agent.ts`)
 
-The captain monitor builds a state snapshot for each LLM call via `buildStateSnapshot()`. For each non-closed issue the snapshot includes the issue ID, status, paused flag, running agent (if any), title, and — if the issue has an open PR — the PR number and URL in the format `[PR: #<number> <url>]`. This lets the captain see which `in_progress` issues already have open PRs, even when the issue was regressed from a PR-related status.
+The captain monitor builds a state snapshot for each LLM call via `buildStateSnapshot()`. For each non-closed issue the snapshot includes the issue ID, status, paused flag, manual approval flags (`(approved-to-start)`, `(approved-to-merge)`), running agent (if any), title, and — if the issue has an open PR — the PR number and URL in the format `[PR: #<number> <url>]`. This lets the captain see which `in_progress` issues already have open PRs, even when the issue was regressed from a PR-related status.
+
+**Manual Approval System** (`backend/src/orchestration/approval-store.ts`)
+
+When `auto_start` and `auto_merge` project settings are OFF, users can manually approve specific issues for work or merge using the UI:
+
+- **Play button** adds the issue ID to `approvedToStart` Set and emits `issue.approved_to_start` event
+- **Merge button** adds the issue ID to `approvedToMerge` Set and emits `issue.approved_to_merge` event
+
+Captain's decision logic:
+- `canStart = approvedToStart.has(issueId) || project.auto_start`
+- `canMerge = approvedToMerge.has(issueId) || project.auto_merge`
+
+Approval flags are cleared after successful dispatch/merge and are stored in-memory (cleared on server restart).
 
 **Captain Monitor Event Response Rules**
 
