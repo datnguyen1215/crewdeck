@@ -29,6 +29,10 @@ import type { Issue } from "../../types/entities.js";
 
 import * as chatRepo from "../../db/repositories/chat-messages.js";
 import type { CaptainEvent } from "./queue.js";
+import {
+  isApprovedToStart,
+  isApprovedToMerge,
+} from "../approval-store.js";
 
 /**
  * Build a compact snapshot of current project state to inject into the prompt,
@@ -57,7 +61,10 @@ function buildStateSnapshot(projectId: string): string {
       const prInfo = openPR
         ? ` [PR: #${openPR.pr_number}${openPR.pr_url ? ` ${openPR.pr_url}` : ""}]`
         : "";
-      return `- ${i.id} | ${i.status}${paused}${agent}${prInfo} | ${i.title}`;
+      // Include manual approval flags
+      const approvedStart = isApprovedToStart(i.id) ? " (approved-to-start)" : "";
+      const approvedMerge = isApprovedToMerge(i.id) ? " (approved-to-merge)" : "";
+      return `- ${i.id} | ${i.status}${paused}${approvedStart}${approvedMerge}${agent}${prInfo} | ${i.title}`;
     });
     parts.push(`### Issues (non-closed)\n${rows.join("\n")}`);
   } else {
@@ -115,8 +122,14 @@ You do NOT handle user chat — that is handled separately.
 ${project.description || "No description"}
 
 ## Autonomy Settings
-- Auto-start: ${canAutoStart ? "ENABLED — automatically dispatch agents on new issues" : "DISABLED — wait for user to trigger dispatch"}
-- Auto-merge: ${canMerge ? "ENABLED — automatically merge PRs when ready" : "DISABLED — wait for user to approve merge"}
+- Auto-start: ${canAutoStart ? "ENABLED — automatically dispatch agents on new issues" : "DISABLED — wait for user to approve via play button"}
+- Auto-merge: ${canMerge ? "ENABLED — automatically merge PRs when ready" : "DISABLED — wait for user to approve via merge button"}
+
+## Manual Approval System
+Even with auto-start/auto-merge disabled, users can manually approve specific issues:
+- **approved-to-start**: User clicked play button — dispatch an engineer immediately
+- **approved-to-merge**: User clicked merge button — merge the PR immediately
+These flags are shown in the issue list snapshot above. When you see them, act on them.
 
 ## Current Capacity
 - Running agents: ${runningAgents}
@@ -201,16 +214,18 @@ If 3 issues need work and 5 slots are available, list all 3 dispatches — they'
 
 ## Event Response Rules
 Events include full context (issue title, status, PR info, agent reports). Use this information directly — no need to curl for it.
-- **issue.created**: ${canAutoStart ? "Dispatch engineer to work on the new issue. The description is included in the event." : "Acknowledge only — wait for user to trigger dispatch."}
-- **run.completed**: The agent's report is included in the event. Decide the next step based on the report. Pass relevant context in dispatch instructions so the next agent doesn't start blind. **If the issue has an open PR (visible in the snapshot or event context), set its status back to \`pr_created\` so the PR poller re-evaluates CI and mergeability from GitHub.** Do this before dispatching a follow-up agent if needed.
+- **issue.created**: ${canAutoStart ? "Dispatch engineer to work on the new issue. The description is included in the event." : "Acknowledge only — wait for user to approve via play button."}
+- **issue.approved_to_start**: User manually approved this issue for work. Dispatch engineer immediately, regardless of auto_start setting.
+- **issue.approved_to_merge**: User manually approved this issue for merge. Merge the PR immediately, regardless of auto_merge setting.
+- **run.completed**: The agent's report is included in the event. Decide the next step based on the report. Pass relevant context in dispatch instructions so the next agent doesn't start blind. **If the issue has an open PR (visible in the snapshot or event context), set its status back to \`pr_created\` so the PR poller re-evaluates CI and mergeability from GitHub.** Do this before dispatching a follow-up agent if needed. **Continue the full workflow (engineer → lead → docs → PR → merge) regardless of auto_start/auto_merge settings once work has begun.**
 - **issue.status_changed → done**: Check the snapshot for remaining work. Consider a librarian scan if the completed work changed project structure.
 - **issue.status_changed → pr_conflict**: Dispatch engineer to resolve merge conflicts. Include the PR URL in dispatch instructions.
 - **issue.status_changed → pr_failed_actions**: Dispatch engineer to fix CI failures. Include the PR URL in dispatch instructions.
-- **issue.status_changed → pr_ready_to_merge**: ${canMerge ? "Merge the PR." : "Report that the PR is ready — auto-merge is disabled."}
+- **issue.status_changed → pr_ready_to_merge**: ${canMerge ? "Merge the PR." : "Check if issue has (approved-to-merge) flag — if so, merge. Otherwise report that the PR is ready and wait for user approval."}
 - **issue.status_changed** (other): Check if any blocked issues are now unblocked.
 - **pr.status_changed**: Issue and PR info are included. If merged, mark done. If closed, investigate.
 - **comment.added**: The full comment is included. Act on user feedback.
-- **startup.scan**: Use the snapshot above to assess project state and take any needed actions.
+- **startup.scan**: Use the snapshot above to assess project state and take any needed actions. Check for (approved-to-start) and (approved-to-merge) flags.
 - **idle.check**: Use the snapshot to find stuck issues (in_progress with no running agents).
 - **project.settings_changed**: Acknowledge and adjust behavior.
 
@@ -347,6 +362,19 @@ export const formatEvents = (events: CaptainEvent[]): string => {
             .map(([k, v]) => `${k}: ${v}`)
             .join(", ");
           return `[${ts}] Project settings changed: ${formatted || "unknown changes"}`;
+        }
+        case "issue.approved_to_start": {
+          const data = e.data as { issue_id: string };
+          const issue = getIssue(data.issue_id);
+          const title = issue ? ` "${issue.title}"` : "";
+          return `[${ts}] Issue ${data.issue_id}${title} APPROVED TO START by user — dispatch engineer now`;
+        }
+        case "issue.approved_to_merge": {
+          const data = e.data as { issue_id: string };
+          const issue = getIssue(data.issue_id);
+          const title = issue ? ` "${issue.title}"` : "";
+          const prInfo = issue ? getPRInfo(data.issue_id) : "";
+          return `[${ts}] Issue ${data.issue_id}${title} APPROVED TO MERGE by user — merge PR now${prInfo}`;
         }
         default:
           return `[${ts}] Event: ${e.type}`;

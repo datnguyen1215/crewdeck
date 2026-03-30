@@ -27,6 +27,7 @@ import { TRANSITIONS, IssueStatus } from "../constants/statuses.js";
 import type { IssueFilters } from "../types/entities.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as batch from "../orchestration/batch.js";
+import { approveStart, approveMerge } from "../orchestration/approval-store.js";
 
 function assertTransition(from: string, to: string): void {
   const allowed = TRANSITIONS[from as keyof typeof TRANSITIONS] ?? [];
@@ -240,6 +241,63 @@ router.post("/:issueId/resume", verifyIssueOwnership, async (req, res) => {
     success: true,
     issue_id: issue.id,
     paused: false,
+  });
+});
+
+router.post("/:issueId/approve-start", verifyIssueOwnership, (req, res) => {
+  const issue = req.issue!;
+
+  // Validate issue is not paused
+  if (pausedIssues.has(issue.id)) {
+    throw new ValidationError("Cannot approve a paused issue for work");
+  }
+
+  // Validate issue is not done
+  if (issue.status === IssueStatus.DONE) {
+    throw new ValidationError("Cannot approve a completed issue for work");
+  }
+
+  // Add to in-memory approval set
+  approveStart(issue.id);
+
+  // Emit event so Captain can react
+  eventBus.emit("issue.approved_to_start", {
+    issue_id: issue.id,
+    project_id: issue.project_id,
+  });
+
+  logger.info({ issueId: issue.id }, "Issue approved to start");
+
+  res.json({
+    success: true,
+    issue_id: issue.id,
+    approved_to_start: true,
+  });
+});
+
+router.post("/:issueId/approve-merge", verifyIssueOwnership, (req, res) => {
+  const issue = req.issue!;
+
+  // Validate issue has a PR status
+  if (!issue.status.startsWith("pr_")) {
+    throw new ValidationError("Cannot approve merge — issue has no PR");
+  }
+
+  // Add to in-memory approval set
+  approveMerge(issue.id);
+
+  // Emit event so Captain can react
+  eventBus.emit("issue.approved_to_merge", {
+    issue_id: issue.id,
+    project_id: issue.project_id,
+  });
+
+  logger.info({ issueId: issue.id }, "Issue approved to merge");
+
+  res.json({
+    success: true,
+    issue_id: issue.id,
+    approved_to_merge: true,
   });
 });
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { updateIssue, deleteIssue, pauseIssue, resumeIssue, type IssueWithDetails, type Project } from '$lib/api/http.js';
+	import { updateIssue, deleteIssue, pauseIssue, resumeIssue, approveIssueMerge, type IssueWithDetails, type Project } from '$lib/api/http.js';
 	import { relTime, parseUTC } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { STATUS_CFG, PR_STATUS } from '$lib/config/status.js';
@@ -94,6 +94,18 @@
 			onStatusChange();
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to pause/resume issue', 'error');
+		} finally {
+			working = false;
+		}
+	}
+
+	async function handleMergePR() {
+		working = true;
+		try {
+			await approveIssueMerge(projectId, issue.id);
+			toastStore.add('PR approved for merge — Captain will merge it', 'success');
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to approve merge', 'error');
 		} finally {
 			working = false;
 		}
@@ -204,6 +216,7 @@
 			{#if issue.status.startsWith('pr_') && issue.issue_prs?.length}
 				{@const pr = issue.issue_prs[0]}
 				<a href={pr.pr_url} target="_blank" rel="noopener" class="w-full py-2.5 sm:py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 block min-h-[44px] sm:min-h-0 flex items-center">View PR #{pr.pr_number}</a>
+				<button onclick={handleMergePR} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-cyan text-cyan rounded hover:bg-cyan/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0">Merge PR</button>
 			{/if}
 
 			<button onclick={onEdit} class="w-full py-2.5 sm:py-1.5 border border-edge text-secondary rounded hover:border-edge-hi hover:text-primary transition-colors text-left px-3 min-h-[44px] sm:min-h-0">Edit Issue</button>

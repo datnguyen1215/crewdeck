@@ -9,6 +9,8 @@ export type CaptainEventType =
   | "issue.created"
   | "issue.updated"
   | "issue.status_changed"
+  | "issue.approved_to_start"
+  | "issue.approved_to_merge"
   | "run.completed"
   | "pr.status_changed"
   | "comment.added"

@@ -15,6 +15,7 @@ import { getCrewMember } from "./crew.js";
 import { spawnAgent, spawnScan, postSystemComment } from "./spawner.js";
 import { IssueStatus, PRStatus } from "../constants/statuses.js";
 import { getProvider } from "../vcs/registry.js";
+import { isApprovedToMerge } from "./approval-store.js";
 
 const UUID_LENGTH = 36;
 
@@ -67,7 +68,10 @@ export const handleMergePR = async (
   const project = getProject(projectId);
   if (!project) return { success: false, message: "Project not found" };
 
-  if (!project.auto_merge)
+  const resolvedId = resolveIssueId(input.issue_id, projectId);
+  if (!resolvedId) return { success: false, message: "Issue not found" };
+
+  if (!project.auto_merge && !isApprovedToMerge(resolvedId))
     return { success: false, message: "Auto-merge is disabled for this project" };
 
   if (!project.vcs_account_id)
@@ -75,9 +79,6 @@ export const handleMergePR = async (
 
   const account = getVCSAccount(project.vcs_account_id);
   if (!account) return { success: false, message: "GitHub account not found" };
-
-  const resolvedId = resolveIssueId(input.issue_id, projectId);
-  if (!resolvedId) return { success: false, message: "Issue not found" };
 
   const issue = issueRepo.getIssue(resolvedId)!;
 

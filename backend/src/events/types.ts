@@ -29,6 +29,14 @@ export interface EventMap {
     issue_id: string;
     project_id: string;
   };
+  "issue.approved_to_start": {
+    issue_id: string;
+    project_id: string;
+  };
+  "issue.approved_to_merge": {
+    issue_id: string;
+    project_id: string;
+  };
   "comment.added": { comment: Comment; project_id: string };
   "comment.updated": { comment: Comment; project_id: string };
   "comment.deleted": {

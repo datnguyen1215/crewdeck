@@ -212,6 +212,18 @@ export function resumeIssue(projectId: string, issueId: string) {
     `/projects/${e(projectId)}/issues/${e(issueId)}/resume`,
   );
 }
+export function approveIssueStart(projectId: string, issueId: string) {
+  return request<{ success: boolean; issue_id: string; approved_to_start: boolean }>(
+    "POST",
+    `/projects/${e(projectId)}/issues/${e(issueId)}/approve-start`,
+  );
+}
+export function approveIssueMerge(projectId: string, issueId: string) {
+  return request<{ success: boolean; issue_id: string; approved_to_merge: boolean }>(
+    "POST",
+    `/projects/${e(projectId)}/issues/${e(issueId)}/approve-merge`,
+  );
+}
 
 // Comments
 export function addComment(
