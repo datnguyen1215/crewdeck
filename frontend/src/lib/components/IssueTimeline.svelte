@@ -2,7 +2,7 @@
 	import type { Comment, ActivityLog, AgentRun, AgentRunEvent } from '$lib/api/http.js';
 	import { getRun } from '$lib/api/http.js';
 	import { untrack } from 'svelte';
-	import { relTime, parseUTC } from '$lib/utils/time.js';
+	import { smartTime, fullTime, parseUTC } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
@@ -268,8 +268,8 @@
 									<span class="text-xs font-semibold {cs.textColor}">
 										{commentAuthorLabel(comment)}
 									</span>
-									<span class="text-xs text-muted" title={parseUTC(comment.created_at).toLocaleString()}>
-										{relTime(comment.created_at)}
+									<span class="text-xs text-muted" title={fullTime(comment.created_at)}>
+										{smartTime(comment.created_at)}
 									</span>
 									{#if comment.author_type === 'user'}
 										<div class="ml-auto flex gap-1">
@@ -330,8 +330,8 @@
 									{@const dotCfg = RUN_STATUS_DOT[spawnedRun.status] ?? RUN_STATUS_DOT.queued}
 									<span class="text-[10px] {dotCfg.class}" class:animate-pulse={dotCfg.pulse} title={spawnedRun.status}>{dotCfg.dot}</span>
 								{/if}
-								<span class="text-muted text-xs font-mono" title={parseUTC(entry.created_at).toLocaleString()}>
-									{relTime(entry.created_at)}
+								<span class="text-muted text-xs font-mono" title={fullTime(entry.created_at)}>
+									{smartTime(entry.created_at)}
 								</span>
 							</div>
 

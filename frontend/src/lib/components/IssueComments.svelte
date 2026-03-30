@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { addComment, editComment, deleteComment, type Comment, type Agent } from '$lib/api/http.js';
-	import { relTime, parseUTC } from '$lib/utils/time.js';
+	import { smartTime, fullTime } from '$lib/utils/time.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { getContext } from 'svelte';
@@ -171,8 +171,8 @@
 					<span class="text-xs font-semibold {cs.textColor}">
 						{commentAuthorLabel(comment)}
 					</span>
-					<span class="text-xs text-muted" title={parseUTC(comment.created_at).toLocaleString()}>
-						{relTime(comment.created_at)}
+					<span class="text-xs text-muted" title={fullTime(comment.created_at)}>
+						{smartTime(comment.created_at)}
 					</span>
 					{#if comment.author_type === 'user'}
 						<div class="ml-auto flex gap-1">

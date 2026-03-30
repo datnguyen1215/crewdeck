@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { updateIssue, deleteIssue, pauseIssue, resumeIssue, approveIssueMerge, type IssueWithDetails, type Project } from '$lib/api/http.js';
-	import { relTime, parseUTC } from '$lib/utils/time.js';
+	import { smartTime, fullTime } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { STATUS_CFG, PR_STATUS } from '$lib/config/status.js';
 	import Modal from './Modal.svelte';
@@ -176,11 +176,11 @@
 		<!-- Timestamps -->
 		<div class="flex items-center gap-2">
 			<span class="text-muted w-20 shrink-0">Created</span>
-			<span class="text-secondary" title={parseUTC(issue.created_at).toLocaleString()}>{relTime(issue.created_at)}</span>
+			<span class="text-secondary" title={fullTime(issue.created_at)}>{smartTime(issue.created_at)}</span>
 		</div>
 		<div class="flex items-center gap-2">
 			<span class="text-muted w-20 shrink-0">Updated</span>
-			<span class="text-secondary" title={parseUTC(issue.updated_at).toLocaleString()}>{relTime(issue.updated_at)}</span>
+			<span class="text-secondary" title={fullTime(issue.updated_at)}>{smartTime(issue.updated_at)}</span>
 		</div>
 
 		<!-- Created by -->

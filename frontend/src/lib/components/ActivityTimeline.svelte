@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ActivityLog } from '$lib/api/http.js';
 	import { ACTOR_CFG, HANDOFF_ACTIONS, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
-	import { relTime, parseUTC } from '$lib/utils/time.js';
+	import { smartTime, fullTime, parseUTC } from '$lib/utils/time.js';
 	import ActivityDetails from './ActivityDetails.svelte';
 
 	let {
@@ -63,8 +63,8 @@
 				<div class="flex-1 min-w-0 pt-0.5">
 					<div class="flex items-center gap-2 mb-0.5 flex-wrap">
 						<span class="text-xs font-semibold {cfg.color}">{actorName(entry)}</span>
-						<span class="text-muted text-xs font-mono" title={parseUTC(entry.created_at).toLocaleString()}>
-							{relTime(entry.created_at)}
+						<span class="text-muted text-xs font-mono" title={fullTime(entry.created_at)}>
+							{smartTime(entry.created_at)}
 						</span>
 					</div>
 
