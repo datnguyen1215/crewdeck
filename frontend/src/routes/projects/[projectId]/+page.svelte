@@ -7,7 +7,7 @@
 	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
 	import ActivityTerminal from '$lib/components/ActivityTerminal.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
-	import { parseUTC, relTimeDiff } from '$lib/utils/time.js';
+	import { smartTimeDiff, fullTime } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { createFormState } from '$lib/utils/form.svelte.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
@@ -372,8 +372,8 @@
 								{runningAgentName}
 							</span>
 						{/if}
-						<span class="text-xs text-muted font-mono ml-auto" title={parseUTC(issue.created_at).toLocaleString()}>
-							{relTimeDiff(issue.created_at)}
+						<span class="text-xs text-muted font-mono ml-auto" title={fullTime(issue.created_at)}>
+							{smartTimeDiff(issue.created_at)}
 						</span>
 					</div>
 					{#if issue.created_by === 'agent'}
@@ -448,9 +448,9 @@
 							<div class="px-3 py-3 self-center text-right">
 								<span
 									class="text-xs text-muted font-mono"
-									title={parseUTC(issue.created_at).toLocaleString()}
+									title={fullTime(issue.created_at)}
 								>
-									{relTimeDiff(issue.created_at)}
+									{smartTimeDiff(issue.created_at)}
 								</span>
 							</div>
 

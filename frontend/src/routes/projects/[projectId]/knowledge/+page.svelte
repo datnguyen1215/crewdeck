@@ -14,7 +14,7 @@
 		type LibrarianStatus
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
-	import { relTime } from '$lib/utils/time.js';
+	import { smartTime, fullTime } from '$lib/utils/time.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -180,17 +180,17 @@
 				{#if scanRunning}
 					<span class="inline-block w-2 h-2 rounded-full bg-purple animate-pulse"></span>
 					<span class="text-purple">
-						Scanning... started {librarianStatus.started_at ? relTime(librarianStatus.started_at) : ''}
+						Scanning... started <span title={fullTime(librarianStatus.started_at)}>{librarianStatus.started_at ? smartTime(librarianStatus.started_at) : ''}</span>
 					</span>
 				{:else if librarianStatus.status === 'completed'}
 					<span class="inline-block w-2 h-2 rounded-full bg-green"></span>
 					<span class="text-green">
-						Last scan completed {librarianStatus.completed_at ? relTime(librarianStatus.completed_at) : ''}
+						Last scan completed <span title={fullTime(librarianStatus.completed_at)}>{librarianStatus.completed_at ? smartTime(librarianStatus.completed_at) : ''}</span>
 					</span>
 				{:else}
 					<span class="inline-block w-2 h-2 rounded-full bg-red"></span>
 					<span class="text-red">
-						Last scan {librarianStatus.status} {librarianStatus.completed_at ? relTime(librarianStatus.completed_at) : ''}
+						Last scan {librarianStatus.status} <span title={fullTime(librarianStatus.completed_at)}>{librarianStatus.completed_at ? smartTime(librarianStatus.completed_at) : ''}</span>
 					</span>
 				{/if}
 			</div>
