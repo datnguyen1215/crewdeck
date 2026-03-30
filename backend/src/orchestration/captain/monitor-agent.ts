@@ -355,7 +355,7 @@ export const formatEvents = (events: CaptainEvent[]): string => {
     .join("\n\n");
 };
 
-const MAX_CONTEXT_MESSAGES = 100;
+const MAX_CONTEXT_MESSAGES = 10;
 
 /**
  * Get monitor conversation history from DB.
