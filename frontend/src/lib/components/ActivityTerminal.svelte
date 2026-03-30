@@ -3,6 +3,7 @@
 	import type { ProjectWebSocket, WsEvent } from '$lib/api/ws.svelte.js';
 	import { listActivity } from '$lib/api/http.js';
 	import { formatActivityEntry, type TerminalLine } from '$lib/config/terminal.js';
+	import { autoscroll } from '$lib/utils/autoscroll.js';
 	import { getContext } from 'svelte';
 
 	let { projectId, issues = [] }: { projectId: string; issues?: Issue[] } = $props();
@@ -19,7 +20,6 @@
 	let loading = $state(true);
 	let collapsed = $state(false);
 	let height = $state(300);
-	let userScrolled = $state(false);
 	let filterAgents = $state(false);
 	let filterErrors = $state(false);
 
@@ -28,9 +28,9 @@
 	const MIN_HEIGHT = 150;
 	const MAX_HEIGHT = 600;
 
-	let scrollContainer: HTMLDivElement | undefined = $state();
 	let newEntryIds = $state<Set<string>>(new Set());
 	let isInitialized = $state(false);
+	let forceScrollToBottom: (() => void) | undefined;
 
 	// Load state from localStorage on mount, then save on subsequent changes
 	$effect(() => {
@@ -67,7 +67,8 @@
 				if (cancelled) return;
 				entries = data.reverse();
 				loading = false;
-				scrollToBottom();
+				// Force scroll after initial load (autoscroll action handles subsequent updates)
+				forceScrollToBottom?.();
 			})
 			.catch(() => {
 				if (cancelled) return;
@@ -110,10 +111,7 @@
 						// Track new entries for highlight animation
 						newEntryIds = new Set([...newEntryIds, ...newIds]);
 
-						// Scroll to bottom if not manually scrolled up
-						if (!userScrolled) {
-							scrollToBottom();
-						}
+						// Autoscroll action handles scroll (via MutationObserver)
 
 						// Remove highlight after animation duration
 						setTimeout(() => {
@@ -135,21 +133,6 @@
 			unsubscribers.forEach((unsub) => unsub());
 		};
 	});
-
-	// Detect user scroll
-	function handleScroll() {
-		if (!scrollContainer) return;
-		const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-		const atBottom = scrollTop + clientHeight >= scrollHeight - 10;
-		userScrolled = !atBottom;
-	}
-
-	// Auto-scroll to bottom
-	function scrollToBottom() {
-		if (!scrollContainer) return;
-		scrollContainer.scrollTop = scrollContainer.scrollHeight;
-		userScrolled = false;
-	}
 
 	// Toggle collapse
 	function toggleCollapse() {
@@ -285,8 +268,7 @@
 	<!-- Terminal body -->
 	{#if !collapsed}
 		<div
-			bind:this={scrollContainer}
-			onscroll={handleScroll}
+			use:autoscroll={(fn) => (forceScrollToBottom = fn)}
 			class="overflow-y-auto overflow-x-hidden relative scanlines"
 			style="height: {height}px;"
 		>
