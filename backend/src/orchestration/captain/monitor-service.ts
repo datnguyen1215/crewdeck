@@ -377,5 +377,12 @@ export function shutdownMonitorService(): void {
     logger.debug({ projectId }, "Monitor service stopped");
   }
   projectSubscriptions.clear();
+
+  // Clear all pending batch timers to prevent post-shutdown processing
+  for (const timer of batchTimers.values()) {
+    clearTimeout(timer);
+  }
+  batchTimers.clear();
+
   logger.info("Monitor service shutdown complete");
 }

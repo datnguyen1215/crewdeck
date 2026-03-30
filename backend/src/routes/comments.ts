@@ -9,7 +9,7 @@ import { eventBus } from "../events/bus.js";
 const router = Router({ mergeParams: true });
 
 router.get("/", verifyIssueOwnership, (req: Request<{ projectId: string; issueId: string }>, res) => {
-  res.json(listComments(req.params.issueId));
+  res.json(listComments(req.params.issueId, Infinity));
 });
 
 router.post("/", verifyIssueOwnership, validate(CreateCommentSchema), (req: Request<{ projectId: string; issueId: string }>, res) => {
