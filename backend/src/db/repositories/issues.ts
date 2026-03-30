@@ -109,7 +109,7 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
 
   return {
     ...issue,
-    comments: listComments(id),
+    comments: listComments(id, Infinity),
     issue_prs: listIssuePRs(id),
     activity_log: listActivity(issue.project_id, { issue_id: id }),
     repo,

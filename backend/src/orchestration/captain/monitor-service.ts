@@ -28,10 +28,15 @@ import type { CaptainEvent } from "./queue.js";
 // Queue namespace prefix to separate monitor from chat queues
 const MONITOR_PREFIX = "monitor:";
 
+// Batching window: events arriving within this period are grouped into one LLM call
+const BATCH_WINDOW_MS = 5000;
+
 const projectSubscriptions = new Map<string, () => void>();
+const batchTimers = new Map<string, NodeJS.Timeout>();
 
 /**
- * Queue an event and trigger processing if not already running.
+ * Queue an event and trigger processing after a batching window.
+ * Events arriving within BATCH_WINDOW_MS are grouped into a single LLM call.
  */
 async function queueAndProcess(event: CaptainEvent): Promise<void> {
   const { projectId } = event;
@@ -58,11 +63,47 @@ async function queueAndProcess(event: CaptainEvent): Promise<void> {
     );
   }
 
-  if (!tryAcquire(queueKey)) {
+  // If a batch timer is already running, the event is queued; don't start a new timer.
+  if (batchTimers.has(projectId)) {
     logger.debug(
       { projectId, eventType: event.type },
-      "Monitor: Event queued while processing",
+      "Monitor: Event queued, batch timer already running",
     );
+    return;
+  }
+
+  // Start a new batch window. When it fires, acquire lock and process all queued events.
+  const timer = setTimeout(() => {
+    batchTimers.delete(projectId);
+    processBatch(projectId, queueKey).catch((err) => {
+      logger.error({ err, projectId }, "Monitor: Batch processing failed");
+    });
+  }, BATCH_WINDOW_MS);
+
+  batchTimers.set(projectId, timer);
+  logger.debug(
+    { projectId, eventType: event.type },
+    "Monitor: Started batch timer",
+  );
+}
+
+/**
+ * Process the event batch after the batching window closes.
+ */
+async function processBatch(
+  projectId: string,
+  queueKey: string,
+): Promise<void> {
+  if (!tryAcquire(queueKey)) {
+    // Another batch is already processing; re-arm a timer to try again later.
+    logger.debug({ projectId }, "Monitor: Lock held, rescheduling batch");
+    const timer = setTimeout(() => {
+      batchTimers.delete(projectId);
+      processBatch(projectId, queueKey).catch((err) => {
+        logger.error({ err, projectId }, "Monitor: Rescheduled batch failed");
+      });
+    }, BATCH_WINDOW_MS);
+    batchTimers.set(projectId, timer);
     return;
   }
 
@@ -310,8 +351,16 @@ export function stopMonitorForProject(projectId: string): void {
   if (unsubscribe) {
     unsubscribe();
     projectSubscriptions.delete(projectId);
-    logger.info({ projectId }, "Monitor service stopped for project");
   }
+
+  // Cancel any pending batch timer
+  const timer = batchTimers.get(projectId);
+  if (timer) {
+    clearTimeout(timer);
+    batchTimers.delete(projectId);
+  }
+
+  logger.info({ projectId }, "Monitor service stopped for project");
 }
 
 export function initMonitorService(): void {
@@ -328,5 +377,12 @@ export function shutdownMonitorService(): void {
     logger.debug({ projectId }, "Monitor service stopped");
   }
   projectSubscriptions.clear();
+
+  // Clear all pending batch timers to prevent post-shutdown processing
+  for (const timer of batchTimers.values()) {
+    clearTimeout(timer);
+  }
+  batchTimers.clear();
+
   logger.info("Monitor service shutdown complete");
 }

@@ -1,10 +1,27 @@
 import { db } from "../index.js";
 import type { Comment, CreateCommentInput } from "../../types/entities.js";
 
-export function listComments(issueId: string): Comment[] {
-  return db
-    .prepare("SELECT * FROM Comment WHERE issue_id = ? ORDER BY created_at ASC, rowid ASC")
-    .all(issueId) as Comment[];
+export function listComments(issueId: string, limit?: number): Comment[] {
+  // When limit is specified, fetch newest N comments and reverse for chronological order.
+  // This limits token usage while preserving most recent context.
+  // Default limit of 20 is applied when limit is undefined (for token optimization).
+  const effectiveLimit = limit ?? 20;
+
+  if (!Number.isFinite(effectiveLimit)) {
+    // No limit: return all comments in chronological order
+    return db
+      .prepare(
+        "SELECT * FROM Comment WHERE issue_id = ? ORDER BY created_at ASC, rowid ASC"
+      )
+      .all(issueId) as Comment[];
+  }
+
+  const comments = db
+    .prepare(
+      "SELECT * FROM Comment WHERE issue_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?"
+    )
+    .all(issueId, effectiveLimit) as Comment[];
+  return comments.reverse();
 }
 
 export function getComment(id: string): Comment | null {
