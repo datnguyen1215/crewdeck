@@ -27,6 +27,7 @@ import type {
   CreatePRAction,
   SkipAction,
 } from "./action-schema.js";
+import { clearStartApproval, clearMergeApproval } from "../approval-store.js";
 
 /** Standard UUID length (32 hex + 4 hyphens) */
 const UUID_LENGTH = 36;
@@ -76,6 +77,10 @@ async function executeDispatch(
     agent_id: action.agent_id,
     instructions: action.instructions,
   });
+  // Clear the start approval flag after successful dispatch
+  if (result.success) {
+    clearStartApproval(action.issue_id);
+  }
   return {
     action,
     success: result.success,
@@ -92,6 +97,10 @@ async function executeMerge(
   action: MergeAction,
 ): Promise<ActionResult> {
   const result = await handleMergePR(projectId, { issue_id: action.issue_id });
+  // Clear the merge approval flag after successful merge
+  if (result.success) {
+    clearMergeApproval(action.issue_id);
+  }
   return {
     action,
     success: result.success,

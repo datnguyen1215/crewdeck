@@ -300,6 +300,42 @@ function createProjectHandlers(projectId: string): () => void {
     });
   };
 
+  const handleIssueApprovedToStart = (data: {
+    issue_id: string;
+    project_id: string;
+  }) => {
+    if (data.project_id !== projectId) return;
+    queueAndProcess({
+      type: "issue.approved_to_start",
+      projectId,
+      timestamp: new Date(),
+      data,
+    }).catch((err) => {
+      logger.error(
+        { err, projectId },
+        "Monitor: Failed to queue issue.approved_to_start",
+      );
+    });
+  };
+
+  const handleIssueApprovedToMerge = (data: {
+    issue_id: string;
+    project_id: string;
+  }) => {
+    if (data.project_id !== projectId) return;
+    queueAndProcess({
+      type: "issue.approved_to_merge",
+      projectId,
+      timestamp: new Date(),
+      data,
+    }).catch((err) => {
+      logger.error(
+        { err, projectId },
+        "Monitor: Failed to queue issue.approved_to_merge",
+      );
+    });
+  };
+
   // Subscribe to all automated events (not chat.message)
   eventBus.on("issue.created", handleIssueCreated);
   eventBus.on("issue.updated", handleIssueUpdated);
@@ -308,6 +344,8 @@ function createProjectHandlers(projectId: string): () => void {
   eventBus.on("pr.status_changed", handlePRStatusChanged);
   eventBus.on("comment.added", handleCommentAdded);
   eventBus.on("project.settings_changed", handleProjectSettingsChanged);
+  eventBus.on("issue.approved_to_start", handleIssueApprovedToStart);
+  eventBus.on("issue.approved_to_merge", handleIssueApprovedToMerge);
 
   return () => {
     eventBus.off("issue.created", handleIssueCreated);
@@ -317,6 +355,8 @@ function createProjectHandlers(projectId: string): () => void {
     eventBus.off("pr.status_changed", handlePRStatusChanged);
     eventBus.off("comment.added", handleCommentAdded);
     eventBus.off("project.settings_changed", handleProjectSettingsChanged);
+    eventBus.off("issue.approved_to_start", handleIssueApprovedToStart);
+    eventBus.off("issue.approved_to_merge", handleIssueApprovedToMerge);
   };
 }
 
