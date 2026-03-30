@@ -15,23 +15,8 @@ import { listActiveRunsForProject } from "../db/repositories/agent-runs.js";
 import { getCrewMember } from "./crew.js";
 import { config } from "../config.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
-import { getProvider } from "../db/repositories/global-config.js";
 import { shellQuote } from "./shell.js";
-
-/**
- * Build environment variables for Claude CLI based on configured provider.
- * When GLM provider is selected, inject ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN.
- */
-function buildProviderEnv(): Record<string, string> {
-  const provider = getProvider();
-  if (provider === "glm" && process.env.ZAI_API_KEY) {
-    return {
-      ANTHROPIC_BASE_URL: "https://api.z.ai/api/anthropic",
-      ANTHROPIC_AUTH_TOKEN: process.env.ZAI_API_KEY,
-    };
-  }
-  return {};
-}
+import { buildProviderEnv } from "./provider-env.js";
 
 interface TerminalSession {
   projectId: string;
