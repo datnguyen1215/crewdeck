@@ -247,6 +247,11 @@ router.post("/:issueId/resume", verifyIssueOwnership, async (req, res) => {
 router.post("/:issueId/approve-start", verifyIssueOwnership, (req, res) => {
   const issue = req.issue!;
 
+  // Validate issue is not paused
+  if (pausedIssues.has(issue.id)) {
+    throw new ValidationError("Cannot approve a paused issue for work");
+  }
+
   // Validate issue is not done
   if (issue.status === IssueStatus.DONE) {
     throw new ValidationError("Cannot approve a completed issue for work");
