@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
 import { logger } from "../logger.js";
+import { buildProviderEnv } from "./provider-env.js";
 
 export interface SpawnOpts {
   prompt: string;
@@ -39,6 +40,7 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
     env: {
       ...process.env,
       ...opts.env,
+      ...buildProviderEnv(),
       ANTHROPIC_API_KEY: "",
       GIT_TERMINAL_PROMPT: "0",
     },
@@ -138,6 +140,7 @@ export async function spawnClaudeStream(
     env: {
       ...process.env,
       ...opts.env,
+      ...buildProviderEnv(),
       ANTHROPIC_API_KEY: "",
       GIT_TERMINAL_PROMPT: "0",
     },

@@ -16,6 +16,7 @@ import { getCrewMember } from "./crew.js";
 import { config } from "../config.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 import { shellQuote } from "./shell.js";
+import { buildProviderEnv } from "./provider-env.js";
 
 interface TerminalSession {
   projectId: string;
@@ -431,6 +432,7 @@ export async function createTerminalSession(
   const projectEnvVars = getEnvironmentVariablesMap(projectId);
   const captainEnvVars: Record<string, string> = {
     ...projectEnvVars,
+    ...buildProviderEnv(),
     CREWDECK_API_URL: `http://${config.host}:${config.port}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: "captain",
