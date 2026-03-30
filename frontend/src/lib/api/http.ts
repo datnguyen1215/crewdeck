@@ -19,6 +19,8 @@ import type {
   AgentConfig,
   MonitorEntry,
   CaptainStatus,
+  GlobalConfig,
+  Provider,
 } from "./types.js";
 
 export type {
@@ -46,6 +48,8 @@ export type {
   AgentConfig,
   MonitorEntry,
   CaptainStatus,
+  GlobalConfig,
+  Provider,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -463,4 +467,15 @@ export function getMonitorHistory(
 // Captain status
 export function getCaptainStatus(projectId: string): Promise<CaptainStatus> {
   return request("GET", `/projects/${e(projectId)}/captain/status`);
+}
+
+// Global Config
+export function getGlobalConfig(): Promise<GlobalConfig> {
+  return request("GET", "/global-config");
+}
+export function setProvider(provider: Provider): Promise<GlobalConfig> {
+  return request("PUT", "/global-config/provider", { provider });
+}
+export function isGlmAvailable(): Promise<{ available: boolean }> {
+  return request("GET", "/global-config/glm-available");
 }

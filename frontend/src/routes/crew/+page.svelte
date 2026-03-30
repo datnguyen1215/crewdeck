@@ -4,24 +4,35 @@
 		listAgentConfig,
 		setAgentModel,
 		deleteAgentConfig,
+		getGlobalConfig,
+		setProvider,
+		isGlmAvailable,
 		type Agent,
-		type AgentConfig
+		type AgentConfig,
+		type Provider
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let agents = $state<Agent[]>([]);
 	let configs = $state<AgentConfig[]>([]);
+	let currentProvider = $state<Provider>('claude');
+	let glmAvailable = $state(false);
 	let loading = $state(true);
 	let saving = $state<Record<string, boolean>>({});
+	let providerSaving = $state(false);
+	let showConfirmDialog = $state(false);
+	let pendingProvider = $state<Provider | null>(null);
 
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
-		Promise.all([listAllAgents(), listAgentConfig()])
-			.then(([a, c]) => {
+		Promise.all([listAllAgents(), listAgentConfig(), getGlobalConfig(), isGlmAvailable()])
+			.then(([a, c, g, glm]) => {
 				if (cancelled) return;
 				agents = a;
 				configs = c;
+				currentProvider = g.provider;
+				glmAvailable = glm.available;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load crew', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -53,6 +64,34 @@
 			saving = { ...saving, [agentId]: false };
 		}
 	}
+
+	function onProviderSelect(e: Event) {
+		const value = (e.target as HTMLSelectElement).value as Provider;
+		if (value === currentProvider) return;
+		pendingProvider = value;
+		showConfirmDialog = true;
+	}
+
+	async function confirmProviderSwitch() {
+		if (!pendingProvider) return;
+		showConfirmDialog = false;
+		providerSaving = true;
+		try {
+			const result = await setProvider(pendingProvider);
+			currentProvider = result.provider;
+			toastStore.add(`Switched to ${result.provider === 'glm' ? 'GLM (Z.AI)' : 'Claude (Pro Max)'}`, 'success');
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to switch provider', 'error');
+		} finally {
+			providerSaving = false;
+			pendingProvider = null;
+		}
+	}
+
+	function cancelProviderSwitch() {
+		showConfirmDialog = false;
+		pendingProvider = null;
+	}
 </script>
 
 <svelte:head>
@@ -65,6 +104,24 @@
 		<p class="text-muted text-xs mt-1">
 			{#if loading}Loading crew members…{:else}{agents.length} member{agents.length !== 1 ? 's' : ''}{/if}
 		</p>
+	</div>
+
+	<!-- Provider Toggle -->
+	<div class="mb-6 p-4 bg-surface border border-edge rounded max-w-md">
+		<label for="provider-select" class="block text-xs text-muted uppercase tracking-widest mb-2">AI Provider</label>
+		<select
+			id="provider-select"
+			value={currentProvider}
+			onchange={onProviderSelect}
+			disabled={loading || providerSaving}
+			class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
+		>
+			<option value="claude">Claude (Pro Max)</option>
+			<option value="glm" disabled={!glmAvailable}>GLM (Z.AI){!glmAvailable ? ' — ZAI_API_KEY not set' : ''}</option>
+		</select>
+		{#if !glmAvailable}
+			<p class="text-muted text-xs mt-1.5">Set ZAI_API_KEY environment variable to enable GLM</p>
+		{/if}
 	</div>
 
 	{#if loading}
@@ -109,3 +166,30 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Confirmation Dialog -->
+{#if showConfirmDialog}
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
+		<div class="bg-surface border border-edge rounded-lg p-6 max-w-md w-full mx-4 shadow-lg">
+			<h2 class="text-primary font-semibold text-lg mb-3">Switch Provider?</h2>
+			<p class="text-muted text-sm mb-6">
+				This will restart all active Captain terminal sessions.
+				Existing agent runs will continue with their original provider until completion.
+			</p>
+			<div class="flex justify-end gap-3">
+				<button
+					onclick={cancelProviderSwitch}
+					class="px-4 py-2 text-sm text-muted hover:text-primary border border-edge rounded transition-colors"
+				>
+					Cancel
+				</button>
+				<button
+					onclick={confirmProviderSwitch}
+					class="px-4 py-2 text-sm bg-cyan text-base font-medium rounded hover:opacity-90 transition-opacity"
+				>
+					Switch Provider
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

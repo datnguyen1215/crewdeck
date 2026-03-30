@@ -5,6 +5,22 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
 import { logger } from "../logger.js";
+import { getProvider } from "../db/repositories/global-config.js";
+
+/**
+ * Build environment variables for Claude CLI based on configured provider.
+ * When GLM provider is selected, inject ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN.
+ */
+function buildProviderEnv(): Record<string, string> {
+  const provider = getProvider();
+  if (provider === "glm" && process.env.ZAI_API_KEY) {
+    return {
+      ANTHROPIC_BASE_URL: "https://api.z.ai/api/anthropic",
+      ANTHROPIC_AUTH_TOKEN: process.env.ZAI_API_KEY,
+    };
+  }
+  return {};
+}
 
 export interface SpawnOpts {
   prompt: string;
@@ -39,6 +55,7 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
     env: {
       ...process.env,
       ...opts.env,
+      ...buildProviderEnv(),
       ANTHROPIC_API_KEY: "",
       GIT_TERMINAL_PROMPT: "0",
     },
@@ -138,6 +155,7 @@ export async function spawnClaudeStream(
     env: {
       ...process.env,
       ...opts.env,
+      ...buildProviderEnv(),
       ANTHROPIC_API_KEY: "",
       GIT_TERMINAL_PROMPT: "0",
     },

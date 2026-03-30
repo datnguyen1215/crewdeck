@@ -220,6 +220,12 @@ export interface CaptainStatus {
   processing_duration_ms: number | null;
 }
 
+export type Provider = "claude" | "glm";
+
+export interface GlobalConfig {
+  provider: Provider;
+}
+
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
 // but only includes events the frontend receives (excludes backend-only events)
 export interface WsEventMap {
