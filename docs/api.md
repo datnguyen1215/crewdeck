@@ -1063,6 +1063,81 @@ Removes the model override for the agent, falling back to `"sonnet"`.
 
 ---
 
+### Global Config
+
+Global system-wide configuration settings. Allows switching the AI provider for all agent spawns.
+
+#### Get Global Config
+
+```
+GET /global-config
+```
+
+**Response:** `200 OK` — Current global configuration.
+
+```json
+{
+  "provider": "claude"
+}
+```
+
+| Field    | Type | Description                                             |
+| -------- | ---- | ------------------------------------------------------- |
+| provider | TEXT | Current AI provider. One of: `claude`, `glm` (Z.AI).    |
+
+#### Set Provider
+
+```
+PUT /global-config/provider
+```
+
+Switches the global AI provider. When changed, all active Captain terminal sessions are terminated and restarted with the new provider.
+
+**Request Body:**
+
+```json
+{
+  "provider": "glm"
+}
+```
+
+| Field    | Required | Description                                                 |
+| -------- | -------- | ----------------------------------------------------------- |
+| provider | Yes      | Provider to use. One of: `claude`, `glm`.                   |
+
+**Response:** `200 OK` — Updated global configuration.
+
+**Error:** `409 Conflict` — Provider switch already in progress.
+
+**Side effects:**
+
+- All active Captain terminal sessions are terminated (existing tmux sessions killed)
+- New agent spawns will use the new provider
+- When `glm` is selected, agent processes receive `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`
+- Existing agent runs continue with their original provider until completion
+
+#### Check GLM Availability
+
+```
+GET /global-config/glm-available
+```
+
+Checks whether the GLM (Z.AI) provider is available by verifying the `ZAI_API_KEY` environment variable is set.
+
+**Response:** `200 OK`
+
+```json
+{
+  "available": true
+}
+```
+
+| Field     | Type    | Description                                            |
+| --------- | ------- | ------------------------------------------------------ |
+| available | BOOLEAN | Whether GLM provider is available (ZAI_API_KEY is set) |
+
+---
+
 ---
 
 ### Terminal Sessions

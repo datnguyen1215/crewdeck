@@ -300,6 +300,28 @@ Global per-agent model configuration. Applies machine-wide regardless of project
 
 ---
 
+### GlobalConfig
+
+Global system-wide configuration settings. Stores key-value pairs for machine-wide settings.
+
+| Field | Type        | Constraints | Description                       |
+| ----- | ----------- | ----------- | --------------------------------- |
+| key   | TEXT        | PRIMARY KEY | Configuration key.                |
+| value | TEXT        | NOT NULL    | Configuration value (text-based). |
+
+**Current keys:**
+
+- `provider` — AI provider for all agent spawns. One of: `claude` (default), `glm` (Z.AI).
+
+**Provider behavior:**
+
+- When `provider=claude`: Agent processes use default `ANTHROPIC_API_KEY` from environment.
+- When `provider=glm`: Agent processes receive `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`.
+- Switching providers terminates all active Captain terminal sessions (new sessions use the new provider).
+- GLM provider requires `ZAI_API_KEY` environment variable to be set on the backend.
+
+---
+
 ### \_migrations
 
 Internal table that tracks which database migrations have been applied. Used by the file-based migration system to ensure each migration runs exactly once.
