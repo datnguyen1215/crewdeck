@@ -51,6 +51,12 @@ export const skipActionSchema = z.object({
   reason: z.string(),
 });
 
+export const setDependenciesActionSchema = z.object({
+  type: z.literal("set-dependencies"),
+  issue_id: z.string(),
+  depends_on: z.array(z.string()),
+});
+
 export const actionSchema = z.discriminatedUnion("type", [
   dispatchActionSchema,
   mergeActionSchema,
@@ -60,6 +66,7 @@ export const actionSchema = z.discriminatedUnion("type", [
   updateIssueActionSchema,
   createPRActionSchema,
   skipActionSchema,
+  setDependenciesActionSchema,
 ]);
 
 export const actionPlanSchema = z.object({
@@ -75,6 +82,7 @@ export type CreateIssueAction = z.infer<typeof createIssueActionSchema>;
 export type UpdateIssueAction = z.infer<typeof updateIssueActionSchema>;
 export type CreatePRAction = z.infer<typeof createPRActionSchema>;
 export type SkipAction = z.infer<typeof skipActionSchema>;
+export type SetDependenciesAction = z.infer<typeof setDependenciesActionSchema>;
 export type Action = z.infer<typeof actionSchema>;
 export type ActionPlan = z.infer<typeof actionPlanSchema>;
 
