@@ -153,7 +153,18 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between mb-5 gap-3">
 		<div class="min-w-0">
-			<h1 class="text-lg md:text-xl font-bold text-primary uppercase tracking-wide">Issues</h1>
+			<div class="flex items-center gap-3 flex-wrap">
+				<h1 class="text-lg md:text-xl font-bold text-primary uppercase tracking-wide">Issues</h1>
+				{#if project}
+					<a
+						href="/projects/{projectId}/settings"
+						class="text-muted text-xs uppercase tracking-wide hover:text-secondary transition-colors"
+						title="Captain automation settings"
+					>
+						Auto: start {project.auto_start ? '✓' : '✗'} merge {project.auto_merge ? '✓' : '✗'}
+					</a>
+				{/if}
+			</div>
 			<p class="text-muted text-xs mt-0.5">
 				{#if !loading}{filtered.length} of {issues.length} issues{:else}Loading…{/if}
 			</p>
