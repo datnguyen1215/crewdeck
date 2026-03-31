@@ -1,4 +1,4 @@
-<script lang="ts" context="module">
+<script lang="ts" module>
 	function portal(node: HTMLElement, target: HTMLElement) {
 		target.appendChild(node);
 		return {
