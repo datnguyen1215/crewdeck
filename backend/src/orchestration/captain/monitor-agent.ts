@@ -30,10 +30,7 @@ import type { Issue } from "../../types/entities.js";
 
 import * as chatRepo from "../../db/repositories/chat-messages.js";
 import type { CaptainEvent } from "./queue.js";
-import {
-  isApprovedToStart,
-  isApprovedToMerge,
-} from "../approval-store.js";
+import { isApprovedToStart, isApprovedToMerge } from "../approval-store.js";
 
 /** PR-related issue statuses that should show PR info */
 const PR_STATUSES = [
@@ -256,7 +253,7 @@ Events include full context (issue title, status, PR info, agent reports). Use t
 - **issue.created**: ${canAutoStart ? "Dispatch engineer to work on the new issue. The description is included in the event." : "Acknowledge only — wait for user to approve via play button."}
 - **issue.approved_to_start**: User manually approved this issue for work. Dispatch engineer immediately, regardless of auto_start setting.
 - **issue.approved_to_merge**: User manually approved this issue for merge. Merge the PR immediately, regardless of auto_merge setting.
-- **run.completed**: The agent's report is included in the event. Decide the next step based on the report. Pass relevant context in dispatch instructions so the next agent doesn't start blind. **If the issue has an open PR (visible in the snapshot or event context), set its status back to \`pr_created\` so the PR poller re-evaluates CI and mergeability from GitHub.** Do this before dispatching a follow-up agent if needed. **Continue the full workflow (engineer → lead → docs → PR → merge) regardless of auto_start/auto_merge settings once work has begun.**
+- **run.completed**: The agent's report is included in the event. Decide the next step based on the report. Pass relevant context in dispatch instructions so the next agent doesn't start blind. **If the issue has an open PR (visible in the snapshot or event context), set its status back to \`pr_created\` so the PR poller re-evaluates CI and mergeability from GitHub.** Do this before dispatching a follow-up agent if needed. **Continue the workflow up to PR creation (engineer → lead → docs → PR). After a PR is created or updated, set status to \`pr_created\` and wait — the PR poller will transition to \`pr_ready_to_merge\` once CI passes. Do NOT issue a merge action until you see a \`status_changed → pr_ready_to_merge\` event.**
 - **issue.status_changed → done**: Check the snapshot for remaining work. Consider a librarian scan if the completed work changed project structure.
 - **issue.status_changed → pr_conflict**: Dispatch engineer to resolve merge conflicts. Include the PR URL in dispatch instructions.
 - **issue.status_changed → pr_failed_actions**: Dispatch engineer to fix CI failures. Include the PR URL in dispatch instructions.
