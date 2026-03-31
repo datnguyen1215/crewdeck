@@ -63,6 +63,219 @@ export const postSystemComment = (
 };
 
 /**
+ * Assemble environment dict with CREWDECK_* vars, SSH credentials, and GH_TOKEN.
+ * Returns env record and optional SSH key path for cleanup.
+ */
+function buildAgentEnvironment(
+  projectId: string,
+  agentId: string,
+  issueId: string,
+): { env: Record<string, string>; sshKeyPath?: string } {
+  const envVars = envVarRepo.getEnvironmentVariablesMap(projectId);
+  const env: Record<string, string> = {
+    ...envVars,
+    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
+    CREWDECK_PROJECT_ID: projectId,
+    CREWDECK_AGENT_ID: agentId,
+    CREWDECK_ISSUE_ID: issueId,
+  };
+
+  let sshKeyPath: string | undefined;
+  const creds = getProjectCredentials(projectId);
+  if (creds) {
+    const ssh = createGitSshEnv(creds.sshPrivateKey);
+    sshKeyPath = ssh.keyPath;
+    Object.assign(env, ssh.env);
+    env.GH_TOKEN = creds.ghToken;
+  }
+
+  return { env, sshKeyPath };
+}
+
+/**
+ * Check if worktree exists on disk; if not, re-fetch repo and recreate.
+ * Returns the resolved worktree path (or null if no repo).
+ */
+async function validateOrRecreateWorktree(
+  issueId: string,
+  projectId: string,
+  currentWorktreePath: string | null,
+): Promise<string | null> {
+  const repo = repoRepo.listRepos(projectId)[0] ?? null;
+  const creds = getProjectCredentials(projectId);
+  let worktreePath = currentWorktreePath;
+
+  if (worktreePath && !fs.existsSync(worktreePath)) {
+    log.logger.info(
+      { worktreePath, issueId },
+      "Worktree path missing, will re-create",
+    );
+    worktreePath = null;
+  }
+
+  if (!worktreePath && repo) {
+    const freshIssue = issueRepo.getIssue(issueId)!;
+    const result = await agentWorktree.createWorktree(
+      repo as any,
+      freshIssue,
+      repo.default_branch,
+      creds?.sshPrivateKey,
+    );
+    worktreePath = result.path;
+  }
+
+  return worktreePath;
+}
+
+/**
+ * Fetch comments + knowledge and build agent prompt.
+ */
+function buildAgentPrompt(
+  issueId: string,
+  projectId: string,
+  worktreePath: string | null,
+  agentId: string,
+): string {
+  const repo = repoRepo.listRepos(projectId)[0] ?? null;
+  const comments = commentRepo.listComments(issueId);
+  const projectKnowledge = knowledgeRepo.listByProject(projectId);
+
+  return agentPrompt.buildPrompt({
+    issue: issueRepo.getIssue(issueId)!,
+    comments,
+    repo,
+    worktreePath: worktreePath ?? ".",
+    agentId,
+    projectKnowledge,
+  });
+}
+
+/**
+ * Regress DONE/OPEN/PR status back to IN_PROGRESS when work restarts.
+ */
+function regressIssueStatus(
+  issueId: string,
+  projectId: string,
+  currentStatus: string,
+): void {
+  if (
+    currentStatus === IssueStatus.DONE ||
+    currentStatus === IssueStatus.OPEN ||
+    PR_RELATED_ISSUE_STATUSES.has(currentStatus as IssueStatusValue)
+  ) {
+    issueRepo.updateIssue(issueId, { status: IssueStatus.IN_PROGRESS });
+    events.eventBus.emit("issue.status_changed", {
+      issue_id: issueId,
+      project_id: projectId,
+      from: currentStatus,
+      to: IssueStatus.IN_PROGRESS,
+      actor_type: "system",
+    });
+  }
+}
+
+/**
+ * Check for merged PRs on DONE issues. Returns true if dispatch should be rejected.
+ */
+function validateNoMergedPR(
+  issueId: string,
+  projectId: string,
+  issueStatus: string,
+): boolean {
+  if (issueStatus !== IssueStatus.DONE) return false;
+
+  const prs = issuePRRepo.listIssuePRs(issueId);
+  const mergedPR = prs.find((pr) => pr.status === PRStatus.MERGED);
+  if (mergedPR) {
+    postSystemComment(
+      issueId,
+      projectId,
+      `Dispatch rejected: issue already has a merged PR (#${mergedPR.pr_number})`,
+    );
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Check canSpawn guards: paused issue, missing project/issue.
+ * Returns true if spawn should be aborted.
+ */
+function validateCanSpawn(
+  agent: Agent,
+  issueId: string,
+  projectId: string,
+): boolean {
+  if (issueRepo.pausedIssues.has(issueId) || issueRepo.isIssuePaused(issueId)) {
+    log.logger.warn(
+      { agentId: agent.id, issueId, reason: "issue_paused" },
+      "Spawn blocked: issue is paused",
+    );
+    clearPendingSpawn(agent.id, issueId);
+    return true;
+  }
+
+  if (!projectRepo.getProject(projectId)) {
+    clearPendingSpawn(agent.id, issueId);
+    return true;
+  }
+
+  if (!issueRepo.getIssue(issueId)) {
+    clearPendingSpawn(agent.id, issueId);
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Handle global or project-level concurrency queuing.
+ * Returns true if the run was queued (spawn should be aborted).
+ */
+function handleConcurrencyQueuing(
+  agent: Agent,
+  issueId: string,
+  projectId: string,
+  limitReached: boolean,
+  label: string,
+): boolean {
+  if (!limitReached) return false;
+
+  if (dispatchQueue.isAgentActive(projectId, issueId, agent.id)) {
+    postSystemComment(
+      issueId,
+      projectId,
+      `Agent ${agent.name} is already queued or running`,
+    );
+    database.db
+      .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
+      .run(issueId);
+    clearPendingSpawn(agent.id, issueId);
+    return true;
+  }
+
+  dispatchQueue.enqueueRun(projectId, issueId, agent.id);
+  const position = dispatchQueue.getQueuePosition(projectId, issueId, agent.id);
+  const ahead = position;
+  postSystemComment(
+    issueId,
+    projectId,
+    `Agent ${agent.name} queued${label ? ` (${label})` : ""}${ahead > 0 ? ` - ${ahead} agent${ahead === 1 ? "" : "s"} ahead` : " (next in line)"}`,
+  );
+  events.eventBus.emit("dispatch.queued", {
+    project_id: projectId,
+    issue_id: issueId,
+    agent_id: agent.id,
+    position,
+  });
+  database.db
+    .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
+    .run(issueId);
+  clearPendingSpawn(agent.id, issueId);
+  return true;
+}
+
+/**
  * Process streaming events from agent, persist to DB, and handle completion.
  */
 export async function processAgentStream(
@@ -383,37 +596,10 @@ export const spawnAgent = async (
   commentAuthorAgentId?: string,
   options?: { batchTriggered?: boolean; isRetry?: boolean },
 ): Promise<void> => {
-  // Guard: reject spawn attempts for paused issues
-  if (issueRepo.pausedIssues.has(issueId)) {
-    log.logger.warn(
-      { agentId: agent.id, issueId, reason: "issue_paused" },
-      "Spawn blocked: issue is paused",
-    );
-    clearPendingSpawn(agent.id, issueId);
-    return;
-  }
+  if (validateCanSpawn(agent, issueId, projectId)) return;
 
-  const project = projectRepo.getProject(projectId);
-  if (!project) {
-    clearPendingSpawn(agent.id, issueId);
-    return;
-  }
-
-  const issue = issueRepo.getIssue(issueId);
-  if (!issue) {
-    clearPendingSpawn(agent.id, issueId);
-    return;
-  }
-
-  // Guard: Don't spawn on paused issues
-  if (issueRepo.isIssuePaused(issueId)) {
-    log.logger.info(
-      { issueId, agentId: agent.id },
-      "Skipping spawn: issue is paused",
-    );
-    clearPendingSpawn(agent.id, issueId);
-    return;
-  }
+  const project = projectRepo.getProject(projectId)!;
+  const issue = issueRepo.getIssue(issueId)!;
 
   const maxChainDepth = project.max_chain_depth ?? DEFAULT_MAX_CHAIN_DEPTH;
 
@@ -440,87 +626,33 @@ export const spawnAgent = async (
   }
 
   // Check global concurrency limit
-  const globalRunning = agentRunRepo.countRunningGlobal();
-  const maxGlobal = config.maxAgents;
-  if (globalRunning >= maxGlobal) {
-    // Don't queue duplicates
-    if (dispatchQueue.isAgentActive(projectId, issueId, agent.id)) {
-      postSystemComment(
-        issueId,
-        projectId,
-        `Agent ${agent.name} is already queued or running`,
-      );
-      // Rollback the chain_depth increment since we're not spawning
-      database.db
-        .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
-        .run(issueId);
-      clearPendingSpawn(agent.id, issueId);
-      return;
-    }
-    // Queue the run
-    dispatchQueue.enqueueRun(projectId, issueId, agent.id);
-    const position = dispatchQueue.getQueuePosition(
-      projectId,
-      issueId,
-      agent.id,
-    );
-    const ahead = position;
-    postSystemComment(
+  if (
+    handleConcurrencyQueuing(
+      agent,
       issueId,
       projectId,
-      `Agent ${agent.name} queued (global limit reached)${ahead > 0 ? ` - ${ahead} agent${ahead === 1 ? "" : "s"} ahead` : " (next in line)"}`,
-    );
-    events.eventBus.emit("dispatch.queued", {
-      project_id: projectId,
-      issue_id: issueId,
-      agent_id: agent.id,
-      position,
-    });
-    // Rollback the chain_depth increment since we're not spawning now
-    database.db
-      .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
-      .run(issueId);
-    clearPendingSpawn(agent.id, issueId);
+      agentRunRepo.countRunningGlobal() >= config.maxAgents,
+      "global limit reached",
+    )
+  ) {
     return;
   }
 
   // Check project concurrency limit
-  const activeCount = getActiveProcessCount(projectId);
-  if (activeCount >= project.max_concurrency) {
-    // Don't queue duplicates
-    if (dispatchQueue.isAgentActive(projectId, issueId, agent.id)) {
-      postSystemComment(
-        issueId,
-        projectId,
-        `Agent ${agent.name} is already queued or running`,
-      );
-      // Rollback the chain_depth increment since we're not spawning
-      database.db
-        .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
-        .run(issueId);
-      clearPendingSpawn(agent.id, issueId);
-      return;
-    }
-    // Queue the run
-    dispatchQueue.enqueueRun(projectId, issueId, agent.id);
-    const position = dispatchQueue.getQueuePosition(
-      projectId,
-      issueId,
-      agent.id,
-    );
-    const ahead = position;
-    postSystemComment(
+  if (
+    handleConcurrencyQueuing(
+      agent,
       issueId,
       projectId,
-      `Agent ${agent.name} queued${ahead > 0 ? ` (${ahead} agent${ahead === 1 ? "" : "s"} ahead)` : " (next in line)"}`,
-    );
-    events.eventBus.emit("dispatch.queued", {
-      project_id: projectId,
-      issue_id: issueId,
-      agent_id: agent.id,
-      position,
-    });
-    // Rollback the chain_depth increment since we're not spawning now
+      getActiveProcessCount(projectId) >= project.max_concurrency,
+      "",
+    )
+  ) {
+    return;
+  }
+
+  // Guard against dispatching to issues with merged PRs
+  if (validateNoMergedPR(issueId, projectId, issue.status)) {
     database.db
       .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
       .run(issueId);
@@ -528,98 +660,24 @@ export const spawnAgent = async (
     return;
   }
 
-  // Guard against dispatching to issues with merged PRs
-  if (issue.status === IssueStatus.DONE) {
-    const prs = issuePRRepo.listIssuePRs(issueId);
-    const mergedPR = prs.find((pr) => pr.status === PRStatus.MERGED);
-    if (mergedPR) {
-      postSystemComment(
-        issueId,
-        projectId,
-        `Dispatch rejected: issue already has a merged PR (#${mergedPR.pr_number})`,
-      );
-      // Rollback the chain_depth increment
-      database.db
-        .prepare("UPDATE Issue SET chain_depth = chain_depth - 1 WHERE id = ?")
-        .run(issueId);
-      clearPendingSpawn(agent.id, issueId);
-      return;
-    }
-  }
+  regressIssueStatus(issueId, projectId, issue.status);
 
-  // Regress status to in_progress when work restarts
-  if (
-    issue.status === IssueStatus.DONE ||
-    issue.status === IssueStatus.OPEN ||
-    PR_RELATED_ISSUE_STATUSES.has(issue.status as IssueStatusValue)
-  ) {
-    issueRepo.updateIssue(issueId, { status: IssueStatus.IN_PROGRESS });
-    events.eventBus.emit("issue.status_changed", {
-      issue_id: issueId,
-      project_id: projectId,
-      from: issue.status,
-      to: IssueStatus.IN_PROGRESS,
-      actor_type: "system",
-    });
-  }
+  const worktreePath = await validateOrRecreateWorktree(
+    issueId,
+    projectId,
+    issue.worktree_path,
+  );
 
-  // Create worktree if needed, or re-create if it was cleaned up (e.g. /tmp cleared on reboot)
-  const repo = repoRepo.listRepos(projectId)[0] ?? null;
-  const creds = getProjectCredentials(projectId);
-  let worktreePath = issue.worktree_path;
+  const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
 
-  if (worktreePath && !fs.existsSync(worktreePath)) {
-    log.logger.info(
-      { worktreePath, issueId },
-      "Worktree path missing, will re-create",
-    );
-    worktreePath = null;
-  }
-
-  if (!worktreePath && repo) {
-    const freshIssue = issueRepo.getIssue(issueId)!;
-    const result = await agentWorktree.createWorktree(
-      repo as any,
-      freshIssue,
-      repo.default_branch,
-      creds?.sshPrivateKey,
-    );
-    worktreePath = result.path;
-  }
-
-  const comments = commentRepo.listComments(issueId);
-  const projectKnowledge = knowledgeRepo.listByProject(projectId);
-
-  const prompt = agentPrompt.buildPrompt({
-    issue: issueRepo.getIssue(issueId)!,
-    comments,
-    repo,
-    worktreePath: worktreePath ?? ".",
-    agentId: agent.id,
-    projectKnowledge,
-  });
-
-  const envVars = envVarRepo.getEnvironmentVariablesMap(projectId);
-  const env: Record<string, string> = {
-    ...envVars,
-    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
-    CREWDECK_PROJECT_ID: projectId,
-    CREWDECK_AGENT_ID: agent.id,
-    CREWDECK_ISSUE_ID: issueId,
-  };
-
-  // Inject SSH + GH_TOKEN so agents can push and use gh CLI
-  let sshKeyPath: string | undefined;
-  if (creds) {
-    const ssh = createGitSshEnv(creds.sshPrivateKey);
-    sshKeyPath = ssh.keyPath;
-    Object.assign(env, ssh.env);
-    env.GH_TOKEN = creds.ghToken;
-  }
+  const { env, sshKeyPath } = buildAgentEnvironment(
+    projectId,
+    agent.id,
+    issueId,
+  );
 
   const timeoutMinutes =
     project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
-
   const model = agentConfigRepo.resolveModel(agent.id);
 
   await spawnAndTrack({
@@ -639,7 +697,6 @@ export const spawnAgent = async (
 /**
  * Execute a queued run by spawning the agent process.
  * Called by the queue drainer when a slot becomes available.
- * Updates the run status from 'queued' to 'running'.
  */
 export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
   const { project_id: projectId, issue_id: issueId, agent_id: agentId } = run;
@@ -664,7 +721,6 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     return;
   }
 
-  // Guard: reject spawn if issue is paused
   if (issueRepo.pausedIssues.has(issueId)) {
     log.logger.warn(
       { agentId, issueId, reason: "issue_paused" },
@@ -681,19 +737,9 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     return;
   }
 
-  // Guard against dispatching to issues with merged PRs
-  if (issue.status === IssueStatus.DONE) {
-    const prs = issuePRRepo.listIssuePRs(issueId);
-    const mergedPR = prs.find((pr) => pr.status === PRStatus.MERGED);
-    if (mergedPR) {
-      postSystemComment(
-        issueId,
-        projectId,
-        `Dispatch rejected: issue already has a merged PR (#${mergedPR.pr_number})`,
-      );
-      agentRunRepo.updateAgentRun(run.id, { status: "failed" });
-      return;
-    }
+  if (validateNoMergedPR(issueId, projectId, issue.status)) {
+    agentRunRepo.updateAgentRun(run.id, { status: "failed" });
+    return;
   }
 
   // Re-increment chain_depth (was rolled back when queued)
@@ -713,79 +759,24 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     agent_id: agentId,
   });
 
-  // Regress status to in_progress when work restarts
-  if (
-    issue.status === IssueStatus.DONE ||
-    issue.status === IssueStatus.OPEN ||
-    PR_RELATED_ISSUE_STATUSES.has(issue.status as IssueStatusValue)
-  ) {
-    issueRepo.updateIssue(issueId, { status: IssueStatus.IN_PROGRESS });
-    events.eventBus.emit("issue.status_changed", {
-      issue_id: issueId,
-      project_id: projectId,
-      from: issue.status,
-      to: IssueStatus.IN_PROGRESS,
-      actor_type: "system",
-    });
-  }
+  regressIssueStatus(issueId, projectId, issue.status);
 
-  // Create worktree if needed, or re-create if it was cleaned up
-  const repo = repoRepo.listRepos(projectId)[0] ?? null;
-  const creds = getProjectCredentials(projectId);
-  let worktreePath = issue.worktree_path;
+  const worktreePath = await validateOrRecreateWorktree(
+    issueId,
+    projectId,
+    issue.worktree_path,
+  );
 
-  if (worktreePath && !fs.existsSync(worktreePath)) {
-    log.logger.info(
-      { worktreePath, issueId },
-      "Worktree path missing, will re-create",
-    );
-    worktreePath = null;
-  }
+  const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
 
-  if (!worktreePath && repo) {
-    const freshIssue = issueRepo.getIssue(issueId)!;
-    const result = await agentWorktree.createWorktree(
-      repo as any,
-      freshIssue,
-      repo.default_branch,
-      creds?.sshPrivateKey,
-    );
-    worktreePath = result.path;
-  }
-
-  const comments = commentRepo.listComments(issueId);
-  const projectKnowledge = knowledgeRepo.listByProject(projectId);
-
-  const prompt = agentPrompt.buildPrompt({
-    issue: issueRepo.getIssue(issueId)!,
-    comments,
-    repo,
-    worktreePath: worktreePath ?? ".",
-    agentId: agent.id,
-    projectKnowledge,
-  });
-
-  const envVars = envVarRepo.getEnvironmentVariablesMap(projectId);
-  const env: Record<string, string> = {
-    ...envVars,
-    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
-    CREWDECK_PROJECT_ID: projectId,
-    CREWDECK_AGENT_ID: agent.id,
-    CREWDECK_ISSUE_ID: issueId,
-  };
-
-  // Inject SSH + GH_TOKEN so agents can push and use gh CLI
-  let sshKeyPath: string | undefined;
-  if (creds) {
-    const ssh = createGitSshEnv(creds.sshPrivateKey);
-    sshKeyPath = ssh.keyPath;
-    Object.assign(env, ssh.env);
-    env.GH_TOKEN = creds.ghToken;
-  }
+  const { env, sshKeyPath } = buildAgentEnvironment(
+    projectId,
+    agent.id,
+    issueId,
+  );
 
   const timeoutMinutes =
     project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
-
   const model = agentConfigRepo.resolveModel(agent.id);
 
   // Update run status to 'running' and set started_at
@@ -815,7 +806,6 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     throw err;
   }
 
-  // Update run with PID
   agentRunRepo.updateAgentRun(run.id, { pid: result.pid });
 
   const timeoutMs = timeoutMinutes * 60 * 1000;
@@ -864,7 +854,6 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     "Queued agent spawned",
   );
 
-  // Process streamed events (fire-and-forget)
   processAgentStream(
     result,
     run.id,
@@ -880,26 +869,18 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
         { err, runId: run.id },
         "Error processing queued agent stream",
       );
-
-      // Clean up state on error
       clearTimeout(timer);
       activeProcesses.delete(result.pid);
-
-      // Mark run as failed in DB
       agentRunRepo.updateAgentRun(run.id, {
         status: "failed",
         completed_at: new Date().toISOString(),
       });
-
-      // Emit completion event so queue can drain
       events.eventBus.emit("mention.completed", {
         project_id: projectId,
         issue_id: issueId,
         agent_id: agent.id,
         exit_code: 1,
       });
-
-      // Post system comment
       postSystemComment(
         issueId,
         projectId,
