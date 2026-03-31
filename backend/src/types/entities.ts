@@ -77,6 +77,8 @@ export interface Issue {
 export interface IssueWithRunningAgent extends Issue {
   running_agent_id: string | null;
   running_agent_status: string | null;
+  dependencies?: IssueDependencySummary[];
+  dependents?: IssueDependencySummary[];
 }
 
 export interface IssueDependency {
@@ -84,6 +86,12 @@ export interface IssueDependency {
   issue_id: string;
   depends_on_issue_id: string;
   created_at: string;
+}
+
+export interface IssueDependencySummary {
+  id: string;
+  title: string;
+  status: string;
 }
 
 export interface Comment {
@@ -194,6 +202,8 @@ export interface IssueWithDetails extends Issue {
   issue_prs: IssuePR[];
   activity_log: ActivityLog[];
   repo: { id: string; name: string } | null;
+  dependencies: IssueDependencySummary[];
+  dependents: IssueDependencySummary[];
 }
 
 // Input types

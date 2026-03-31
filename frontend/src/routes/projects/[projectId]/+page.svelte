@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
 	import { listIssues, createIssue, approveIssueStart, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
@@ -138,7 +139,7 @@
 				title: f.title.trim(),
 				description: f.description.trim()
 			});
-			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null }];
+			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null, dependencies: [], dependents: [] }];
 		});
 	}
 
@@ -330,9 +331,12 @@
 				{@const isQueued = issue.running_agent_status === 'queued'}
 				{@const isDispatching = dispatchingIssues.has(issue.id)}
 				{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
-				<a
-					href="/projects/{projectId}/issues/{issue.id}"
-					class="block bg-surface border border-edge rounded-lg p-4 hover:bg-surface-hi hover:border-edge-hi transition-colors active:scale-[0.99] {issue.status === 'in_progress' ? 'border-l-green border-l-2' : ''} {issue.paused ? 'opacity-60' : ''}"
+				<div
+					role="link"
+					tabindex="0"
+					onclick={(e) => { if ((e.target as HTMLElement).closest('button')) return; goto(`/projects/${projectId}/issues/${issue.id}`); }}
+					onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${projectId}/issues/${issue.id}`)}
+					class="block bg-surface border border-edge rounded-lg p-4 hover:bg-surface-hi hover:border-edge-hi transition-colors active:scale-[0.99] cursor-pointer {issue.status === 'in_progress' ? 'border-l-green border-l-2' : ''} {issue.paused ? 'opacity-60' : ''}"
 					style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 				>
 					<div class="flex items-start justify-between gap-3 mb-3">
@@ -379,7 +383,22 @@
 					{#if issue.created_by === 'agent'}
 						<p class="text-muted text-xs mt-2">proposed by agent</p>
 					{/if}
-				</a>
+					{#if issue.dependencies.length > 0}
+						<div class="flex flex-wrap gap-1 mt-2">
+							{#each issue.dependencies as dep}
+								{@const depCfg = STATUS_CFG[dep.status] ?? STATUS_CFG.open}
+								<button
+									onclick={(e) => { e.stopPropagation(); goto(`/projects/${projectId}/issues/${dep.id}`); }}
+									class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border border-edge text-muted hover:border-edge-hi hover:text-secondary transition-colors max-w-[160px]"
+									title="Depends on: {dep.title}"
+								>
+									<span class="leading-none flex-shrink-0">{depCfg.dot}</span>
+									<span class="truncate">{dep.title}</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
 			{/each}
 		</div>
 
@@ -404,9 +423,12 @@
 						{@const isQueued = issue.running_agent_status === 'queued'}
 						{@const isDispatching = dispatchingIssues.has(issue.id)}
 						{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
-						<a
-							href="/projects/{projectId}/issues/{issue.id}"
-							class="issue-row grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
+						<div
+							role="link"
+							tabindex="0"
+							onclick={(e) => { if ((e.target as HTMLElement).closest('button')) return; goto(`/projects/${projectId}/issues/${issue.id}`); }}
+							onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${projectId}/issues/${issue.id}`)}
+							class="issue-row grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group cursor-pointer {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
 							style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 						>
 							<!-- Title -->
@@ -419,6 +441,21 @@
 								</p>
 								{#if issue.created_by === 'agent'}
 									<p class="text-muted text-xs mt-0.5">proposed by agent</p>
+								{/if}
+								{#if issue.dependencies.length > 0}
+									<div class="flex flex-wrap gap-1 mt-1">
+										{#each issue.dependencies as dep}
+											{@const depCfg = STATUS_CFG[dep.status] ?? STATUS_CFG.open}
+											<button
+												onclick={(e) => { e.stopPropagation(); goto(`/projects/${projectId}/issues/${dep.id}`); }}
+												class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border border-edge text-muted hover:border-edge-hi hover:text-secondary transition-colors max-w-[180px]"
+												title="Depends on: {dep.title}"
+											>
+												<span class="leading-none flex-shrink-0">{depCfg.dot}</span>
+												<span class="truncate">{dep.title}</span>
+											</button>
+										{/each}
+									</div>
 								{/if}
 							</div>
 
@@ -473,7 +510,7 @@
 									{/if}
 								</button>
 							</div>
-						</a>
+						</div>
 					{/each}
 				</div>
 			</div>

@@ -4,7 +4,10 @@
  * Manages dependencies between issues (issue A depends on issue B).
  */
 import { db } from "../index.js";
-import type { IssueDependency } from "../../types/entities.js";
+import type {
+  IssueDependency,
+  IssueDependencySummary,
+} from "../../types/entities.js";
 import { getIssue } from "./issues.js";
 
 /**
@@ -180,6 +183,78 @@ export function listDependenciesBatch(
   }
   for (const row of rows) {
     result.get(row.issue_id)!.push(row.depends_on_issue_id);
+  }
+  return result;
+}
+
+/**
+ * Get dependency summaries for multiple issues at once.
+ * Returns a map of issue_id -> IssueDependencySummary[] (the issues it depends on).
+ */
+export function listDependenciesBatchWithDetails(
+  issueIds: string[],
+): Map<string, IssueDependencySummary[]> {
+  if (issueIds.length === 0) return new Map();
+
+  const placeholders = issueIds.map(() => "?").join(", ");
+  const rows = db
+    .prepare(
+      `SELECT d.issue_id, i.id, i.title, i.status
+       FROM IssueDependency d
+       JOIN Issue i ON i.id = d.depends_on_issue_id
+       WHERE d.issue_id IN (${placeholders})`,
+    )
+    .all(...issueIds) as {
+    issue_id: string;
+    id: string;
+    title: string;
+    status: string;
+  }[];
+
+  const result = new Map<string, IssueDependencySummary[]>();
+  for (const issueId of issueIds) {
+    result.set(issueId, []);
+  }
+  for (const row of rows) {
+    result
+      .get(row.issue_id)!
+      .push({ id: row.id, title: row.title, status: row.status });
+  }
+  return result;
+}
+
+/**
+ * Get dependent summaries for multiple issues at once.
+ * Returns a map of issue_id -> IssueDependencySummary[] (the issues that depend on it).
+ */
+export function listDependentsBatchWithDetails(
+  issueIds: string[],
+): Map<string, IssueDependencySummary[]> {
+  if (issueIds.length === 0) return new Map();
+
+  const placeholders = issueIds.map(() => "?").join(", ");
+  const rows = db
+    .prepare(
+      `SELECT d.depends_on_issue_id AS issue_id, i.id, i.title, i.status
+       FROM IssueDependency d
+       JOIN Issue i ON i.id = d.issue_id
+       WHERE d.depends_on_issue_id IN (${placeholders})`,
+    )
+    .all(...issueIds) as {
+    issue_id: string;
+    id: string;
+    title: string;
+    status: string;
+  }[];
+
+  const result = new Map<string, IssueDependencySummary[]>();
+  for (const issueId of issueIds) {
+    result.set(issueId, []);
+  }
+  for (const row of rows) {
+    result
+      .get(row.issue_id)!
+      .push({ id: row.id, title: row.title, status: row.status });
   }
   return result;
 }
