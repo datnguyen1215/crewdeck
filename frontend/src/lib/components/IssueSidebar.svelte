@@ -190,6 +190,39 @@
 		</div>
 	</div>
 
+	<!-- Dependencies panel -->
+	{#if issue.dependencies.length > 0 || issue.dependents.length > 0}
+		<div class="bg-surface border border-edge rounded p-4">
+			<div class="text-xs text-muted uppercase tracking-widest mb-3">Dependencies</div>
+			<div class="flex flex-col gap-2 text-xs">
+				{#if issue.dependencies.length > 0}
+					<div>
+						<p class="text-muted mb-1.5">Blocked by</p>
+						{#each issue.dependencies as dep}
+							{@const cfg = STATUS_CFG[dep.status] ?? STATUS_CFG.open}
+							<div class="flex items-center gap-2 mb-1">
+								<span class="leading-none {cfg.text}">{cfg.dot}</span>
+								<a href="/projects/{projectId}/issues/{dep.id}" class="text-secondary hover:text-cyan hover:underline truncate transition-colors">{dep.title}</a>
+							</div>
+						{/each}
+					</div>
+				{/if}
+				{#if issue.dependents.length > 0}
+					<div>
+						<p class="text-muted mb-1.5">Blocking</p>
+						{#each issue.dependents as dep}
+							{@const cfg = STATUS_CFG[dep.status] ?? STATUS_CFG.open}
+							<div class="flex items-center gap-2 mb-1">
+								<span class="leading-none {cfg.text}">{cfg.dot}</span>
+								<a href="/projects/{projectId}/issues/{dep.id}" class="text-secondary hover:text-cyan hover:underline truncate transition-colors">{dep.title}</a>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
 	<!-- Actions -->
 	<div class="bg-surface border border-edge rounded p-4">
 		<div class="text-xs text-muted uppercase tracking-widest mb-3">Actions</div>

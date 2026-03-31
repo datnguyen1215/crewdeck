@@ -13,6 +13,10 @@ import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
 import { buildAndRunUpdate } from "./utils.js";
+import {
+  listDependenciesBatchWithDetails,
+  listDependentsBatchWithDetails,
+} from "./issue-dependencies.js";
 
 function fromRowWithRunningAgent(
   row: Record<string, unknown>,
@@ -107,12 +111,17 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
   const repoRow = issue.repo_id ? getRepo(issue.repo_id) : null;
   const repo = repoRow ? { id: repoRow.id, name: repoRow.name } : null;
 
+  const depsMap = listDependenciesBatchWithDetails([id]);
+  const dependentsMap = listDependentsBatchWithDetails([id]);
+
   return {
     ...issue,
     comments: listComments(id, Infinity),
     issue_prs: listIssuePRs(id),
     activity_log: listActivity(issue.project_id, { issue_id: id }),
     repo,
+    dependencies: depsMap.get(id) ?? [],
+    dependents: dependentsMap.get(id) ?? [],
   };
 }
 
@@ -170,9 +179,9 @@ export const pausedIssues = new Set<string>();
  * Called on server startup.
  */
 export function initializePausedIssues(): void {
-  const rows = db
-    .prepare("SELECT id FROM Issue WHERE paused = 1")
-    .all() as { id: string }[];
+  const rows = db.prepare("SELECT id FROM Issue WHERE paused = 1").all() as {
+    id: string;
+  }[];
   pausedIssues.clear();
   for (const row of rows) {
     pausedIssues.add(row.id);

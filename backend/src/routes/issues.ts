@@ -12,7 +12,12 @@ import {
 } from "../db/repositories/issues.js";
 import { getRepo } from "../db/repositories/repos.js";
 import { validate } from "../middleware/validate.js";
-import { InvalidTransitionError, ConflictError, NotFoundError, ValidationError } from "../middleware/errors.js";
+import {
+  InvalidTransitionError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from "../middleware/errors.js";
 import {
   verifyProject,
   verifyIssueOwnership,
@@ -22,12 +27,19 @@ import { CreateIssueSchema, UpdateIssueSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
 import { cleanupWorktree } from "../orchestration/worktree.js";
 import { logger } from "../logger.js";
-import { hasActiveProcesses, activeProcesses } from "../orchestration/processes.js";
+import {
+  hasActiveProcesses,
+  activeProcesses,
+} from "../orchestration/processes.js";
 import { TRANSITIONS, IssueStatus } from "../constants/statuses.js";
 import type { IssueFilters } from "../types/entities.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as batch from "../orchestration/batch.js";
 import { approveStart, approveMerge } from "../orchestration/approval-store.js";
+import {
+  listDependenciesBatchWithDetails,
+  listDependentsBatchWithDetails,
+} from "../db/repositories/issue-dependencies.js";
 
 function assertTransition(from: string, to: string): void {
   const allowed = TRANSITIONS[from as keyof typeof TRANSITIONS] ?? [];
@@ -53,10 +65,19 @@ router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
 
   const issues = listIssues(projectId, filters);
 
+  const issueIds = issues.map((i) => i.id);
+  const depsMap = listDependenciesBatchWithDetails(issueIds);
+  const dependentsMap = listDependentsBatchWithDetails(issueIds);
+  const enriched = issues.map((i) => ({
+    ...i,
+    dependencies: depsMap.get(i.id) ?? [],
+    dependents: dependentsMap.get(i.id) ?? [],
+  }));
+
   if (compact === "true") {
-    res.json(issues.map(({ description, ...rest }) => rest));
+    res.json(enriched.map(({ description, ...rest }) => rest));
   } else {
-    res.json(issues);
+    res.json(enriched);
   }
 });
 
@@ -132,9 +153,15 @@ router.delete("/:issueId", verifyIssueOwnership, async (req, res) => {
     if (repo && existsSync(worktree_path)) {
       try {
         await cleanupWorktree(repo, worktree_path, branch_name, true);
-        logger.info({ issue_id: issue.id, worktree_path }, "Worktree cleaned up during issue deletion");
+        logger.info(
+          { issue_id: issue.id, worktree_path },
+          "Worktree cleaned up during issue deletion",
+        );
       } catch (err) {
-        logger.warn({ err, issue_id: issue.id, worktree_path }, "Failed to cleanup worktree during deletion, continuing");
+        logger.warn(
+          { err, issue_id: issue.id, worktree_path },
+          "Failed to cleanup worktree during deletion, continuing",
+        );
       }
     }
   }
@@ -164,7 +191,7 @@ router.post("/:issueId/pause", verifyIssueOwnership, (req, res) => {
     if (proc.issueId === issue.id) {
       logger.info(
         { pid, issueId: issue.id, agentId: proc.agentId },
-        "Killing agent process for paused issue"
+        "Killing agent process for paused issue",
       );
       proc.process.kill("SIGTERM");
       clearTimeout(proc.timer);
@@ -178,7 +205,7 @@ router.post("/:issueId/pause", verifyIssueOwnership, (req, res) => {
     if (run.issue_id === issue.id) {
       logger.info(
         { runId: run.id, issueId: issue.id, agentId: run.agent_id },
-        "Cancelling queued run for paused issue"
+        "Cancelling queued run for paused issue",
       );
       agentRunRepo.updateAgentRun(run.id, { status: "failed" });
     }
@@ -187,7 +214,10 @@ router.post("/:issueId/pause", verifyIssueOwnership, (req, res) => {
   // Step 4: Clear batch tracking for this issue
   const batchId = batch.issueBatches.get(issue.id);
   if (batchId) {
-    logger.info({ batchId, issueId: issue.id }, "Clearing batch for paused issue");
+    logger.info(
+      { batchId, issueId: issue.id },
+      "Clearing batch for paused issue",
+    );
     batch.batches.delete(batchId);
     batch.issueBatches.delete(issue.id);
   }

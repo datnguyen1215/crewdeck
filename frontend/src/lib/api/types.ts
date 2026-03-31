@@ -64,9 +64,17 @@ export interface Issue {
   updated_at: string;
 }
 
+export interface IssueDependencySummary {
+  id: string;
+  title: string;
+  status: string;
+}
+
 export interface IssueWithRunningAgent extends Issue {
   running_agent_id: string | null;
   running_agent_status: string | null;
+  dependencies: IssueDependencySummary[];
+  dependents: IssueDependencySummary[];
 }
 
 export interface IssuePR {
@@ -85,6 +93,8 @@ export interface IssueWithDetails extends Issue {
   comments: Comment[];
   issue_prs: IssuePR[];
   activity_log: ActivityLog[];
+  dependencies: IssueDependencySummary[];
+  dependents: IssueDependencySummary[];
 }
 
 export interface Comment {

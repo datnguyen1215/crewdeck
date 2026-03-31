@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
 	import { listIssues, createIssue, approveIssueStart, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
@@ -138,7 +139,7 @@
 				title: f.title.trim(),
 				description: f.description.trim()
 			});
-			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null }];
+			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null, dependencies: [], dependents: [] }];
 		});
 	}
 
@@ -379,6 +380,21 @@
 					{#if issue.created_by === 'agent'}
 						<p class="text-muted text-xs mt-2">proposed by agent</p>
 					{/if}
+					{#if issue.dependencies.length > 0}
+						<div class="flex flex-wrap gap-1 mt-2">
+							{#each issue.dependencies as dep}
+								{@const depCfg = STATUS_CFG[dep.status] ?? STATUS_CFG.open}
+								<button
+									onclick={(e) => { e.stopPropagation(); goto(`/projects/${projectId}/issues/${dep.id}`); }}
+									class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border border-edge text-muted hover:border-edge-hi hover:text-secondary transition-colors max-w-[160px]"
+									title="Depends on: {dep.title}"
+								>
+									<span class="leading-none flex-shrink-0">{depCfg.dot}</span>
+									<span class="truncate">{dep.title}</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
 				</a>
 			{/each}
 		</div>
@@ -419,6 +435,21 @@
 								</p>
 								{#if issue.created_by === 'agent'}
 									<p class="text-muted text-xs mt-0.5">proposed by agent</p>
+								{/if}
+								{#if issue.dependencies.length > 0}
+									<div class="flex flex-wrap gap-1 mt-1">
+										{#each issue.dependencies as dep}
+											{@const depCfg = STATUS_CFG[dep.status] ?? STATUS_CFG.open}
+											<button
+												onclick={(e) => { e.stopPropagation(); goto(`/projects/${projectId}/issues/${dep.id}`); }}
+												class="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border border-edge text-muted hover:border-edge-hi hover:text-secondary transition-colors max-w-[180px]"
+												title="Depends on: {dep.title}"
+											>
+												<span class="leading-none flex-shrink-0">{depCfg.dot}</span>
+												<span class="truncate">{dep.title}</span>
+											</button>
+										{/each}
+									</div>
 								{/if}
 							</div>
 
