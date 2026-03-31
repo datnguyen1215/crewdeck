@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { listProjects, type Project } from '$lib/api/http.js';
+	import { listProjectsWithStats, type ProjectWithStats } from '$lib/api/http.js';
 	import { onMount } from 'svelte';
 
 	const STORAGE_KEY = 'sidebar-collapsed';
@@ -25,7 +25,7 @@
 		folder: `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>`
 	};
 
-	let projects = $state<Project[]>([]);
+	let projects = $state<ProjectWithStats[]>([]);
 	let expandedProjects = $state<Set<string>>(new Set());
 	let collapsed = $state(false);
 	let mobileOpen = $state(false);
@@ -64,11 +64,20 @@
 		}
 
 		// Load projects (async, but don't block)
-		listProjects()
-			.then((data) => { projects = data; })
-			.catch((e) => { console.error('Failed to load projects:', e); });
+		const fetchProjects = () => {
+			listProjectsWithStats()
+				.then((data) => { projects = data; })
+				.catch((e) => { console.error('Failed to load projects:', e); });
+		};
+		fetchProjects();
 
-		return () => window.removeEventListener('resize', checkMobile);
+		// Poll for updates every 30 seconds
+		const interval = setInterval(fetchProjects, 30_000);
+
+		return () => {
+			window.removeEventListener('resize', checkMobile);
+			clearInterval(interval);
+		};
 	});
 
 	function toggleSidebar() {
@@ -104,6 +113,11 @@
 				goto(`/projects/${pid}`);
 			}
 		}
+	}
+
+	function getActiveIssueCount(project: ProjectWithStats): number {
+		const { issues } = project;
+		return issues.open + issues.in_progress + issues.pr_created + issues.pr_conflict + issues.pr_failed_actions + issues.pr_ready_to_merge;
 	}
 </script>
 
@@ -258,8 +272,8 @@
 					<!-- Project sub-pages (only when expanded and sidebar not collapsed) -->
 					{#if isExpanded}
 						<div class="ml-5 flex flex-col gap-0.5">
-							{@render projectNavItem(`/projects/${project.id}`, 'Issues', 'issues', pathname === `/projects/${project.id}` || pathname.startsWith(`/projects/${project.id}/issues`))}
-							{@render projectNavItem(`/projects/${project.id}/terminals`, 'Terminals', 'terminals', isActive(`/projects/${project.id}/terminals`))}
+							{@render projectNavItem(`/projects/${project.id}`, 'Issues', 'issues', pathname === `/projects/${project.id}` || pathname.startsWith(`/projects/${project.id}/issues`), getActiveIssueCount(project))}
+							{@render projectNavItem(`/projects/${project.id}/terminals`, 'Terminals', 'terminals', isActive(`/projects/${project.id}/terminals`), project.active_runs)}
 							{@render projectNavItem(`/projects/${project.id}/chat`, 'Captain', 'chat', isActive(`/projects/${project.id}/chat`))}
 							{@render projectNavItem(`/projects/${project.id}/knowledge`, 'Knowledge', 'knowledge', isActive(`/projects/${project.id}/knowledge`))}
 							{@render projectNavItem(`/projects/${project.id}/activity`, 'Activity', 'activity', isActive(`/projects/${project.id}/activity`))}
@@ -312,7 +326,7 @@
 	</a>
 {/snippet}
 
-{#snippet projectNavItem(href: string, label: string, icon: keyof typeof icons, active: boolean)}
+{#snippet projectNavItem(href: string, label: string, icon: keyof typeof icons, active: boolean, count?: number)}
 	<a
 		{href}
 		onclick={closeMobileSidebar}
@@ -334,8 +348,13 @@
 		>
 			{@html icons[icon]}
 		</svg>
-		<span class="overflow-hidden">
+		<span class="overflow-hidden flex-1">
 			{label}
 		</span>
+		{#if count && count > 0}
+			<span class="text-[10px] bg-surface-hi text-secondary px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+				{count}
+			</span>
+		{/if}
 	</a>
 {/snippet}

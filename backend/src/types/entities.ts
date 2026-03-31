@@ -179,6 +179,7 @@ export interface ProjectWithStats extends Project {
     pr_ready_to_merge: number;
     done: number;
   };
+  active_runs: number;
 }
 
 export interface IssueWithDetails extends Issue {
