@@ -293,6 +293,7 @@ When `auto_start` and `auto_merge` project settings are OFF, users can manually 
 - **Merge button** adds the issue ID to `approvedToMerge` Set and emits `issue.approved_to_merge` event
 
 Captain's decision logic:
+
 - `canStart = approvedToStart.has(issueId) || project.auto_start`
 - `canMerge = approvedToMerge.has(issueId) || project.auto_merge`
 
@@ -302,12 +303,14 @@ Approval flags are cleared after successful dispatch/merge and are stored in-mem
 
 When the captain monitor handles a `run.completed` event: if the completed issue has an open PR (visible in the snapshot or event context), the captain sets the issue status back to `pr_created`. This ensures the PR poller re-evaluates CI and mergeability from GitHub, since the poller skips `in_progress` issues.
 
+The captain continues the workflow up to PR creation (engineer → lead → docs → PR). After a PR is created or updated, the captain sets status to `pr_created` and **waits** — it does NOT issue a merge action immediately. The PR poller transitions the issue to `pr_ready_to_merge` once CI passes. The captain only merges after receiving a `status_changed → pr_ready_to_merge` event.
+
 **Command Execution** (`backend/src/orchestration/command-handlers.ts`)
 
 Captain's output commands are parsed by the mention handler and executed via command-handlers.ts:
 
 - `handleDispatchAgent()` — spawns the specified agent on the issue
-- `handleMergePR()` — merges the PR using the VCS provider
+- `handleMergePR()` — merges the PR using the VCS provider; rejects with an error if `issue.status !== 'pr_ready_to_merge'`, making it impossible to merge before CI passes regardless of LLM decisions
 - `handleCreatePR()` — creates a PR using the VCS provider
 - `handleCreateIssue()` — creates a new issue
 

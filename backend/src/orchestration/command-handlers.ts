@@ -72,7 +72,10 @@ export const handleMergePR = async (
   if (!resolvedId) return { success: false, message: "Issue not found" };
 
   if (!project.auto_merge && !isApprovedToMerge(resolvedId))
-    return { success: false, message: "Auto-merge is disabled for this project" };
+    return {
+      success: false,
+      message: "Auto-merge is disabled for this project",
+    };
 
   if (!project.vcs_account_id)
     return { success: false, message: "No GitHub account linked to project" };
@@ -84,6 +87,12 @@ export const handleMergePR = async (
 
   if (issue.project_id !== projectId)
     return { success: false, message: "Issue belongs to a different project" };
+
+  if (issue.status !== IssueStatus.PR_READY_TO_MERGE)
+    return {
+      success: false,
+      message: `Cannot merge: issue status is '${issue.status}', must be 'pr_ready_to_merge'. Wait for CI to complete.`,
+    };
 
   const prs = issuePRRepo.listIssuePRs(issue.id);
   const openPR = prs.find((pr) => pr.status === PRStatus.OPEN);
