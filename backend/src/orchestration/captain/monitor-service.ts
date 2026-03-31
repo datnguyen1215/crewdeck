@@ -23,7 +23,8 @@ import {
 } from "./queue.js";
 import { processWithLLM } from "./monitor-agent.js";
 import { RECOVERY_DELAY_MS } from "../recovery.js";
-import type { CaptainEvent } from "./queue.js";
+import type { CaptainEvent, CaptainEventType } from "./queue.js";
+import type { EventMap } from "../../events/types.js";
 
 // Queue namespace prefix to separate monitor from chat queues
 const MONITOR_PREFIX = "monitor:";
@@ -149,214 +150,96 @@ async function processQueue(
   }
 }
 
+// Domain-specific filter predicates
+const notAgentCreated = (data: { issue: { created_by: string } }) =>
+  data.issue.created_by !== "agent";
+
+const notIssuePaused = (data: { issue_id: string | null }) =>
+  !(data.issue_id && isIssuePaused(data.issue_id));
+
+const userAuthorOnly = (data: { comment: { author_type: string } }) =>
+  data.comment.author_type === "user";
+
+type AnyData = Record<string, unknown>;
+
+// Event types handled by the monitor (subset of EventMap that are also CaptainEventType)
+type MonitorEventType = CaptainEventType & keyof EventMap;
+
+interface HandlerConfig {
+  eventType: MonitorEventType;
+  // dot-separated path to project_id within the event data
+  projectIdPath: string;
+  filter?: (data: never) => boolean;
+}
+
+const HANDLER_CONFIGS: HandlerConfig[] = [
+  // Ignore agent-created issues to prevent chain reactions where Monitor
+  // sees its own issue creations and tries to process them
+  {
+    eventType: "issue.created",
+    projectIdPath: "issue.project_id",
+    filter: notAgentCreated as never,
+  },
+  { eventType: "issue.updated", projectIdPath: "project_id" },
+  { eventType: "issue.status_changed", projectIdPath: "project_id" },
+  {
+    eventType: "run.completed",
+    projectIdPath: "project_id",
+    filter: notIssuePaused as never,
+  },
+  { eventType: "pr.status_changed", projectIdPath: "project_id" },
+  {
+    eventType: "comment.added",
+    projectIdPath: "project_id",
+    filter: userAuthorOnly as never,
+  },
+  { eventType: "project.settings_changed", projectIdPath: "project_id" },
+  { eventType: "issue.approved_to_start", projectIdPath: "project_id" },
+  { eventType: "issue.approved_to_merge", projectIdPath: "project_id" },
+];
+
+function getNestedValue(obj: AnyData, path: string): unknown {
+  return path
+    .split(".")
+    .reduce((cur: unknown, key) => (cur as AnyData)?.[key], obj);
+}
+
 /**
  * Create event handlers for a project (all events except chat.message).
  */
 function createProjectHandlers(projectId: string): () => void {
-  const handleIssueCreated = (data: {
-    issue: {
-      project_id: string;
-      id: string;
-      title: string;
-      created_by: string;
-    };
-  }) => {
-    if (data.issue.project_id !== projectId) return;
-    // Ignore agent-created issues to prevent chain reactions where Monitor
-    // sees its own issue creations and tries to process them
-    if (data.issue.created_by === "agent") return;
-    queueAndProcess({
-      type: "issue.created",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue issue.created",
-      );
-    });
-  };
+  const handlers = HANDLER_CONFIGS.map(
+    ({ eventType, projectIdPath, filter }) => {
+      const handler = (data: never) => {
+        if (getNestedValue(data as AnyData, projectIdPath) !== projectId)
+          return;
+        if (filter && !filter(data)) return;
+        queueAndProcess({
+          type: eventType,
+          projectId,
+          timestamp: new Date(),
+          data,
+        }).catch((err) => {
+          logger.error(
+            { err, projectId },
+            `Monitor: Failed to queue ${eventType}`,
+          );
+        });
+      };
+      return { eventType, handler };
+    },
+  );
 
-  const handleIssueUpdated = (data: {
-    project_id: string;
-    issue_id: string;
-    changes: unknown;
-  }) => {
-    if (data.project_id !== projectId) return;
-    queueAndProcess({
-      type: "issue.updated",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue issue.updated",
-      );
-    });
-  };
-
-  const handleIssueStatusChanged = (data: {
-    project_id: string;
-    issue_id: string;
-    from: string;
-    to: string;
-  }) => {
-    if (data.project_id !== projectId) return;
-    queueAndProcess({
-      type: "issue.status_changed",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue issue.status_changed",
-      );
-    });
-  };
-
-  const handleRunCompleted = (data: {
-    project_id: string;
-    issue_id: string | null;
-    agent_id: string;
-    status: string;
-  }) => {
-    if (data.project_id !== projectId) return;
-    if (data.issue_id && isIssuePaused(data.issue_id)) return;
-    queueAndProcess({
-      type: "run.completed",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue run.completed",
-      );
-    });
-  };
-
-  const handlePRStatusChanged = (data: {
-    project_id: string;
-    pr_id: string;
-    from: string;
-    to: string;
-  }) => {
-    if (data.project_id !== projectId) return;
-    queueAndProcess({
-      type: "pr.status_changed",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue pr.status_changed",
-      );
-    });
-  };
-
-  const handleCommentAdded = (data: {
-    comment: {
-      id: string;
-      issue_id: string;
-      author_type: string;
-      content: string;
-    };
-    project_id: string;
-  }) => {
-    if (data.project_id !== projectId) return;
-    if (data.comment.author_type !== "user") return;
-    queueAndProcess({
-      type: "comment.added",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue comment.added",
-      );
-    });
-  };
-
-  const handleProjectSettingsChanged = (data: {
-    project_id: string;
-    changes: Record<string, unknown>;
-  }) => {
-    if (data.project_id !== projectId) return;
-    queueAndProcess({
-      type: "project.settings_changed",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue project.settings_changed",
-      );
-    });
-  };
-
-  const handleIssueApprovedToStart = (data: {
-    issue_id: string;
-    project_id: string;
-  }) => {
-    if (data.project_id !== projectId) return;
-    queueAndProcess({
-      type: "issue.approved_to_start",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue issue.approved_to_start",
-      );
-    });
-  };
-
-  const handleIssueApprovedToMerge = (data: {
-    issue_id: string;
-    project_id: string;
-  }) => {
-    if (data.project_id !== projectId) return;
-    queueAndProcess({
-      type: "issue.approved_to_merge",
-      projectId,
-      timestamp: new Date(),
-      data,
-    }).catch((err) => {
-      logger.error(
-        { err, projectId },
-        "Monitor: Failed to queue issue.approved_to_merge",
-      );
-    });
-  };
-
-  // Subscribe to all automated events (not chat.message)
-  eventBus.on("issue.created", handleIssueCreated);
-  eventBus.on("issue.updated", handleIssueUpdated);
-  eventBus.on("issue.status_changed", handleIssueStatusChanged);
-  eventBus.on("run.completed", handleRunCompleted);
-  eventBus.on("pr.status_changed", handlePRStatusChanged);
-  eventBus.on("comment.added", handleCommentAdded);
-  eventBus.on("project.settings_changed", handleProjectSettingsChanged);
-  eventBus.on("issue.approved_to_start", handleIssueApprovedToStart);
-  eventBus.on("issue.approved_to_merge", handleIssueApprovedToMerge);
+  for (const { eventType, handler } of handlers) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    eventBus.on(eventType, handler as any);
+  }
 
   return () => {
-    eventBus.off("issue.created", handleIssueCreated);
-    eventBus.off("issue.updated", handleIssueUpdated);
-    eventBus.off("issue.status_changed", handleIssueStatusChanged);
-    eventBus.off("run.completed", handleRunCompleted);
-    eventBus.off("pr.status_changed", handlePRStatusChanged);
-    eventBus.off("comment.added", handleCommentAdded);
-    eventBus.off("project.settings_changed", handleProjectSettingsChanged);
-    eventBus.off("issue.approved_to_start", handleIssueApprovedToStart);
-    eventBus.off("issue.approved_to_merge", handleIssueApprovedToMerge);
+    for (const { eventType, handler } of handlers) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      eventBus.off(eventType, handler as any);
+    }
   };
 }
 
