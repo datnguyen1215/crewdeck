@@ -36,6 +36,7 @@ export function listProjectsWithStats(): ProjectWithStats[] {
     issue_pr_failed_actions: number | null;
     issue_pr_ready_to_merge: number | null;
     issue_done: number | null;
+    active_runs: number;
   };
 
   const rows = db
@@ -49,7 +50,8 @@ export function listProjectsWithStats(): ProjectWithStats[] {
         SUM(i.status = ?)       AS issue_pr_conflict,
         SUM(i.status = ?) AS issue_pr_failed_actions,
         SUM(i.status = ?) AS issue_pr_ready_to_merge,
-        SUM(i.status = ?)              AS issue_done
+        SUM(i.status = ?)              AS issue_done,
+        (SELECT COUNT(*) FROM AgentRun ar WHERE ar.project_id = p.id AND ar.status IN ('running', 'queued')) AS active_runs
       FROM Project p
       LEFT JOIN Repo  r ON r.project_id = p.id
       LEFT JOIN Issue i ON i.project_id = p.id
@@ -78,6 +80,7 @@ export function listProjectsWithStats(): ProjectWithStats[] {
       pr_ready_to_merge: row.issue_pr_ready_to_merge ?? 0,
       done: row.issue_done ?? 0,
     },
+    active_runs: row.active_runs,
   }));
 }
 

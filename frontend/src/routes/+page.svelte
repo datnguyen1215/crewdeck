@@ -35,7 +35,8 @@
 			{
 				...project,
 				repo_count: 1,
-				issues: { open: 0, in_progress: 0, pr_created: 0, pr_conflict: 0, pr_failed_actions: 0, pr_ready_to_merge: 0, done: 0 }
+				issues: { open: 0, in_progress: 0, pr_created: 0, pr_conflict: 0, pr_failed_actions: 0, pr_ready_to_merge: 0, done: 0 },
+				active_runs: 0
 			}
 		];
 		closeModal();
