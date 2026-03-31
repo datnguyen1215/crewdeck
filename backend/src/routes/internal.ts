@@ -27,7 +27,11 @@ import {
   UpdateKnowledgeSchema,
 } from "../schemas/validation.js";
 import { parsePRUrls } from "../pr/detector.js";
-import { handleMergePR, handleDispatchAgent, handleScanCodebase } from "../orchestration/command-handlers.js";
+import {
+  handleMergePR,
+  handleDispatchAgent,
+  handleScanCodebase,
+} from "../orchestration/command-handlers.js";
 
 // Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
@@ -151,49 +155,41 @@ router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
 router.post("/captain/merge-pr", async (req, res) => {
   const { project_id, issue_id } = req.body;
   if (!project_id || !issue_id) {
-    return res.status(400).json({ error: "project_id and issue_id required" });
+    throw new ValidationError("project_id and issue_id required");
   }
-  try {
-    const result = await handleMergePR(project_id, { issue_id });
-    if (!result.success) {
-      return res.status(400).json({ error: result.message });
-    }
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+  const result = await handleMergePR(project_id, { issue_id });
+  if (!result.success) {
+    throw new ValidationError(result.message);
   }
+  res.json(result);
 });
 
 router.post("/captain/dispatch-agent", async (req, res) => {
   const { project_id, issue_id, agent_id, instructions } = req.body;
   if (!project_id || !issue_id || !agent_id) {
-    return res.status(400).json({ error: "project_id, issue_id, and agent_id required" });
+    throw new ValidationError("project_id, issue_id, and agent_id required");
   }
-  try {
-    const result = await handleDispatchAgent(project_id, { issue_id, agent_id, instructions });
-    if (!result.success) {
-      return res.status(400).json({ error: result.message });
-    }
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+  const result = await handleDispatchAgent(project_id, {
+    issue_id,
+    agent_id,
+    instructions,
+  });
+  if (!result.success) {
+    throw new ValidationError(result.message);
   }
+  res.json(result);
 });
 
 router.post("/captain/scan-codebase", async (req, res) => {
   const { project_id } = req.body;
   if (!project_id) {
-    return res.status(400).json({ error: "project_id required" });
+    throw new ValidationError("project_id required");
   }
-  try {
-    const result = await handleScanCodebase(project_id);
-    if (!result.success) {
-      return res.status(400).json({ error: result.message });
-    }
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+  const result = await handleScanCodebase(project_id);
+  if (!result.success) {
+    throw new ValidationError(result.message);
   }
+  res.json(result);
 });
 
 // GET /knowledge/list — list knowledge entries

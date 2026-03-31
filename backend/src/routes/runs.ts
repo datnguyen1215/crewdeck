@@ -12,6 +12,7 @@ import {
   verifyProject,
   verifyIssueOwnership,
 } from "../middleware/ownership.js";
+import { NotFoundError, ValidationError } from "../middleware/errors.js";
 
 const router = Router({ mergeParams: true });
 
@@ -73,30 +74,18 @@ router.get(
     if (eventsLimitParam !== undefined) {
       const parsed = parseInt(eventsLimitParam, 10);
       if (isNaN(parsed)) {
-        res.status(400).json({
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "events_limit must be a valid number",
-          },
-        });
-        return;
+        throw new ValidationError("events_limit must be a valid number");
       }
       eventsLimit = parsed;
     }
 
     const run = getAgentRunWithEvents(req.params.runId, eventsLimit);
     if (!run) {
-      res
-        .status(404)
-        .json({ error: { code: "NOT_FOUND", message: "Run not found" } });
-      return;
+      throw new NotFoundError("Run not found");
     }
     // Verify the run belongs to this project
     if (run.project_id !== req.params.projectId) {
-      res
-        .status(404)
-        .json({ error: { code: "NOT_FOUND", message: "Run not found" } });
-      return;
+      throw new NotFoundError("Run not found");
     }
     res.json(run);
   },
