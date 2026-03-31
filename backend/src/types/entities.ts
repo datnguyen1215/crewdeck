@@ -79,6 +79,13 @@ export interface IssueWithRunningAgent extends Issue {
   running_agent_status: string | null;
 }
 
+export interface IssueDependency {
+  id: string;
+  issue_id: string;
+  depends_on_issue_id: string;
+  created_at: string;
+}
+
 export interface Comment {
   id: string;
   issue_id: string;

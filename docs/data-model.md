@@ -27,6 +27,10 @@ All persistent state is stored in a local SQLite database. This document defines
 │   IssuePR    │                      │  Issue   │
 └──────────────┘                      └──────────┘
 
+┌──────────┐       ┌─────────────────┐
+│  Issue   │1────N│ IssueDependency │N────1│  Issue   │
+└──────────┘       └─────────────────┘       └──────────┘
+
 ┌──────────┐       ┌──────────┐       ┌────────────────┐
 │  Issue   │1────N│ AgentRun │1────N│ AgentRunEvent  │
 └──────────┘       └──────────┘       └────────────────┘
@@ -152,6 +156,22 @@ Links an issue to a GitHub pull request.
 | status     | TEXT        | NOT NULL, DEFAULT 'open'            | PR status. One of: `open`, `merged`, `closed`. |
 | created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                |
 | updated_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                |
+
+### IssueDependency
+
+Tracks dependencies between issues (issue A depends on issue B).
+
+| Field              | Type        | Constraints                                          | Description                              |
+| ------------------ | ----------- | ---------------------------------------------------- | ---------------------------------------- |
+| id                 | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                       |
+| issue_id           | TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE   | The issue that has the dependency.       |
+| depends_on_issue_id| TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE   | The issue that must be completed first.  |
+| created_at         | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  |                                          |
+
+**Constraints:**
+
+- UNIQUE(issue_id, depends_on_issue_id) — a dependency can only be recorded once.
+- Circular dependencies are prevented at the repository level.
 
 ### AgentRun
 
@@ -373,6 +393,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | AgentConfig                   | Global      | One global model config per agent (no project scope).                       |
 | Issue → Comment               | One-to-Many | An issue has many comments.                                                 |
 | Issue → IssuePR               | One-to-Many | An issue can have multiple PRs (across repos).                              |
+| Issue → IssueDependency       | One-to-Many | An issue can depend on multiple other issues.                               |
 | Issue → ActivityLog           | One-to-Many | An issue has many activity log entries.                                     |
 | Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
@@ -387,6 +408,8 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 - `idx_comment_issue` on Comment(issue_id)
 - `idx_comment_created` on Comment(issue_id, created_at)
 - `idx_issue_pr_issue` on IssuePR(issue_id)
+- `idx_issue_dependency_issue` on IssueDependency(issue_id)
+- `idx_issue_dependency_depends` on IssueDependency(depends_on_issue_id)
 - `idx_activity_project` on ActivityLog(project_id)
 - `idx_activity_issue` on ActivityLog(issue_id)
 - `idx_activity_created` on ActivityLog(project_id, created_at)

@@ -20,6 +20,7 @@ import { parseActionPlan, extractJsonFromResponse } from "./action-schema.js";
 import { executePlan, formatResults } from "./plan-executor.js";
 import type { ActionPlan } from "./action-schema.js";
 import { getIssue, listIssues } from "../../db/repositories/issues.js";
+import { listDependenciesBatch } from "../../db/repositories/issue-dependencies.js";
 import { listActiveRunsForProject } from "../../db/repositories/agent-runs.js";
 import { listByProject as listKnowledge } from "../../db/repositories/knowledge.js";
 import { listComments } from "../../db/repositories/comments.js";
@@ -33,6 +34,14 @@ import {
   isApprovedToStart,
   isApprovedToMerge,
 } from "../approval-store.js";
+
+/** PR-related issue statuses that should show PR info */
+const PR_STATUSES = [
+  "pr_created",
+  "pr_conflict",
+  "pr_failed_actions",
+  "pr_ready_to_merge",
+];
 
 /**
  * Build a compact snapshot of current project state to inject into the prompt,
@@ -52,19 +61,47 @@ function buildStateSnapshot(projectId: string): string {
       "pr_failed_actions",
     ],
   });
+
+  // Fetch dependencies for all issues in one batch query
+  const issueIds = issues.map((i) => i.id);
+  const dependenciesMap = listDependenciesBatch(issueIds);
+
   if (issues.length > 0) {
     const rows = issues.map((i) => {
       const agent = i.running_agent_id ? ` [agent: ${i.running_agent_id}]` : "";
       const paused = i.paused ? " (paused)" : "";
+
+      // Dependencies
+      const deps = dependenciesMap.get(i.id) || [];
+      const depsInfo = deps.length > 0 ? ` | depends:[${deps.join(",")}]` : "";
+
+      // PR info: show latest PR for PR-related statuses
       const prs = listIssuePRs(i.id);
-      const openPR = prs.filter((p) => p.status === "open").at(-1);
-      const prInfo = openPR
-        ? ` [PR: #${openPR.pr_number}${openPR.pr_url ? ` ${openPR.pr_url}` : ""}]`
-        : "";
+      let prInfo = "";
+      if (PR_STATUSES.includes(i.status)) {
+        const latestPR = prs.at(-1); // most recent PR
+        if (latestPR) {
+          prInfo = ` | [PR: #${latestPR.pr_number} (${latestPR.status}) ${latestPR.pr_url || ""}]`;
+        } else {
+          // Orphan detection: PR status but no PR record
+          prInfo = " | [NO PR]";
+        }
+      } else if (prs.length > 0) {
+        // For non-PR statuses, show open PR if any
+        const openPR = prs.filter((p) => p.status === "open").at(-1);
+        if (openPR) {
+          prInfo = ` | [PR: #${openPR.pr_number} ${openPR.pr_url || ""}]`;
+        }
+      }
+
       // Include manual approval flags
-      const approvedStart = isApprovedToStart(i.id) ? " (approved-to-start)" : "";
-      const approvedMerge = isApprovedToMerge(i.id) ? " (approved-to-merge)" : "";
-      return `- ${i.id} | ${i.status}${paused}${approvedStart}${approvedMerge}${agent}${prInfo} | ${i.title}`;
+      const approvedStart = isApprovedToStart(i.id)
+        ? " (approved-to-start)"
+        : "";
+      const approvedMerge = isApprovedToMerge(i.id)
+        ? " (approved-to-merge)"
+        : "";
+      return `- ${i.id} | ${i.status}${paused}${approvedStart}${approvedMerge}${agent}${depsInfo}${prInfo} | ${i.title}`;
     });
     parts.push(`### Issues (non-closed)\n${rows.join("\n")}`);
   } else {
@@ -181,6 +218,7 @@ After gathering information, output a JSON action plan wrapped in <action> tags.
     { "type": "comment", "issue_id": "<id>", "content": "Comment text" },
     { "type": "create-issue", "title": "Title", "description": "Description" },
     { "type": "update-issue", "issue_id": "<id>", "status": "pr_created" },
+    { "type": "set-dependencies", "issue_id": "<id>", "depends_on": ["<dep_id1>", "<dep_id2>"] },
     { "type": "scan" },
     { "type": "skip", "issue_id": "<id>", "reason": "Why skipping" }
   ]
@@ -200,6 +238,7 @@ You can include reasoning text before the <action> tags, but the tags MUST be pr
 | comment | issue_id, content | Add a comment to an issue |
 | create-issue | title | Create a new issue (description optional) |
 | update-issue | issue_id | Update issue status/title |
+| set-dependencies | issue_id, depends_on | Set issue dependencies (depends_on is array of issue IDs) |
 | scan | (none) | Trigger librarian codebase scan |
 | skip | issue_id, reason | Skip an issue (logged for observability) |
 
@@ -234,7 +273,8 @@ Engineer → Lead review → fix cycle → Docs → Create PR. Read the lead's r
 
 ## Dispatch Rules
 - Don't dispatch if an agent is already running on that issue (check current state first)
-- Check issue descriptions for dependency references ("depends on", "blocked by", "after") — skip blocked issues
+- Dependencies are shown in the snapshot as \`depends:[id1,id2]\`. Don't dispatch blocked issues until dependencies are done.
+- When you first see a new issue, check its description for dependency keywords ("depends on", "blocked by", "after") and use \`set-dependencies\` action to persist them.
 - List ALL needed dispatches — the system handles capacity and parallel execution
 - ${canMerge ? "Merge ready PRs before starting new work" : "Report ready PRs — auto-merge is disabled"}
 

@@ -26,7 +26,9 @@ import type {
   UpdateIssueAction,
   CreatePRAction,
   SkipAction,
+  SetDependenciesAction,
 } from "./action-schema.js";
+import * as issueDepsRepo from "../../db/repositories/issue-dependencies.js";
 import { clearStartApproval, clearMergeApproval } from "../approval-store.js";
 
 /** Standard UUID length (32 hex + 4 hyphens) */
@@ -271,6 +273,46 @@ function executeSkip(action: SkipAction): ActionResult {
 }
 
 /**
+ * Execute a set-dependencies action.
+ */
+function executeSetDependencies(
+  projectId: string,
+  action: SetDependenciesAction,
+): ActionResult {
+  try {
+    const issue = issueRepo.getIssue(action.issue_id);
+    if (!issue) {
+      return { action, success: false, message: "Issue not found" };
+    }
+    if (issue.project_id !== projectId) {
+      return {
+        action,
+        success: false,
+        message: "Issue belongs to a different project",
+      };
+    }
+
+    const added = issueDepsRepo.setDependencies(
+      action.issue_id,
+      action.depends_on,
+    );
+    return {
+      action,
+      success: true,
+      message: `Set ${added.length} dependencies`,
+      data: { dependencies: added },
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return {
+      action,
+      success: false,
+      message: `Failed to set dependencies: ${message}`,
+    };
+  }
+}
+
+/**
  * Resolve any truncated issue_id on an action before execution.
  * Mutates the action in place. Returns an error ActionResult if resolution fails.
  */
@@ -320,6 +362,8 @@ async function executeAction(
       return executeCreatePR(projectId, action);
     case "skip":
       return executeSkip(action);
+    case "set-dependencies":
+      return executeSetDependencies(projectId, action);
     default:
       return {
         action,
