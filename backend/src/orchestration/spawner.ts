@@ -64,13 +64,19 @@ export const postSystemComment = (
 
 /**
  * Assemble environment dict with CREWDECK_* vars, SSH credentials, and GH_TOKEN.
- * Returns env record and optional SSH key path for cleanup.
+ * Returns env record, optional SSH key path for cleanup, and the resolved creds.
+ * Pass creds explicitly to avoid a redundant getProjectCredentials() call.
  */
 function buildAgentEnvironment(
   projectId: string,
   agentId: string,
   issueId: string,
-): { env: Record<string, string>; sshKeyPath?: string } {
+  creds?: ReturnType<typeof getProjectCredentials>,
+): {
+  env: Record<string, string>;
+  sshKeyPath?: string;
+  creds: ReturnType<typeof getProjectCredentials>;
+} {
   const envVars = envVarRepo.getEnvironmentVariablesMap(projectId);
   const env: Record<string, string> = {
     ...envVars,
@@ -81,28 +87,30 @@ function buildAgentEnvironment(
   };
 
   let sshKeyPath: string | undefined;
-  const creds = getProjectCredentials(projectId);
-  if (creds) {
-    const ssh = createGitSshEnv(creds.sshPrivateKey);
+  const resolvedCreds = creds ?? getProjectCredentials(projectId);
+  if (resolvedCreds) {
+    const ssh = createGitSshEnv(resolvedCreds.sshPrivateKey);
     sshKeyPath = ssh.keyPath;
     Object.assign(env, ssh.env);
-    env.GH_TOKEN = creds.ghToken;
+    env.GH_TOKEN = resolvedCreds.ghToken;
   }
 
-  return { env, sshKeyPath };
+  return { env, sshKeyPath, creds: resolvedCreds };
 }
 
 /**
  * Check if worktree exists on disk; if not, re-fetch repo and recreate.
  * Returns the resolved worktree path (or null if no repo).
+ * Accepts optional creds to avoid a redundant getProjectCredentials() call.
  */
 async function validateOrRecreateWorktree(
   issueId: string,
   projectId: string,
   currentWorktreePath: string | null,
+  creds?: ReturnType<typeof getProjectCredentials>,
 ): Promise<string | null> {
   const repo = repoRepo.listRepos(projectId)[0] ?? null;
-  const creds = getProjectCredentials(projectId);
+  const resolvedCreds = creds ?? getProjectCredentials(projectId);
   let worktreePath = currentWorktreePath;
 
   if (worktreePath && !fs.existsSync(worktreePath)) {
@@ -119,7 +127,7 @@ async function validateOrRecreateWorktree(
       repo as any,
       freshIssue,
       repo.default_branch,
-      creds?.sshPrivateKey,
+      resolvedCreds?.sshPrivateKey,
     );
     worktreePath = result.path;
   }
@@ -418,8 +426,9 @@ export async function processAgentStream(
 }
 
 /**
- * Shared spawn skeleton: creates AgentRun, spawns process, sets up timeout,
- * tracks in activeProcesses, emits events, and kicks off stream processing.
+ * Shared spawn skeleton: creates (or reuses) an AgentRun, spawns the process,
+ * sets up timeout, tracks in activeProcesses, emits events, and kicks off stream.
+ * Pass existingRunId to reuse a pre-created run record (e.g. from executeQueuedRun).
  * Returns the AgentRun ID.
  */
 async function spawnAndTrack(opts: {
@@ -432,6 +441,7 @@ async function spawnAndTrack(opts: {
   timeoutMinutes: number;
   logLabel: string;
   model?: string;
+  existingRunId?: string;
   onComplete?: () => void;
 }): Promise<string> {
   const {
@@ -444,16 +454,22 @@ async function spawnAndTrack(opts: {
     timeoutMinutes,
     logLabel,
     model,
+    existingRunId,
     onComplete,
   } = opts;
 
-  // Create AgentRun record
-  const agentRun = agentRunRepo.createAgentRun({
-    project_id: projectId,
-    issue_id: issueId,
-    agent_id: agent.id,
-    status: "running",
-  });
+  // Use existing run record or create a new one
+  const agentRun = existingRunId
+    ? agentRunRepo.updateAgentRun(existingRunId, {
+        status: "running",
+        started_at: new Date().toISOString(),
+      })!
+    : agentRunRepo.createAgentRun({
+        project_id: projectId,
+        issue_id: issueId,
+        agent_id: agent.id,
+        status: "running",
+      });
 
   let result: Awaited<ReturnType<typeof agentProcess.spawnClaudeStream>>;
   try {
@@ -662,19 +678,20 @@ export const spawnAgent = async (
 
   regressIssueStatus(issueId, projectId, issue.status);
 
-  const worktreePath = await validateOrRecreateWorktree(
-    issueId,
-    projectId,
-    issue.worktree_path,
-  );
-
-  const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
-
-  const { env, sshKeyPath } = buildAgentEnvironment(
+  const { env, sshKeyPath, creds } = buildAgentEnvironment(
     projectId,
     agent.id,
     issueId,
   );
+
+  const worktreePath = await validateOrRecreateWorktree(
+    issueId,
+    projectId,
+    issue.worktree_path,
+    creds,
+  );
+
+  const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
 
   const timeoutMinutes =
     project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
@@ -761,135 +778,37 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
 
   regressIssueStatus(issueId, projectId, issue.status);
 
-  const worktreePath = await validateOrRecreateWorktree(
-    issueId,
-    projectId,
-    issue.worktree_path,
-  );
-
-  const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
-
-  const { env, sshKeyPath } = buildAgentEnvironment(
+  const { env, sshKeyPath, creds } = buildAgentEnvironment(
     projectId,
     agent.id,
     issueId,
   );
 
+  const worktreePath = await validateOrRecreateWorktree(
+    issueId,
+    projectId,
+    issue.worktree_path,
+    creds,
+  );
+
+  const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
   const timeoutMinutes =
     project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
   const model = agentConfigRepo.resolveModel(agent.id);
 
-  // Update run status to 'running' and set started_at
-  agentRunRepo.updateAgentRun(run.id, {
-    status: "running",
-    started_at: new Date().toISOString(),
-  });
-
-  let result: Awaited<ReturnType<typeof agentProcess.spawnClaudeStream>>;
-  try {
-    result = await agentProcess.spawnClaudeStream({
-      prompt,
-      systemPrompt: agent.system_prompt,
-      workdir: worktreePath ?? ".",
-      env,
-      model,
-    });
-  } catch (err) {
-    agentRunRepo.updateAgentRun(run.id, {
-      status: "failed",
-      completed_at: new Date().toISOString(),
-    });
-    log.logger.error(
-      { err, runId: run.id, agent: agent.name },
-      "Queued agent spawn failed",
-    );
-    throw err;
-  }
-
-  agentRunRepo.updateAgentRun(run.id, { pid: result.pid });
-
-  const timeoutMs = timeoutMinutes * 60 * 1000;
-  const timeoutState = { timedOut: false };
-  const timer = setTimeout(() => {
-    timeoutState.timedOut = true;
-    log.logger.warn(
-      { pid: result.pid, agentId: agent.id, issueId },
-      "Queued agent process timed out",
-    );
-    result.process.kill("SIGTERM");
-    setTimeout(() => {
-      if (!result.process.killed) result.process.kill("SIGKILL");
-    }, 5000);
-  }, timeoutMs);
-
-  const entry: ActiveProcess = {
-    pid: result.pid,
-    process: result.process,
-    projectId,
-    issueId,
-    agentId: agent.id,
-    agentRunId: run.id,
-    timer,
-  };
-  activeProcesses.set(result.pid, entry);
-
-  events.eventBus.emit("mention.spawned", {
-    project_id: projectId,
-    issue_id: issueId,
-    agent_id: agent.id,
-    pid: result.pid,
-  });
-
-  events.eventBus.emit("run.started", {
-    agent_run_id: run.id,
-    project_id: projectId,
-    issue_id: issueId,
-    agent_id: agent.id,
-    status: "running",
-    started_at: new Date().toISOString(),
-  });
-
-  log.logger.info(
-    { pid: result.pid, agent: agent.name, issueId, runId: run.id },
-    "Queued agent spawned",
-  );
-
-  processAgentStream(
-    result,
-    run.id,
-    projectId,
-    issueId,
+  await spawnAndTrack({
     agent,
-    timer,
-    timeoutState,
+    projectId,
+    issueId,
+    prompt,
+    workdir: worktreePath ?? ".",
+    env,
     timeoutMinutes,
-  )
-    .catch((err) => {
-      log.logger.error(
-        { err, runId: run.id },
-        "Error processing queued agent stream",
-      );
-      clearTimeout(timer);
-      activeProcesses.delete(result.pid);
-      agentRunRepo.updateAgentRun(run.id, {
-        status: "failed",
-        completed_at: new Date().toISOString(),
-      });
-      events.eventBus.emit("mention.completed", {
-        project_id: projectId,
-        issue_id: issueId,
-        agent_id: agent.id,
-        exit_code: 1,
-      });
-      postSystemComment(
-        issueId,
-        projectId,
-        `Agent ${agent.name} stream processing failed: ${err.message}`,
-      );
-    })
-    .finally(() => {
-      if (sshKeyPath) cleanupSshKey(sshKeyPath);
-    });
+    logLabel: "Queued agent",
+    model,
+    existingRunId: run.id,
+    onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
+  });
 };
 
 /**
