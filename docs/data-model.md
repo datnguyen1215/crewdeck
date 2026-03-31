@@ -128,7 +128,7 @@ The fundamental unit of work.
 | created_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                 |
 | updated_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                 |
 
-**Note:** When listing issues via the API (`GET /projects/:projectId/issues`), each issue is returned with additional computed fields `running_agent_id` and `running_agent_status` derived from a LEFT JOIN on the `AgentRun` table. These fields indicate the most recent running or queued agent for the issue (if any).
+**Note:** When listing issues via the API (`GET /projects/:projectId/issues`), each issue is returned with additional computed fields: `running_agent_id` and `running_agent_status` (derived from a LEFT JOIN on `AgentRun`), and `dependencies` and `dependents` arrays (each containing `{ id, title, status }` summaries, batch-fetched from `IssueDependency`). The detail endpoint (`GET /projects/:projectId/issues/:issueId`) also includes these arrays.
 
 ### Comment
 
@@ -161,12 +161,12 @@ Links an issue to a GitHub pull request.
 
 Tracks dependencies between issues (issue A depends on issue B).
 
-| Field              | Type        | Constraints                                          | Description                              |
-| ------------------ | ----------- | ---------------------------------------------------- | ---------------------------------------- |
-| id                 | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                       |
-| issue_id           | TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE   | The issue that has the dependency.       |
-| depends_on_issue_id| TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE   | The issue that must be completed first.  |
-| created_at         | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  |                                          |
+| Field               | Type        | Constraints                                        | Description                             |
+| ------------------- | ----------- | -------------------------------------------------- | --------------------------------------- |
+| id                  | TEXT (UUID) | PRIMARY KEY                                        | Unique identifier.                      |
+| issue_id            | TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE | The issue that has the dependency.      |
+| depends_on_issue_id | TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE | The issue that must be completed first. |
+| created_at          | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                |                                         |
 
 **Constraints:**
 
@@ -324,10 +324,10 @@ Global per-agent model configuration. Applies machine-wide regardless of project
 
 Global system-wide configuration settings. Stores key-value pairs for machine-wide settings.
 
-| Field | Type        | Constraints | Description                       |
-| ----- | ----------- | ----------- | --------------------------------- |
-| key   | TEXT        | PRIMARY KEY | Configuration key.                |
-| value | TEXT        | NOT NULL    | Configuration value (text-based). |
+| Field | Type | Constraints | Description                       |
+| ----- | ---- | ----------- | --------------------------------- |
+| key   | TEXT | PRIMARY KEY | Configuration key.                |
+| value | TEXT | NOT NULL    | Configuration value (text-based). |
 
 **Current keys:**
 
