@@ -153,10 +153,13 @@ When `auto_start` or `auto_merge` settings are disabled, users can manually appr
 - **Merge button** → `POST /issues/:id/approve-merge` → `issue.approved_to_merge` event → Captain merges PR
 
 The approval flags are checked in `handleDispatchAgent()` and `handleMergePR()`:
+
 - `canStart = approvedToStart.has(issueId) || project.auto_start`
 - `canMerge = approvedToMerge.has(issueId) || project.auto_merge`
 
 Flags are cleared after successful dispatch/merge and stored in-memory (reset on server restart).
+
+`handleMergePR()` also enforces a hard CI gate: it rejects the merge with an error if `issue.status !== 'pr_ready_to_merge'`, regardless of approval or auto_merge settings. The issue only reaches `pr_ready_to_merge` once the PR poller confirms CI has passed and the PR is mergeable.
 
 ## MentionHandler
 
