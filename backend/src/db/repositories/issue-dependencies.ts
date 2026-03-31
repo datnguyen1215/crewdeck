@@ -55,7 +55,8 @@ function wouldCreateCycle(issueId: string, dependsOnId: string): boolean {
 
 /**
  * Add a single dependency.
- * Returns the created dependency or null if it would create a cycle.
+ * Returns the created dependency or null if it would create a cycle,
+ * issues don't exist, or issues are in different projects.
  */
 export function addDependency(
   issueId: string,
@@ -64,8 +65,11 @@ export function addDependency(
   // Self-dependency check
   if (issueId === dependsOnId) return null;
 
-  // Verify both issues exist
-  if (!getIssue(issueId) || !getIssue(dependsOnId)) return null;
+  // Verify both issues exist and are in the same project
+  const issue = getIssue(issueId);
+  const depIssue = getIssue(dependsOnId);
+  if (!issue || !depIssue) return null;
+  if (issue.project_id !== depIssue.project_id) return null;
 
   // Circular dependency check
   if (wouldCreateCycle(issueId, dependsOnId)) return null;
@@ -117,8 +121,10 @@ export function setDependencies(
   const validDeps = dependsOnIds.filter((depId) => {
     // Skip self-dependency
     if (depId === issueId) return false;
-    // Verify dependency exists
-    if (!getIssue(depId)) return false;
+    // Verify dependency exists and is in the same project
+    const depIssue = getIssue(depId);
+    if (!depIssue) return false;
+    if (depIssue.project_id !== issue.project_id) return false;
     return true;
   });
 

@@ -292,10 +292,21 @@ function executeSetDependencies(
       };
     }
 
-    const added = issueDepsRepo.setDependencies(
-      action.issue_id,
-      action.depends_on,
-    );
+    // Resolve truncated dependency IDs before passing to repository
+    const resolvedDeps: string[] = [];
+    for (const depId of action.depends_on) {
+      const resolved = resolveIssueId(depId, projectId);
+      if (resolved) {
+        resolvedDeps.push(resolved);
+      } else {
+        logger.warn(
+          { depId, issueId: action.issue_id },
+          "Monitor: Could not resolve dependency ID, skipping",
+        );
+      }
+    }
+
+    const added = issueDepsRepo.setDependencies(action.issue_id, resolvedDeps);
     return {
       action,
       success: true,
