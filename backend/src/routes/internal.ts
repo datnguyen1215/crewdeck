@@ -152,44 +152,56 @@ router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
 });
 
 // Captain orchestration endpoints
-router.post("/captain/merge-pr", async (req, res) => {
-  const { project_id, issue_id } = req.body;
-  if (!project_id || !issue_id) {
-    throw new ValidationError("project_id and issue_id required");
+router.post("/captain/merge-pr", async (req, res, next) => {
+  try {
+    const { project_id, issue_id } = req.body;
+    if (!project_id || !issue_id) {
+      throw new ValidationError("project_id and issue_id required");
+    }
+    const result = await handleMergePR(project_id, { issue_id });
+    if (!result.success) {
+      throw new ValidationError(result.message);
+    }
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
-  const result = await handleMergePR(project_id, { issue_id });
-  if (!result.success) {
-    throw new ValidationError(result.message);
-  }
-  res.json(result);
 });
 
-router.post("/captain/dispatch-agent", async (req, res) => {
-  const { project_id, issue_id, agent_id, instructions } = req.body;
-  if (!project_id || !issue_id || !agent_id) {
-    throw new ValidationError("project_id, issue_id, and agent_id required");
+router.post("/captain/dispatch-agent", async (req, res, next) => {
+  try {
+    const { project_id, issue_id, agent_id, instructions } = req.body;
+    if (!project_id || !issue_id || !agent_id) {
+      throw new ValidationError("project_id, issue_id, and agent_id required");
+    }
+    const result = await handleDispatchAgent(project_id, {
+      issue_id,
+      agent_id,
+      instructions,
+    });
+    if (!result.success) {
+      throw new ValidationError(result.message);
+    }
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
-  const result = await handleDispatchAgent(project_id, {
-    issue_id,
-    agent_id,
-    instructions,
-  });
-  if (!result.success) {
-    throw new ValidationError(result.message);
-  }
-  res.json(result);
 });
 
-router.post("/captain/scan-codebase", async (req, res) => {
-  const { project_id } = req.body;
-  if (!project_id) {
-    throw new ValidationError("project_id required");
+router.post("/captain/scan-codebase", async (req, res, next) => {
+  try {
+    const { project_id } = req.body;
+    if (!project_id) {
+      throw new ValidationError("project_id required");
+    }
+    const result = await handleScanCodebase(project_id);
+    if (!result.success) {
+      throw new ValidationError(result.message);
+    }
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
-  const result = await handleScanCodebase(project_id);
-  if (!result.success) {
-    throw new ValidationError(result.message);
-  }
-  res.json(result);
 });
 
 // GET /knowledge/list — list knowledge entries
