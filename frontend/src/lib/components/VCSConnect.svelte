@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import {
 		createVCSAccount,
 		type VCSAccount
@@ -10,14 +11,14 @@
 		inline?: boolean;
 	} = $props();
 
-	let showForm = $state(inline);
+	let showForm = $state(untrack(() => inline));
 	let submitting = $state(false);
 	let githubUsername = $state('');
 	let ghToken = $state('');
 	let sshPrivateKey = $state('');
 
 	function reset() {
-		showForm = inline;
+		showForm = untrack(() => inline);
 		githubUsername = '';
 		ghToken = '';
 		sshPrivateKey = '';
