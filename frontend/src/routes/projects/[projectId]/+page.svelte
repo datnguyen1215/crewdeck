@@ -331,9 +331,12 @@
 				{@const isQueued = issue.running_agent_status === 'queued'}
 				{@const isDispatching = dispatchingIssues.has(issue.id)}
 				{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
-				<a
-					href="/projects/{projectId}/issues/{issue.id}"
-					class="block bg-surface border border-edge rounded-lg p-4 hover:bg-surface-hi hover:border-edge-hi transition-colors active:scale-[0.99] {issue.status === 'in_progress' ? 'border-l-green border-l-2' : ''} {issue.paused ? 'opacity-60' : ''}"
+				<div
+					role="link"
+					tabindex="0"
+					onclick={(e) => { if ((e.target as HTMLElement).closest('button')) return; goto(`/projects/${projectId}/issues/${issue.id}`); }}
+					onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${projectId}/issues/${issue.id}`)}
+					class="block bg-surface border border-edge rounded-lg p-4 hover:bg-surface-hi hover:border-edge-hi transition-colors active:scale-[0.99] cursor-pointer {issue.status === 'in_progress' ? 'border-l-green border-l-2' : ''} {issue.paused ? 'opacity-60' : ''}"
 					style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 				>
 					<div class="flex items-start justify-between gap-3 mb-3">
@@ -395,7 +398,7 @@
 							{/each}
 						</div>
 					{/if}
-				</a>
+				</div>
 			{/each}
 		</div>
 
@@ -420,9 +423,12 @@
 						{@const isQueued = issue.running_agent_status === 'queued'}
 						{@const isDispatching = dispatchingIssues.has(issue.id)}
 						{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
-						<a
-							href="/projects/{projectId}/issues/{issue.id}"
-							class="issue-row grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
+						<div
+							role="link"
+							tabindex="0"
+							onclick={(e) => { if ((e.target as HTMLElement).closest('button')) return; goto(`/projects/${projectId}/issues/${issue.id}`); }}
+							onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${projectId}/issues/${issue.id}`)}
+							class="issue-row grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group cursor-pointer {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
 							style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 						>
 							<!-- Title -->
@@ -504,7 +510,7 @@
 									{/if}
 								</button>
 							</div>
-						</a>
+						</div>
 					{/each}
 				</div>
 			</div>

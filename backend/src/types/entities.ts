@@ -77,8 +77,8 @@ export interface Issue {
 export interface IssueWithRunningAgent extends Issue {
   running_agent_id: string | null;
   running_agent_status: string | null;
-  dependencies: IssueDependencySummary[];
-  dependents: IssueDependencySummary[];
+  dependencies?: IssueDependencySummary[];
+  dependents?: IssueDependencySummary[];
 }
 
 export interface IssueDependency {
