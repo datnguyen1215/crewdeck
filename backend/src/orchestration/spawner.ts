@@ -13,7 +13,7 @@ import * as issueRepo from "../db/repositories/issues.js";
 import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
-import { normalizeEvent } from "../db/repositories/agent-runs.js";
+import { normalizeEvent } from "../services/event-normalizer.js";
 import * as knowledgeRepo from "../db/repositories/knowledge.js";
 import * as envVarRepo from "../db/repositories/environment-variables.js";
 import * as repoRepo from "../db/repositories/repos.js";
