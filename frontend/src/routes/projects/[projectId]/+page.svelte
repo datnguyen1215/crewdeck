@@ -13,6 +13,7 @@
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 	import { loadVisibleColumns, saveVisibleColumns, computeGridCols } from '$lib/config/columns.js';
+	import { STATUS_ORDER } from '$lib/config/status.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	const getAgents = getContext<() => Agent[]>('agents');
@@ -52,8 +53,18 @@
 	}
 
 	// Sort state — newest first by default
-	let sortField = $state<'created_at' | 'updated_at'>('created_at');
+	type SortField = 'created_at' | 'updated_at' | 'status' | 'agent';
+	let sortField = $state<SortField>('created_at');
 	let sortDesc = $state(true);
+
+	function handleSortClick(field: SortField) {
+		if (sortField === field) {
+			sortDesc = !sortDesc;
+		} else {
+			sortField = field;
+			sortDesc = true;
+		}
+	}
 
 	// Column visibility — persisted in localStorage
 	let visibleColumns = $state<string[]>(loadVisibleColumns());
@@ -116,9 +127,18 @@
 			result = result.filter((i) => (i.paused ? true : false) === paused);
 		}
 		result.sort((a, b) => {
-			const av = a[sortField];
-			const bv = b[sortField];
-			const cmp = av > bv ? 1 : av < bv ? -1 : 0;
+			let cmp: number;
+			if (sortField === 'status') {
+				cmp = STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
+			} else if (sortField === 'agent') {
+				const an = agentMap[a.agent_id ?? ''] ?? '';
+				const bn = agentMap[b.agent_id ?? ''] ?? '';
+				cmp = an.localeCompare(bn);
+			} else {
+				const av = a[sortField];
+				const bv = b[sortField];
+				cmp = av > bv ? 1 : av < bv ? -1 : 0;
+			}
 			return sortDesc ? -cmp : cmp;
 		});
 		return result;
@@ -272,11 +292,43 @@
 					<!-- Table header -->
 					<div class="grid {gridCols} text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
 						{#if visibleColumns.includes('title')}<div class="px-3 py-2.5">Title</div>{/if}
-						{#if visibleColumns.includes('status')}<div class="px-3 py-2.5">Status</div>{/if}
-						{#if visibleColumns.includes('agent')}<div class="px-3 py-2.5">Agent</div>{/if}
+						{#if visibleColumns.includes('status')}
+							<button
+								type="button"
+								onclick={() => handleSortClick('status')}
+								class="px-3 py-2.5 text-left cursor-pointer hover:text-primary transition-colors flex items-center gap-1 {sortField === 'status' ? 'text-cyan' : ''}"
+							>
+								Status{#if sortField === 'status'}{sortDesc ? '▼' : '▲'}{/if}
+							</button>
+						{/if}
+						{#if visibleColumns.includes('agent')}
+							<button
+								type="button"
+								onclick={() => handleSortClick('agent')}
+								class="px-3 py-2.5 text-left cursor-pointer hover:text-primary transition-colors flex items-center gap-1 {sortField === 'agent' ? 'text-cyan' : ''}"
+							>
+								Agent{#if sortField === 'agent'}{sortDesc ? '▼' : '▲'}{/if}
+							</button>
+						{/if}
 						{#if visibleColumns.includes('baseBranch')}<div class="px-3 py-2.5">Base</div>{/if}
-						{#if visibleColumns.includes('age')}<div class="px-3 py-2.5 text-right">Age</div>{/if}
-						{#if visibleColumns.includes('updated')}<div class="px-3 py-2.5 text-right">Updated</div>{/if}
+						{#if visibleColumns.includes('age')}
+							<button
+								type="button"
+								onclick={() => handleSortClick('created_at')}
+								class="px-3 py-2.5 text-right cursor-pointer hover:text-primary transition-colors flex items-center justify-end gap-1 {sortField === 'created_at' ? 'text-cyan' : ''}"
+							>
+								Age{#if sortField === 'created_at'}{sortDesc ? '▼' : '▲'}{/if}
+							</button>
+						{/if}
+						{#if visibleColumns.includes('updated')}
+							<button
+								type="button"
+								onclick={() => handleSortClick('updated_at')}
+								class="px-3 py-2.5 text-right cursor-pointer hover:text-primary transition-colors flex items-center justify-end gap-1 {sortField === 'updated_at' ? 'text-cyan' : ''}"
+							>
+								Updated{#if sortField === 'updated_at'}{sortDesc ? '▼' : '▲'}{/if}
+							</button>
+						{/if}
 						{#if visibleColumns.includes('dispatch')}<div class="px-2 py-2.5"></div>{/if}
 					</div>
 

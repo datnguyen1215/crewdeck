@@ -7,12 +7,12 @@
 
 	let {
 		searchQuery = $bindable(''),
-		sortField = $bindable<'created_at' | 'updated_at'>('created_at'),
+		sortField = $bindable('created_at'),
 		sortDesc = $bindable(true),
 		visibleColumns = $bindable<string[]>([]),
 	}: {
 		searchQuery: string;
-		sortField: 'created_at' | 'updated_at';
+		sortField: string;
 		sortDesc: boolean;
 		visibleColumns: string[];
 	} = $props();
@@ -143,16 +143,20 @@
 		{/if}
 	</div>
 
-	<!-- Sort controls -->
+	<!-- Sort controls (mobile only) -->
 	<div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
-		<div class="flex items-center gap-2">
+		<div class="flex items-center gap-2 md:hidden">
 			<span class="text-xs text-muted uppercase tracking-widest">Sort:</span>
 			<select
 				bind:value={sortField}
 				class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-2 sm:py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none min-h-[36px] sm:min-h-0"
 			>
+				<option value="status">Status</option>
+				<option value="agent">Agent</option>
 				<option value="created_at">Created</option>
 				<option value="updated_at">Updated</option>
+				<option value="status">Status</option>
+				<option value="agent">Agent</option>
 			</select>
 			<button
 				onclick={() => (sortDesc = !sortDesc)}
