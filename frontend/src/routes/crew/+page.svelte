@@ -12,6 +12,7 @@
 		type Provider
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import Modal from '$lib/components/Modal.svelte';
 
 	let agents = $state<Agent[]>([]);
 	let configs = $state<AgentConfig[]>([]);
@@ -168,28 +169,24 @@
 </div>
 
 <!-- Confirmation Dialog -->
-{#if showConfirmDialog}
-	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
-		<div class="bg-surface border border-edge rounded-lg p-6 max-w-md w-full mx-4 shadow-lg">
-			<h2 class="text-primary font-semibold text-lg mb-3">Switch Provider?</h2>
-			<p class="text-muted text-sm mb-6">
-				This will restart all active Captain terminal sessions.
-				Existing agent runs will continue with their original provider until completion.
-			</p>
-			<div class="flex justify-end gap-3">
-				<button
-					onclick={cancelProviderSwitch}
-					class="px-4 py-2 text-sm text-muted hover:text-primary border border-edge rounded transition-colors"
-				>
-					Cancel
-				</button>
-				<button
-					onclick={confirmProviderSwitch}
-					class="px-4 py-2 text-sm bg-cyan text-base font-medium rounded hover:opacity-90 transition-opacity"
-				>
-					Switch Provider
-				</button>
-			</div>
-		</div>
+<Modal open={showConfirmDialog} onClose={cancelProviderSwitch} label="Switch Provider" maxWidth="max-w-md">
+	<h2 class="text-primary font-semibold text-lg mb-3">Switch Provider?</h2>
+	<p class="text-muted text-sm mb-6">
+		This will restart all active Captain terminal sessions.
+		Existing agent runs will continue with their original provider until completion.
+	</p>
+	<div class="flex justify-end gap-3">
+		<button
+			onclick={cancelProviderSwitch}
+			class="px-4 py-2 text-sm text-muted hover:text-primary border border-edge rounded transition-colors"
+		>
+			Cancel
+		</button>
+		<button
+			onclick={confirmProviderSwitch}
+			class="px-4 py-2 text-sm bg-cyan text-base font-medium rounded hover:opacity-90 transition-opacity"
+		>
+			Switch Provider
+		</button>
 	</div>
-{/if}
+</Modal>

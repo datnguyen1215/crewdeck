@@ -106,19 +106,19 @@ Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_
 
 ## Technology Decisions
 
-| Component              | Choice                          | Rationale                                                                                       |
-| ---------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Backend language**   | TypeScript                      | Type safety, shared types with frontend                                                         |
-| **HTTP framework**     | Express                         | Widely adopted, mature ecosystem                                                                |
-| **Database**           | SQLite via `better-sqlite3`     | Synchronous API (performance advantage for SQLite), no async overhead, raw SQL for full control |
-| **Request validation** | Zod                             | Strict schema validation, self-documenting, TypeScript integration                              |
-| **WebSocket**          | `ws`                            | Minimal, no abstraction overhead                                                                |
-| **Testing**            | Vitest + supertest              | Vitest for unit tests; supertest for HTTP integration tests                                     |
-| **Logging**            | pino                            | Fast structured JSON logging                                                                    |
-| **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate                                                    |
-| **CSS**                | Tailwind CSS                    | Utility-first, dark theme, no component library                                                 |
-| **Configuration**      | Environment variables (`.env`)  | Simple, standard approach                                                                       |
-| **Agent spawning**     | `claude -p` (print mode)        | One-shot process per mention; no persistent sessions to manage                                  |
+| Component              | Choice                          | Rationale                                                                                                                                                                          |
+| ---------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Backend language**   | TypeScript                      | Type safety, shared types with frontend                                                                                                                                            |
+| **HTTP framework**     | Express                         | Widely adopted, mature ecosystem                                                                                                                                                   |
+| **Database**           | SQLite via `better-sqlite3`     | Synchronous API (performance advantage for SQLite), no async overhead, raw SQL for full control                                                                                    |
+| **Request validation** | Zod                             | Strict schema validation, self-documenting, TypeScript integration                                                                                                                 |
+| **WebSocket**          | `ws`                            | Minimal, no abstraction overhead                                                                                                                                                   |
+| **Testing**            | Vitest + supertest              | Vitest for unit tests; supertest for HTTP integration tests                                                                                                                        |
+| **Logging**            | pino                            | Fast structured JSON logging                                                                                                                                                       |
+| **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate                                                                                                                                       |
+| **CSS**                | Tailwind CSS                    | Utility-first, dark theme; shared UI primitives (`Button`, `TextInput`, `Select`) in `frontend/src/lib/components/ui/` enforce consistency without a third-party component library |
+| **Configuration**      | Environment variables (`.env`)  | Simple, standard approach                                                                                                                                                          |
+| **Agent spawning**     | `claude -p` (print mode)        | One-shot process per mention; no persistent sessions to manage                                                                                                                     |
 
 ## Project Structure
 
@@ -201,6 +201,10 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - `format.ts` — `formatDuration(ms)` converts milliseconds to a `Xs` / `Xm Ys` string; `formatCost(cost)` formats a number as `$X.XXXX`. Used by `IssueTimeline.svelte`, `RunDetailModal.svelte`, and `AgentRuns.svelte`.
   - `comments.ts` — `commentStyle(authorType)` returns border/text color tokens for a comment card; `commentAuthorLabel(comment)` returns the display name for a comment author. Used by `IssueComments.svelte` and `IssueTimeline.svelte`.
   - `autoscroll.js` — Svelte action that auto-scrolls a container to the bottom via MutationObserver when new content is added, while preserving scroll position when the user has scrolled up.
+- **Shared UI primitives** (`frontend/src/lib/components/ui/`): thin Svelte 5 wrapper components that compose Tailwind classes for consistent styling across the app. All use `$props()` with the `class` prop extracted separately from `...restProps` so consumer-supplied classes merge with (rather than replace) the computed variant classes.
+  - `Button.svelte` — `variant` (`primary` | `secondary` | `danger` | `ghost`) × `size` (`xs` | `sm` | `md`). All variants include `disabled:opacity-50` and `transition-colors`.
+  - `TextInput.svelte` — wraps `<input>` or `<textarea>` (via `multiline` prop). Props: `type`, `mono` (adds `font-mono`), `compact` (tighter padding), `multiline`. `value` is `$bindable`.
+  - `Select.svelte` — `variant` (`form` for full-width form fields | `filter` for compact inline selects). Accepts `children` snippet for `<option>` elements.
 - **Error handling convention**: User-facing errors from user-initiated actions (page load, form submit, status change) are shown via `toastStore.add(message, 'error')`. WS-triggered background refreshes and polling use silent `.catch(() => {})` to avoid flooding the user with transient network errors.
 
 **Backend (Node.js + TypeScript)**
