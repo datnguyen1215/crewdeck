@@ -42,9 +42,12 @@ import {
   PRStatus,
 } from "../constants/statuses.js";
 import type { IssueStatusValue } from "../constants/statuses.js";
+import {
+  DEFAULT_AGENT_TIMEOUT_MINUTES,
+  PROCESS_GRACE_PERIOD_MS,
+} from "../config/orchestration.js";
 
 const DEFAULT_MAX_CHAIN_DEPTH = 20;
-const DEFAULT_AGENT_TIMEOUT_MINUTES = 10;
 
 /**
  * Post a system comment and emit comment.added.
@@ -511,7 +514,7 @@ async function spawnAndTrack(opts: {
     result.process.kill("SIGTERM");
     setTimeout(() => {
       if (!result.process.killed) result.process.kill("SIGKILL");
-    }, 5000);
+    }, PROCESS_GRACE_PERIOD_MS);
   }, timeoutMs);
 
   const entry: ActiveProcess = {

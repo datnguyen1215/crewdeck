@@ -28,9 +28,7 @@ import {
   clearBatches,
 } from "./batch.js";
 import { spawnAgent, executeQueuedRun, postSystemComment } from "./spawner.js";
-
-/** Cleanup interval in milliseconds (5 minutes) */
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+import { BATCH_CLEANUP_INTERVAL_MS as CLEANUP_INTERVAL_MS } from "../config/orchestration.js";
 
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -71,7 +69,11 @@ export const initMentionHandler = (): void => {
     // Block dispatches from engineer, lead, docs, librarian to prevent unauthorized agent spawning
     if (authorAgentId && authorAgentId !== "captain") {
       log.logger.warn(
-        { authorAgentId, issueId: comment.issue_id, mentionedAgents: mentioned.map(a => a.id) },
+        {
+          authorAgentId,
+          issueId: comment.issue_id,
+          mentionedAgents: mentioned.map((a) => a.id),
+        },
         "Blocked dispatch from non-captain agent",
       );
       postSystemComment(
@@ -135,24 +137,25 @@ export const initMentionHandler = (): void => {
 
       spawnAgent(agent, comment.issue_id, project_id, authorAgentId).catch(
         (err) => {
-        // Clear pending marker on failure
-        clearPendingSpawn(agent.id, comment.issue_id);
-        log.logger.error(
-          { err, agent: agent.name, issueId: comment.issue_id },
-          "Failed to spawn agent",
-        );
-        events.eventBus.emit("mention.error", {
-          project_id,
-          issue_id: comment.issue_id,
-          agent_id: agent.id,
-          message: err instanceof Error ? err.message : "unknown error",
-        });
-        postSystemComment(
-          comment.issue_id,
-          project_id,
-          `Failed to spawn agent ${agent.name}: ${err instanceof Error ? err.message : "unknown error"}`,
-        );
-      });
+          // Clear pending marker on failure
+          clearPendingSpawn(agent.id, comment.issue_id);
+          log.logger.error(
+            { err, agent: agent.name, issueId: comment.issue_id },
+            "Failed to spawn agent",
+          );
+          events.eventBus.emit("mention.error", {
+            project_id,
+            issue_id: comment.issue_id,
+            agent_id: agent.id,
+            message: err instanceof Error ? err.message : "unknown error",
+          });
+          postSystemComment(
+            comment.issue_id,
+            project_id,
+            `Failed to spawn agent ${agent.name}: ${err instanceof Error ? err.message : "unknown error"}`,
+          );
+        },
+      );
     }
   });
 

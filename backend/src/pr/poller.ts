@@ -22,8 +22,7 @@ import {
 } from "../constants/statuses.js";
 import type { IssueStatusValue, PRStatusValue } from "../constants/statuses.js";
 import { getProvider } from "../vcs/registry.js";
-
-const POLL_INTERVAL = 60_000; // 60 seconds
+import { PR_POLL_INTERVAL_MS as POLL_INTERVAL } from "../config/orchestration.js";
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 

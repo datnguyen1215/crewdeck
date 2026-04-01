@@ -201,7 +201,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Runs separate terminal WebSocket server (`/terminal-ws`) for PTY streaming.
 - In-process event bus (typed EventEmitter) for decoupled internal communication between components.
 - Manages agent lifecycle — spawning `claude -p` processes, tracking active processes, enforcing concurrency limits.
-- Manages terminal sessions — persistent tmux sessions running Claude CLI with 30-minute idle timeout cleanup.
+- Manages terminal sessions — persistent tmux sessions running Claude CLI with idle timeout cleanup (default 30 min, `ORCHESTRATION_PTY_IDLE_TIMEOUT_MS`).
 - Graceful shutdown on SIGTERM/SIGINT — kills active agent processes and terminal sessions.
 - Structured JSON logging via pino.
 
@@ -219,7 +219,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 - Spawns `claude -p` as a child process.
 - Captures stdout (JSON output format) and resolves on process exit.
-- Enforces 10-minute timeout per process.
+- Enforces per-process timeout (default 10 min, `ORCHESTRATION_DEFAULT_AGENT_TIMEOUT_MINUTES`).
 
 **PR Detector**
 
@@ -231,7 +231,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 **PR Poller**
 
-- Runs every 60 seconds (started at startup, stopped on shutdown).
+- Runs on a configurable interval (default 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`). Started at startup, stopped on shutdown.
 - Queries all open `IssuePR` records with their project/repo context.
 - Fetches current PR state from the VCS provider (currently GitHub only) using the project's OAuth token.
 - Updates `IssuePR.status` when a PR is merged or closed.
@@ -338,7 +338,7 @@ Truncated issue IDs (8+ character prefixes shorter than a full UUID) are resolve
 - **Worktree isolation**: Creates a long-lived git worktree per project (named `crewdeck/captain-{projectId}`) in `/tmp/crewdeck-worktrees/`. The worktree persists across PTY reconnects and auto-rebases onto the latest default branch on creation. Terminal sessions run with the worktree as the working directory.
 - **Enriched system prompt**: Injects project knowledge (workflows/conventions), API reference (Issues, Runs, Activity, Knowledge APIs), current capacity (running agents, available slots), project settings, and repository context.
 - Session lifecycle: `createTerminalSession()`, `getTerminalSession()`, `destroyTerminalSession()`.
-- Auto-cleanup: 30-minute idle timeout kills sessions and removes temporary files (system prompt, SSH keys). Worktrees persist and are reused across session recreations.
+- Auto-cleanup: idle timeout kills sessions and removes temporary files (system prompt, SSH keys) — default 30 min, `ORCHESTRATION_PTY_IDLE_TIMEOUT_MS`. Worktrees persist and are reused across session recreations.
 - Environment injection: project-defined env vars (from project settings), `CREWDECK_*` vars, `GH_TOKEN`, `GIT_SSH_COMMAND` from the project's GitHub account, and provider-specific env vars (via `buildProviderEnv()`). These are baked directly into the tmux `new-session` command as `env KEY=VAL ... claude ...` so the shell inside the session receives them regardless of tmux server environment state.
 - **Provider switching**: When the global provider is changed (via Crew page), all active Captain terminal sessions are terminated via `shutdownPtyService()`. New sessions created after the switch will use the new provider's environment variables.
 - Concurrency control: `pendingCreations` Set guards against race conditions when multiple clients request sessions simultaneously.
@@ -462,7 +462,7 @@ Each `/dispatch` command spawns a one-shot `claude -p` process:
       ↓
 9. ProcessAdapter.spawnClaude() → child process starts
       ↓
-10. Process runs (10-minute timeout)
+10. Process runs (timeout: `ORCHESTRATION_DEFAULT_AGENT_TIMEOUT_MINUTES`, default 10 min)
       ↓
 11. On exit: stdout parsed, posted as agent comment
 ```
@@ -515,7 +515,7 @@ On startup, the backend:
 5. Initializes the event commenter (subscribes to `run.completed`, `pr.status_changed`, `issue.status_changed`).
 6. Initializes the MentionHandler (subscribes to `comment.added`).
 7. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
-8. Starts the PR poller (polls VCS providers every 60 seconds for PR status updates).
+8. Starts the PR poller (polls VCS providers for PR status updates, default every 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`).
 9. Starts the Express HTTP server.
 10. Starts the WebSocket server (`/ws` for events).
 11. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).

@@ -7,9 +7,12 @@ import * as log from "../logger.js";
 import * as crew from "./crew.js";
 import { postSystemComment } from "./spawner.js";
 import * as dispatchQueue from "./dispatch-queue.js";
+import {
+  SERVER_RECOVERY_DELAY_MS as RECOVERY_DELAY_MS,
+  PROCESS_GRACE_PERIOD_MS,
+} from "../config/orchestration.js";
 
-/** Delay before recovery to ensure server is fully initialized */
-export const RECOVERY_DELAY_MS = 2000;
+export { RECOVERY_DELAY_MS };
 
 /**
  * Check if a process with the given PID is still alive.
@@ -33,7 +36,7 @@ export const killOrphanedProcess = (pid: number): void => {
     process.kill(pid, "SIGTERM");
     log.logger.info({ pid }, "Sent SIGTERM to orphaned process");
 
-    // Give it 5 seconds, then SIGKILL
+    // Grace period before SIGKILL
     setTimeout(() => {
       if (isProcessAlive(pid)) {
         try {
@@ -43,7 +46,7 @@ export const killOrphanedProcess = (pid: number): void => {
           // Process may have exited
         }
       }
-    }, 5000);
+    }, PROCESS_GRACE_PERIOD_MS);
   } catch (err) {
     log.logger.warn({ pid, err }, "Failed to kill orphaned process");
   }
@@ -97,9 +100,7 @@ export const recoverOnStartup = (): void => {
       );
     }
 
-    log.logger.info(
-      "MentionHandler startup recovery: orphaned runs processed",
-    );
+    log.logger.info("MentionHandler startup recovery: orphaned runs processed");
   }
 
   // Recover the dispatch queue

@@ -25,19 +25,20 @@ import { processWithLLM } from "./monitor-agent.js";
 import { RECOVERY_DELAY_MS } from "../recovery.js";
 import type { CaptainEvent, CaptainEventType } from "./queue.js";
 import type { EventMap } from "../../events/types.js";
+import {
+  EVENT_BATCHING_WINDOW_MS,
+  STARTUP_BUFFER_MS,
+} from "../../config/orchestration.js";
 
 // Queue namespace prefix to separate monitor from chat queues
 const MONITOR_PREFIX = "monitor:";
-
-// Batching window: events arriving within this period are grouped into one LLM call
-const BATCH_WINDOW_MS = 5000;
 
 const projectSubscriptions = new Map<string, () => void>();
 const batchTimers = new Map<string, NodeJS.Timeout>();
 
 /**
  * Queue an event and trigger processing after a batching window.
- * Events arriving within BATCH_WINDOW_MS are grouped into a single LLM call.
+ * Events arriving within EVENT_BATCHING_WINDOW_MS are grouped into a single LLM call.
  */
 async function queueAndProcess(event: CaptainEvent): Promise<void> {
   const { projectId } = event;
@@ -79,7 +80,7 @@ async function queueAndProcess(event: CaptainEvent): Promise<void> {
     processBatch(projectId, queueKey).catch((err) => {
       logger.error({ err, projectId }, "Monitor: Batch processing failed");
     });
-  }, BATCH_WINDOW_MS);
+  }, EVENT_BATCHING_WINDOW_MS);
 
   batchTimers.set(projectId, timer);
   logger.debug(
@@ -103,7 +104,7 @@ async function processBatch(
       processBatch(projectId, queueKey).catch((err) => {
         logger.error({ err, projectId }, "Monitor: Rescheduled batch failed");
       });
-    }, BATCH_WINDOW_MS);
+    }, EVENT_BATCHING_WINDOW_MS);
     batchTimers.set(projectId, timer);
     return;
   }
@@ -253,7 +254,6 @@ export function startMonitorForProject(projectId: string): void {
   projectSubscriptions.set(projectId, unsubscribe);
 
   // Emit startup.scan event with a small delay to ensure recovery cleanup completes first
-  const STARTUP_BUFFER_MS = 500;
   setTimeout(() => {
     const event: CaptainEvent = {
       type: "startup.scan",

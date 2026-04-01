@@ -10,6 +10,8 @@ function parseIntEnv(name: string, fallback: number): number {
   return val;
 }
 
+export * from "./config/orchestration.js";
+
 export const config = {
   port: parseIntEnv("PORT", 9381),
   host: optional("HOST", "localhost"),
