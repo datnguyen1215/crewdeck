@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, createIssue, approveIssueStart, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
+	import { listIssues, createIssue, approveIssueStart, getProject, updateProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import ActivityTerminal from '$lib/components/ActivityTerminal.svelte';
@@ -63,6 +63,36 @@
 		} else {
 			sortField = field;
 			sortDesc = true;
+		}
+	}
+
+	// Captain toggle state — synced from project; user changes persisted via onchange
+	let autoStart = $state(false);
+	let autoMerge = $state(false);
+	let syncingCaptain = $state(false);
+
+	// Sync toggles from project on load/refresh (project is the only reactive dependency)
+	$effect(() => {
+		if (!project) return;
+		autoStart = project.auto_start;
+		autoMerge = project.auto_merge;
+	});
+
+	async function handleCaptainToggle(field: 'auto_start' | 'auto_merge', value: boolean) {
+		if (!project || syncingCaptain) return;
+		const label = field === 'auto_start' ? 'Auto-start' : 'Auto-merge';
+		syncingCaptain = true;
+		try {
+			const updated = await updateProject(project.id, { [field]: value });
+			project = updated;
+			toastStore.add(`${label} ${value ? 'enabled' : 'disabled'}`, 'success');
+		} catch {
+			// Revert to current server value
+			if (field === 'auto_start') autoStart = project.auto_start;
+			else autoMerge = project.auto_merge;
+			toastStore.add(`Failed to update ${label.toLowerCase()}`, 'error');
+		} finally {
+			syncingCaptain = false;
 		}
 	}
 
@@ -209,6 +239,9 @@
 		bind:sortField
 		bind:sortDesc
 		bind:visibleColumns
+		{autoStart}
+		{autoMerge}
+		onCaptainToggle={handleCaptainToggle}
 	/>
 
 	<!-- Table / Empty state -->

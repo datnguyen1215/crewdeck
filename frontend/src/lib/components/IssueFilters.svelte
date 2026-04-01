@@ -10,11 +10,17 @@
 		sortField = $bindable('created_at'),
 		sortDesc = $bindable(true),
 		visibleColumns = $bindable<string[]>([]),
+		autoStart = false,
+		autoMerge = false,
+		onCaptainToggle,
 	}: {
 		searchQuery: string;
 		sortField: string;
 		sortDesc: boolean;
 		visibleColumns: string[];
+		autoStart: boolean;
+		autoMerge: boolean;
+		onCaptainToggle: (field: 'auto_start' | 'auto_merge', value: boolean) => void;
 	} = $props();
 
 	let inputEl: HTMLInputElement | undefined = $state();
@@ -172,5 +178,17 @@
 		<div class="sm:ml-auto">
 			<QueueMonitor />
 		</div>
+	</div>
+
+	<!-- Captain toggles — visually separated to distinguish project-level settings from issue filters -->
+	<div class="flex flex-wrap items-center gap-3 sm:gap-4 border-l border-edge pl-3 sm:pl-4 ml-1">
+		<label class="flex items-center gap-2 cursor-pointer min-h-[36px] sm:min-h-0">
+			<input type="checkbox" checked={autoStart} onchange={(e) => onCaptainToggle('auto_start', (e.target as HTMLInputElement).checked)} class="accent-cyan w-4 h-4" />
+			<span class="text-xs text-muted">Auto-start</span>
+		</label>
+		<label class="flex items-center gap-2 cursor-pointer min-h-[36px] sm:min-h-0">
+			<input type="checkbox" checked={autoMerge} onchange={(e) => onCaptainToggle('auto_merge', (e.target as HTMLInputElement).checked)} class="accent-cyan w-4 h-4" />
+			<span class="text-xs text-muted">Auto-merge</span>
+		</label>
 	</div>
 </div>
