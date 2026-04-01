@@ -491,3 +491,9 @@ export function setProvider(provider: Provider): Promise<GlobalConfig> {
 export function isGlmAvailable(): Promise<{ available: boolean }> {
   return request("GET", "/global-config/glm-available");
 }
+export function isZaiApiKeyConfigured(): Promise<{ configured: boolean }> {
+  return request("GET", "/global-config/zai-api-key-configured");
+}
+export function setZaiApiKey(key: string | null): Promise<{ success: boolean }> {
+  return request("PUT", "/global-config/zai-api-key", { key });
+}

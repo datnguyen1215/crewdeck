@@ -7,6 +7,8 @@
 		getGlobalConfig,
 		setProvider,
 		isGlmAvailable,
+		isZaiApiKeyConfigured,
+		setZaiApiKey,
 		type Agent,
 		type AgentConfig,
 		type Provider
@@ -18,22 +20,27 @@
 	let configs = $state<AgentConfig[]>([]);
 	let currentProvider = $state<Provider>('claude');
 	let glmAvailable = $state(false);
+	let zaiKeyConfigured = $state(false);
 	let loading = $state(true);
 	let saving = $state<Record<string, boolean>>({});
 	let providerSaving = $state(false);
 	let showConfirmDialog = $state(false);
 	let pendingProvider = $state<Provider | null>(null);
+	let zaiApiKeyInput = $state('');
+	let zaiKeySaving = $state(false);
+	let showZaiKeyInput = $state(false);
 
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
-		Promise.all([listAllAgents(), listAgentConfig(), getGlobalConfig(), isGlmAvailable()])
-			.then(([a, c, g, glm]) => {
+		Promise.all([listAllAgents(), listAgentConfig(), getGlobalConfig(), isGlmAvailable(), isZaiApiKeyConfigured()])
+			.then(([a, c, g, glm, zaiKey]) => {
 				if (cancelled) return;
 				agents = a;
 				configs = c;
 				currentProvider = g.provider;
 				glmAvailable = glm.available;
+				zaiKeyConfigured = zaiKey.configured;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load crew', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -93,6 +100,39 @@
 		showConfirmDialog = false;
 		pendingProvider = null;
 	}
+
+	async function saveZaiApiKey() {
+		if (!zaiApiKeyInput.trim()) return;
+		zaiKeySaving = true;
+		try {
+			await setZaiApiKey(zaiApiKeyInput.trim());
+			zaiKeyConfigured = true;
+			glmAvailable = true;
+			zaiApiKeyInput = '';
+			showZaiKeyInput = false;
+			toastStore.add('Z.AI API key saved', 'success');
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to save API key', 'error');
+		} finally {
+			zaiKeySaving = false;
+		}
+	}
+
+	async function clearZaiApiKey() {
+		zaiKeySaving = true;
+		try {
+			await setZaiApiKey(null);
+			zaiKeyConfigured = false;
+			// Check if GLM is still available via env var
+			const glm = await isGlmAvailable();
+			glmAvailable = glm.available;
+			toastStore.add('Z.AI API key cleared', 'success');
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to clear API key', 'error');
+		} finally {
+			zaiKeySaving = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -118,11 +158,59 @@
 			class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
 		>
 			<option value="claude">Claude (Pro Max)</option>
-			<option value="glm" disabled={!glmAvailable}>GLM (Z.AI){!glmAvailable ? ' — ZAI_API_KEY not set' : ''}</option>
+			<option value="glm" disabled={!glmAvailable}>GLM (Z.AI){!glmAvailable ? ' — API key not configured' : ''}</option>
 		</select>
-		{#if !glmAvailable}
-			<p class="text-muted text-xs mt-1.5">Set ZAI_API_KEY environment variable to enable GLM</p>
-		{/if}
+
+		<!-- Z.AI API Key Configuration -->
+		<div class="mt-3 pt-3 border-t border-edge">
+			<span class="block text-xs text-muted uppercase tracking-widest mb-2">Z.AI API Key</span>
+			{#if zaiKeyConfigured && !showZaiKeyInput}
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-green-400">✓ Configured</span>
+					<button
+						onclick={() => showZaiKeyInput = true}
+						disabled={zaiKeySaving}
+						class="text-xs text-cyan hover:underline disabled:opacity-50"
+					>
+						Update
+					</button>
+					<button
+						onclick={clearZaiApiKey}
+						disabled={zaiKeySaving}
+						class="text-xs text-red-400 hover:underline disabled:opacity-50"
+					>
+						Clear
+					</button>
+				</div>
+			{:else}
+				<div class="flex gap-2">
+					<input
+						id="zai-api-key"
+						type="password"
+						bind:value={zaiApiKeyInput}
+						placeholder="Enter Z.AI API key"
+						disabled={zaiKeySaving}
+						class="flex-1 bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
+					/>
+					<button
+						onclick={saveZaiApiKey}
+						disabled={zaiKeySaving || !zaiApiKeyInput.trim()}
+						class="px-3 py-2 text-sm bg-cyan text-base font-medium rounded hover:opacity-90 transition-opacity disabled:opacity-50"
+					>
+						{zaiKeySaving ? 'Saving...' : 'Save'}
+					</button>
+					{#if zaiKeyConfigured}
+						<button
+							onclick={() => { showZaiKeyInput = false; zaiApiKeyInput = ''; }}
+							disabled={zaiKeySaving}
+							class="px-3 py-2 text-sm text-muted hover:text-primary border border-edge rounded transition-colors disabled:opacity-50"
+						>
+							Cancel
+						</button>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	</div>
 
 	{#if loading}
