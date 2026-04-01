@@ -4,6 +4,7 @@
 	import { listProjectRuns, listIssues, type AgentRun, type Agent, type Issue } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { parseUTC } from '$lib/utils/time.js';
+	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	const getAgents = getContext<() => Agent[]>('agents');
@@ -46,13 +47,12 @@
 	$effect(() => {
 		const ws = getWs();
 		if (!ws) return;
-		const unsubs = [
-			ws.on('run.started', loadData),
-			ws.on('run.completed', loadData),
-			ws.on('dispatch.queued', loadData),
-			ws.on('dispatch.dequeued', loadData),
-		];
-		return () => unsubs.forEach(fn => fn());
+		return useWsSubscriptions(ws, {
+			'run.started': loadData,
+			'run.completed': loadData,
+			'dispatch.queued': loadData,
+			'dispatch.dequeued': loadData,
+		});
 	});
 
 	function formatDuration(startedAt: string | null): string {
