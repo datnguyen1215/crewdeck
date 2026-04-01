@@ -5,6 +5,7 @@
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { getContext } from 'svelte';
 	import Modal from './Modal.svelte';
+	import { commentStyle, commentAuthorLabel } from '$lib/utils/comments.js';
 
 	const getAgents = getContext<() => Agent[]>('agents');
 
@@ -44,20 +45,6 @@
 			? agents.filter(a => a.name.toLowerCase().includes(mentionFilter.toLowerCase()))
 			: agents
 	);
-
-	function commentStyle(authorType: string): { border: string; textColor: string } {
-		if (authorType === 'system') return { border: 'var(--color-muted)', textColor: 'text-muted' };
-		if (authorType === 'user') return { border: 'var(--color-edge-hi)', textColor: 'text-secondary' };
-		// Agent types (captain, engineer, lead, etc.) use cyan
-		return { border: 'var(--color-cyan)', textColor: 'text-cyan' };
-	}
-
-	function commentAuthorLabel(comment: Comment): string {
-		if (comment.author_type === 'system') return 'System';
-		if (comment.author_type === 'user') return 'User';
-		// For agent types, capitalize first letter (captain → Captain)
-		return comment.author_type.charAt(0).toUpperCase() + comment.author_type.slice(1);
-	}
 
 	async function postComment() {
 		if (!commentText.trim()) return;

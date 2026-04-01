@@ -3,6 +3,7 @@
 	import { getContext, onMount } from 'svelte';
 	import { tick } from 'svelte';
 	import { listActiveRuns, getProject, getMonitorHistory, getCaptainStatus, type ActiveRun, type Project } from '$lib/api/http.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { MonitorEntry, WsEventMap } from '$lib/api/types.js';
 	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
@@ -45,7 +46,7 @@
 				isAnalyzing = true;
 			}
 		} catch (err) {
-			console.error('Failed to load monitor history:', err);
+			toastStore.add(err instanceof Error ? err.message : 'Failed to load monitor history', 'error');
 		} finally {
 			monitorLoading = false;
 			await tick();

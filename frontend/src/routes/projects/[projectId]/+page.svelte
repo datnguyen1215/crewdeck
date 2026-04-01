@@ -406,8 +406,8 @@
 					{#if issue.created_by === 'agent'}
 						<p class="text-muted text-xs mt-2">proposed by agent</p>
 					{/if}
-					{#if issue.base_branch && issue.base_branch !== (project?.default_base_branch ?? 'main')}
-						<p class="text-muted text-xs mt-1 font-mono">→ {issue.base_branch}</p>
+					{#if showBaseBranch}
+						<p class="text-muted text-xs mt-1 font-mono">→ {issue.base_branch ?? (project?.default_base_branch ?? 'main')}</p>
 					{/if}
 					{#if issue.dependencies.length > 0}
 						<div class="flex flex-wrap gap-1 mt-2">
@@ -452,7 +452,6 @@
 						{@const isQueued = issue.running_agent_status === 'queued'}
 						{@const isDispatching = dispatchingIssues.has(issue.id)}
 						{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
-						{@const isNonDefaultBranch = issue.base_branch && issue.base_branch !== (project?.default_base_branch ?? 'main')}
 						<div
 							role="link"
 							tabindex="0"
@@ -514,11 +513,7 @@
 							<!-- Base branch (optional column) -->
 							{#if showBaseBranch}
 								<div class="px-3 py-3 self-center">
-									{#if isNonDefaultBranch}
-										<span class="text-xs font-mono text-amber truncate block">{issue.base_branch}</span>
-									{:else}
-										<span class="text-xs text-muted truncate block">—</span>
-									{/if}
+									<span class="text-xs font-mono text-muted truncate block">{issue.base_branch ?? (project?.default_base_branch ?? 'main')}</span>
 								</div>
 							{/if}
 

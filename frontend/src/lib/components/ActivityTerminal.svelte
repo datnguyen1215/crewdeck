@@ -6,6 +6,7 @@
 	import { autoscroll } from '$lib/utils/autoscroll.js';
 	import { getContext } from 'svelte';
 	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let { projectId, issues = [] }: { projectId: string; issues?: Issue[] } = $props();
 
@@ -71,9 +72,10 @@
 				// Force scroll after initial load (autoscroll action handles subsequent updates)
 				forceScrollToBottom?.();
 			})
-			.catch(() => {
+			.catch((err) => {
 				if (cancelled) return;
 				loading = false;
+				toastStore.add(err instanceof Error ? err.message : 'Failed to load activity', 'error');
 			});
 
 		return () => {
@@ -111,9 +113,8 @@
 						entries = entries.slice(-MAX_ENTRIES);
 					}
 				})
-				.catch((err) => {
-					console.error('Failed to fetch activity:', err);
-				});
+				// Silent catch: WS-triggered background refresh; toasting here would flood the user on network issues
+				.catch(() => {});
 		};
 
 		return useWsSubscriptions(ws, {

@@ -331,7 +331,7 @@
 					{issue}
 					{project}
 					{projectId}
-					onStatusChange={() => { getIssue(projectId, issueId).then(d => { issue = d; }).catch(() => {}); }}
+					onStatusChange={() => { getIssue(projectId, issueId).then(d => { issue = d; }).catch((err) => { toastStore.add(err instanceof Error ? err.message : 'Failed to refresh issue', 'error'); }); }}
 					onEdit={openEdit}
 				/>
 			</div>

@@ -191,6 +191,11 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Provides autocomplete for `/dispatch` commands in comment input (via `DispatchInput.svelte`).
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
+- **Shared frontend utilities** (`frontend/src/lib/utils/`):
+  - `event.ts` — `renderEventContent(event)` formats an `AgentRunEvent` into a human-readable string for display; `extractToolDescription(input)` extracts a short label from a tool input record. Used by `IssueTimeline.svelte`, `RunDetailModal.svelte`, and `AgentRuns.svelte`.
+  - `format.ts` — `formatDuration(ms)` converts milliseconds to a `Xs` / `Xm Ys` string; `formatCost(cost)` formats a number as `$X.XXXX`. Used by `IssueTimeline.svelte`, `RunDetailModal.svelte`, and `AgentRuns.svelte`.
+  - `comments.ts` — `commentStyle(authorType)` returns border/text color tokens for a comment card; `commentAuthorLabel(comment)` returns the display name for a comment author. Used by `IssueComments.svelte` and `IssueTimeline.svelte`.
+  - `autoscroll.js` — Svelte action that auto-scrolls a container to the bottom via MutationObserver when new content is added, while preserving scroll position when the user has scrolled up.
 
 **Backend (Node.js + TypeScript)**
 
