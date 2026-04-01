@@ -205,8 +205,8 @@
 
 		<div class="mt-auto">
 			<div class="border-t border-edge my-1"></div>
-			{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
 			{@render navItem('/accounts', 'Accounts', 'accounts', isActive('/accounts'))}
+			{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
 		</div>
 	</div>
 </nav>
