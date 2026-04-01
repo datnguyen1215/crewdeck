@@ -143,7 +143,7 @@ export function approveIssueForMerge(issue: Issue): void {
 
 /**
  * Clears the paused flag for a deleted issue.
- * Called from the repository's deleteIssue cascade.
+ * Called before deleteIssue in the delete route handler.
  */
 export function clearPausedState(issueId: string): void {
   pausedIssues.delete(issueId);
