@@ -7,15 +7,15 @@ import type {
 } from "../../types/entities.js";
 import { ensureCloned, insertRepo } from "./repos.js";
 import { getVCSAccount } from "./vcs-accounts.js";
-import { buildAndRunUpdate } from "./utils.js";
+import { buildAndRunUpdate, deserializeBoolean } from "./utils.js";
 import { IssueStatus } from "../../constants/statuses.js";
 
 function fromRow(row: unknown): Project {
   const r = row as Record<string, unknown>;
   return {
     ...r,
-    auto_start: Boolean(r.auto_start),
-    auto_merge: Boolean(r.auto_merge),
+    auto_start: deserializeBoolean(r.auto_start),
+    auto_merge: deserializeBoolean(r.auto_merge),
   } as Project;
 }
 

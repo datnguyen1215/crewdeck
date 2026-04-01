@@ -16,29 +16,7 @@ import { spawnAgent, spawnScan, postSystemComment } from "./spawner.js";
 import { IssueStatus, PRStatus } from "../constants/statuses.js";
 import { getProvider } from "../vcs/registry.js";
 import { isApprovedToMerge } from "./approval-store.js";
-
-const UUID_LENGTH = 36;
-
-/**
- * Resolve a potentially truncated issue ID to a full UUID.
- */
-function resolveIssueId(issueId: string, projectId: string): string | null {
-  const exact = issueRepo.getIssue(issueId);
-  if (exact) return exact.id;
-
-  if (issueId.length < UUID_LENGTH && issueId.length >= 8) {
-    const match = issueRepo.getIssueByPrefix(issueId, projectId);
-    if (match) {
-      logger.info(
-        { prefix: issueId, resolved: match.id },
-        "Resolved truncated issue ID",
-      );
-      return match.id;
-    }
-  }
-
-  return null;
-}
+import { resolveIssueId } from "./issue-resolver.js";
 
 interface ToolResult {
   success: boolean;

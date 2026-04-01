@@ -245,28 +245,6 @@ Structured knowledge entries that provide context to agents. Replaces the former
 
 ---
 
-### AgentRun (legacy duplicate)
-
-> **Note:** This section duplicates the AgentRun definition above. See the earlier definition for the canonical schema.
-
-Tracks each agent process spawn for crash recovery and observability.
-
-| Field        | Type        | Constraints                         | Description                                                                 |
-| ------------ | ----------- | ----------------------------------- | --------------------------------------------------------------------------- |
-| id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                          |
-| project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                             |
-| issue_id     | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | The issue the agent was working on. NULL for standalone runs (e.g., scans). |
-| agent_id     | TEXT        | NOT NULL                            | The agent identifier (e.g., `engineer`, `lead`).                            |
-| pid          | INTEGER     | NOT NULL                            | OS process ID of the spawned `claude` process.                              |
-| status       | TEXT        | NOT NULL, DEFAULT 'running'         | Current run status. One of: `running`, `completed`, `failed`, `timeout`.    |
-| exit_code    | INTEGER     | NULLABLE                            | Exit code of the process. NULL if still running or timed out.               |
-| started_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned.                                               |
-| completed_at | DATETIME    | NULLABLE                            | When the process finished. NULL if still running.                           |
-
-**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed` and posts system comments on affected issues (if associated with an issue).
-
----
-
 ### ActivityLog
 
 Immutable audit trail of every action in the system.
