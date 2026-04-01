@@ -155,11 +155,11 @@ export function listAllAgents() {
 export function listAgentConfig() {
   return request<AgentConfig[]>("GET", `/agent-config`);
 }
-export function setAgentModel(agentId: string, model: string) {
-  return request<AgentConfig>("PUT", `/agent-config/${e(agentId)}`, { model });
+export function setAgentModel(agentId: string, provider: Provider, model: string) {
+  return request<AgentConfig>("PUT", `/agent-config/${e(agentId)}`, { provider, model });
 }
-export function deleteAgentConfig(agentId: string) {
-  return request<void>("DELETE", `/agent-config/${e(agentId)}`);
+export function deleteAgentConfig(agentId: string, provider: Provider) {
+  return request<void>("DELETE", `/agent-config/${e(agentId)}/${e(provider)}`);
 }
 
 // Issues

@@ -283,19 +283,22 @@ Legacy table originally designed for chat sessions. No longer actively used afte
 
 ### AgentConfig
 
-Global per-agent model configuration. Applies machine-wide regardless of project.
+Global per-agent, per-provider model configuration. Applies machine-wide regardless of project. Each agent can have separate model settings for each AI provider.
 
-| Field    | Type        | Constraints      | Description                                                                |
-| -------- | ----------- | ---------------- | -------------------------------------------------------------------------- |
-| id       | TEXT (UUID) | PRIMARY KEY      | Unique identifier.                                                         |
-| agent_id | TEXT        | NOT NULL, UNIQUE | Agent identifier (e.g., `engineer`, `lead`, `captain`).                    |
-| model    | TEXT        | NULLABLE         | Model override. One of: `sonnet`, `opus`. NULL means use default fallback. |
+| Field    | Type        | Constraints                  | Description                                                                                                                                                            |
+| -------- | ----------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id       | TEXT (UUID) | PRIMARY KEY                  | Unique identifier.                                                                                                                                                     |
+| agent_id | TEXT        | NOT NULL                     | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                                                |
+| provider | TEXT        | NOT NULL, DEFAULT 'claude'   | AI provider for this config. One of: `claude`, `glm` (Z.AI).                                                                                                           |
+| model    | TEXT        | NULLABLE                     | Model override. For `claude`: `sonnet`, `opus`, `haiku`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. NULL means use provider default. |
 
 **Constraints:**
 
-- UNIQUE(agent_id) — one global config entry per agent.
+- UNIQUE(agent_id, provider) — one config entry per agent per provider.
 
-**Model resolution order:** AgentConfig.model → `"sonnet"` (hardcoded fallback).
+**Model resolution order:**
+1. Query `AgentConfig` by (agent_id, current_provider)
+2. If not found, use provider default: `sonnet` for Claude, `glm-5-turbo` for GLM
 
 ---
 
