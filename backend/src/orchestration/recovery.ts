@@ -22,6 +22,7 @@ export const isProcessAlive = (pid: number): boolean => {
     process.kill(pid, 0);
     return true;
   } catch {
+    log.logger.debug({ pid }, "Process is not alive");
     return false;
   }
 };
@@ -44,6 +45,7 @@ export const killOrphanedProcess = (pid: number): void => {
           log.logger.info({ pid }, "Sent SIGKILL to orphaned process");
         } catch {
           // Process may have exited
+          log.logger.debug({ pid }, "SIGKILL failed — process already exited");
         }
       }
     }, PROCESS_GRACE_PERIOD_MS);

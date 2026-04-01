@@ -10,16 +10,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { logger } from "../logger.js";
 import { getProject } from "../db/repositories/projects.js";
-import { listIssues } from "../db/repositories/issues.js";
-import { listActiveRunsForProject } from "../db/repositories/agent-runs.js";
-import { getCrewMember } from "./crew.js";
+import { getVCSAccount } from "../db/repositories/vcs-accounts.js";
 import { config } from "../config.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 import { shellQuote } from "./shell.js";
 import { buildProviderEnv } from "./provider-env.js";
 import { PTY_IDLE_TIMEOUT_MS } from "../config/orchestration.js";
+import { buildSystemPrompt } from "./captain-prompt.js";
+import { createCaptainWorktree, setupGitHubAuth } from "./captain-worktree.js";
 
-interface TerminalSession {
+export interface TerminalSession {
   projectId: string;
   tmuxSessionName: string;
   systemPromptPath: string;
@@ -33,329 +33,6 @@ const activeSessions = new Map<string, TerminalSession>();
 const pendingCreations = new Set<string>(); // Guard against concurrent session creation
 const IDLE_TIMEOUT_MS = PTY_IDLE_TIMEOUT_MS;
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
-
-/**
- * Build the system prompt for terminal captain session.
- */
-const buildSystemPrompt = async (
-  projectId: string,
-  worktreePath?: string,
-): Promise<string> => {
-  const project = getProject(projectId);
-  if (!project) return "";
-
-  const { getActiveProcessCount } = await import("./processes.js");
-  const runningAgents = getActiveProcessCount(projectId);
-
-  // Get project knowledge
-  const { listByProject } = await import("../db/repositories/knowledge.js");
-  const projectKnowledge = listByProject(projectId);
-
-  // Get repo info
-  const { listRepos } = await import("../db/repositories/repos.js");
-  const repos = listRepos(projectId);
-  const repo = repos.length > 0 ? repos[0] : null;
-
-  const parts: string[] = [];
-
-  parts.push(`You are Captain, the project assistant for CrewDeck.
-
-## Role
-You have a conversation with the user about their project. You can answer questions,
-provide status updates, and take actions on their behalf (dispatch agents, create issues, etc.).
-
-## Project: ${project.name}
-${project.description || "No description"}
-
-## Current Capacity
-- Running agents: ${runningAgents}
-- Max concurrency: ${project.max_concurrency}
-- Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}`);
-
-  // Inject project knowledge (full content for workflows/conventions)
-  const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
-  if (projectKnowledge.length > 0) {
-    const injected = projectKnowledge.filter((k) =>
-      INJECT_CATEGORIES.has(k.category),
-    );
-    if (injected.length > 0) {
-      const entries = injected
-        .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
-        .join("\n\n");
-      parts.push(`## Project Knowledge\n${entries}`);
-    }
-  }
-
-  // Repository info
-  if (repo && worktreePath) {
-    parts.push(`## Repository\n${repo.name} at ${worktreePath}`);
-  }
-
-  // Build state snapshot
-  const snapshotParts: string[] = [];
-
-  const issues = listIssues(projectId, {
-    status: [
-      "open",
-      "in_progress",
-      "pr_created",
-      "pr_ready_to_merge",
-      "pr_conflict",
-      "pr_failed_actions",
-    ],
-  });
-  if (issues.length > 0) {
-    const rows = issues.map((i) => {
-      const agent = i.running_agent_id ? ` [agent: ${i.running_agent_id}]` : "";
-      const paused = i.paused ? " (paused)" : "";
-      return `- ${i.id} | ${i.status}${paused}${agent} | ${i.title}`;
-    });
-    snapshotParts.push(`### Issues (non-closed)\n${rows.join("\n")}`);
-  } else {
-    snapshotParts.push("### Issues (non-closed)\nNone");
-  }
-
-  const activeRuns = listActiveRunsForProject(projectId);
-  if (activeRuns.length > 0) {
-    const rows = activeRuns.map((r) => {
-      const agent = getCrewMember(r.agent_id);
-      const name = agent?.name ?? r.agent_id;
-      const issue = r.issue_id ? ` on issue ${r.issue_id}` : "";
-      return `- ${r.id} | ${name} (${r.status})${issue}`;
-    });
-    snapshotParts.push(`### Active Runs\n${rows.join("\n")}`);
-  } else {
-    snapshotParts.push("### Active Runs\nNone");
-  }
-
-  if (projectKnowledge.length > 0) {
-    const rows = projectKnowledge.map(
-      (k) => `- ${k.id} | [${k.category}] ${k.title}`,
-    );
-    snapshotParts.push(`### Knowledge Entries\n${rows.join("\n")}`);
-  } else {
-    snapshotParts.push("### Knowledge Entries\nNone");
-  }
-
-  parts.push(
-    `## Current State (pre-fetched snapshot)\n${snapshotParts.join("\n\n")}\n\nThis snapshot was fetched at session start. Use curl to refresh or get details as needed.`,
-  );
-
-  // API Reference — only detail endpoints, since snapshot covers listing
-  parts.push(`## API Reference
-Environment variables: CREWDECK_API_URL, CREWDECK_PROJECT_ID, CREWDECK_AGENT_ID
-
-\`\`\`bash
-# Full issue details
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
-
-# Create issue
-curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues" \\
-  -H "Content-Type: application/json" \\
-  -d '{"title": "Issue title", "description": "Description"}'
-
-# Update issue
-curl -X PUT "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>" \\
-  -H "Content-Type: application/json" \\
-  -d '{"status": "done"}'
-
-# Add comment
-curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments" \\
-  -H "Content-Type: application/json" \\
-  -d '{"content": "Comment text", "author_type": "captain"}'
-
-# Run details
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
-
-# Activity log
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true"
-
-# Full knowledge entry
-curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
-\`\`\`
-
-## Available Actions
-You have access to server-side tools for:
-- **dispatch_agent** — Spawn an agent (engineer, lead, docs, librarian) to work on an issue
-- **merge_pr** — Merge a ready PR
-- **scan_codebase** — Trigger librarian scan to update project knowledge
-- **create_issue** — Create a new issue via the Issues API above
-- **update_issue** — Update issue status via the Issues API above
-- **comment** — Post comments on issues via the Issues API above
-
-Ask clarifying questions when needed. Keep responses concise and actionable.`);
-
-  return parts.join("\n\n");
-};
-
-/**
- * Set up GitHub authentication environment variables.
- */
-const setupGitHubAuth = async (
-  projectId: string,
-  env: Record<string, string>,
-): Promise<string | undefined> => {
-  const project = getProject(projectId);
-  if (!project?.vcs_account_id) return undefined;
-
-  const { getVCSAccount } = await import("../db/repositories/vcs-accounts.js");
-  const account = getVCSAccount(project.vcs_account_id);
-  if (!account) return undefined;
-
-  env.GH_TOKEN = account.token;
-  const { createGitSshEnv } = await import("../utils/git-auth.js");
-  const ssh = createGitSshEnv(account.ssh_private_key);
-  Object.assign(env, ssh.env);
-  return ssh.keyPath;
-};
-
-/**
- * Create a worktree for captain chat session.
- * Similar to issue worktrees but long-lived and named differently.
- */
-async function createCaptainWorktree(
-  projectId: string,
-  sshPrivateKey?: string,
-): Promise<string | null> {
-  const { listRepos } = await import("../db/repositories/repos.js");
-  const repos = listRepos(projectId);
-  if (repos.length === 0) {
-    logger.warn(
-      { projectId },
-      "No repos found for project, cannot create worktree",
-    );
-    return null;
-  }
-
-  const repo = repos[0];
-  const { exec } = await import("node:child_process");
-  const { promisify } = await import("node:util");
-  const execAsync = promisify(exec);
-  const { toContainerPath } = await import("../utils/paths.js");
-  const { shellQuote } = await import("./shell.js");
-  const { createGitSshEnv, cleanupSshKey } =
-    await import("../utils/git-auth.js");
-
-  const branchName = `crewdeck/captain-${projectId.slice(0, 8)}`;
-  const repoPath = toContainerPath(repo.local_path);
-  const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
-
-  // Try to fetch latest from origin
-  let fetchSucceeded = false;
-  const ssh = sshPrivateKey ? createGitSshEnv(sshPrivateKey) : null;
-  try {
-    const fetchEnv = { ...process.env, ...ssh?.env, GIT_TERMINAL_PROMPT: "0" };
-    await execAsync(`git -C ${shellQuote(repoPath)} fetch origin`, {
-      env: fetchEnv,
-    });
-    fetchSucceeded = true;
-  } catch (err) {
-    logger.warn(
-      { projectId, err },
-      "Failed to fetch from origin for captain worktree",
-    );
-  } finally {
-    if (ssh) cleanupSshKey(ssh.keyPath);
-  }
-
-  const startPoint = fetchSucceeded
-    ? `origin/${repo.default_branch}`
-    : repo.default_branch;
-
-  // Prune stale worktree entries
-  await execAsync(`git -C ${shellQuote(repoPath)} worktree prune`);
-
-  // Check if worktree already exists and is registered
-  let worktreeExists = false;
-  try {
-    const { stdout } = await execAsync(
-      `git -C ${shellQuote(repoPath)} worktree list --porcelain`,
-    );
-    const lines = stdout.split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith("worktree ") && lines[i].includes(worktreePath)) {
-        worktreeExists = true;
-        break;
-      }
-    }
-  } catch {
-    // worktree list failed, assume doesn't exist
-  }
-
-  if (worktreeExists) {
-    // Worktree already registered, reuse it
-    logger.info(
-      { projectId, worktreePath },
-      "Reusing existing captain worktree",
-    );
-
-    // Rebase onto latest base branch
-    if (fetchSucceeded) {
-      try {
-        await execAsync(
-          `git -C ${shellQuote(worktreePath)} rebase ${shellQuote(startPoint)}`,
-        );
-      } catch (err) {
-        // Abort rebase if it fails
-        await execAsync(
-          `git -C ${shellQuote(worktreePath)} rebase --abort`,
-        ).catch(() => {});
-        logger.warn({ projectId, err }, "Failed to rebase captain worktree");
-      }
-    }
-  } else {
-    // Worktree not registered, need to add it
-    // Check if branch exists
-    let branchExists = false;
-    try {
-      await execAsync(
-        `git -C ${shellQuote(repoPath)} rev-parse --verify ${shellQuote(branchName)}`,
-      );
-      branchExists = true;
-    } catch {
-      // Branch doesn't exist
-    }
-
-    if (branchExists) {
-      // Reuse existing branch
-      await execAsync(
-        `git -C ${shellQuote(repoPath)} worktree add ${shellQuote(worktreePath)} ${shellQuote(branchName)}`,
-      );
-
-      // Rebase onto latest base branch
-      if (fetchSucceeded) {
-        try {
-          await execAsync(
-            `git -C ${shellQuote(worktreePath)} rebase ${shellQuote(startPoint)}`,
-          );
-        } catch (err) {
-          // Abort rebase if it fails
-          await execAsync(
-            `git -C ${shellQuote(worktreePath)} rebase --abort`,
-          ).catch(() => {});
-          logger.warn({ projectId, err }, "Failed to rebase captain worktree");
-        }
-      }
-    } else {
-      // Create new branch
-      await execAsync(
-        `git -C ${shellQuote(repoPath)} worktree add -b ${shellQuote(branchName)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
-      );
-    }
-  }
-
-  // Inject Claude Code settings to disable AI attribution
-  const claudeDir = join(worktreePath, ".claude");
-  const { mkdirSync } = await import("node:fs");
-  mkdirSync(claudeDir, { recursive: true });
-  writeFileSync(
-    join(claudeDir, "settings.json"),
-    JSON.stringify({ attribution: { commit: "", pr: "" } }),
-  );
-
-  logger.info({ projectId, worktreePath }, "Captain worktree created");
-  return worktreePath;
-}
 
 /**
  * Create a new terminal session for a project.
@@ -387,8 +64,6 @@ export async function createTerminalSession(
   // Set up environment for worktree creation
   let sshPrivateKey: string | undefined;
   if (project.vcs_account_id) {
-    const { getVCSAccount } =
-      await import("../db/repositories/vcs-accounts.js");
     const account = getVCSAccount(project.vcs_account_id);
     if (account) {
       sshPrivateKey = account.ssh_private_key;
@@ -451,6 +126,10 @@ export async function createTerminalSession(
     execSync(`tmux kill-session -t ${tmuxSessionName}`, { stdio: "ignore" });
   } catch {
     /* no existing session — fine */
+    logger.debug(
+      { projectId, tmuxSessionName },
+      "No stale tmux session to kill",
+    );
   }
 
   // Create tmux session running Claude CLI
@@ -482,6 +161,10 @@ export async function createTerminalSession(
         unlinkSync(systemPromptPath);
       } catch {
         /* ignore */
+        logger.debug(
+          { projectId, systemPromptPath },
+          "Failed to remove system prompt temp file",
+        );
       }
       pendingCreations.delete(projectId);
       resolve(null);
@@ -499,6 +182,10 @@ export async function createTerminalSession(
           unlinkSync(systemPromptPath);
         } catch {
           /* ignore */
+          logger.debug(
+            { projectId, systemPromptPath },
+            "Failed to remove system prompt temp file",
+          );
         }
         pendingCreations.delete(projectId);
         resolve(null);
@@ -561,12 +248,20 @@ export async function destroyTerminalSession(
         unlinkSync(session.systemPromptPath);
       } catch {
         /* ignore */
+        logger.debug(
+          { projectId, path: session.systemPromptPath },
+          "Failed to remove system prompt temp file",
+        );
       }
       if (session.sshKeyPath) {
         try {
           unlinkSync(session.sshKeyPath);
         } catch {
           /* ignore */
+          logger.debug(
+            { projectId, path: session.sshKeyPath },
+            "Failed to remove SSH key temp file",
+          );
         }
       }
 

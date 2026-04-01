@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { db } from "../db/index.js";
+import { logger } from "../logger.js";
 
 const sshKeyDir = path.join(tmpdir(), "crewdeck-ssh");
 
@@ -38,7 +39,9 @@ export function createGitSshEnv(sshPrivateKey: string): {
 export function cleanupSshKey(keyPath: string): void {
   try {
     fs.unlinkSync(keyPath);
-  } catch {}
+  } catch {
+    logger.warn({ keyPath }, "Failed to remove SSH key file");
+  }
 }
 
 /**
@@ -54,9 +57,7 @@ export function getProjectCredentials(
        JOIN VCSAccount vcs ON vcs.id = p.vcs_account_id
        WHERE p.id = ?`,
     )
-    .get(projectId) as
-    | { token: string; ssh_private_key: string }
-    | undefined;
+    .get(projectId) as { token: string; ssh_private_key: string } | undefined;
   if (!row) return undefined;
   return { ghToken: row.token, sshPrivateKey: row.ssh_private_key };
 }
