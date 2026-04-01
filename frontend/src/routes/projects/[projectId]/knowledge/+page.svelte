@@ -163,7 +163,7 @@
 	<title>{pageTitle}</title>
 </svelte:head>
 
-<div class="p-6 h-full overflow-auto">
+<div class="p-6 h-full overflow-auto pt-14 md:pt-6">
 	<!-- Breadcrumb -->
 	<div class="mb-5">
 		<Breadcrumb segments={[
