@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ISSUE_STATUSES, PR_STATUSES } from "../constants/statuses.js";
+import { logger } from "../logger.js";
 
 const githubUrl = z
   .string()
@@ -9,6 +10,7 @@ const githubUrl = z
       try {
         return new URL(url).hostname === "github.com";
       } catch {
+        logger.debug({ url }, "Failed to parse URL in GitHub URL validation");
         return false;
       }
     },
