@@ -13,6 +13,7 @@ import { getProject } from "../db/repositories/projects.js";
 import { getVCSAccount } from "../db/repositories/vcs-accounts.js";
 import { config } from "../config.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
+import * as globalEnvVarRepo from "../db/repositories/global-environment-variables.js";
 import { shellQuote } from "./shell.js";
 import { buildProviderEnv } from "./provider-env.js";
 import { PTY_IDLE_TIMEOUT_MS } from "../config/orchestration.js";
@@ -105,8 +106,11 @@ export async function createTerminalSession(
   const sshKeyPath = await setupGitHubAuth(projectId, env);
 
   // process.env is passed via spawn's env option for everything else.
+  // Precedence: global env vars < project env vars < platform-specific vars
+  const globalEnvVars = globalEnvVarRepo.getMap();
   const projectEnvVars = getEnvironmentVariablesMap(projectId);
   const captainEnvVars: Record<string, string> = {
+    ...globalEnvVars,
     ...projectEnvVars,
     ...buildProviderEnv(),
     CREWDECK_API_URL: `http://${config.host}:${config.port}`,

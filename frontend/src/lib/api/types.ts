@@ -239,6 +239,15 @@ export interface GlobalConfig {
   provider: Provider;
 }
 
+export interface GlobalEnvironmentVariable {
+  id: string;
+  key: string;
+  value: string;
+  is_secret: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
 // but only includes events the frontend receives (excludes backend-only events)
 export interface WsEventMap {

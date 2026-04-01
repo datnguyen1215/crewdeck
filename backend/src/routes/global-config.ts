@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as globalConfigRepo from "../db/repositories/global-config.js";
 import { validate } from "../middleware/validate.js";
 import { switchProvider } from "../services/switch-provider.js";
+import { getZaiApiKey } from "../orchestration/provider-env.js";
 
 const router = Router();
 
@@ -31,7 +32,7 @@ router.put("/provider", validate(SetProviderSchema), async (req, res) => {
 });
 
 router.get("/glm-available", (_req, res) => {
-  res.json({ available: !!process.env.ZAI_API_KEY });
+  res.json({ available: !!getZaiApiKey() });
 });
 
 export default router;
