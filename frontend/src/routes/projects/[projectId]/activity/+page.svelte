@@ -74,7 +74,7 @@
 					allEntries = acts;
 					issues = iss;
 				}
-			).catch((err) => { toastStore.add(err instanceof Error ? err.message : 'Failed to load activity', 'error'); });
+			).catch(() => {});
 		};
 		const unsub = ws.on('*', reload);
 		return () => unsub();

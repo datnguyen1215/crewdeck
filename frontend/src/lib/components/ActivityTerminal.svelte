@@ -125,6 +125,7 @@
 							entries = entries.slice(-MAX_ENTRIES);
 						}
 					})
+					// Silent catch: WS-triggered background refresh; toasting here would flood the user on network issues
 					.catch(() => {});
 			})
 		);
