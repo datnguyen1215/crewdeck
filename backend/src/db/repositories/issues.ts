@@ -177,6 +177,39 @@ export function resumeIssue(issueId: string): void {
 }
 
 /**
+ * Batch-fetch issue titles by IDs. Returns a map of id → title.
+ */
+export function getTitlesByIds(ids: string[]): Map<string, string> {
+  const map = new Map<string, string>();
+  if (ids.length === 0) return map;
+  const placeholders = ids.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`SELECT id, title FROM Issue WHERE id IN (${placeholders})`)
+    .all(...ids) as { id: string; title: string }[];
+  for (const row of rows) {
+    map.set(row.id, row.title);
+  }
+  return map;
+}
+
+/**
+ * Batch-fetch issues by IDs. Returns a map of id → Issue.
+ */
+export function getByIds(ids: string[]): Map<string, Issue> {
+  const map = new Map<string, Issue>();
+  if (ids.length === 0) return map;
+  const placeholders = ids.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`SELECT * FROM Issue WHERE id IN (${placeholders})`)
+    .all(...ids) as Record<string, unknown>[];
+  for (const row of rows) {
+    const issue = fromRow(row);
+    map.set(issue.id, issue);
+  }
+  return map;
+}
+
+/**
  * Returns the IDs of all currently paused issues.
  */
 export function listPausedIssueIds(): string[] {

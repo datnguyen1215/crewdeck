@@ -7,7 +7,7 @@ import {
   listRecentAgentRunEvents,
 } from "../db/repositories/agent-runs.js";
 import { getCrewMember } from "../orchestration/crew.js";
-import { getIssue } from "../db/repositories/issues.js";
+import { getByIds } from "../db/repositories/issues.js";
 import {
   verifyProject,
   verifyIssueOwnership,
@@ -41,9 +41,15 @@ router.get(
   (req: Request<{ projectId: string }>, res) => {
     const includeEvents = req.query.include_events === "true";
     const runs = listActiveRunsForProject(req.params.projectId);
+
+    const issueIds = runs
+      .map((r) => r.issue_id)
+      .filter((id): id is string => id != null);
+    const issueMap = getByIds(issueIds);
+
     const result = runs.map((run) => {
       const agent = getCrewMember(run.agent_id);
-      const issue = run.issue_id ? getIssue(run.issue_id) : null;
+      const issue = run.issue_id ? issueMap.get(run.issue_id) : null;
       const recentEvents = includeEvents
         ? listRecentAgentRunEvents(run.id, 50)
         : [];
