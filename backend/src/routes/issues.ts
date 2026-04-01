@@ -15,7 +15,7 @@ import {
   resumeIssue,
   approveIssueForStart,
   approveIssueForMerge,
-  updateIssueStatus,
+  updateIssue,
   deleteIssue,
 } from "../services/issue-service.js";
 import {
@@ -85,7 +85,7 @@ router.patch(
   validate(UpdateIssueSchema),
   (req, res) => {
     const excludeAgentId = req.headers["x-agent-id"] as string | undefined;
-    const updated = updateIssueStatus(req.issue!, req.body, excludeAgentId);
+    const updated = updateIssue(req.issue!, req.body, excludeAgentId);
     res.json(updated);
   },
 );

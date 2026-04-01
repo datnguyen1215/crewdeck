@@ -3,7 +3,7 @@ import {
   pauseIssue as pauseIssueRepo,
   resumeIssue as resumeIssueRepo,
   listPausedIssueIds,
-  updateIssue,
+  updateIssue as updateIssueRepo,
   deleteIssue as deleteIssueRepo,
 } from "../db/repositories/issues.js";
 import { getRepo } from "../db/repositories/repos.js";
@@ -23,7 +23,7 @@ import {
   ValidationError,
 } from "../middleware/errors.js";
 import { cleanupWorktree } from "../orchestration/worktree.js";
-import type { Issue } from "../types/entities.js";
+import type { Issue, UpdateIssueInput } from "../types/entities.js";
 
 /**
  * In-memory set of paused issue IDs for fast checks without DB reads.
@@ -49,13 +49,13 @@ export function assertTransition(from: string, to: string): void {
   }
 }
 
-export function updateIssueStatus(
+export function updateIssue(
   issue: Issue,
-  body: Record<string, unknown>,
+  body: UpdateIssueInput,
   excludeAgentId?: string,
 ): Issue {
   if (body.status && body.status !== issue.status) {
-    assertTransition(issue.status, body.status as string);
+    assertTransition(issue.status, body.status);
     if (body.status === IssueStatus.DONE) {
       if (hasActiveProcesses(issue.id, excludeAgentId)) {
         throw new ConflictError(
@@ -71,7 +71,7 @@ export function updateIssueStatus(
     return issue;
   }
 
-  const updated = updateIssue(issue.id, body);
+  const updated = updateIssueRepo(issue.id, body);
 
   if (body.status && body.status !== issue.status) {
     eventBus.emit("issue.status_changed", {
@@ -219,12 +219,4 @@ export function approveIssueForMerge(issue: Issue): void {
   });
 
   logger.info({ issueId: issue.id }, "Issue approved to merge");
-}
-
-/**
- * Clears the paused flag for a deleted issue.
- * @deprecated Use deleteIssue() which handles this internally.
- */
-export function clearPausedState(issueId: string): void {
-  pausedIssues.delete(issueId);
 }
