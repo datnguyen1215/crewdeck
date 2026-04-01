@@ -7,6 +7,8 @@
 	import { getContext } from 'svelte';
 	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
+	import TerminalHeader from './TerminalHeader.svelte';
+	import TerminalLineItem from './TerminalLine.svelte';
 
 	let { projectId, issues = [] }: { projectId: string; issues?: Issue[] } = $props();
 
@@ -223,43 +225,14 @@
 	{/if}
 
 	<!-- Header -->
-	<div
-		class="flex items-center justify-between px-4 py-2 bg-surface border-b border-edge cursor-pointer"
-		onclick={toggleCollapse}
-		role="button"
-		tabindex="0"
-		onkeydown={(e) => e.key === 'Enter' && toggleCollapse()}
-		aria-label={collapsed ? 'Expand terminal' : 'Collapse terminal'}
-	>
-		<div class="flex items-center gap-2">
-			<span class="text-cyan text-sm font-semibold">▸ Mission Control</span>
-		</div>
-		<div class="flex items-center gap-2">
-			{#if !collapsed}
-				<button
-					class="px-2 py-0.5 text-xs border border-edge rounded hover:bg-surface-hi transition-colors {filterAgents ? 'bg-cyan/10 border-cyan text-cyan' : 'text-muted'}"
-					onclick={(e) => {
-						e.stopPropagation();
-						filterAgents = !filterAgents;
-					}}
-					aria-label="Filter agents only"
-				>
-					agents
-				</button>
-				<button
-					class="px-2 py-0.5 text-xs border border-edge rounded hover:bg-surface-hi transition-colors {filterErrors ? 'bg-red/10 border-red text-red' : 'text-muted'}"
-					onclick={(e) => {
-						e.stopPropagation();
-						filterErrors = !filterErrors;
-					}}
-					aria-label="Filter errors only"
-				>
-					errors
-				</button>
-			{/if}
-			<span class="text-muted text-xs">{collapsed ? '▸' : '▾'}</span>
-		</div>
-	</div>
+	<TerminalHeader
+		{collapsed}
+		{filterAgents}
+		{filterErrors}
+		onToggleCollapse={toggleCollapse}
+		onToggleFilterAgents={() => { filterAgents = !filterAgents; }}
+		onToggleFilterErrors={() => { filterErrors = !filterErrors; }}
+	/>
 
 	<!-- Terminal body -->
 	{#if !collapsed}
@@ -275,35 +248,13 @@
 			{:else}
 				<div class="p-4 space-y-0.5">
 					{#each filteredEntries as line (line.id)}
-						{@const isNew = newEntryIds.has(line.id)}
-						{@const issueTitle = resolveIssueTitle(line)}
-						{@const severityColors = {
-							info: 'text-secondary border-edge',
-							success: 'text-green border-green/30',
-							error: 'text-red border-red/30',
-							warning: 'text-amber border-amber/30',
-							started: 'text-cyan border-cyan/30'
-						} as const}
-						{@const colors = severityColors[line.severity]}
-						<div
-							class="text-xs font-mono leading-relaxed border-l-2 pl-2 py-0.5 transition-all {colors}"
-							class:new-entry={isNew}
-							style={isNew ? 'animation: entry-slide-in 150ms ease-out, entry-glow 1s ease-out' : ''}
-						>
-							<span class="text-muted">[{line.timestamp}]</span>
-							{#if issueTitle && line.issueId}
-								<a
-									href="/projects/{projectId}/issues/{line.issueId}"
-									class="text-secondary/80 hover:text-cyan hover:underline transition-colors"
-									title={issueTitle}
-									data-sveltekit-preload-data
-								>
-									{truncateTitle(issueTitle)}
-								</a>
-								<span class="text-muted"> › </span>
-							{/if}
-							<span>{line.message}</span>
-						</div>
+						<TerminalLineItem
+							{line}
+							isNew={newEntryIds.has(line.id)}
+							issueTitle={resolveIssueTitle(line)}
+							{projectId}
+							{truncateTitle}
+						/>
 					{/each}
 					<!-- Blinking cursor -->
 					<div class="flex items-center gap-1 mt-2">

@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { listProjectsWithStats, type ProjectWithStats } from '$lib/api/http.js';
 	import { onMount } from 'svelte';
+	import ProjectNavItem from './ProjectNavItem.svelte';
 
 	const STORAGE_KEY = 'sidebar-collapsed';
 	const MOBILE_BREAKPOINT = 768;
@@ -201,88 +202,18 @@
 	<div class="flex flex-col gap-1 p-2 flex-1 overflow-y-auto overflow-x-hidden">
 		<!-- Projects list -->
 		{#each projects as project (project.id)}
-			{@const isExpanded = expandedProjects.has(project.id)}
-			{@const isCurrent = isProjectActive(project.id)}
-			<div>
-				<!-- Project header -->
-				{#if collapsed && !isMobile}
-					<!-- Collapsed: just show folder icon as link -->
-					<a
-						href={`/projects/${project.id}`}
-						onclick={closeMobileSidebar}
-						class="flex items-center justify-center px-3 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors min-h-[44px]
-						{isCurrent ? 'text-cyan bg-surface' : ''}"
-						title={project.name}
-						style={isCurrent ? 'box-shadow: inset 2px 0 0 var(--color-cyan)' : ''}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width="18"
-							height="18"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							class="flex-shrink-0"
-						>
-							{@html icons.folder}
-						</svg>
-					</a>
-				{:else}
-					<!-- Expanded: show toggle button with folder and name -->
-					<button
-						onclick={() => toggleProject(project.id)}
-						class="w-full flex items-center gap-2 px-3 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap min-h-[44px]
-						{isCurrent ? 'text-cyan' : ''}"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width="14"
-							height="14"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							class="flex-shrink-0 transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
-						>
-							{@html icons.chevronDown}
-						</svg>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							class="flex-shrink-0"
-						>
-							{@html icons.folder}
-						</svg>
-						<span class="text-sm overflow-hidden text-ellipsis">
-							{project.name}
-						</span>
-					</button>
-
-					<!-- Project sub-pages (only when expanded and sidebar not collapsed) -->
-					{#if isExpanded}
-						<div class="ml-5 flex flex-col gap-0.5">
-							{@render projectNavItem(`/projects/${project.id}`, 'Issues', 'issues', pathname === `/projects/${project.id}` || pathname.startsWith(`/projects/${project.id}/issues`), getActiveIssueCount(project))}
-							{@render projectNavItem(`/projects/${project.id}/terminals`, 'Terminals', 'terminals', isActive(`/projects/${project.id}/terminals`), project.active_runs)}
-							{@render projectNavItem(`/projects/${project.id}/chat`, 'Captain', 'chat', isActive(`/projects/${project.id}/chat`))}
-							{@render projectNavItem(`/projects/${project.id}/knowledge`, 'Knowledge', 'knowledge', isActive(`/projects/${project.id}/knowledge`))}
-							{@render projectNavItem(`/projects/${project.id}/activity`, 'Activity', 'activity', isActive(`/projects/${project.id}/activity`))}
-							{@render projectNavItem(`/projects/${project.id}/settings`, 'Settings', 'settings', isActive(`/projects/${project.id}/settings`))}
-						</div>
-					{/if}
-				{/if}
-			</div>
+			<ProjectNavItem
+				{project}
+				{collapsed}
+				{isMobile}
+				isExpanded={expandedProjects.has(project.id)}
+				isCurrent={isProjectActive(project.id)}
+				{pathname}
+				{isActive}
+				{getActiveIssueCount}
+				onToggleProject={toggleProject}
+				onCloseMobileSidebar={closeMobileSidebar}
+			/>
 		{/each}
 
 		<!-- Global Crew link -->
@@ -322,39 +253,6 @@
 		{#if !collapsed || isMobile}
 			<span class="text-sm overflow-hidden">
 				{label}
-			</span>
-		{/if}
-	</a>
-{/snippet}
-
-{#snippet projectNavItem(href: string, label: string, icon: keyof typeof icons, active: boolean, count?: number)}
-	<a
-		{href}
-		onclick={closeMobileSidebar}
-		class="flex items-center gap-2 px-2 py-2 rounded text-secondary hover:text-primary hover:bg-surface transition-colors whitespace-nowrap text-xs min-h-[40px]
-		{active ? 'text-cyan bg-surface' : ''}"
-		style={active ? 'box-shadow: inset 2px 0 0 var(--color-cyan)' : ''}
-	>
-		<svg
-			xmlns="http://www.w3.org/2000/svg"
-			width="14"
-			height="14"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="2"
-			stroke-linecap="round"
-			stroke-linejoin="round"
-			class="flex-shrink-0"
-		>
-			{@html icons[icon]}
-		</svg>
-		<span class="overflow-hidden flex-1">
-			{label}
-		</span>
-		{#if count && count > 0}
-			<span class="text-[10px] bg-surface-hi text-secondary px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-				{count}
 			</span>
 		{/if}
 	</a>
