@@ -163,8 +163,8 @@ router.delete("/:issueId", verifyIssueOwnership, async (req, res) => {
     }
   }
 
-  deleteIssue(issue.id);
   clearPausedState(issue.id);
+  deleteIssue(issue.id);
   res.status(204).send();
 });
 

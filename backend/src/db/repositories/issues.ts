@@ -174,3 +174,13 @@ export function pauseIssue(issueId: string): void {
 export function resumeIssue(issueId: string): void {
   db.prepare("UPDATE Issue SET paused = 0 WHERE id = ?").run(issueId);
 }
+
+/**
+ * Returns the IDs of all currently paused issues.
+ */
+export function listPausedIssueIds(): string[] {
+  const rows = db.prepare("SELECT id FROM Issue WHERE paused = 1").all() as {
+    id: string;
+  }[];
+  return rows.map((r) => r.id);
+}

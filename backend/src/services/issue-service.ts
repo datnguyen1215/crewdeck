@@ -1,7 +1,7 @@
-import { db } from "../db/index.js";
 import {
   pauseIssue as pauseIssueRepo,
   resumeIssue as resumeIssueRepo,
+  listPausedIssueIds,
 } from "../db/repositories/issues.js";
 import { eventBus } from "../events/bus.js";
 import { logger } from "../logger.js";
@@ -20,12 +20,9 @@ import type { Issue } from "../types/entities.js";
 const pausedIssues = new Set<string>();
 
 export function initializePausedState(): void {
-  const rows = db.prepare("SELECT id FROM Issue WHERE paused = 1").all() as {
-    id: string;
-  }[];
   pausedIssues.clear();
-  for (const row of rows) {
-    pausedIssues.add(row.id);
+  for (const id of listPausedIssueIds()) {
+    pausedIssues.add(id);
   }
 }
 
