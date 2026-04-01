@@ -338,17 +338,17 @@ Commands are restricted to captain-only (checked via `author_type === "captain"`
 
 Truncated issue IDs (8+ character prefixes shorter than a full UUID) are resolved to full UUIDs before execution via `resolveIssueId()` in `backend/src/orchestration/issue-resolver.ts`. This utility is shared by both `command-handlers.ts` and `captain/plan-executor.ts`.
 
-**PTY Service** (`backend/src/orchestration/pty-service.ts`)
+**PTY Service** (`backend/src/orchestration/pty-service.ts`, `captain-prompt.ts`, `captain-worktree.ts`)
 
-- Manages persistent tmux sessions running Claude CLI for terminal access to captain chat.
-- Each project can have one terminal session running `claude --system-prompt-file` inside tmux.
-- **Worktree isolation**: Creates a long-lived git worktree per project (named `crewdeck/captain-{projectId}`) in `/tmp/crewdeck-worktrees/`. The worktree persists across PTY reconnects and auto-rebases onto the latest default branch on creation. Terminal sessions run with the worktree as the working directory.
-- **Enriched system prompt**: Injects project knowledge (workflows/conventions), API reference (Issues, Runs, Activity, Knowledge APIs), current capacity (running agents, available slots), project settings, and repository context.
-- Session lifecycle: `createTerminalSession()`, `getTerminalSession()`, `destroyTerminalSession()`.
-- Auto-cleanup: idle timeout kills sessions and removes temporary files (system prompt, SSH keys) — default 30 min, `ORCHESTRATION_PTY_IDLE_TIMEOUT_MS`. Worktrees persist and are reused across session recreations.
-- Environment injection: project-defined env vars (from project settings), `CREWDECK_*` vars, `GH_TOKEN`, `GIT_SSH_COMMAND` from the project's GitHub account, and provider-specific env vars (via `buildProviderEnv()`). These are baked directly into the tmux `new-session` command as `env KEY=VAL ... claude ...` so the shell inside the session receives them regardless of tmux server environment state.
-- **Provider switching**: When the global provider is changed (via Crew page), all active Captain terminal sessions are terminated via `shutdownPtyService()`. New sessions created after the switch will use the new provider's environment variables.
-- Concurrency control: `pendingCreations` Set guards against race conditions when multiple clients request sessions simultaneously.
+The terminal/PTY functionality is split across three focused modules:
+
+- **`pty-service.ts`** — session lifecycle manager. Manages persistent tmux sessions running Claude CLI for terminal access to captain chat. Each project can have one terminal session running `claude --system-prompt-file` inside tmux. Session lifecycle: `createTerminalSession()`, `getTerminalSession()`, `destroyTerminalSession()`. Auto-cleanup: idle timeout kills sessions and removes temporary files (system prompt, SSH keys) — default 30 min, `ORCHESTRATION_PTY_IDLE_TIMEOUT_MS`. Concurrency control: `pendingCreations` Set guards against race conditions when multiple clients request sessions simultaneously.
+- **`captain-prompt.ts`** — system prompt builder. `buildSystemPrompt()` constructs the enriched system prompt injected into each session: project knowledge (workflows/conventions), API reference (Issues, Runs, Activity, Knowledge APIs), current capacity (running agents, available slots), project settings, and repository context.
+- **`captain-worktree.ts`** — worktree and auth setup. `createCaptainWorktree()` creates or reuses a long-lived git worktree per project (named `crewdeck/captain-{projectId}`) in `/tmp/crewdeck-worktrees/`. The worktree persists across PTY reconnects and auto-rebases onto the latest default branch on creation. Terminal sessions run with the worktree as the working directory. `setupGitHubAuth()` configures `GH_TOKEN` and `GIT_SSH_COMMAND` from the project's VCS account.
+
+Environment injection: project-defined env vars (from project settings), `CREWDECK_*` vars, `GH_TOKEN`, `GIT_SSH_COMMAND` from the project's GitHub account, and provider-specific env vars (via `buildProviderEnv()`). These are baked directly into the tmux `new-session` command as `env KEY=VAL ... claude ...` so the shell inside the session receives them regardless of tmux server environment state.
+
+**Provider switching**: When the global provider is changed (via Crew page), all active Captain terminal sessions are terminated via `shutdownPtyService()`. New sessions created after the switch will use the new provider's environment variables.
 
 **Terminal WebSocket Server** (`backend/src/terminal-ws.ts`)
 
