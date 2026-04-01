@@ -34,7 +34,6 @@
 
 	let newEntryIds = $state<Set<string>>(new Set());
 	let isInitialized = $state(false);
-	let forceScrollToBottom: (() => void) | undefined;
 
 	// Load state from localStorage on mount, then save on subsequent changes
 	$effect(() => {
@@ -71,8 +70,6 @@
 				if (cancelled) return;
 				entries = data.reverse();
 				loading = false;
-				// Force scroll after initial load (autoscroll action handles subsequent updates)
-				forceScrollToBottom?.();
 			})
 			.catch((err) => {
 				if (cancelled) return;
@@ -237,7 +234,7 @@
 	<!-- Terminal body -->
 	{#if !collapsed}
 		<div
-			use:autoscroll={(fn) => (forceScrollToBottom = fn)}
+			use:autoscroll
 			class="overflow-y-auto overflow-x-hidden relative scanlines"
 			style="height: {height}px;"
 		>
