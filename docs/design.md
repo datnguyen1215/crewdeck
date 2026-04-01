@@ -196,6 +196,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - `format.ts` — `formatDuration(ms)` converts milliseconds to a `Xs` / `Xm Ys` string; `formatCost(cost)` formats a number as `$X.XXXX`. Used by `IssueTimeline.svelte`, `RunDetailModal.svelte`, and `AgentRuns.svelte`.
   - `comments.ts` — `commentStyle(authorType)` returns border/text color tokens for a comment card; `commentAuthorLabel(comment)` returns the display name for a comment author. Used by `IssueComments.svelte` and `IssueTimeline.svelte`.
   - `autoscroll.js` — Svelte action that auto-scrolls a container to the bottom via MutationObserver when new content is added, while preserving scroll position when the user has scrolled up.
+- **Error handling convention**: User-facing errors from user-initiated actions (page load, form submit, status change) are shown via `toastStore.add(message, 'error')`. WS-triggered background refreshes and polling use silent `.catch(() => {})` to avoid flooding the user with transient network errors.
 
 **Backend (Node.js + TypeScript)**
 
