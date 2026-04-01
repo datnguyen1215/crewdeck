@@ -270,6 +270,19 @@ Captain is a dispatchable agent invoked via `/dispatch captain` in issue comment
 - `/create-pr <issue_id>` — Create a PR for an issue (after engineer has pushed code)
 - `/create-issue <title>` — Create a new issue
 
+**Captain Monitor Modules** (`backend/src/orchestration/captain/`)
+
+The captain monitor is split into focused modules:
+
+| Module                     | Responsibility                                                        |
+| -------------------------- | --------------------------------------------------------------------- |
+| `monitor-agent.ts`         | Orchestrator — calls the other modules, spawns LLM, executes plan     |
+| `prompt-builder.ts`        | Builds the system prompt (project config + state snapshot + capacity) |
+| `state-snapshot.ts`        | Queries DB for issues, runs, knowledge; returns formatted markdown    |
+| `event-formatter.ts`       | Formats raw events with enriched DB context (PR info, agent reports)  |
+| `monitor-history.ts`       | Retrieves the last 10 monitor conversation turns from DB              |
+| `action-plan-extractor.ts` | Parses action plan JSON from stream events or result text             |
+
 **Captain Context** (`backend/src/orchestration/prompt.ts`)
 
 When spawning Captain, the backend injects project-specific context:
@@ -281,7 +294,7 @@ When spawning Captain, the backend injects project-specific context:
 
 This context enables Captain to make informed orchestration decisions based on current project state.
 
-**Captain Monitor State Snapshot** (`backend/src/orchestration/captain/monitor-agent.ts`)
+**Captain Monitor State Snapshot** (`backend/src/orchestration/captain/state-snapshot.ts`)
 
 The captain monitor builds a state snapshot for each LLM call via `buildStateSnapshot()`. For each non-closed issue the snapshot includes the issue ID, status, paused flag, manual approval flags (`(approved-to-start)`, `(approved-to-merge)`), running agent (if any), title, and — if the issue has an open PR — the PR number and URL in the format `[PR: #<number> <url>]`. This lets the captain see which `in_progress` issues already have open PRs, even when the issue was regressed from a PR-related status.
 
