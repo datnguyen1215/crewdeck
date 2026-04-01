@@ -48,6 +48,8 @@ Without `?stats`:
     "max_concurrency": 3,
     "max_chain_depth": 20,
     "model": "sonnet",
+    "auto_start": false,
+    "auto_merge": false,
     "vcs_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
@@ -66,6 +68,8 @@ With `?stats`:
     "max_concurrency": 3,
     "max_chain_depth": 20,
     "model": "sonnet",
+    "auto_start": false,
+    "auto_merge": false,
     "vcs_account_id": "uuid | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601",
@@ -130,11 +134,13 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, model, vcs_account_id).
+**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, model, auto_start, auto_merge, vcs_account_id).
 
-| Field | Type | Description                                                        |
-| ----- | ---- | ------------------------------------------------------------------ |
-| model | TEXT | Default Claude model for agent spawning. One of: `sonnet`, `opus`. |
+| Field      | Type    | Description                                                                                         |
+| ---------- | ------- | --------------------------------------------------------------------------------------------------- |
+| model      | TEXT    | Default Claude model for agent spawning. One of: `sonnet`, `opus`.                                  |
+| auto_start | BOOLEAN | Whether Captain automatically starts work on new issues. Default: false.                            |
+| auto_merge | BOOLEAN | Whether Captain automatically merges ready PRs. Default: false.                                     |
 
 **Response:** `200 OK` — The updated project object.
 
