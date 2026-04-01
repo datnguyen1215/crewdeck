@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { COLUMN_CONFIG, type ColumnConfig } from '$lib/config/columns.js';
+	import { COLUMN_CONFIG } from '$lib/config/columns.js';
 
 	let {
 		visibleColumns = $bindable<string[]>([]),
