@@ -9,6 +9,7 @@ export interface Project {
   auto_merge: boolean;
   model: string;
   vcs_account_id: string | null;
+  default_base_branch: string;
   created_at: string;
   updated_at: string;
 }

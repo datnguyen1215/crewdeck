@@ -36,6 +36,7 @@ export const UpdateProjectSchema = CreateProjectBase.omit({
     agent_timeout_minutes: z.number().int().min(1).max(60).optional(),
     auto_start: z.boolean().optional(),
     auto_merge: z.boolean().optional(),
+    default_base_branch: z.string().min(1).optional(),
   });
 
 export const CreateRepoSchema = z.object({
@@ -47,6 +48,7 @@ export const CreateIssueSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
   created_by: z.string().optional(),
+  base_branch: z.string().min(1).optional(),
 });
 
 export const UpdateIssueSchema = z.object({

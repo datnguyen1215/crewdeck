@@ -145,10 +145,13 @@ function executeCreateIssue(
   action: CreateIssueAction,
 ): ActionResult {
   try {
+    const project = getProject(projectId);
+    const baseBranch = project?.default_base_branch || "main";
     const issue = issueRepo.createIssue(projectId, {
       title: action.title,
       description: action.description ?? "",
       created_by: "agent",
+      base_branch: baseBranch,
     });
     eventBus.emit("issue.created", { issue });
     return {

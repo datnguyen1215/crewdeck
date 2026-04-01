@@ -34,6 +34,18 @@
 	let sortField = $state<'created_at' | 'updated_at'>('created_at');
 	let sortDesc = $state(true);
 
+	// Base branch column toggle — persisted in localStorage
+	let showBaseBranch = $state(
+		typeof localStorage !== 'undefined'
+			? localStorage.getItem('crewdeck:showBaseBranch') === 'true'
+			: false
+	);
+	$effect(() => {
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem('crewdeck:showBaseBranch', String(showBaseBranch));
+		}
+	});
+
 	// Modal state
 	const form = createFormState({ title: '', description: '' });
 
@@ -254,6 +266,15 @@
 				<span class="text-xs text-muted">Show completed</span>
 			</label>
 
+			<label class="flex items-center gap-2 cursor-pointer min-h-[36px] sm:min-h-0">
+				<input
+					type="checkbox"
+					bind:checked={showBaseBranch}
+					class="accent-cyan w-4 h-4"
+				/>
+				<span class="text-xs text-muted">Show base branch</span>
+			</label>
+
 			<div class="sm:ml-auto">
 				<QueueMonitor />
 			</div>
@@ -277,17 +298,18 @@
 		<!-- Desktop skeleton table -->
 		<div class="overflow-x-auto fade-up hidden md:block">
 			<div class="min-w-[560px] border border-edge rounded overflow-hidden">
-				<div class="grid grid-cols-[1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+				<div class="{showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
 					<div class="px-3 py-2.5">Title</div>
 					<div class="px-3 py-2.5">Status</div>
 					<div class="px-3 py-2.5">Agent</div>
+					{#if showBaseBranch}<div class="px-3 py-2.5">Base</div>{/if}
 					<div class="px-3 py-2.5 text-right">Age</div>
 					<div class="px-2 py-2.5"></div>
 				</div>
 				{#each Array(8) as _, i}
 					{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 					<div
-						class="grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						class="{showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} grid border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
 					style="animation-delay: {i * 30}ms"
 					>
 						<div class="px-3 py-3 flex items-center gap-2">
@@ -299,6 +321,7 @@
 						<div class="px-3 py-3 flex items-center">
 							<div class="skeleton h-4 w-16 rounded"></div>
 						</div>
+						{#if showBaseBranch}<div class="px-3 py-3 flex items-center"><div class="skeleton h-4 w-12 rounded"></div></div>{/if}
 						<div class="px-3 py-3 flex items-center justify-end">
 							<div class="skeleton h-3 w-8 rounded"></div>
 						</div>
@@ -383,6 +406,9 @@
 					{#if issue.created_by === 'agent'}
 						<p class="text-muted text-xs mt-2">proposed by agent</p>
 					{/if}
+					{#if issue.base_branch && issue.base_branch !== (project?.default_base_branch ?? 'main')}
+						<p class="text-muted text-xs mt-1 font-mono">→ {issue.base_branch}</p>
+					{/if}
 					{#if issue.dependencies.length > 0}
 						<div class="flex flex-wrap gap-1 mt-2">
 							{#each issue.dependencies as dep}
@@ -407,11 +433,14 @@
 				<div class="min-w-[560px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
 					<div
-						class="grid grid-cols-[1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
+						class="grid {showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
 					>
 						<div class="px-3 py-2.5">Title</div>
 						<div class="px-3 py-2.5">Status</div>
 						<div class="px-3 py-2.5">Agent</div>
+						{#if showBaseBranch}
+							<div class="px-3 py-2.5">Base</div>
+						{/if}
 						<div class="px-3 py-2.5 text-right">Age</div>
 						<div class="px-2 py-2.5"></div>
 					</div>
@@ -423,12 +452,13 @@
 						{@const isQueued = issue.running_agent_status === 'queued'}
 						{@const isDispatching = dispatchingIssues.has(issue.id)}
 						{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
+						{@const isNonDefaultBranch = issue.base_branch && issue.base_branch !== (project?.default_base_branch ?? 'main')}
 						<div
 							role="link"
 							tabindex="0"
 							onclick={(e) => { if ((e.target as HTMLElement).closest('button')) return; goto(`/projects/${projectId}/issues/${issue.id}`); }}
 							onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${projectId}/issues/${issue.id}`)}
-							class="issue-row grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group cursor-pointer {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
+							class="issue-row grid {showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group cursor-pointer {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
 							style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 						>
 							<!-- Title -->
@@ -480,6 +510,17 @@
 									<span class="text-sm text-muted truncate block">—</span>
 								{/if}
 							</div>
+
+							<!-- Base branch (optional column) -->
+							{#if showBaseBranch}
+								<div class="px-3 py-3 self-center">
+									{#if isNonDefaultBranch}
+										<span class="text-xs font-mono text-amber truncate block">{issue.base_branch}</span>
+									{:else}
+										<span class="text-xs text-muted truncate block">—</span>
+									{/if}
+								</div>
+							{/if}
 
 							<!-- Age -->
 							<div class="px-3 py-3 self-center text-right">
