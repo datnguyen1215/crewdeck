@@ -67,6 +67,7 @@
 		const fetchProjects = () => {
 			listProjectsWithStats()
 				.then((data) => { projects = data; })
+				// Silent catch: 30s polling failure; toasting would be noisy on transient network issues
 				.catch(() => {});
 		};
 		fetchProjects();
