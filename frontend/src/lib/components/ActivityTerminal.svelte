@@ -5,6 +5,7 @@
 	import { formatActivityEntry, type TerminalLine } from '$lib/config/terminal.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
 	import { getContext } from 'svelte';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let { projectId, issues = [] }: { projectId: string; issues?: Issue[] } = $props();
 
@@ -70,9 +71,10 @@
 				// Force scroll after initial load (autoscroll action handles subsequent updates)
 				forceScrollToBottom?.();
 			})
-			.catch(() => {
+			.catch((err) => {
 				if (cancelled) return;
 				loading = false;
+				toastStore.add(err instanceof Error ? err.message : 'Failed to load activity', 'error');
 			});
 
 		return () => {
@@ -123,9 +125,7 @@
 							entries = entries.slice(-MAX_ENTRIES);
 						}
 					})
-					.catch((err) => {
-						console.error('Failed to fetch activity:', err);
-					});
+					.catch(() => {});
 			})
 		);
 

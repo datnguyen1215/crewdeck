@@ -67,7 +67,7 @@
 		const fetchProjects = () => {
 			listProjectsWithStats()
 				.then((data) => { projects = data; })
-				.catch((e) => { console.error('Failed to load projects:', e); });
+				.catch(() => {});
 		};
 		fetchProjects();
 
