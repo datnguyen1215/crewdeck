@@ -212,6 +212,7 @@ export interface ChatMessage {
 export interface AgentConfig {
   id: string;
   agent_id: string;
+  provider: string;
   model: string | null;
 }
 

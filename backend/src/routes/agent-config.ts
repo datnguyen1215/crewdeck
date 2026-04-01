@@ -5,8 +5,14 @@ import { validate } from "../middleware/validate.js";
 
 const router = Router();
 
+// All valid models across providers
+const CLAUDE_MODELS = ["sonnet", "opus", "haiku"] as const;
+const GLM_MODELS = ["glm-5.1", "glm-5", "glm-5-turbo", "glm-4.7"] as const;
+const ALL_MODELS = [...CLAUDE_MODELS, ...GLM_MODELS] as const;
+
 const UpsertAgentConfigSchema = z.object({
-  model: z.enum(["sonnet", "opus"]).nullable(),
+  provider: z.enum(["claude", "glm"]),
+  model: z.enum(ALL_MODELS).nullable(),
 });
 
 router.get("/", (_req, res) => {
@@ -14,12 +20,12 @@ router.get("/", (_req, res) => {
 });
 
 router.put("/:agentId", validate(UpsertAgentConfigSchema), (req, res) => {
-  const config = agentConfigRepo.upsert(req.params.agentId, req.body.model);
+  const config = agentConfigRepo.upsert(req.params.agentId, req.body.provider, req.body.model);
   res.json(config);
 });
 
-router.delete("/:agentId", (req, res) => {
-  agentConfigRepo.remove(req.params.agentId);
+router.delete("/:agentId/:provider", (req, res) => {
+  agentConfigRepo.remove(req.params.agentId, req.params.provider);
   res.status(204).send();
 });
 

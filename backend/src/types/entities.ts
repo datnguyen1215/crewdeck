@@ -253,6 +253,7 @@ export interface UpdateProjectInput {
 export interface AgentConfig {
   id: string;
   agent_id: string;
+  provider: string;
   model: string | null;
 }
 
