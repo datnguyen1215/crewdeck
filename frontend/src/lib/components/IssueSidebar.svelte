@@ -23,6 +23,30 @@
 	let working = $state(false);
 	let copied = $state(false);
 	let showDeleteModal = $state(false);
+	let baseBranchEdit = $state('');
+	let savingBaseBranch = $state(false);
+
+	$effect(() => {
+		baseBranchEdit = issue.base_branch ?? '';
+	});
+
+	const isBaseBranchLocked = $derived(issue.status !== 'open');
+
+	async function saveBaseBranch() {
+		if (savingBaseBranch || isBaseBranchLocked) return;
+		const newVal = baseBranchEdit.trim() || (project?.default_base_branch ?? 'main');
+		if (newVal === issue.base_branch) return;
+		savingBaseBranch = true;
+		try {
+			await updateIssue(projectId, issue.id, { base_branch: newVal });
+			onStatusChange();
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to update base branch', 'error');
+			baseBranchEdit = issue.base_branch ?? '';
+		} finally {
+			savingBaseBranch = false;
+		}
+	}
 
 	async function handleDeleteIssue() {
 		working = true;
@@ -155,12 +179,25 @@
 		{/if}
 
 		<!-- Base branch -->
-		{#if issue.base_branch}
-			<div class="flex items-center gap-2">
-				<span class="text-muted w-20 shrink-0">Base</span>
-				<span class="font-mono text-secondary">{issue.base_branch}</span>
-			</div>
-		{/if}
+		<div class="flex items-center gap-2">
+			<span class="text-muted w-20 shrink-0">Base</span>
+			{#if isBaseBranchLocked}
+				<span
+					class="font-mono text-secondary"
+					title="Cannot change base branch after work has started. Rebasing is not yet supported."
+				>{issue.base_branch || (project?.default_base_branch ?? 'main')}</span>
+			{:else}
+				<input
+					type="text"
+					bind:value={baseBranchEdit}
+					placeholder={project?.default_base_branch ?? 'main'}
+					disabled={savingBaseBranch}
+					onblur={saveBaseBranch}
+					onkeydown={(e) => e.key === 'Enter' && saveBaseBranch()}
+					class="font-mono text-secondary bg-transparent border-b border-edge focus:border-cyan outline-none text-xs w-full transition-colors disabled:opacity-50"
+				/>
+			{/if}
+		</div>
 
 		<!-- Worktree -->
 		{#if issue.worktree_path}

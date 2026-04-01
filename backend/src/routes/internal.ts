@@ -84,17 +84,23 @@ const InternalCreateIssueSchema = BaseCreateIssueSchema.omit({
   created_by: true,
 }).extend({
   project_id: z.string(),
+  base_branch: z.string().min(1).optional(),
 });
 
 router.post(
   "/issues/create",
   validate(InternalCreateIssueSchema),
   (req, res) => {
-    const { project_id, title, description } = req.body;
+    const { project_id, title, description, base_branch } = req.body;
+    const project = getProject(project_id);
+    if (!project) throw new NotFoundError("Project not found");
+    const resolvedBaseBranch =
+      base_branch || project.default_base_branch || "main";
     const issue = createIssue(project_id, {
       title,
       description,
       created_by: "agent",
+      base_branch: resolvedBaseBranch,
     });
     eventBus.emit("issue.created", { issue });
     res.status(201).json(issue);

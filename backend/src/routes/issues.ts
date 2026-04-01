@@ -8,6 +8,7 @@ import {
   getIssue,
 } from "../db/repositories/issues.js";
 import { getRepo } from "../db/repositories/repos.js";
+import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
 import {
   InvalidTransitionError,
@@ -88,7 +89,14 @@ router.post(
   validate(CreateIssueSchema),
   (req: Request<{ projectId: string }>, res) => {
     const { projectId } = req.params;
-    const issue = createIssue(projectId, { ...req.body, created_by: "user" });
+    const project = getProject(projectId)!;
+    const baseBranch =
+      req.body.base_branch || project.default_base_branch || "main";
+    const issue = createIssue(projectId, {
+      ...req.body,
+      created_by: "user",
+      base_branch: baseBranch,
+    });
     eventBus.emit("issue.created", { issue });
     res.status(201).json(issue);
   },

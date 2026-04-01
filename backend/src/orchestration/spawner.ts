@@ -130,7 +130,7 @@ async function validateOrRecreateWorktree(
     const result = await agentWorktree.createWorktree(
       repo as any,
       freshIssue,
-      repo.default_branch,
+      freshIssue.base_branch || "main",
       resolvedCreds?.sshPrivateKey,
     );
     worktreePath = result.path;

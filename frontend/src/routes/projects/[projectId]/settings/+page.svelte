@@ -22,6 +22,7 @@
 
 	let name = $state('');
 	let description = $state('');
+	let defaultBaseBranch = $state('main');
 	let maxConcurrency = $state(1);
 	let maxChainDepth = $state(20);
 	let agentTimeoutMinutes = $state(10);
@@ -50,6 +51,7 @@
 				project = p;
 				name = p.name;
 				description = p.description ?? '';
+				defaultBaseBranch = p.default_base_branch ?? 'main';
 				maxConcurrency = p.max_concurrency;
 				maxChainDepth = p.max_chain_depth;
 				agentTimeoutMinutes = p.agent_timeout_minutes;
@@ -147,6 +149,7 @@
 		project != null && (
 			name !== project.name ||
 			description !== (project.description ?? '') ||
+			defaultBaseBranch !== (project.default_base_branch ?? 'main') ||
 			maxConcurrency !== project.max_concurrency ||
 			maxChainDepth !== project.max_chain_depth ||
 			agentTimeoutMinutes !== project.agent_timeout_minutes ||
@@ -162,6 +165,7 @@
 			const updated = await updateProject(project.id, {
 				name: name.trim(),
 				description: description.trim() || null,
+				default_base_branch: defaultBaseBranch.trim() || 'main',
 				max_concurrency: Number(maxConcurrency),
 				max_chain_depth: Number(maxChainDepth),
 				agent_timeout_minutes: Number(agentTimeoutMinutes),
@@ -171,6 +175,7 @@
 			project = updated;
 			name = updated.name;
 			description = updated.description ?? '';
+			defaultBaseBranch = updated.default_base_branch ?? 'main';
 			maxConcurrency = updated.max_concurrency;
 			maxChainDepth = updated.max_chain_depth;
 			agentTimeoutMinutes = updated.agent_timeout_minutes;
@@ -188,6 +193,7 @@
 		if (!project) return;
 		name = project.name;
 		description = project.description ?? '';
+		defaultBaseBranch = project.default_base_branch ?? 'main';
 		maxConcurrency = project.max_concurrency;
 		maxChainDepth = project.max_chain_depth;
 		agentTimeoutMinutes = project.agent_timeout_minutes;
@@ -227,6 +233,12 @@
 				<div>
 					<label for="settings-desc" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Description</label>
 					<textarea id="settings-desc" bind:value={description} placeholder="Optional description..." rows="3" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-cyan transition-colors resize-none"></textarea>
+				</div>
+
+				<div>
+					<label for="settings-base-branch" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Default Base Branch</label>
+					<input id="settings-base-branch" type="text" bind:value={defaultBaseBranch} placeholder="main" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary font-mono placeholder-muted focus:outline-none focus:border-cyan transition-colors" />
+					<p class="text-muted text-xs mt-1">Branch that new issues will target by default (e.g. main, develop)</p>
 				</div>
 
 				<div>

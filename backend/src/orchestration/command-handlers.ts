@@ -334,10 +334,13 @@ export const handleCreateIssue = (
   input: { title: string; description?: string },
 ): ToolResult => {
   try {
+    const project = getProject(projectId);
+    const baseBranch = project?.default_base_branch || "main";
     const issue = issueRepo.createIssue(projectId, {
       title: input.title,
       description: input.description ?? "",
       created_by: "agent",
+      base_branch: baseBranch,
     });
     eventBus.emit("issue.created", { issue });
     return {
