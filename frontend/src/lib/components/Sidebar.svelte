@@ -36,7 +36,7 @@
 	// Auto-expand current project when route changes
 	$effect(() => {
 		if (projectId && !expandedProjects.has(projectId)) {
-			expandedProjects = new Set([...expandedProjects, projectId]);
+			expandedProjects = new Set([projectId]);
 		}
 	});
 
@@ -107,7 +107,7 @@
 			next.delete(pid);
 			expandedProjects = next;
 		} else {
-			expandedProjects = new Set([...expandedProjects, pid]);
+			expandedProjects = new Set([pid]);
 			// Navigate to project issues if clicking a collapsed project
 			if (projectId !== pid) {
 				goto(`/projects/${pid}`);
