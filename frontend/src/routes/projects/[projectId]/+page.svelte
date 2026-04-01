@@ -26,9 +26,30 @@
 	let pageTitle = $derived(project?.name ? `${project.name} - CrewDeck` : 'CrewDeck');
 
 	// Filter state
-	let filterStatuses = $state<string[]>([]);
-	let showCompleted = $state(false);
 	let searchQuery = $state('');
+
+	function parseSearchQuery(query: string): { statuses: string[]; paused: boolean | null; text: string } {
+		let statuses: string[] = [];
+		let paused: boolean | null = null;
+		const remaining: string[] = [];
+
+		const tokens = query.match(/\S+/g) ?? [];
+		for (const token of tokens) {
+			const statusMatch = token.match(/^status:([\w,]+)$/);
+			if (statusMatch) {
+				statuses = statusMatch[1].split(',');
+				continue;
+			}
+			const pausedMatch = token.match(/^paused:(true|false)$/);
+			if (pausedMatch) {
+				paused = pausedMatch[1] === 'true';
+				continue;
+			}
+			remaining.push(token);
+		}
+
+		return { statuses, paused, text: remaining.join(' ') };
+	}
 
 	// Sort state — newest first by default
 	let sortField = $state<'created_at' | 'updated_at'>('created_at');
@@ -76,19 +97,23 @@
 	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
 
 	let filtered = $derived.by(() => {
+		const { statuses, paused, text } = parseSearchQuery(searchQuery);
 		let result = [...issues];
-		if (searchQuery.trim()) {
-			const q = searchQuery.toLowerCase();
+		if (text) {
+			const q = text.toLowerCase();
 			result = result.filter((i) =>
 				i.title.toLowerCase().includes(q) ||
 				(i.description && i.description.toLowerCase().includes(q))
 			);
 		}
-		if (!showCompleted && !filterStatuses.includes('done')) {
+		if (statuses.length > 0) {
+			result = result.filter((i) => statuses.includes(i.status));
+		} else if (searchQuery.trim() === '') {
+			// Default: hide done unless explicitly queried
 			result = result.filter((i) => i.status !== 'done');
 		}
-		if (filterStatuses.length > 0) {
-			result = result.filter((i) => filterStatuses.includes(i.status));
+		if (paused !== null) {
+			result = result.filter((i) => (i.paused ? true : false) === paused);
 		}
 		result.sort((a, b) => {
 			const av = a[sortField];
@@ -161,10 +186,8 @@
 	<!-- Filters -->
 	<IssueFilters
 		bind:searchQuery
-		bind:filterStatuses
 		bind:sortField
 		bind:sortDesc
-		bind:showCompleted
 		bind:visibleColumns
 	/>
 
