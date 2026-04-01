@@ -2,26 +2,21 @@
 	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
 	import ColumnSelector from '$lib/components/ColumnSelector.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
-	import type { Agent } from '$lib/api/http.js';
 
 	let {
 		searchQuery = $bindable(''),
 		filterStatuses = $bindable<string[]>([]),
-		filterAgent = $bindable(''),
 		sortField = $bindable<'created_at' | 'updated_at'>('created_at'),
 		sortDesc = $bindable(true),
 		showCompleted = $bindable(false),
 		visibleColumns = $bindable<string[]>([]),
-		agents,
 	}: {
 		searchQuery: string;
 		filterStatuses: string[];
-		filterAgent: string;
 		sortField: 'created_at' | 'updated_at';
 		sortDesc: boolean;
 		showCompleted: boolean;
 		visibleColumns: string[];
-		agents: Agent[];
 	} = $props();
 
 	function toggleStatus(status: string) {
@@ -74,22 +69,8 @@
 		{/if}
 	</div>
 
-	<!-- Agent + Sort controls -->
+	<!-- Sort controls -->
 	<div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
-		<div class="flex items-center gap-2">
-			<span class="text-xs text-muted uppercase tracking-widest">Agent:</span>
-			<select
-				bind:value={filterAgent}
-				class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-2 sm:py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none min-h-[36px] sm:min-h-0"
-			>
-				<option value="">All</option>
-				<option value="__unassigned__">Unassigned</option>
-				{#each agents as agent (agent.id)}
-					<option value={agent.id}>{agent.name}</option>
-				{/each}
-			</select>
-		</div>
-
 		<div class="flex items-center gap-2">
 			<span class="text-xs text-muted uppercase tracking-widest">Sort:</span>
 			<select
