@@ -52,6 +52,10 @@ export function listActivity(
 /**
  * Enrich activity entries with actor_name and issue_title.
  * Resolves agent names from in-memory crew and issue titles via batch DB lookup.
+ *
+ * Note: Some entries may not receive an actor_name. Old activity logs may have
+ * UUID actor_ids from before the fixed crew migration — they'll display without
+ * actor_name.
  */
 export function enrichActivityEntries(
   entries: ActivityLog[],
