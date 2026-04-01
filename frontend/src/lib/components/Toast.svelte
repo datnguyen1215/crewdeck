@@ -19,6 +19,7 @@
 
 <div
 	class="fixed bottom-4 right-4 z-[200] pointer-events-none w-80 max-w-[calc(100vw-2rem)]"
+	style="view-transition-name: none"
 >
 	{#if reversedItems.length > 0}
 		{@const frontToast = reversedItems[0]}
