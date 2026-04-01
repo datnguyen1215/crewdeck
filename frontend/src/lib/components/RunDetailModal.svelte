@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { getRun, type AgentRun, type AgentRunEvent } from '$lib/api/http.js';
-	import { untrack } from 'svelte';
 	import Modal from './Modal.svelte';
 	import { RUN_STATUS_CFG } from '$lib/config/status.js';
 	import { formatDuration, formatCost } from '$lib/utils/format.js';
 	import { renderEventContent } from '$lib/utils/event.js';
+	import { mergeWithLiveEvents, createLiveEventSync } from '$lib/utils/run-events.svelte.js';
 
 	let {
 		run,
@@ -28,11 +28,7 @@
 			.then((full) => {
 				// Guard against stale responses if the user switched runs before this resolved
 				if (runId !== run?.id) return;
-				const apiEvents = full.events;
-				const live = liveEvents.get(runId) ?? [];
-				const apiEventIds = new Set(apiEvents.map(e => e.id));
-				const newLiveEvents = live.filter(e => !apiEventIds.has(e.id));
-				modalEvents = [...apiEvents, ...newLiveEvents];
+				modalEvents = mergeWithLiveEvents(full.events, liveEvents, runId);
 			})
 			.catch(() => {
 				if (runId !== run?.id) return;
@@ -44,18 +40,12 @@
 	});
 
 	// Live-update modal events when new run events stream in
-	$effect(() => {
-		if (!run) return;
-		const live = liveEvents.get(run.id) ?? [];
-		if (live.length === 0) return;
-		// Use untrack to read modalEvents without creating a reactive dependency,
-		// preventing this effect from re-running each time it updates modalEvents.
-		const existingIds = new Set(untrack(() => modalEvents).map(e => e.id));
-		const newEvents = live.filter(e => !existingIds.has(e.id));
-		if (newEvents.length > 0) {
-			modalEvents = [...untrack(() => modalEvents), ...newEvents];
-		}
-	});
+	$effect(createLiveEventSync(
+		() => liveEvents,
+		() => run?.id ?? null,
+		() => modalEvents,
+		(e) => { modalEvents = e; }
+	));
 
 </script>
 

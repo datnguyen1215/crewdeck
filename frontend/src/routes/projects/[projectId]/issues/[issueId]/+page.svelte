@@ -7,7 +7,7 @@
 	import { md } from '$lib/utils/markdown.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
-	import type { WsEventMap } from '$lib/api/types.js';
+	import { createRunEventHandlers } from '$lib/utils/run-events.svelte.js';
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -98,49 +98,11 @@
 			listIssueRuns(projectId, issueId).then((r) => { runs = r; }).catch(() => {});
 		};
 
-		const handleRunStarted = (data: WsEventMap['run.started']) => {
-			if (data.issue_id !== issueId) return;
-			const newRun: AgentRun = {
-				id: data.agent_run_id,
-				project_id: projectId,
-				issue_id: issueId,
-				agent_id: data.agent_id,
-				pid: null,
-				status: data.status,
-				exit_code: null,
-				cost_usd: null,
-				duration_ms: null,
-				started_at: data.started_at,
-				completed_at: null,
-				created_at: new Date().toISOString()
-			};
-			runs = [newRun, ...runs];
-			liveEvents.set(newRun.id, []);
-		};
-
-		const handleRunEvent = (data: WsEventMap['run.event']) => {
-			const runId = data.agent_run_id;
-			const run = runs.find(r => r.id === runId);
-			if (!run || run.issue_id !== issueId) return;
-			const event: AgentRunEvent = {
-				id: data.event_id,
-				agent_run_id: runId,
-				type: data.type,
-				data: data.data,
-				created_at: data.created_at
-			};
-			const existing = liveEvents.get(runId) ?? [];
-			liveEvents.set(runId, [...existing, event]);
-			liveEvents = new Map(liveEvents);
-		};
-
-		const handleRunCompleted = (data: WsEventMap['run.completed']) => {
-			const runId = data.agent_run_id;
-			runs = runs.map(r => {
-				if (r.id !== runId) return r;
-				return { ...r, status: data.status, exit_code: data.exit_code, cost_usd: data.cost_usd, duration_ms: data.duration_ms, completed_at: data.completed_at };
-			});
-		};
+		const { handleRunStarted, handleRunEvent, handleRunCompleted } = createRunEventHandlers(
+			issueId, projectId,
+			() => runs, (r) => { runs = r; },
+			() => liveEvents, (m) => { liveEvents = m; }
+		);
 
 		const handlePausedResumed = (data: { issue_id: string }) => {
 			if (data.issue_id === issueId) reloadIssue();
