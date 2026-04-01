@@ -6,9 +6,6 @@ import {
   updateIssue,
   deleteIssue,
   getIssue,
-  pausedIssues,
-  pauseIssue as pauseIssueRepo,
-  resumeIssue as resumeIssueRepo,
 } from "../db/repositories/issues.js";
 import { getRepo } from "../db/repositories/repos.js";
 import { validate } from "../middleware/validate.js";
@@ -16,7 +13,6 @@ import {
   InvalidTransitionError,
   ConflictError,
   NotFoundError,
-  ValidationError,
 } from "../middleware/errors.js";
 import {
   verifyProject,
@@ -27,15 +23,16 @@ import { CreateIssueSchema, UpdateIssueSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
 import { cleanupWorktree } from "../orchestration/worktree.js";
 import { logger } from "../logger.js";
-import {
-  hasActiveProcesses,
-  activeProcesses,
-} from "../orchestration/processes.js";
+import { hasActiveProcesses } from "../orchestration/processes.js";
 import { TRANSITIONS, IssueStatus } from "../constants/statuses.js";
 import type { IssueFilters } from "../types/entities.js";
-import * as agentRunRepo from "../db/repositories/agent-runs.js";
-import * as batch from "../orchestration/batch.js";
-import { approveStart, approveMerge } from "../orchestration/approval-store.js";
+import {
+  pauseIssue,
+  resumeIssue,
+  approveIssueForStart,
+  approveIssueForMerge,
+  clearPausedState,
+} from "../services/issue-service.js";
 import {
   listDependenciesBatchWithDetails,
   listDependentsBatchWithDetails,
@@ -167,168 +164,28 @@ router.delete("/:issueId", verifyIssueOwnership, async (req, res) => {
   }
 
   deleteIssue(issue.id);
+  clearPausedState(issue.id);
   res.status(204).send();
 });
 
 router.post("/:issueId/pause", verifyIssueOwnership, (req, res) => {
-  const issue = req.issue!;
-
-  // Validate issue is not already paused
-  if (pausedIssues.has(issue.id)) {
-    throw new ValidationError("Issue is already paused");
-  }
-
-  // Validate issue is not done
-  if (issue.status === IssueStatus.DONE) {
-    throw new ValidationError("Cannot pause a completed issue");
-  }
-
-  // Step 1: Set in-memory paused flag FIRST (prevents race conditions)
-  pausedIssues.add(issue.id);
-
-  // Step 2: Kill all active agent processes for this issue
-  for (const [pid, proc] of activeProcesses.entries()) {
-    if (proc.issueId === issue.id) {
-      logger.info(
-        { pid, issueId: issue.id, agentId: proc.agentId },
-        "Killing agent process for paused issue",
-      );
-      proc.process.kill("SIGTERM");
-      clearTimeout(proc.timer);
-      activeProcesses.delete(pid);
-    }
-  }
-
-  // Step 3: Purge all queued dispatches for this issue
-  const queuedRuns = agentRunRepo.listQueuedRuns(issue.project_id);
-  for (const run of queuedRuns) {
-    if (run.issue_id === issue.id) {
-      logger.info(
-        { runId: run.id, issueId: issue.id, agentId: run.agent_id },
-        "Cancelling queued run for paused issue",
-      );
-      agentRunRepo.updateAgentRun(run.id, { status: "failed" });
-    }
-  }
-
-  // Step 4: Clear batch tracking for this issue
-  const batchId = batch.issueBatches.get(issue.id);
-  if (batchId) {
-    logger.info(
-      { batchId, issueId: issue.id },
-      "Clearing batch for paused issue",
-    );
-    batch.batches.delete(batchId);
-    batch.issueBatches.delete(issue.id);
-  }
-
-  // Step 5: Persist paused = true to DB
-  pauseIssueRepo(issue.id);
-
-  // Step 6: Emit issue.paused event
-  eventBus.emit("issue.paused", {
-    issue_id: issue.id,
-    project_id: issue.project_id,
-  });
-
-  logger.info({ issueId: issue.id }, "Issue paused");
-
-  res.json({
-    success: true,
-    issue_id: issue.id,
-    paused: true,
-  });
+  pauseIssue(req.issue!);
+  res.json({ success: true, issue_id: req.issue!.id, paused: true });
 });
 
-router.post("/:issueId/resume", verifyIssueOwnership, async (req, res) => {
-  const issue = req.issue!;
-
-  // Validate issue is currently paused
-  if (!pausedIssues.has(issue.id)) {
-    throw new ValidationError("Issue is not paused");
-  }
-
-  // Validate issue is not done
-  if (issue.status === IssueStatus.DONE) {
-    throw new ValidationError("Cannot resume a completed issue");
-  }
-
-  // Step 1: Unset in-memory paused flag
-  pausedIssues.delete(issue.id);
-
-  // Step 2: Persist paused = false to DB
-  resumeIssueRepo(issue.id);
-
-  // Step 3: Emit issue.resumed event
-  eventBus.emit("issue.resumed", {
-    issue_id: issue.id,
-    project_id: issue.project_id,
-  });
-
-  logger.info({ issueId: issue.id }, "Issue resumed");
-
-  res.json({
-    success: true,
-    issue_id: issue.id,
-    paused: false,
-  });
+router.post("/:issueId/resume", verifyIssueOwnership, (req, res) => {
+  resumeIssue(req.issue!);
+  res.json({ success: true, issue_id: req.issue!.id, paused: false });
 });
 
 router.post("/:issueId/approve-start", verifyIssueOwnership, (req, res) => {
-  const issue = req.issue!;
-
-  // Validate issue is not paused
-  if (pausedIssues.has(issue.id)) {
-    throw new ValidationError("Cannot approve a paused issue for work");
-  }
-
-  // Validate issue is not done
-  if (issue.status === IssueStatus.DONE) {
-    throw new ValidationError("Cannot approve a completed issue for work");
-  }
-
-  // Add to in-memory approval set
-  approveStart(issue.id);
-
-  // Emit event so Captain can react
-  eventBus.emit("issue.approved_to_start", {
-    issue_id: issue.id,
-    project_id: issue.project_id,
-  });
-
-  logger.info({ issueId: issue.id }, "Issue approved to start");
-
-  res.json({
-    success: true,
-    issue_id: issue.id,
-    approved_to_start: true,
-  });
+  approveIssueForStart(req.issue!);
+  res.json({ success: true, issue_id: req.issue!.id, approved_to_start: true });
 });
 
 router.post("/:issueId/approve-merge", verifyIssueOwnership, (req, res) => {
-  const issue = req.issue!;
-
-  // Validate issue has a PR status
-  if (!issue.status.startsWith("pr_")) {
-    throw new ValidationError("Cannot approve merge — issue has no PR");
-  }
-
-  // Add to in-memory approval set
-  approveMerge(issue.id);
-
-  // Emit event so Captain can react
-  eventBus.emit("issue.approved_to_merge", {
-    issue_id: issue.id,
-    project_id: issue.project_id,
-  });
-
-  logger.info({ issueId: issue.id }, "Issue approved to merge");
-
-  res.json({
-    success: true,
-    issue_id: issue.id,
-    approved_to_merge: true,
-  });
+  approveIssueForMerge(req.issue!);
+  res.json({ success: true, issue_id: req.issue!.id, approved_to_merge: true });
 });
 
 export default router;
