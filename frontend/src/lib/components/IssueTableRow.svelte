@@ -38,8 +38,8 @@
 	tabindex="0"
 	onclick={(e) => { if ((e.target as HTMLElement).closest('button')) return; goto(`/projects/${projectId}/issues/${issue.id}`); }}
 	onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${projectId}/issues/${issue.id}`)}
-	class="issue-row grid {gridCols} border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group cursor-pointer {index % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
-	style="animation: fade-up 0.25s ease both; animation-delay: {index * 25}ms"
+	class="issue-row grid border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group cursor-pointer {index % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
+	style="grid-template-columns: {gridCols}; animation: fade-up 0.25s ease both; animation-delay: {index * 25}ms"
 >
 	<!-- Title -->
 	{#if visibleColumns.includes('title')}

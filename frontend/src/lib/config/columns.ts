@@ -64,8 +64,8 @@ export function saveVisibleColumns(columns: string[]): void {
 	localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
 }
 
-/** Compute grid-cols-[...] class from visible columns */
+/** Compute grid-template-columns style from visible columns */
 export function computeGridCols(visibleColumns: string[]): string {
 	const widths = COLUMN_CONFIG.filter((c) => visibleColumns.includes(c.key)).map((c) => c.width);
-	return `grid-cols-[${widths.join('_')}]`;
+	return widths.join(' ');
 }

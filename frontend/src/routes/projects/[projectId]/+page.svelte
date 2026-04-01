@@ -272,7 +272,7 @@
 		<!-- Desktop skeleton table -->
 		<div class="overflow-x-auto fade-up hidden md:block">
 			<div class="min-w-[560px] border border-edge rounded overflow-hidden">
-				<div class="{gridCols} grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+				<div class="grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge" style="grid-template-columns: {gridCols}">
 					{#if visibleColumns.includes('title')}<div class="px-3 py-2.5">Title</div>{/if}
 					{#if visibleColumns.includes('status')}<div class="px-3 py-2.5">Status</div>{/if}
 					{#if visibleColumns.includes('agent')}<div class="px-3 py-2.5">Agent</div>{/if}
@@ -284,8 +284,8 @@
 				{#each Array(8) as _, i}
 					{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 					<div
-						class="{gridCols} grid border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
-					style="animation-delay: {i * 30}ms"
+						class="grid border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+					style="grid-template-columns: {gridCols}; animation-delay: {i * 30}ms"
 					>
 						{#if visibleColumns.includes('title')}<div class="px-3 py-3 flex items-center gap-2"><div class="skeleton h-4 rounded" style="width: {skeletonWidths[i]}%"></div></div>{/if}
 						{#if visibleColumns.includes('status')}<div class="px-3 py-3 flex items-center"><div class="skeleton h-5 w-24 rounded"></div></div>{/if}
@@ -334,7 +334,7 @@
 		<div class="overflow-x-auto hidden md:block">
 				<div class="min-w-[560px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
-					<div class="grid {gridCols} text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+					<div class="grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge" style="grid-template-columns: {gridCols}">
 						{#if visibleColumns.includes('title')}<div class="px-3 py-2.5">Title</div>{/if}
 						{#if visibleColumns.includes('status')}
 							<button
