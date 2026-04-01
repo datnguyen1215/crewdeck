@@ -22,7 +22,7 @@
 	};
 
 	const variants: Record<string, string> = {
-		primary: 'border border-cyan text-cyan hover:bg-cyan/10 disabled:opacity-50 transition-colors',
+		primary: 'border border-cyan text-cyan disabled:opacity-50 transition-colors',
 		secondary: 'border border-edge text-secondary hover:text-primary hover:border-edge-hi disabled:opacity-50 transition-colors',
 		danger: 'bg-red text-white hover:bg-red/80 disabled:opacity-50 transition-colors',
 		ghost: 'text-secondary hover:text-primary disabled:opacity-50 transition-colors'
