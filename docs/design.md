@@ -573,7 +573,7 @@ On SIGTERM or SIGINT, the backend:
 
 ## Security and Access
 
-- GitHub authentication is managed in-app via Device Flow OAuth (Settings → GitHub Accounts). No host-level `gh auth login` is required.
+- GitHub authentication is managed in-app via Device Flow OAuth (Accounts page). No host-level `gh auth login` is required.
 - OAuth tokens are stored in SQLite and injected as `GH_TOKEN` into agent processes at spawn time. They are never persisted in `.git/config`.
 - Each project can be linked to a specific GitHub account, enabling per-project identity for git operations.
 - The system runs locally — no data leaves the machine except through GitHub API calls.
