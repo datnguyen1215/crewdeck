@@ -6,6 +6,7 @@
 	import { setContext } from 'svelte';
 	import type { WsEvent } from '$lib/api/ws.svelte.js';
 	import { listAgents, getProject, type Agent, type Project } from '$lib/api/http.js';
+	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 
 	let { children } = $props();
 
@@ -18,17 +19,15 @@
 	setContext('agents', () => agents);
 	setContext('project', () => project);
 
-	// Load project reactively when projectId changes
-	$effect(() => {
-		getProject(projectId)
-			.then(p => { project = p; })
-			.catch(() => toastStore.add('Failed to load project', 'error'));
+	fetchEffect(() => getProject(projectId), {
+		onData: (p) => { project = p; },
+		onError: 'Failed to load project',
 	});
 
-	// Load agents once
-	listAgents()
-		.then(a => { agents = a; })
-		.catch(() => toastStore.add('Failed to load agents', 'error'));
+	fetchEffect(() => listAgents(), {
+		onData: (a) => { agents = a; },
+		onError: 'Failed to load agents',
+	});
 
 	const EVENT_TOASTS: Partial<Record<WsEvent, (data: Record<string, unknown>) => { msg: string; type: 'info' | 'success' | 'warning' | 'error' } | null>> = {
 		'issue.created': (d) => ({ msg: `Issue created: ${d.title ?? 'New issue'}`, type: 'info' }),
