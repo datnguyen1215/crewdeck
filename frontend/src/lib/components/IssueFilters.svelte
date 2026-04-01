@@ -1,5 +1,6 @@
 <script lang="ts">
 	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
+	import ColumnSelector from '$lib/components/ColumnSelector.svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
 	import type { Agent } from '$lib/api/http.js';
 
@@ -10,7 +11,7 @@
 		sortField = $bindable<'created_at' | 'updated_at'>('created_at'),
 		sortDesc = $bindable(true),
 		showCompleted = $bindable(false),
-		showBaseBranch = $bindable(false),
+		visibleColumns = $bindable<string[]>([]),
 		agents,
 	}: {
 		searchQuery: string;
@@ -19,7 +20,7 @@
 		sortField: 'created_at' | 'updated_at';
 		sortDesc: boolean;
 		showCompleted: boolean;
-		showBaseBranch: boolean;
+		visibleColumns: string[];
 		agents: Agent[];
 	} = $props();
 
@@ -116,14 +117,7 @@
 			<span class="text-xs text-muted">Show completed</span>
 		</label>
 
-		<label class="flex items-center gap-2 cursor-pointer min-h-[36px] sm:min-h-0">
-			<input
-				type="checkbox"
-				bind:checked={showBaseBranch}
-				class="accent-cyan w-4 h-4"
-			/>
-			<span class="text-xs text-muted">Show base branch</span>
-		</label>
+		<ColumnSelector bind:visibleColumns />
 
 		<div class="sm:ml-auto">
 			<QueueMonitor />
