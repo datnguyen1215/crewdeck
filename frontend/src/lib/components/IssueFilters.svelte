@@ -173,8 +173,6 @@
 			</button>
 		</div>
 
-		<ColumnSelector bind:visibleColumns />
-
 		<div class="sm:ml-auto">
 			<QueueMonitor />
 		</div>
@@ -190,5 +188,7 @@
 			<input type="checkbox" checked={autoMerge} onchange={(e) => onCaptainToggle('auto_merge', (e.target as HTMLInputElement).checked)} class="accent-cyan w-4 h-4" />
 			<span class="text-xs text-muted">Auto-merge</span>
 		</label>
+
+		<ColumnSelector bind:visibleColumns />
 	</div>
 </div>
