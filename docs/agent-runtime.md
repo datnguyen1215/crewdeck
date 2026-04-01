@@ -125,7 +125,9 @@ captain reads issue comments and project state
 
 ### Truncated Issue ID Resolution
 
-Captain sometimes outputs truncated 8-character issue ID prefixes (e.g. `3d97b21f`) instead of full UUIDs in commands. The command handlers resolve these before executing:
+`backend/src/orchestration/issue-resolver.ts`
+
+Captain sometimes outputs truncated 8-character issue ID prefixes (e.g. `3d97b21f`) instead of full UUIDs in commands. Both `command-handlers.ts` and `plan-executor.ts` resolve these via the shared `resolveIssueId()` utility:
 
 1. Try exact match via `getIssue(id)`.
 2. If no match and the ID is shorter than 36 characters (full UUID length) but at least 8 characters, try a `LIKE prefix%` query scoped to the project via `getIssueByPrefix(prefix, projectId)`.

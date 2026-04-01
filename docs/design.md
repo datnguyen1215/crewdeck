@@ -316,6 +316,8 @@ Captain's output commands are parsed by the mention handler and executed via com
 
 Commands are restricted to captain-only (checked via `author_type === "captain"` in handler.ts).
 
+Truncated issue IDs (8+ character prefixes shorter than a full UUID) are resolved to full UUIDs before execution via `resolveIssueId()` in `backend/src/orchestration/issue-resolver.ts`. This utility is shared by both `command-handlers.ts` and `captain/plan-executor.ts`.
+
 **PTY Service** (`backend/src/orchestration/pty-service.ts`)
 
 - Manages persistent tmux sessions running Claude CLI for terminal access to captain chat.
@@ -352,6 +354,7 @@ Commands are restricted to captain-only (checked via `author_type === "captain"`
 - Versioned migration system (`_migrations` table) tracks which migrations have run. Each migration runs idempotently — it checks whether its changes are already present before executing, making it safe for both fresh and existing databases. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF`.
 - Standalone migration commands: `npm run migrate` (run migrations) and `npm run migrate:create -- description` (scaffold new migration).
 - Single file, no external dependencies, suitable for local-first operation.
+- Repository layer shared utilities (`backend/src/db/repositories/utils.ts`): `buildAndRunUpdate()` for generic UPDATE queries, `deserializeBoolean()` for SQLite 0/1 → JS boolean conversion, `deserializeJson()` for JSON string → object conversion.
 - See [Data Model](data-model.md) for the full schema.
 
 ## Event Bus
