@@ -27,7 +27,6 @@
 
 	// Filter state
 	let filterStatuses = $state<string[]>([]);
-	let filterAgent = $state('');
 	let showCompleted = $state(false);
 	let searchQuery = $state('');
 
@@ -90,11 +89,6 @@
 		}
 		if (filterStatuses.length > 0) {
 			result = result.filter((i) => filterStatuses.includes(i.status));
-		}
-		if (filterAgent === '__unassigned__') {
-			result = result.filter((i) => !i.agent_id);
-		} else if (filterAgent) {
-			result = result.filter((i) => i.agent_id === filterAgent);
 		}
 		result.sort((a, b) => {
 			const av = a[sortField];
@@ -168,12 +162,10 @@
 	<IssueFilters
 		bind:searchQuery
 		bind:filterStatuses
-		bind:filterAgent
 		bind:sortField
 		bind:sortDesc
 		bind:showCompleted
 		bind:visibleColumns
-		{agents}
 	/>
 
 	<!-- Table / Empty state -->
