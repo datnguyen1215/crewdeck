@@ -12,7 +12,7 @@ import { listComments } from "./comments.js";
 import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
-import { buildAndRunUpdate } from "./utils.js";
+import { buildAndRunUpdate, deserializeBoolean } from "./utils.js";
 import {
   listDependenciesBatchWithDetails,
   listDependentsBatchWithDetails,
@@ -23,7 +23,7 @@ function fromRowWithRunningAgent(
 ): IssueWithRunningAgent {
   return {
     ...(row as Omit<IssueWithRunningAgent, "paused">),
-    paused: Boolean(row.paused),
+    paused: deserializeBoolean(row.paused),
   };
 }
 
@@ -76,7 +76,7 @@ export function listIssues(
 function fromRow(row: Record<string, unknown>): Issue {
   return {
     ...(row as Omit<Issue, "paused">),
-    paused: Boolean(row.paused),
+    paused: deserializeBoolean(row.paused),
   };
 }
 

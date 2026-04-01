@@ -78,6 +78,14 @@ export function buildAndRunUpdate<T extends object>(
 }
 
 /**
+ * Convert a SQLite integer boolean column (0/1) to a JS boolean.
+ * Used by repository fromRow() functions to normalize SQLite integer-stored booleans.
+ */
+export function deserializeBoolean(value: unknown): boolean {
+  return Boolean(value);
+}
+
+/**
  * Parse a JSON string column into its deserialized value, returning null for
  * null/undefined inputs. Used by repository fromRow() functions to convert
  * stringified JSON columns back into objects.
