@@ -151,6 +151,8 @@
 				bind:value={sortField}
 				class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-2 sm:py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none min-h-[36px] sm:min-h-0"
 			>
+				<option value="status">Status</option>
+				<option value="agent">Agent</option>
 				<option value="created_at">Created</option>
 				<option value="updated_at">Updated</option>
 				<option value="status">Status</option>
