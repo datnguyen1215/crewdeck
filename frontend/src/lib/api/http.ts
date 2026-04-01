@@ -21,6 +21,7 @@ import type {
   CaptainStatus,
   GlobalConfig,
   Provider,
+  GlobalEnvironmentVariable,
 } from "./types.js";
 
 export type {
@@ -50,6 +51,7 @@ export type {
   CaptainStatus,
   GlobalConfig,
   Provider,
+  GlobalEnvironmentVariable,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -490,4 +492,36 @@ export function setProvider(provider: Provider): Promise<GlobalConfig> {
 }
 export function isGlmAvailable(): Promise<{ available: boolean }> {
   return request("GET", "/global-config/glm-available");
+}
+
+// Global Environment Variables
+export function listGlobalEnvironmentVariables() {
+  return request<GlobalEnvironmentVariable[]>(
+    "GET",
+    "/global-config/environment",
+  );
+}
+export function createGlobalEnvironmentVariable(data: {
+  key: string;
+  value: string;
+  is_secret?: boolean;
+}) {
+  return request<GlobalEnvironmentVariable>(
+    "POST",
+    "/global-config/environment",
+    data,
+  );
+}
+export function updateGlobalEnvironmentVariable(
+  envVarId: string,
+  data: { key?: string; value?: string; is_secret?: boolean },
+) {
+  return request<GlobalEnvironmentVariable>(
+    "PATCH",
+    `/global-config/environment/${e(envVarId)}`,
+    data,
+  );
+}
+export function deleteGlobalEnvironmentVariable(envVarId: string) {
+  return request<void>("DELETE", `/global-config/environment/${e(envVarId)}`);
 }

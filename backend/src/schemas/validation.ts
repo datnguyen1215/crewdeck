@@ -145,3 +145,28 @@ export const UpdateKnowledgeSchema = z.object({
   content: z.string().min(1).optional(),
   source: z.string().nullable().optional(),
 });
+
+export const CreateGlobalEnvironmentVariableSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .regex(
+      /^[A-Za-z_][A-Za-z0-9_]*$/,
+      "Must be a valid environment variable name",
+    ),
+  value: z.string(),
+  is_secret: z.boolean().optional(),
+});
+
+export const UpdateGlobalEnvironmentVariableSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .regex(
+      /^[A-Za-z_][A-Za-z0-9_]*$/,
+      "Must be a valid environment variable name",
+    )
+    .optional(),
+  value: z.string().optional(),
+  is_secret: z.boolean().optional(),
+});
