@@ -29,6 +29,7 @@ import {
   extractActionPlanFromText,
 } from "./action-plan-extractor.js";
 import { PROCESS_GRACE_PERIOD_MS } from "../../config/orchestration.js";
+import * as globalEnvVarRepo from "../../db/repositories/global-environment-variables.js";
 
 /**
  * Set up GitHub auth environment variables for Captain.
@@ -173,6 +174,7 @@ export const processWithLLM = async (
   }
 
   const env: Record<string, string> = {
+    ...globalEnvVarRepo.getMap(),
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: "captain",

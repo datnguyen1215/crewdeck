@@ -183,6 +183,27 @@ export interface UpdateEnvironmentVariableInput {
   is_secret?: boolean;
 }
 
+export interface GlobalEnvironmentVariable {
+  id: string;
+  key: string;
+  value: string;
+  is_secret: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateGlobalEnvironmentVariableInput {
+  key: string;
+  value: string;
+  is_secret?: boolean;
+}
+
+export interface UpdateGlobalEnvironmentVariableInput {
+  key?: string;
+  value?: string;
+  is_secret?: boolean;
+}
+
 // Composite types
 export interface ProjectWithStats extends Project {
   repo_count: number;
@@ -232,6 +253,7 @@ export interface UpdateProjectInput {
 export interface AgentConfig {
   id: string;
   agent_id: string;
+  provider: string;
   model: string | null;
 }
 

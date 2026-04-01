@@ -124,6 +124,6 @@ docker compose logs -f frontend
 
 ## Troubleshooting
 
-**GitHub authentication**: GitHub accounts are added in-app (Settings → GitHub Accounts) by providing an SSH private key and a Personal Access Token (PAT) with `repo` and `workflow` scopes. Each project links to an account for per-project credential isolation. You do not need `gh auth login` or machine-wide SSH config on your host.
+**GitHub authentication**: GitHub accounts are added in-app (Accounts page) by providing an SSH private key and a Personal Access Token (PAT) with `repo` and `workflow` scopes. Each project links to an account for per-project credential isolation. You do not need `gh auth login` or machine-wide SSH config on your host.
 
 **Claude Code not working**: Ensure `~/.claude` exists on your host with valid configuration.

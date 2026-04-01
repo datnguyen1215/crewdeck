@@ -15,6 +15,7 @@ import runsRouter from "./routes/runs.js";
 import knowledgeRouter from "./routes/knowledge.js";
 import agentConfigRouter from "./routes/agent-config.js";
 import globalConfigRouter from "./routes/global-config.js";
+import globalEnvironmentRouter from "./routes/global-environment.js";
 import terminalRouter from "./routes/terminal.js";
 import chatRouter from "./routes/chat.js";
 
@@ -49,6 +50,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/projects/:projectId/knowledge`, knowledgeRouter);
   app.use(`${v1}/agent-config`, agentConfigRouter);
   app.use(`${v1}/global-config`, globalConfigRouter);
+  app.use(`${v1}/global-config/environment`, globalEnvironmentRouter);
   app.use(`${v1}/projects/:projectId`, terminalRouter);
   app.use(`${v1}/projects/:projectId`, chatRouter);
   app.use(`${v1}/internal`, internalRouter);

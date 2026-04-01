@@ -26,8 +26,6 @@
 	let maxConcurrency = $state(1);
 	let maxChainDepth = $state(20);
 	let agentTimeoutMinutes = $state(10);
-	let autoStart = $state(false);
-	let autoMerge = $state(false);
 
 	// Environment variables state
 	let envVars = $state<EnvironmentVariable[]>([]);
@@ -55,8 +53,6 @@
 				maxConcurrency = p.max_concurrency;
 				maxChainDepth = p.max_chain_depth;
 				agentTimeoutMinutes = p.agent_timeout_minutes;
-				autoStart = p.auto_start;
-				autoMerge = p.auto_merge;
 			},
 			onError: 'Failed to load project',
 			onLoading: (v) => { loading = v; },
@@ -152,9 +148,7 @@
 			defaultBaseBranch !== (project.default_base_branch ?? 'main') ||
 			maxConcurrency !== project.max_concurrency ||
 			maxChainDepth !== project.max_chain_depth ||
-			agentTimeoutMinutes !== project.agent_timeout_minutes ||
-			autoStart !== project.auto_start ||
-			autoMerge !== project.auto_merge
+			agentTimeoutMinutes !== project.agent_timeout_minutes
 		)
 	);
 
@@ -169,8 +163,6 @@
 				max_concurrency: Number(maxConcurrency),
 				max_chain_depth: Number(maxChainDepth),
 				agent_timeout_minutes: Number(agentTimeoutMinutes),
-				auto_start: autoStart,
-				auto_merge: autoMerge,
 			});
 			project = updated;
 			name = updated.name;
@@ -179,8 +171,6 @@
 			maxConcurrency = updated.max_concurrency;
 			maxChainDepth = updated.max_chain_depth;
 			agentTimeoutMinutes = updated.agent_timeout_minutes;
-			autoStart = updated.auto_start;
-			autoMerge = updated.auto_merge;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -197,8 +187,6 @@
 		maxConcurrency = project.max_concurrency;
 		maxChainDepth = project.max_chain_depth;
 		agentTimeoutMinutes = project.agent_timeout_minutes;
-		autoStart = project.auto_start;
-		autoMerge = project.auto_merge;
 	}
 </script>
 
@@ -257,25 +245,6 @@
 					<label for="settings-agent-timeout" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Agent Timeout (minutes)</label>
 					<input id="settings-agent-timeout" type="number" bind:value={agentTimeoutMinutes} min="1" max="60" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
 					<p class="text-muted text-xs mt-1">Maximum time an agent can run before being terminated (1-60 minutes)</p>
-				</div>
-
-				<!-- Captain Settings -->
-				<div class="space-y-3">
-					<h3 class="text-xs text-muted uppercase tracking-widest">Captain</h3>
-					<label class="flex items-center gap-3 cursor-pointer">
-						<input type="checkbox" bind:checked={autoStart} class="accent-cyan w-4 h-4" />
-						<div>
-							<span class="text-sm text-primary">Auto-start issues</span>
-							<p class="text-xs text-muted">Captain automatically dispatches agents for new issues</p>
-						</div>
-					</label>
-					<label class="flex items-center gap-3 cursor-pointer">
-						<input type="checkbox" bind:checked={autoMerge} class="accent-cyan w-4 h-4" />
-						<div>
-							<span class="text-sm text-primary">Auto-merge PRs</span>
-							<p class="text-xs text-muted">Captain automatically merges PRs when checks pass</p>
-						</div>
-					</label>
 				</div>
 
 				<div class="flex gap-3 mt-2">

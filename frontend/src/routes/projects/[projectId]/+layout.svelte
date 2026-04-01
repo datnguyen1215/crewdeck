@@ -6,6 +6,7 @@
 	import { setContext } from 'svelte';
 	import type { WsEvent } from '$lib/api/ws.svelte.js';
 	import { listAgents, getProject, type Agent, type Project } from '$lib/api/http.js';
+	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 
 	let { children } = $props();
 
@@ -18,17 +19,15 @@
 	setContext('agents', () => agents);
 	setContext('project', () => project);
 
-	// Load project reactively when projectId changes
-	$effect(() => {
-		getProject(projectId)
-			.then(p => { project = p; })
-			.catch(() => toastStore.add('Failed to load project', 'error'));
+	fetchEffect(() => getProject(projectId), {
+		onData: (p) => { project = p; },
+		onError: 'Failed to load project',
 	});
 
-	// Load agents once
-	listAgents()
-		.then(a => { agents = a; })
-		.catch(() => toastStore.add('Failed to load agents', 'error'));
+	fetchEffect(() => listAgents(), {
+		onData: (a) => { agents = a; },
+		onError: 'Failed to load agents',
+	});
 
 	const EVENT_TOASTS: Partial<Record<WsEvent, (data: Record<string, unknown>) => { msg: string; type: 'info' | 'success' | 'warning' | 'error' } | null>> = {
 		'issue.created': (d) => ({ msg: `Issue created: ${d.title ?? 'New issue'}`, type: 'info' }),
@@ -87,7 +86,7 @@
 </script>
 
 {#if ws && (ws.state === 'reconnecting' || ws.state === 'connecting')}
-	<div class="fixed top-0 left-0 right-0 z-[300] flex items-center justify-center gap-2 py-1 bg-amber/10 border-b border-amber/30 text-amber text-xs">
+	<div class="fixed top-0 left-0 right-0 z-[300] flex items-center justify-center gap-2 py-1 bg-amber/10 border-b border-amber/30 text-amber text-xs" style="view-transition-name: none">
 		<span class="inline-block w-1.5 h-1.5 rounded-full bg-amber animate-pulse"></span>
 		{ws.state === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
 	</div>

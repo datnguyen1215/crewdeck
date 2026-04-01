@@ -8,7 +8,8 @@
 		issue,
 		projectId,
 		agentMap,
-		showBaseBranch,
+		visibleColumns,
+		gridCols,
 		project,
 		isDispatching,
 		ondispatch,
@@ -17,7 +18,8 @@
 		issue: IssueWithRunningAgent;
 		projectId: string;
 		agentMap: Record<string, string>;
-		showBaseBranch: boolean;
+		visibleColumns: string[];
+		gridCols: string;
 		project: Project | null;
 		isDispatching: boolean;
 		ondispatch: (e: MouseEvent, issue: IssueWithRunningAgent) => void;
@@ -29,7 +31,6 @@
 	const isQueued = $derived(issue.running_agent_status === 'queued');
 	const hasActiveAgent = $derived(issue.running_agent_status === 'running' || issue.running_agent_status === 'queued');
 	const canDispatch = $derived(!hasActiveAgent && !isDispatching);
-	const gridCols = $derived(showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]');
 </script>
 
 <div
@@ -41,6 +42,7 @@
 	style="animation: fade-up 0.25s ease both; animation-delay: {index * 25}ms"
 >
 	<!-- Title -->
+	{#if visibleColumns.includes('title')}
 	<div class="px-3 py-3 self-center min-w-0">
 		<p class="text-primary text-sm truncate group-hover:text-cyan transition-colors flex items-center gap-2">
 			{#if issue.paused}
@@ -67,8 +69,10 @@
 			</div>
 		{/if}
 	</div>
+	{/if}
 
 	<!-- Status badge -->
+	{#if visibleColumns.includes('status')}
 	<div class="px-3 py-3 self-center">
 		<span
 			class="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded border {cfg.text} {cfg.border} {cfg.pulse ? 'badge-pulse' : ''}"
@@ -78,8 +82,10 @@
 			{cfg.label}
 		</span>
 	</div>
+	{/if}
 
 	<!-- Agent -->
+	{#if visibleColumns.includes('agent')}
 	<div class="px-3 py-3 self-center">
 		{#if runningAgentName}
 			<span class="text-sm truncate block {isQueued ? 'text-muted' : 'text-cyan'}">
@@ -89,22 +95,35 @@
 			<span class="text-sm text-muted truncate block">—</span>
 		{/if}
 	</div>
+	{/if}
 
 	<!-- Base branch (optional column) -->
-	{#if showBaseBranch}
-		<div class="px-3 py-3 self-center">
-			<span class="text-xs font-mono text-muted truncate block">{issue.base_branch ?? (project?.default_base_branch ?? 'main')}</span>
-		</div>
+	{#if visibleColumns.includes('baseBranch')}
+	<div class="px-3 py-3 self-center">
+		<span class="text-xs font-mono text-muted truncate block">{issue.base_branch ?? (project?.default_base_branch ?? 'main')}</span>
+	</div>
 	{/if}
 
 	<!-- Age -->
+	{#if visibleColumns.includes('age')}
 	<div class="px-3 py-3 self-center text-right">
 		<span class="text-xs text-muted font-mono" title={fullTime(issue.created_at)}>
 			{smartTimeDiff(issue.created_at)}
 		</span>
 	</div>
+	{/if}
+
+	<!-- Updated -->
+	{#if visibleColumns.includes('updated')}
+	<div class="px-3 py-3 self-center text-right">
+		<span class="text-xs text-muted font-mono" title={fullTime(issue.updated_at)}>
+			{smartTimeDiff(issue.updated_at)}
+		</span>
+	</div>
+	{/if}
 
 	<!-- Dispatch button -->
+	{#if visibleColumns.includes('dispatch')}
 	<div class="px-2 py-3 self-center">
 		<button
 			onclick={(e) => ondispatch(e, issue)}
@@ -123,6 +142,7 @@
 			{/if}
 		</button>
 	</div>
+	{/if}
 </div>
 
 <style>

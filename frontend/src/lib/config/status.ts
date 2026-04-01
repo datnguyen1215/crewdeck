@@ -64,6 +64,9 @@ export const RUN_STATUS_CFG: Record<string, { label: string; class: string; puls
 	timeout: { label: 'Timeout', class: 'text-amber border-amber' }
 };
 
+/** Workflow order for sorting: Open → In Progress → PR Created → PR Conflict → CI Failed → Ready to Merge → Done */
+export const STATUS_ORDER = ['open', 'in_progress', 'pr_created', 'pr_conflict', 'pr_failed_actions', 'pr_ready_to_merge', 'done'];
+
 export const PR_STATUS: Record<string, string> = {
 	open: 'text-green border-green',
 	merged: 'text-purple border-purple',

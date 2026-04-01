@@ -8,7 +8,7 @@
 		issue,
 		projectId,
 		agentMap,
-		showBaseBranch,
+		visibleColumns,
 		project,
 		isDispatching,
 		ondispatch,
@@ -17,7 +17,7 @@
 		issue: IssueWithRunningAgent;
 		projectId: string;
 		agentMap: Record<string, string>;
-		showBaseBranch: boolean;
+		visibleColumns: string[];
 		project: Project | null;
 		isDispatching: boolean;
 		ondispatch: (e: MouseEvent, issue: IssueWithRunningAgent) => void;
@@ -71,19 +71,25 @@
 			<span class="leading-none">{cfg.dot}</span>
 			{cfg.label}
 		</span>
-		{#if runningAgentName}
+		{#if runningAgentName && visibleColumns.includes('agent')}
 			<span class="text-xs {isQueued ? 'text-muted' : 'text-cyan'}">
 				{runningAgentName}
 			</span>
 		{/if}
-		<span class="text-xs text-muted font-mono ml-auto" title={fullTime(issue.created_at)}>
-			{smartTimeDiff(issue.created_at)}
-		</span>
+		{#if visibleColumns.includes('updated')}
+			<span class="text-xs text-muted font-mono ml-auto" title={fullTime(issue.updated_at)}>
+				{smartTimeDiff(issue.updated_at)}
+			</span>
+		{:else if visibleColumns.includes('age')}
+			<span class="text-xs text-muted font-mono ml-auto" title={fullTime(issue.created_at)}>
+				{smartTimeDiff(issue.created_at)}
+			</span>
+		{/if}
 	</div>
 	{#if issue.created_by === 'agent'}
 		<p class="text-muted text-xs mt-2">proposed by agent</p>
 	{/if}
-	{#if showBaseBranch}
+	{#if visibleColumns.includes('baseBranch')}
 		<p class="text-muted text-xs mt-1 font-mono">→ {issue.base_branch ?? (project?.default_base_branch ?? 'main')}</p>
 	{/if}
 	{#if issue.dependencies.length > 0}

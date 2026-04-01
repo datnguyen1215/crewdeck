@@ -40,21 +40,40 @@
 		return () => { cancelled = true; };
 	});
 
+	// Model options per provider
+	const CLAUDE_MODELS = [
+		{ value: '', label: 'Default (Sonnet)' },
+		{ value: 'sonnet', label: 'Sonnet' },
+		{ value: 'opus', label: 'Opus' },
+		{ value: 'haiku', label: 'Haiku' }
+	];
+	const GLM_MODELS = [
+		{ value: '', label: 'Default (GLM-5-Turbo)' },
+		{ value: 'glm-5.1', label: 'GLM-5.1' },
+		{ value: 'glm-5', label: 'GLM-5' },
+		{ value: 'glm-5-turbo', label: 'GLM-5-Turbo' },
+		{ value: 'glm-4.7', label: 'GLM-4.7' }
+	];
+
+	function getModelOptions() {
+		return currentProvider === 'glm' ? GLM_MODELS : CLAUDE_MODELS;
+	}
+
 	function getAgentModel(agentId: string): string {
-		return configs.find(c => c.agent_id === agentId)?.model ?? '';
+		return configs.find(c => c.agent_id === agentId && c.provider === currentProvider)?.model ?? '';
 	}
 
 	async function onModelChange(agentId: string, value: string) {
 		saving = { ...saving, [agentId]: true };
 		try {
 			if (value === '') {
-				await deleteAgentConfig(agentId);
-				configs = configs.filter(c => c.agent_id !== agentId);
+				await deleteAgentConfig(agentId, currentProvider);
+				configs = configs.filter(c => !(c.agent_id === agentId && c.provider === currentProvider));
 			} else {
-				const updated = await setAgentModel(agentId, value);
-				const idx = configs.findIndex(c => c.agent_id === agentId);
+				const updated = await setAgentModel(agentId, currentProvider, value);
+				const idx = configs.findIndex(c => c.agent_id === agentId && c.provider === currentProvider);
 				if (idx >= 0) {
-					configs = configs.map(c => c.agent_id === agentId ? updated : c);
+					configs = configs.map(c => (c.agent_id === agentId && c.provider === currentProvider) ? updated : c);
 				} else {
 					configs = [...configs, updated];
 				}
@@ -157,9 +176,9 @@
 							disabled={saving[agent.id]}
 							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
 						>
-							<option value="">Default (Sonnet)</option>
-							<option value="sonnet">Sonnet</option>
-							<option value="opus">Opus</option>
+							{#each getModelOptions() as opt (opt.value)}
+								<option value={opt.value}>{opt.label}</option>
+							{/each}
 						</select>
 					</div>
 				</div>

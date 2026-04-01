@@ -7,6 +7,7 @@ import * as issueRepo from "../db/repositories/issues.js";
 import * as commentRepo from "../db/repositories/comments.js";
 import * as knowledgeRepo from "../db/repositories/knowledge.js";
 import * as envVarRepo from "../db/repositories/environment-variables.js";
+import * as globalEnvVarRepo from "../db/repositories/global-environment-variables.js";
 import * as repoRepo from "../db/repositories/repos.js";
 import * as agentWorktree from "./worktree.js";
 import * as log from "../logger.js";
@@ -27,9 +28,12 @@ export function buildAgentEnvironment(
   sshKeyPath?: string;
   creds: ReturnType<typeof getProjectCredentials>;
 } {
-  const envVars = envVarRepo.getEnvironmentVariablesMap(projectId);
+  // Merge env vars: process.env < global env vars < project env vars
+  const globalEnvVars = globalEnvVarRepo.getMap();
+  const projectEnvVars = envVarRepo.getEnvironmentVariablesMap(projectId);
   const env: Record<string, string> = {
-    ...envVars,
+    ...globalEnvVars,
+    ...projectEnvVars,
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: agentId,

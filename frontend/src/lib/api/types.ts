@@ -123,6 +123,7 @@ export interface VCSAccount {
   id: string;
   account_name: string;
   username: string;
+  provider?: string;
   created_at: string;
 }
 
@@ -211,6 +212,7 @@ export interface ChatMessage {
 export interface AgentConfig {
   id: string;
   agent_id: string;
+  provider: string;
   model: string | null;
 }
 
@@ -236,6 +238,15 @@ export type Provider = "claude" | "glm";
 
 export interface GlobalConfig {
   provider: Provider;
+}
+
+export interface GlobalEnvironmentVariable {
+  id: string;
+  key: string;
+  value: string;
+  is_secret: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)

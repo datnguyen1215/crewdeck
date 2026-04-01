@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, createIssue, approveIssueStart, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
+	import { listIssues, createIssue, approveIssueStart, getProject, updateProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import ActivityTerminal from '$lib/components/ActivityTerminal.svelte';
@@ -12,6 +12,8 @@
 	import { createFormState } from '$lib/utils/form.svelte.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
+	import { loadVisibleColumns, saveVisibleColumns, computeGridCols } from '$lib/config/columns.js';
+	import { STATUS_ORDER } from '$lib/config/status.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	const getAgents = getContext<() => Agent[]>('agents');
@@ -25,26 +27,81 @@
 	let pageTitle = $derived(project?.name ? `${project.name} - CrewDeck` : 'CrewDeck');
 
 	// Filter state
-	let filterStatuses = $state<string[]>([]);
-	let filterAgent = $state('');
-	let showCompleted = $state(false);
 	let searchQuery = $state('');
 
+	function parseSearchQuery(query: string): { statuses: string[]; paused: boolean | null; text: string } {
+		let statuses: string[] = [];
+		let paused: boolean | null = null;
+		const remaining: string[] = [];
+
+		const tokens = query.match(/\S+/g) ?? [];
+		for (const token of tokens) {
+			const statusMatch = token.match(/^status:([\w,]+)$/);
+			if (statusMatch) {
+				statuses = statusMatch[1].split(',');
+				continue;
+			}
+			const pausedMatch = token.match(/^paused:(true|false)$/);
+			if (pausedMatch) {
+				paused = pausedMatch[1] === 'true';
+				continue;
+			}
+			remaining.push(token);
+		}
+
+		return { statuses, paused, text: remaining.join(' ') };
+	}
+
 	// Sort state — newest first by default
-	let sortField = $state<'created_at' | 'updated_at'>('created_at');
+	type SortField = 'created_at' | 'updated_at' | 'status' | 'agent';
+	let sortField = $state<SortField>('created_at');
 	let sortDesc = $state(true);
 
-	// Base branch column toggle — persisted in localStorage
-	let showBaseBranch = $state(
-		typeof localStorage !== 'undefined'
-			? localStorage.getItem('crewdeck:showBaseBranch') === 'true'
-			: false
-	);
-	$effect(() => {
-		if (typeof localStorage !== 'undefined') {
-			localStorage.setItem('crewdeck:showBaseBranch', String(showBaseBranch));
+	function handleSortClick(field: SortField) {
+		if (sortField === field) {
+			sortDesc = !sortDesc;
+		} else {
+			sortField = field;
+			sortDesc = true;
 		}
+	}
+
+	// Captain toggle state — synced from project; user changes persisted via onchange
+	let autoStart = $state(false);
+	let autoMerge = $state(false);
+	let syncingCaptain = $state(false);
+
+	// Sync toggles from project on load/refresh (project is the only reactive dependency)
+	$effect(() => {
+		if (!project) return;
+		autoStart = project.auto_start;
+		autoMerge = project.auto_merge;
 	});
+
+	async function handleCaptainToggle(field: 'auto_start' | 'auto_merge', value: boolean) {
+		if (!project || syncingCaptain) return;
+		const label = field === 'auto_start' ? 'Auto-start' : 'Auto-merge';
+		syncingCaptain = true;
+		try {
+			const updated = await updateProject(project.id, { [field]: value });
+			project = updated;
+			toastStore.add(`${label} ${value ? 'enabled' : 'disabled'}`, 'success');
+		} catch {
+			// Revert to current server value
+			if (field === 'auto_start') autoStart = project.auto_start;
+			else autoMerge = project.auto_merge;
+			toastStore.add(`Failed to update ${label.toLowerCase()}`, 'error');
+		} finally {
+			syncingCaptain = false;
+		}
+	}
+
+	// Column visibility — persisted in localStorage
+	let visibleColumns = $state<string[]>(loadVisibleColumns());
+	$effect(() => {
+		saveVisibleColumns(visibleColumns);
+	});
+	let gridCols = $derived(computeGridCols(visibleColumns));
 
 	// Modal state
 	const form = createFormState({ title: '', description: '' });
@@ -81,29 +138,37 @@
 	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
 
 	let filtered = $derived.by(() => {
+		const { statuses, paused, text } = parseSearchQuery(searchQuery);
 		let result = [...issues];
-		if (searchQuery.trim()) {
-			const q = searchQuery.toLowerCase();
+		if (text) {
+			const q = text.toLowerCase();
 			result = result.filter((i) =>
 				i.title.toLowerCase().includes(q) ||
 				(i.description && i.description.toLowerCase().includes(q))
 			);
 		}
-		if (!showCompleted && !filterStatuses.includes('done')) {
+		if (statuses.length > 0) {
+			result = result.filter((i) => statuses.includes(i.status));
+		} else if (searchQuery.trim() === '') {
+			// Default: hide done unless explicitly queried
 			result = result.filter((i) => i.status !== 'done');
 		}
-		if (filterStatuses.length > 0) {
-			result = result.filter((i) => filterStatuses.includes(i.status));
-		}
-		if (filterAgent === '__unassigned__') {
-			result = result.filter((i) => !i.agent_id);
-		} else if (filterAgent) {
-			result = result.filter((i) => i.agent_id === filterAgent);
+		if (paused !== null) {
+			result = result.filter((i) => (i.paused ? true : false) === paused);
 		}
 		result.sort((a, b) => {
-			const av = a[sortField];
-			const bv = b[sortField];
-			const cmp = av > bv ? 1 : av < bv ? -1 : 0;
+			let cmp: number;
+			if (sortField === 'status') {
+				cmp = STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
+			} else if (sortField === 'agent') {
+				const an = agentMap[a.agent_id ?? ''] ?? '';
+				const bn = agentMap[b.agent_id ?? ''] ?? '';
+				cmp = an.localeCompare(bn);
+			} else {
+				const av = a[sortField];
+				const bv = b[sortField];
+				cmp = av > bv ? 1 : av < bv ? -1 : 0;
+			}
 			return sortDesc ? -cmp : cmp;
 		});
 		return result;
@@ -182,13 +247,12 @@
 	<!-- Filters -->
 	<IssueFilters
 		bind:searchQuery
-		bind:filterStatuses
-		bind:filterAgent
 		bind:sortField
 		bind:sortDesc
-		bind:showCompleted
-		bind:showBaseBranch
-		{agents}
+		bind:visibleColumns
+		{autoStart}
+		{autoMerge}
+		onCaptainToggle={handleCaptainToggle}
 	/>
 
 	<!-- Table / Empty state -->
@@ -208,34 +272,28 @@
 		<!-- Desktop skeleton table -->
 		<div class="overflow-x-auto fade-up hidden md:block">
 			<div class="min-w-[560px] border border-edge rounded overflow-hidden">
-				<div class="{showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
-					<div class="px-3 py-2.5">Title</div>
-					<div class="px-3 py-2.5">Status</div>
-					<div class="px-3 py-2.5">Agent</div>
-					{#if showBaseBranch}<div class="px-3 py-2.5">Base</div>{/if}
-					<div class="px-3 py-2.5 text-right">Age</div>
-					<div class="px-2 py-2.5"></div>
+				<div class="{gridCols} grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+					{#if visibleColumns.includes('title')}<div class="px-3 py-2.5">Title</div>{/if}
+					{#if visibleColumns.includes('status')}<div class="px-3 py-2.5">Status</div>{/if}
+					{#if visibleColumns.includes('agent')}<div class="px-3 py-2.5">Agent</div>{/if}
+					{#if visibleColumns.includes('baseBranch')}<div class="px-3 py-2.5">Base</div>{/if}
+					{#if visibleColumns.includes('age')}<div class="px-3 py-2.5 text-right">Age</div>{/if}
+					{#if visibleColumns.includes('updated')}<div class="px-3 py-2.5 text-right">Updated</div>{/if}
+					{#if visibleColumns.includes('dispatch')}<div class="px-2 py-2.5"></div>{/if}
 				</div>
 				{#each Array(8) as _, i}
 					{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 					<div
-						class="{showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} grid border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						class="{gridCols} grid border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
 					style="animation-delay: {i * 30}ms"
 					>
-						<div class="px-3 py-3 flex items-center gap-2">
-							<div class="skeleton h-4 rounded" style="width: {skeletonWidths[i]}%"></div>
-						</div>
-						<div class="px-3 py-3 flex items-center">
-							<div class="skeleton h-5 w-24 rounded"></div>
-						</div>
-						<div class="px-3 py-3 flex items-center">
-							<div class="skeleton h-4 w-16 rounded"></div>
-						</div>
-						{#if showBaseBranch}<div class="px-3 py-3 flex items-center"><div class="skeleton h-4 w-12 rounded"></div></div>{/if}
-						<div class="px-3 py-3 flex items-center justify-end">
-							<div class="skeleton h-3 w-8 rounded"></div>
-						</div>
-						<div class="px-2 py-3"></div>
+						{#if visibleColumns.includes('title')}<div class="px-3 py-3 flex items-center gap-2"><div class="skeleton h-4 rounded" style="width: {skeletonWidths[i]}%"></div></div>{/if}
+						{#if visibleColumns.includes('status')}<div class="px-3 py-3 flex items-center"><div class="skeleton h-5 w-24 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('agent')}<div class="px-3 py-3 flex items-center"><div class="skeleton h-4 w-16 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('baseBranch')}<div class="px-3 py-3 flex items-center"><div class="skeleton h-4 w-12 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('age')}<div class="px-3 py-3 flex items-center justify-end"><div class="skeleton h-3 w-8 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('updated')}<div class="px-3 py-3 flex items-center justify-end"><div class="skeleton h-3 w-10 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('dispatch')}<div class="px-2 py-3"></div>{/if}
 					</div>
 				{/each}
 			</div>
@@ -263,7 +321,7 @@
 					{issue}
 					{projectId}
 					{agentMap}
-					{showBaseBranch}
+					{visibleColumns}
 					{project}
 					isDispatching={dispatchingIssues.has(issue.id)}
 					ondispatch={handleDispatch}
@@ -276,17 +334,46 @@
 		<div class="overflow-x-auto hidden md:block">
 				<div class="min-w-[560px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
-					<div
-						class="grid {showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
-					>
-						<div class="px-3 py-2.5">Title</div>
-						<div class="px-3 py-2.5">Status</div>
-						<div class="px-3 py-2.5">Agent</div>
-						{#if showBaseBranch}
-							<div class="px-3 py-2.5">Base</div>
+					<div class="grid {gridCols} text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+						{#if visibleColumns.includes('title')}<div class="px-3 py-2.5">Title</div>{/if}
+						{#if visibleColumns.includes('status')}
+							<button
+								type="button"
+								onclick={() => handleSortClick('status')}
+								class="px-3 py-2.5 text-left cursor-pointer hover:text-primary transition-colors flex items-center gap-1 {sortField === 'status' ? 'text-cyan' : ''}"
+							>
+								Status{#if sortField === 'status'}{sortDesc ? '▼' : '▲'}{/if}
+							</button>
 						{/if}
-						<div class="px-3 py-2.5 text-right">Age</div>
-						<div class="px-2 py-2.5"></div>
+						{#if visibleColumns.includes('agent')}
+							<button
+								type="button"
+								onclick={() => handleSortClick('agent')}
+								class="px-3 py-2.5 text-left cursor-pointer hover:text-primary transition-colors flex items-center gap-1 {sortField === 'agent' ? 'text-cyan' : ''}"
+							>
+								Agent{#if sortField === 'agent'}{sortDesc ? '▼' : '▲'}{/if}
+							</button>
+						{/if}
+						{#if visibleColumns.includes('baseBranch')}<div class="px-3 py-2.5">Base</div>{/if}
+						{#if visibleColumns.includes('age')}
+							<button
+								type="button"
+								onclick={() => handleSortClick('created_at')}
+								class="px-3 py-2.5 text-right cursor-pointer hover:text-primary transition-colors flex items-center justify-end gap-1 {sortField === 'created_at' ? 'text-cyan' : ''}"
+							>
+								Age{#if sortField === 'created_at'}{sortDesc ? '▼' : '▲'}{/if}
+							</button>
+						{/if}
+						{#if visibleColumns.includes('updated')}
+							<button
+								type="button"
+								onclick={() => handleSortClick('updated_at')}
+								class="px-3 py-2.5 text-right cursor-pointer hover:text-primary transition-colors flex items-center justify-end gap-1 {sortField === 'updated_at' ? 'text-cyan' : ''}"
+							>
+								Updated{#if sortField === 'updated_at'}{sortDesc ? '▼' : '▲'}{/if}
+							</button>
+						{/if}
+						{#if visibleColumns.includes('dispatch')}<div class="px-2 py-2.5"></div>{/if}
 					</div>
 
 					<!-- Rows -->
@@ -295,7 +382,8 @@
 							{issue}
 							{projectId}
 							{agentMap}
-							{showBaseBranch}
+							{visibleColumns}
+							{gridCols}
 							{project}
 							isDispatching={dispatchingIssues.has(issue.id)}
 							ondispatch={handleDispatch}
