@@ -6,6 +6,7 @@
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { MonitorEntry, WsEventMap } from '$lib/api/types.js';
+	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import { md } from '$lib/utils/markdown.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
@@ -114,16 +115,14 @@
 			monitorEntries = monitorEntries.filter(e => e.type !== 'thinking');
 		};
 
-		const unsubs = [
-			ws.on('monitor.event_received', handleEventReceived),
-			ws.on('monitor.thinking', handleThinking),
-			ws.on('monitor.message', handleMessage),
-			ws.on('monitor.tool_call', handleToolCall),
-			ws.on('monitor.tool_result', handleToolResult),
-			ws.on('monitor.complete', handleComplete),
-		];
-
-		return () => unsubs.forEach((fn) => fn());
+		return useWsSubscriptions(ws, {
+			'monitor.event_received': handleEventReceived,
+			'monitor.thinking': handleThinking,
+			'monitor.message': handleMessage,
+			'monitor.tool_call': handleToolCall,
+			'monitor.tool_result': handleToolResult,
+			'monitor.complete': handleComplete,
+		});
 	});
 
 	function formatMonitorTime(date: Date): string {
@@ -184,18 +183,19 @@
 			runs = runs.filter((r) => r.id !== runId);
 		};
 
-		const unsubs = [
-			ws.on('run.started', handleRunStarted),
-			ws.on('run.event', handleRunEvent),
-			ws.on('run.completed', handleRunCompleted),
+		const handleMentionCompleted = () => {
+			listActiveRuns(projectId).then((r) => { runs = r; }).catch(() => {});
+		};
+
+		return useWsSubscriptions(ws, {
+			'run.started': handleRunStarted,
+			'run.event': handleRunEvent,
+			'run.completed': handleRunCompleted,
 			// Also reload on mention events which may spawn runs
-			ws.on('mention.spawned', handleRunStarted),
-			ws.on('mention.completed', () => {
-				listActiveRuns(projectId).then((r) => { runs = r; }).catch(() => {});
-			}),
-			ws.on('dispatch.dequeued', handleRunStarted),
-		];
-		return () => unsubs.forEach((u) => u());
+			'mention.spawned': handleRunStarted,
+			'mention.completed': handleMentionCompleted,
+			'dispatch.dequeued': handleRunStarted,
+		});
 	});
 
 	interface FormattedEvent {

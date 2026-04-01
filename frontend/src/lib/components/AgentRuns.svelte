@@ -6,6 +6,7 @@
 	import type { WsEventMap } from '$lib/api/types.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { RUN_STATUS_CFG } from '$lib/config/status.js';
+	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 	import { formatDuration, formatCost } from '$lib/utils/format.js';
 	import { renderEventContent } from '$lib/utils/event.js';
 
@@ -87,13 +88,11 @@
 			});
 		};
 
-		const unsubs = [
-			ws.on('run.started', handleRunStarted),
-			ws.on('run.event', handleRunEvent),
-			ws.on('run.completed', handleRunCompleted)
-		];
-
-		return () => unsubs.forEach(fn => fn());
+		return useWsSubscriptions(ws, {
+			'run.started': handleRunStarted,
+			'run.event': handleRunEvent,
+			'run.completed': handleRunCompleted,
+		});
 	});
 
 	async function loadRuns() {

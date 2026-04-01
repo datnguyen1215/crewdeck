@@ -12,6 +12,7 @@
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { createFormState } from '$lib/utils/form.svelte.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
+	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	const getAgents = getContext<() => Agent[]>('agents');
@@ -66,17 +67,16 @@
 				.then((i) => { issues = i; })
 				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
 		};
-		const unsubs = [
-			ws.on('issue.created', reload),
-			ws.on('issue.updated', reload),
-			ws.on('issue.status_changed', reload),
-			ws.on('issue.paused', reload),
-			ws.on('issue.resumed', reload),
-			ws.on('mention.completed', reload),
-			ws.on('run.started', reload),
-			ws.on('run.completed', reload),
-		];
-		return () => unsubs.forEach(fn => fn());
+		return useWsSubscriptions(ws, {
+			'issue.created': reload,
+			'issue.updated': reload,
+			'issue.status_changed': reload,
+			'issue.paused': reload,
+			'issue.resumed': reload,
+			'mention.completed': reload,
+			'run.started': reload,
+			'run.completed': reload,
+		});
 	});
 
 	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
