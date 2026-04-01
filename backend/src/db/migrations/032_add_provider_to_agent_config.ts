@@ -12,21 +12,23 @@ export function run(db: Database.Database): void {
 
   // Drop old unique constraint and create new composite one
   // SQLite doesn't support DROP CONSTRAINT, so we recreate the table
-  db.exec(`
-    CREATE TABLE AgentConfig_new (
-      id TEXT PRIMARY KEY,
-      agent_id TEXT NOT NULL,
-      provider TEXT NOT NULL DEFAULT 'claude',
-      model TEXT,
-      UNIQUE(agent_id, provider)
-    )
-  `);
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE AgentConfig_new (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        provider TEXT NOT NULL DEFAULT 'claude',
+        model TEXT,
+        UNIQUE(agent_id, provider)
+      )
+    `);
 
-  db.exec(`
-    INSERT INTO AgentConfig_new (id, agent_id, provider, model)
-    SELECT id, agent_id, provider, model FROM AgentConfig
-  `);
+    db.exec(`
+      INSERT INTO AgentConfig_new (id, agent_id, provider, model)
+      SELECT id, agent_id, provider, model FROM AgentConfig
+    `);
 
-  db.exec(`DROP TABLE AgentConfig`);
-  db.exec(`ALTER TABLE AgentConfig_new RENAME TO AgentConfig`);
+    db.exec(`DROP TABLE AgentConfig`);
+    db.exec(`ALTER TABLE AgentConfig_new RENAME TO AgentConfig`);
+  })();
 }
