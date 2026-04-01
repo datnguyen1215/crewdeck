@@ -1,16 +1,28 @@
+import { existsSync } from "node:fs";
 import {
   pauseIssue as pauseIssueRepo,
   resumeIssue as resumeIssueRepo,
   listPausedIssueIds,
+  updateIssue,
+  deleteIssue as deleteIssueRepo,
 } from "../db/repositories/issues.js";
+import { getRepo } from "../db/repositories/repos.js";
 import { eventBus } from "../events/bus.js";
 import { logger } from "../logger.js";
-import { activeProcesses } from "../orchestration/processes.js";
+import {
+  activeProcesses,
+  hasActiveProcesses,
+} from "../orchestration/processes.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as batch from "../orchestration/batch.js";
 import { approveStart, approveMerge } from "../orchestration/approval-store.js";
-import { IssueStatus } from "../constants/statuses.js";
-import { ValidationError } from "../middleware/errors.js";
+import { IssueStatus, TRANSITIONS } from "../constants/statuses.js";
+import {
+  InvalidTransitionError,
+  ConflictError,
+  ValidationError,
+} from "../middleware/errors.js";
+import { cleanupWorktree } from "../orchestration/worktree.js";
 import type { Issue } from "../types/entities.js";
 
 /**
@@ -28,6 +40,74 @@ export function initializePausedState(): void {
 
 export function isIssuePaused(issueId: string): boolean {
   return pausedIssues.has(issueId);
+}
+
+export function assertTransition(from: string, to: string): void {
+  const allowed = TRANSITIONS[from as keyof typeof TRANSITIONS] ?? [];
+  if (to !== IssueStatus.DONE && !(allowed as string[]).includes(to)) {
+    throw new InvalidTransitionError(from, to);
+  }
+}
+
+export function updateIssueStatus(
+  issue: Issue,
+  body: Record<string, unknown>,
+  excludeAgentId?: string,
+): Issue {
+  if (body.status && body.status !== issue.status) {
+    assertTransition(issue.status, body.status as string);
+    if (body.status === IssueStatus.DONE) {
+      if (hasActiveProcesses(issue.id, excludeAgentId)) {
+        throw new ConflictError(
+          "Cannot mark as done — agents are still running on this issue",
+        );
+      }
+    }
+  }
+
+  // Idempotent: no-op if only setting the same status
+  const keys = Object.keys(body);
+  if (keys.length === 1 && body.status && body.status === issue.status) {
+    return issue;
+  }
+
+  const updated = updateIssue(issue.id, body);
+
+  if (body.status && body.status !== issue.status) {
+    eventBus.emit("issue.status_changed", {
+      issue_id: updated.id,
+      project_id: updated.project_id,
+      from: issue.status,
+      to: updated.status,
+      actor_type: "user",
+    });
+  }
+
+  return updated;
+}
+
+export async function deleteIssue(issue: Issue): Promise<void> {
+  const { worktree_path, branch_name, repo_id } = issue;
+  if (worktree_path && branch_name && repo_id) {
+    const repo = getRepo(repo_id);
+    if (repo && existsSync(worktree_path)) {
+      try {
+        await cleanupWorktree(repo, worktree_path, branch_name, true);
+        logger.info(
+          { issue_id: issue.id, worktree_path },
+          "Worktree cleaned up during issue deletion",
+        );
+      } catch (err) {
+        logger.warn(
+          { err, issue_id: issue.id, worktree_path },
+          "Failed to cleanup worktree during deletion, continuing",
+        );
+      }
+    }
+  }
+
+  pausedIssues.delete(issue.id);
+  deleteIssueRepo(issue.id);
 }
 
 export function pauseIssue(issue: Issue): void {
@@ -143,7 +223,7 @@ export function approveIssueForMerge(issue: Issue): void {
 
 /**
  * Clears the paused flag for a deleted issue.
- * Called before deleteIssue in the delete route handler.
+ * @deprecated Use deleteIssue() which handles this internally.
  */
 export function clearPausedState(issueId: string): void {
   pausedIssues.delete(issueId);
