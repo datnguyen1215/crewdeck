@@ -173,9 +173,6 @@
 			</button>
 		</div>
 
-		<div class="sm:ml-auto">
-			<QueueMonitor />
-		</div>
 	</div>
 
 	<!-- Captain toggles — visually separated to distinguish project-level settings from issue filters -->
@@ -190,5 +187,9 @@
 		</label>
 
 		<ColumnSelector bind:visibleColumns />
+
+		<div class="ml-auto">
+			<QueueMonitor />
+		</div>
 	</div>
 </div>
