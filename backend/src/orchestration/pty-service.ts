@@ -17,6 +17,7 @@ import { config } from "../config.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 import { shellQuote } from "./shell.js";
 import { buildProviderEnv } from "./provider-env.js";
+import { PTY_IDLE_TIMEOUT_MS } from "../config/orchestration.js";
 
 interface TerminalSession {
   projectId: string;
@@ -30,7 +31,7 @@ interface TerminalSession {
 
 const activeSessions = new Map<string, TerminalSession>();
 const pendingCreations = new Set<string>(); // Guard against concurrent session creation
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const IDLE_TIMEOUT_MS = PTY_IDLE_TIMEOUT_MS;
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
 /**

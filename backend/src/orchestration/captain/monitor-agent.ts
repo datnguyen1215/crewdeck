@@ -28,6 +28,7 @@ import {
   extractActionPlanFromEvents,
   extractActionPlanFromText,
 } from "./action-plan-extractor.js";
+import { PROCESS_GRACE_PERIOD_MS } from "../../config/orchestration.js";
 
 /**
  * Set up GitHub auth environment variables for Captain.
@@ -83,7 +84,7 @@ async function runClaudeWithTimeout(opts: {
     result.process.kill("SIGTERM");
     setTimeout(() => {
       if (!result.process.killed) result.process.kill("SIGKILL");
-    }, 5000);
+    }, PROCESS_GRACE_PERIOD_MS);
   }, opts.timeoutMs);
 
   const collectedEvents: Array<{ type: string; [key: string]: unknown }> = [];
