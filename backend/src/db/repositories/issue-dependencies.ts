@@ -9,6 +9,7 @@ import type {
   IssueDependencySummary,
 } from "../../types/entities.js";
 import { getIssue } from "./issues.js";
+import { logger } from "../../logger.js";
 
 /**
  * List all issue IDs that the given issue depends on.
@@ -85,6 +86,10 @@ export function addDependency(
     ).run(id, issueId, dependsOnId);
   } catch {
     // UNIQUE constraint violation - dependency already exists
+    logger.debug(
+      { issueId, dependsOnId },
+      "Skipping duplicate dependency (already exists)",
+    );
     return null;
   }
 
@@ -151,7 +156,11 @@ export function setDependencies(
         ).run(id, issueId, depId);
         added.push(depId);
       } catch {
-        // Skip on constraint violation
+        // Skip on constraint violation (dependency already exists within this transaction)
+        logger.debug(
+          { issueId, depId },
+          "Skipping duplicate dependency in setDependencies",
+        );
       }
     }
 
