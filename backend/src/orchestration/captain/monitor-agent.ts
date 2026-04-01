@@ -17,7 +17,6 @@ import { spawnClaudeStream } from "../process.js";
 import { resolveModel } from "../../db/repositories/agent-config.js";
 import { executePlan, formatResults } from "./plan-executor.js";
 import type { ActionPlan } from "./action-schema.js";
-import { extractJsonFromResponse, parseActionPlan } from "./action-schema.js";
 
 import * as chatRepo from "../../db/repositories/chat-messages.js";
 import type { CaptainEvent } from "./queue.js";
@@ -29,8 +28,6 @@ import {
   extractActionPlanFromEvents,
   extractActionPlanFromText,
 } from "./action-plan-extractor.js";
-
-export { formatEvents };
 
 /**
  * Set up GitHub auth environment variables for Captain.
