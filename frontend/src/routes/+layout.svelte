@@ -25,6 +25,6 @@
 	</main>
 </div>
 
-<div id="modal-portal"></div>
+<div id="modal-portal" style="view-transition-name: none"></div>
 
 <Toast />

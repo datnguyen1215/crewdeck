@@ -77,6 +77,12 @@
 
 /* ---- View Transitions (page navigation) ---- */
 
+/* Exclude fixed-position overlays from view transition snapshots
+   to prevent blank-space bugs when toasts/modals are visible during navigation */
+:where(.fixed) {
+	view-transition-name: none;
+}
+
 ::view-transition-old(root) {
 	animation: 200ms ease-in both vt-slide-out;
 }
