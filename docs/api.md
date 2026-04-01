@@ -746,7 +746,14 @@ Status values: `queued`, `running`, `completed`, `failed`, `timeout`.
 
 ```
 GET /projects/:projectId/runs/:runId
+GET /projects/:projectId/runs/:runId?events_limit=50
 ```
+
+**Query Parameters:**
+
+| Parameter    | Type    | Description                                                                                   |
+| ------------ | ------- | --------------------------------------------------------------------------------------------- |
+| events_limit | INTEGER | Max events to return. Default: 20. Use `0` for all events. Must be a valid number or omitted. |
 
 **Response:** `200 OK` — AgentRun object with an additional `events` array containing all streamed events.
 
@@ -779,6 +786,8 @@ Event `type` values are strings from Claude CLI stream-json output (e.g., `assis
 | `error`       | `error` (string)                                                                |
 
 Raw events are stored as-is in the database for debugging; normalization occurs only at retrieval time.
+
+**Error:** `400 VALIDATION_ERROR` — `events_limit` is present but not a valid integer.
 
 **Error:** `404 Not Found` — Run does not exist or belongs to a different project.
 
