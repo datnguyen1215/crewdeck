@@ -1086,7 +1086,7 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 
 ### Agent Config
 
-Global per-agent model configuration. Applies machine-wide regardless of project. Allows configuring which Claude model (`sonnet` or `opus`) each agent uses.
+Global per-agent, per-provider model configuration. Applies machine-wide regardless of project. Each agent can have different model settings for each AI provider (Claude, GLM).
 
 #### List Agent Configs
 
@@ -1101,7 +1101,14 @@ GET /agent-config
   {
     "id": "uuid",
     "agent_id": "engineer",
+    "provider": "claude",
     "model": "opus"
+  },
+  {
+    "id": "uuid",
+    "agent_id": "engineer",
+    "provider": "glm",
+    "model": "glm-5.1"
   }
 ]
 ```
@@ -1112,29 +1119,33 @@ GET /agent-config
 PUT /agent-config/:agentId
 ```
 
-Creates or updates the model for a specific agent globally.
+Creates or updates the model for a specific agent for the specified provider.
 
 **Request Body:**
 
 ```json
 {
+  "provider": "claude",
   "model": "opus"
 }
 ```
 
-| Field | Required | Description                                                                   |
-| ----- | -------- | ----------------------------------------------------------------------------- |
-| model | Yes      | Model to use. One of: `sonnet`, `opus`, or `null` (null clears the override). |
+| Field    | Required | Description                                                                                                                                                                              |
+| -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| provider | Yes      | AI provider. One of: `claude`, `glm`.                                                                                                                                                    |
+| model    | Yes      | Model to use. For `claude`: `sonnet`, `opus`, `haiku`, or `null`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, or `null`. `null` clears the override for that provider. |
 
 **Response:** `200 OK` — The created or updated agent config object.
+
+**Validation:** The model must be valid for the specified provider. Mixing providers and models (e.g., `provider: "claude"` with `model: "glm-5-turbo"`) returns `400 VALIDATION_ERROR`.
 
 #### Remove Agent Model Override
 
 ```
-DELETE /agent-config/:agentId
+DELETE /agent-config/:agentId/:provider
 ```
 
-Removes the model override for the agent, falling back to `"sonnet"`.
+Removes the model override for the agent and provider, falling back to the provider's default (`sonnet` for Claude, `glm-5-turbo` for GLM).
 
 **Response:** `204 No Content`
 
