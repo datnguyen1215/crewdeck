@@ -10,6 +10,7 @@ import { toContainerPath } from "../utils/paths.js";
 import * as agentWorktree from "./worktree.js";
 import * as crew from "./crew.js";
 import * as issueRepo from "../db/repositories/issues.js";
+import { isIssuePaused } from "../services/issue-service.js";
 import * as commentRepo from "../db/repositories/comments.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
@@ -217,7 +218,7 @@ function validateCanSpawn(
   issueId: string,
   projectId: string,
 ): boolean {
-  if (issueRepo.pausedIssues.has(issueId) || issueRepo.isIssuePaused(issueId)) {
+  if (isIssuePaused(issueId)) {
     log.logger.warn(
       { agentId: agent.id, issueId, reason: "issue_paused" },
       "Spawn blocked: issue is paused",
@@ -741,7 +742,7 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     return;
   }
 
-  if (issueRepo.pausedIssues.has(issueId)) {
+  if (isIssuePaused(issueId)) {
     log.logger.warn(
       { agentId, issueId, reason: "issue_paused" },
       "Queued spawn blocked: issue is paused",

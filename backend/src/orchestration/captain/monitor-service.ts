@@ -12,7 +12,7 @@ import {
   listProjects,
   updateCaptainStatus,
 } from "../../db/repositories/projects.js";
-import { isIssuePaused } from "../../db/repositories/issues.js";
+import { isIssuePaused } from "../../services/issue-service.js";
 import {
   enqueue,
   tryAcquire,
