@@ -26,6 +26,7 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
     "auto_merge",
     "vcs_account_id",
     "model",
+    "default_base_branch",
   ]),
 };
 
