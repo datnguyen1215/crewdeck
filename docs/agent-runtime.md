@@ -229,7 +229,7 @@ If either limit is reached, the dispatch is placed in a DB-backed FIFO queue (us
 
 Each spawned agent process is given a 10-minute timeout. On timeout, SIGTERM is sent; if the process does not exit within 5 seconds, SIGKILL is sent. A system comment is posted on the issue.
 
-The captain monitor's `processWithLLM()` function (in `monitor-agent.ts`) applies separate timeouts to its internal `claude -p` calls:
+The captain monitor's `processWithLLM()` function (the LLM orchestrator in `monitor-agent.ts`) applies separate timeouts to its internal `claude -p` calls:
 
 - **Main LLM call** — 2-minute timeout. On timeout, SIGTERM is sent to the `claude -p` process; if it does not exit within 5 seconds, SIGKILL is sent. This prevents a hung process from holding the queue mutex and blocking all subsequent event processing.
 - **Retry extraction call** — 30-second timeout (same SIGTERM/SIGKILL pattern). This covers the simpler JSON extraction prompt used on retry.
