@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { IssueWithDetails } from '$lib/api/http.js';
-	import { PR_STATUS } from '$lib/config/status.js';
 
 	let {
 		issue,
