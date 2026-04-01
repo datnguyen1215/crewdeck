@@ -436,6 +436,25 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
 
+### Shared Frontend Utilities
+
+**`$lib/utils/ws-subscriptions.ts`** — `useWsSubscriptions(ws, subscriptions)`
+
+Subscribes to multiple WebSocket events in one call and returns a single cleanup function. Designed to be used inside a Svelte `$effect`:
+
+```ts
+$effect(() => {
+  return useWsSubscriptions(ws, {
+    "issue.created": (data) => { ... },
+    "run.started": (data) => { ... },
+  });
+});
+```
+
+Takes a `ProjectWebSocket` and a `SubscriptionMap` (a partial `Record<WsEvent, handler>` where each handler is typed to its event's payload via `WsEventMap`). Subscribes all handlers and returns a cleanup function that unsubscribes all of them. Used by `QueueMonitor.svelte`, `AgentRuns.svelte`, `ActivityTerminal.svelte`, `routes/projects/[projectId]/+page.svelte`, and `routes/projects/[projectId]/terminals/+page.svelte`.
+
+> **Note:** Components that need to subscribe the same event twice with different handlers (e.g., `issues/[issueId]/+page.svelte`) continue to use an array of unsubscribe functions directly, since a `Record`-based map cannot express duplicate keys.
+
 ## Execution Model
 
 ### Agent Process Lifecycle
