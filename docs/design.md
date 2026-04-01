@@ -191,6 +191,11 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Provides autocomplete for `/dispatch` commands in comment input (via `DispatchInput.svelte`).
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
+- **Shared frontend utilities** (`frontend/src/lib/utils/`):
+  - `event.ts` — `renderEventContent(event)` formats an `AgentRunEvent` into a human-readable string for display; `extractToolDescription(input)` extracts a short label from a tool input record. Used by `IssueTimeline.svelte`, `RunDetailModal.svelte`, and `AgentRuns.svelte`.
+  - `format.ts` — `formatDuration(ms)` converts milliseconds to a `Xs` / `Xm Ys` string; `formatCost(cost)` formats a number as `$X.XXXX`. Used by `IssueTimeline.svelte`, `RunDetailModal.svelte`, and `AgentRuns.svelte`.
+  - `comments.ts` — `commentStyle(authorType)` returns border/text color tokens for a comment card; `commentAuthorLabel(comment)` returns the display name for a comment author. Used by `IssueComments.svelte` and `IssueTimeline.svelte`.
+  - `autoscroll.js` — Svelte action that auto-scrolls a container to the bottom via MutationObserver when new content is added, while preserving scroll position when the user has scrolled up.
 - **Error handling convention**: User-facing errors from user-initiated actions (page load, form submit, status change) are shown via `toastStore.add(message, 'error')`. WS-triggered background refreshes and polling use silent `.catch(() => {})` to avoid flooding the user with transient network errors.
 
 **Backend (Node.js + TypeScript)**
@@ -436,6 +441,25 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **PR events** — PR created, status updated.
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
+
+### Shared Frontend Utilities
+
+**`$lib/utils/ws-subscriptions.ts`** — `useWsSubscriptions(ws, subscriptions)`
+
+Subscribes to multiple WebSocket events in one call and returns a single cleanup function. Designed to be used inside a Svelte `$effect`:
+
+```ts
+$effect(() => {
+  return useWsSubscriptions(ws, {
+    "issue.created": (data) => { ... },
+    "run.started": (data) => { ... },
+  });
+});
+```
+
+Takes a `ProjectWebSocket` and a `SubscriptionMap` (a partial `Record<WsEvent, handler>` where each handler is typed to its event's payload via `WsEventMap`). Subscribes all handlers and returns a cleanup function that unsubscribes all of them. Used by `QueueMonitor.svelte`, `AgentRuns.svelte`, `ActivityTerminal.svelte`, `routes/projects/[projectId]/+page.svelte`, and `routes/projects/[projectId]/terminals/+page.svelte`.
+
+> **Note:** Components that need to subscribe the same event twice with different handlers (e.g., `issues/[issueId]/+page.svelte`) continue to use an array of unsubscribe functions directly, since a `Record`-based map cannot express duplicate keys.
 
 ## Execution Model
 

@@ -5,6 +5,7 @@
 	import { formatActivityEntry, type TerminalLine } from '$lib/config/terminal.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
 	import { getContext } from 'svelte';
+	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 
 	let { projectId, issues = [] }: { projectId: string; issues?: Issue[] } = $props();
@@ -87,52 +88,46 @@
 		ws = getProjectWs?.();
 		if (!ws) return;
 
-		const relevantEvents: WsEvent[] = [
-			'mention.spawned',
-			'mention.completed',
-			'mention.error',
-			'run.started',
-			'run.completed',
-			'issue.status_changed',
-			'comment.added',
-			'pr.created',
-			'pr.status_changed'
-		];
+		const refetch = () => {
+			// Refetch activity when relevant events arrive
+			listActivity(projectId, { limit: 50 })
+				.then((data) => {
+					const reversed = data.reverse();
+					const oldIds = new Set(entries.map((e) => e.id));
+					const newIds = reversed.filter((e) => !oldIds.has(e.id)).map((e) => e.id);
 
-		const unsubscribers = relevantEvents.map((event) =>
-			ws!.on(event, () => {
-				// Refetch activity when relevant events arrive
-				listActivity(projectId, { limit: 50 })
-					.then((data) => {
-						const reversed = data.reverse();
-						const oldIds = new Set(entries.map((e) => e.id));
-						const newIds = reversed.filter((e) => !oldIds.has(e.id)).map((e) => e.id);
+					entries = reversed;
 
-						entries = reversed;
+					// Track new entries for highlight animation
+					newEntryIds = new Set([...newEntryIds, ...newIds]);
 
-						// Track new entries for highlight animation
-						newEntryIds = new Set([...newEntryIds, ...newIds]);
+					// Autoscroll action handles scroll (via MutationObserver)
 
-						// Autoscroll action handles scroll (via MutationObserver)
+					// Remove highlight after animation duration
+					setTimeout(() => {
+						newEntryIds = new Set([...newEntryIds].filter((id) => !newIds.includes(id)));
+					}, 1000);
 
-						// Remove highlight after animation duration
-						setTimeout(() => {
-							newEntryIds = new Set([...newEntryIds].filter((id) => !newIds.includes(id)));
-						}, 1000);
-
-						// Cap entries at MAX_ENTRIES
-						if (entries.length > MAX_ENTRIES) {
-							entries = entries.slice(-MAX_ENTRIES);
-						}
-					})
-					// Silent catch: WS-triggered background refresh; toasting here would flood the user on network issues
-					.catch(() => {});
-			})
-		);
-
-		return () => {
-			unsubscribers.forEach((unsub) => unsub());
+					// Cap entries at MAX_ENTRIES
+					if (entries.length > MAX_ENTRIES) {
+						entries = entries.slice(-MAX_ENTRIES);
+					}
+				})
+				// Silent catch: WS-triggered background refresh; toasting here would flood the user on network issues
+				.catch(() => {});
 		};
+
+		return useWsSubscriptions(ws, {
+			'mention.spawned': refetch,
+			'mention.completed': refetch,
+			'mention.error': refetch,
+			'run.started': refetch,
+			'run.completed': refetch,
+			'issue.status_changed': refetch,
+			'comment.added': refetch,
+			'pr.created': refetch,
+			'pr.status_changed': refetch,
+		});
 	});
 
 	// Toggle collapse
