@@ -57,7 +57,7 @@
 		let cancelled = false;
 		getProject(projectId)
 			.then((p) => { if (!cancelled) project = p; })
-			.catch(() => {});
+			.catch((err) => { if (!cancelled) toastStore.add(err instanceof Error ? err.message : 'Failed to load project', 'error'); });
 		return () => { cancelled = true; };
 	});
 
@@ -74,7 +74,7 @@
 					allEntries = acts;
 					issues = iss;
 				}
-			).catch(() => {});
+			).catch((err) => { toastStore.add(err instanceof Error ? err.message : 'Failed to load activity', 'error'); });
 		};
 		const unsub = ws.on('*', reload);
 		return () => unsub();
