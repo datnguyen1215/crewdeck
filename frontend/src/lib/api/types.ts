@@ -123,6 +123,7 @@ export interface VCSAccount {
   id: string;
   account_name: string;
   username: string;
+  provider?: string;
   created_at: string;
 }
 
