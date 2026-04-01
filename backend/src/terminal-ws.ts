@@ -92,6 +92,9 @@ export function setupTerminalWs(server: Server): WebSocketServer {
             }
           } catch {
             // Malformed resize message — fall through to write as terminal input
+            logger.debug(
+              "Malformed resize message, treating as terminal input",
+            );
           }
         }
 
@@ -109,7 +112,10 @@ export function setupTerminalWs(server: Server): WebSocketServer {
         pty.kill();
       });
 
-      logger.info({ projectId, tmux: session.tmuxSessionName }, "Terminal WebSocket connected");
+      logger.info(
+        { projectId, tmux: session.tmuxSessionName },
+        "Terminal WebSocket connected",
+      );
     } catch (err) {
       logger.error({ err }, "Terminal WebSocket connection setup failed");
       ws.close(4011, "Internal error");

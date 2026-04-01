@@ -126,6 +126,10 @@ export async function createTerminalSession(
     execSync(`tmux kill-session -t ${tmuxSessionName}`, { stdio: "ignore" });
   } catch {
     /* no existing session — fine */
+    logger.debug(
+      { projectId, tmuxSessionName },
+      "No stale tmux session to kill",
+    );
   }
 
   // Create tmux session running Claude CLI
@@ -157,6 +161,10 @@ export async function createTerminalSession(
         unlinkSync(systemPromptPath);
       } catch {
         /* ignore */
+        logger.debug(
+          { projectId, systemPromptPath },
+          "Failed to remove system prompt temp file",
+        );
       }
       pendingCreations.delete(projectId);
       resolve(null);
@@ -174,6 +182,10 @@ export async function createTerminalSession(
           unlinkSync(systemPromptPath);
         } catch {
           /* ignore */
+          logger.debug(
+            { projectId, systemPromptPath },
+            "Failed to remove system prompt temp file",
+          );
         }
         pendingCreations.delete(projectId);
         resolve(null);
@@ -236,12 +248,20 @@ export async function destroyTerminalSession(
         unlinkSync(session.systemPromptPath);
       } catch {
         /* ignore */
+        logger.debug(
+          { projectId, path: session.systemPromptPath },
+          "Failed to remove system prompt temp file",
+        );
       }
       if (session.sshKeyPath) {
         try {
           unlinkSync(session.sshKeyPath);
         } catch {
           /* ignore */
+          logger.debug(
+            { projectId, path: session.sshKeyPath },
+            "Failed to remove SSH key temp file",
+          );
         }
       }
 

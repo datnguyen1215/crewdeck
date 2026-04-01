@@ -4,6 +4,7 @@
  * Zod schemas for structured action plans from the Monitor LLM.
  */
 import { z } from "zod";
+import { logger } from "../../logger.js";
 
 export const dispatchActionSchema = z.object({
   type: z.literal("dispatch"),
@@ -100,6 +101,7 @@ export function extractJsonFromResponse(text: string): unknown | null {
       return JSON.parse(actionMatch[1].trim());
     } catch {
       // Invalid JSON inside tags
+      logger.debug("Failed to parse JSON inside <action> tags");
     }
   }
 
@@ -107,6 +109,7 @@ export function extractJsonFromResponse(text: string): unknown | null {
     return JSON.parse(trimmed);
   } catch {
     // Not raw JSON
+    logger.debug("Response is not raw JSON");
   }
 
   const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g;
@@ -122,6 +125,7 @@ export function extractJsonFromResponse(text: string): unknown | null {
         return JSON.parse(block);
       } catch {
         // Invalid JSON
+        logger.debug("Failed to parse JSON from actions code block");
       }
     }
   }
@@ -131,6 +135,7 @@ export function extractJsonFromResponse(text: string): unknown | null {
       return JSON.parse(blocks[i]);
     } catch {
       // Invalid JSON
+      logger.debug("Failed to parse JSON from code block");
     }
   }
 

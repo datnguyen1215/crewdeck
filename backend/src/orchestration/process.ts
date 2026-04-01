@@ -67,7 +67,10 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
         try {
           await unlink(tmpFile);
         } catch {
-          /* ignore */
+          logger.debug(
+            { tmpFile },
+            "Failed to unlink temp prompt file on close",
+          );
         }
         if (stderr) {
           logger.warn(
@@ -83,7 +86,10 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
         try {
           await unlink(tmpFile);
         } catch {
-          /* ignore */
+          logger.debug(
+            { tmpFile },
+            "Failed to unlink temp prompt file on error",
+          );
         }
         logger.error({ pid: child.pid, err }, "claude process error");
         resolve({ code: 1, stdout: `Spawn error: ${err.message}` });
@@ -193,7 +199,10 @@ export async function spawnClaudeStream(
       try {
         await unlink(tmpFile);
       } catch {
-        /* ignore */
+        logger.debug(
+          { tmpFile },
+          "Failed to unlink temp prompt file on stream close",
+        );
       }
       if (stderr) {
         logger.warn(

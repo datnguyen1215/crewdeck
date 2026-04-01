@@ -8,6 +8,7 @@ import { shellQuote } from "./shell.js";
 import { toContainerPath } from "../utils/paths.js";
 import { createGitSshEnv, cleanupSshKey } from "../utils/git-auth.js";
 import type { Repo, Issue } from "../types/entities.js";
+import { logger } from "../logger.js";
 
 const execAsync = promisify(exec);
 
@@ -58,6 +59,7 @@ export async function createWorktree(
     branchExists = true;
   } catch {
     // Branch doesn't exist
+    logger.debug({ branchName }, "Branch does not exist, will create");
   }
 
   if (branchExists) {
@@ -123,6 +125,10 @@ export async function cleanupWorktree(
       );
     } catch {
       // Branch may have unmerged commits — leave it
+      logger.debug(
+        { branchName },
+        "Branch delete skipped (may have unmerged commits)",
+      );
     }
   }
 }
