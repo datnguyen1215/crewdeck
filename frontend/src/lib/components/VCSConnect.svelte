@@ -51,7 +51,7 @@
 </script>
 
 {#if !showForm && !inline}
-	<Button variant="primary" size="sm" onclick={() => (showForm = true)}>
+	<Button variant="primary" size="sm" class="py-1.5 bg-cyan/10 font-medium uppercase tracking-wide flex-shrink-0" onclick={() => (showForm = true)}>
 		+ Add GitHub Account
 	</Button>
 {:else if showForm && !inline}
@@ -83,9 +83,9 @@
 				<TextInput id="ssh-key" multiline mono bind:value={sshPrivateKey} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" required rows={4} style="resize: none;" />
 			</div>
 			<div class="flex gap-2 pt-2">
-				<button type="submit" disabled={!canSubmit} class="flex-1 px-4 py-2 bg-cyan/10 border border-cyan text-cyan text-sm rounded hover:bg-cyan/20 transition-colors uppercase tracking-wide disabled:opacity-50">
+				<Button type="submit" variant="primary" disabled={!canSubmit} class="flex-1 bg-cyan/10 hover:bg-cyan/20 uppercase tracking-wide">
 					{submitting ? 'Adding...' : 'Add Account'}
-				</button>
+				</Button>
 				<Button type="button" onclick={reset}>Cancel</Button>
 			</div>
 		</form>
@@ -107,9 +107,9 @@
 			<TextInput id="ssh-key-inline" multiline mono bind:value={sshPrivateKey} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" required rows={4} style="resize: none;" />
 		</div>
 		<div class="pt-2">
-			<button type="submit" disabled={!canSubmit} class="w-full px-4 py-2 bg-cyan/10 border border-cyan text-cyan text-sm rounded hover:bg-cyan/20 transition-colors uppercase tracking-wide disabled:opacity-50">
+			<Button type="submit" variant="primary" disabled={!canSubmit} class="w-full bg-cyan/10 hover:bg-cyan/20 uppercase tracking-wide">
 				{submitting ? 'Adding...' : 'Add Account'}
-			</button>
+			</Button>
 		</div>
 	</form>
 {/if}
