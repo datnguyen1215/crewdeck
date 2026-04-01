@@ -12,6 +12,7 @@
 	import { createFormState } from '$lib/utils/form.svelte.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
+	import { loadVisibleColumns, saveVisibleColumns, computeGridCols } from '$lib/config/columns.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	const getAgents = getContext<() => Agent[]>('agents');
@@ -34,17 +35,12 @@
 	let sortField = $state<'created_at' | 'updated_at'>('created_at');
 	let sortDesc = $state(true);
 
-	// Base branch column toggle — persisted in localStorage
-	let showBaseBranch = $state(
-		typeof localStorage !== 'undefined'
-			? localStorage.getItem('crewdeck:showBaseBranch') === 'true'
-			: false
-	);
+	// Column visibility — persisted in localStorage
+	let visibleColumns = $state<string[]>(loadVisibleColumns());
 	$effect(() => {
-		if (typeof localStorage !== 'undefined') {
-			localStorage.setItem('crewdeck:showBaseBranch', String(showBaseBranch));
-		}
+		saveVisibleColumns(visibleColumns);
 	});
+	let gridCols = $derived(computeGridCols(visibleColumns));
 
 	// Modal state
 	const form = createFormState({ title: '', description: '' });
@@ -176,7 +172,7 @@
 		bind:sortField
 		bind:sortDesc
 		bind:showCompleted
-		bind:showBaseBranch
+		bind:visibleColumns
 		{agents}
 	/>
 
@@ -197,34 +193,28 @@
 		<!-- Desktop skeleton table -->
 		<div class="overflow-x-auto fade-up hidden md:block">
 			<div class="min-w-[560px] border border-edge rounded overflow-hidden">
-				<div class="{showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
-					<div class="px-3 py-2.5">Title</div>
-					<div class="px-3 py-2.5">Status</div>
-					<div class="px-3 py-2.5">Agent</div>
-					{#if showBaseBranch}<div class="px-3 py-2.5">Base</div>{/if}
-					<div class="px-3 py-2.5 text-right">Age</div>
-					<div class="px-2 py-2.5"></div>
+				<div class="{gridCols} grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+					{#if visibleColumns.includes('title')}<div class="px-3 py-2.5">Title</div>{/if}
+					{#if visibleColumns.includes('status')}<div class="px-3 py-2.5">Status</div>{/if}
+					{#if visibleColumns.includes('agent')}<div class="px-3 py-2.5">Agent</div>{/if}
+					{#if visibleColumns.includes('baseBranch')}<div class="px-3 py-2.5">Base</div>{/if}
+					{#if visibleColumns.includes('age')}<div class="px-3 py-2.5 text-right">Age</div>{/if}
+					{#if visibleColumns.includes('updated')}<div class="px-3 py-2.5 text-right">Updated</div>{/if}
+					{#if visibleColumns.includes('dispatch')}<div class="px-2 py-2.5"></div>{/if}
 				</div>
 				{#each Array(8) as _, i}
 					{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 					<div
-						class="{showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} grid border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						class="{gridCols} grid border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
 					style="animation-delay: {i * 30}ms"
 					>
-						<div class="px-3 py-3 flex items-center gap-2">
-							<div class="skeleton h-4 rounded" style="width: {skeletonWidths[i]}%"></div>
-						</div>
-						<div class="px-3 py-3 flex items-center">
-							<div class="skeleton h-5 w-24 rounded"></div>
-						</div>
-						<div class="px-3 py-3 flex items-center">
-							<div class="skeleton h-4 w-16 rounded"></div>
-						</div>
-						{#if showBaseBranch}<div class="px-3 py-3 flex items-center"><div class="skeleton h-4 w-12 rounded"></div></div>{/if}
-						<div class="px-3 py-3 flex items-center justify-end">
-							<div class="skeleton h-3 w-8 rounded"></div>
-						</div>
-						<div class="px-2 py-3"></div>
+						{#if visibleColumns.includes('title')}<div class="px-3 py-3 flex items-center gap-2"><div class="skeleton h-4 rounded" style="width: {skeletonWidths[i]}%"></div></div>{/if}
+						{#if visibleColumns.includes('status')}<div class="px-3 py-3 flex items-center"><div class="skeleton h-5 w-24 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('agent')}<div class="px-3 py-3 flex items-center"><div class="skeleton h-4 w-16 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('baseBranch')}<div class="px-3 py-3 flex items-center"><div class="skeleton h-4 w-12 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('age')}<div class="px-3 py-3 flex items-center justify-end"><div class="skeleton h-3 w-8 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('updated')}<div class="px-3 py-3 flex items-center justify-end"><div class="skeleton h-3 w-10 rounded"></div></div>{/if}
+						{#if visibleColumns.includes('dispatch')}<div class="px-2 py-3"></div>{/if}
 					</div>
 				{/each}
 			</div>
@@ -252,7 +242,7 @@
 					{issue}
 					{projectId}
 					{agentMap}
-					{showBaseBranch}
+					{visibleColumns}
 					{project}
 					isDispatching={dispatchingIssues.has(issue.id)}
 					ondispatch={handleDispatch}
@@ -265,17 +255,14 @@
 		<div class="overflow-x-auto hidden md:block">
 				<div class="min-w-[560px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
-					<div
-						class="grid {showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
-					>
-						<div class="px-3 py-2.5">Title</div>
-						<div class="px-3 py-2.5">Status</div>
-						<div class="px-3 py-2.5">Agent</div>
-						{#if showBaseBranch}
-							<div class="px-3 py-2.5">Base</div>
-						{/if}
-						<div class="px-3 py-2.5 text-right">Age</div>
-						<div class="px-2 py-2.5"></div>
+					<div class="grid {gridCols} text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+						{#if visibleColumns.includes('title')}<div class="px-3 py-2.5">Title</div>{/if}
+						{#if visibleColumns.includes('status')}<div class="px-3 py-2.5">Status</div>{/if}
+						{#if visibleColumns.includes('agent')}<div class="px-3 py-2.5">Agent</div>{/if}
+						{#if visibleColumns.includes('baseBranch')}<div class="px-3 py-2.5">Base</div>{/if}
+						{#if visibleColumns.includes('age')}<div class="px-3 py-2.5 text-right">Age</div>{/if}
+						{#if visibleColumns.includes('updated')}<div class="px-3 py-2.5 text-right">Updated</div>{/if}
+						{#if visibleColumns.includes('dispatch')}<div class="px-2 py-2.5"></div>{/if}
 					</div>
 
 					<!-- Rows -->
@@ -284,7 +271,8 @@
 							{issue}
 							{projectId}
 							{agentMap}
-							{showBaseBranch}
+							{visibleColumns}
+							{gridCols}
 							{project}
 							isDispatching={dispatchingIssues.has(issue.id)}
 							ondispatch={handleDispatch}
