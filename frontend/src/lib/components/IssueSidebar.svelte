@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { updateIssue, deleteIssue, pauseIssue, resumeIssue, approveIssueMerge, type IssueWithDetails, type Project } from '$lib/api/http.js';
-	import { smartTime, fullTime } from '$lib/utils/time.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { STATUS_CFG, PR_STATUS } from '$lib/config/status.js';
 	import Modal from './Modal.svelte';
+	import IssueMetadata from './IssueMetadata.svelte';
+	import IssueActions from './IssueActions.svelte';
 
 	let {
 		issue,
@@ -23,6 +24,30 @@
 	let working = $state(false);
 	let copied = $state(false);
 	let showDeleteModal = $state(false);
+	let baseBranchEdit = $state('');
+	let savingBaseBranch = $state(false);
+
+	$effect(() => {
+		baseBranchEdit = issue.base_branch ?? '';
+	});
+
+	const isBaseBranchLocked = $derived(issue.status !== 'open');
+
+	async function saveBaseBranch() {
+		if (savingBaseBranch || isBaseBranchLocked) return;
+		const newVal = baseBranchEdit.trim() || (project?.default_base_branch ?? 'main');
+		if (newVal === issue.base_branch) return;
+		savingBaseBranch = true;
+		try {
+			await updateIssue(projectId, issue.id, { base_branch: newVal });
+			onStatusChange();
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to update base branch', 'error');
+			baseBranchEdit = issue.base_branch ?? '';
+		} finally {
+			savingBaseBranch = false;
+		}
+	}
 
 	async function handleDeleteIssue() {
 		working = true;
@@ -114,116 +139,62 @@
 
 <div class="flex flex-col gap-4">
 	<!-- Metadata -->
-	<div class="bg-surface border border-edge rounded p-4 flex flex-col gap-2.5 text-xs">
-		<!-- Status -->
-		{#if STATUS_CFG[issue.status]}
-			{@const cfg = STATUS_CFG[issue.status]}
-			<div class="flex items-center gap-2">
-				<span class="text-muted w-20 shrink-0">Status</span>
-				<span
-					class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border {cfg.text} {cfg.border}"
-					style={cfg.glow ? `box-shadow: ${cfg.glow}` : ''}
-				>
-					<span class={cfg.pulse ? 'animate-pulse' : ''}>{cfg.dot}</span>
-					{cfg.label}
-				</span>
+	<IssueMetadata
+		{issue}
+		{project}
+		{copied}
+		bind:baseBranchEdit
+		{savingBaseBranch}
+		{isBaseBranchLocked}
+		onCopyBranch={copyBranch}
+		onSaveBaseBranch={saveBaseBranch}
+	/>
+
+	<!-- Dependencies panel -->
+	{#if issue.dependencies.length > 0 || issue.dependents.length > 0}
+		<div class="bg-surface border border-edge rounded p-4">
+			<div class="text-xs text-muted uppercase tracking-widest mb-3">Dependencies</div>
+			<div class="flex flex-col gap-2 text-xs">
+				{#if issue.dependencies.length > 0}
+					<div>
+						<p class="text-muted mb-1.5">Blocked by</p>
+						{#each issue.dependencies as dep}
+							{@const cfg = STATUS_CFG[dep.status] ?? STATUS_CFG.open}
+							<div class="flex items-center gap-2 mb-1">
+								<span class="leading-none {cfg.text}">{cfg.dot}</span>
+								<a href="/projects/{projectId}/issues/{dep.id}" class="text-secondary hover:text-cyan hover:underline truncate transition-colors">{dep.title}</a>
+							</div>
+						{/each}
+					</div>
+				{/if}
+				{#if issue.dependents.length > 0}
+					<div>
+						<p class="text-muted mb-1.5">Blocking</p>
+						{#each issue.dependents as dep}
+							{@const cfg = STATUS_CFG[dep.status] ?? STATUS_CFG.open}
+							<div class="flex items-center gap-2 mb-1">
+								<span class="leading-none {cfg.text}">{cfg.dot}</span>
+								<a href="/projects/{projectId}/issues/{dep.id}" class="text-secondary hover:text-cyan hover:underline truncate transition-colors">{dep.title}</a>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</div>
-		{/if}
-
-		<!-- Chain depth -->
-		<div class="flex items-center gap-2">
-			<span class="text-muted w-20 shrink-0 flex items-center gap-1">
-				Chain
-				<span class="cursor-help" title="Chain depth tracks how many times an agent has been automatically re-dispatched on this issue. The limit prevents infinite loops.">ℹ</span>
-			</span>
-			<span class="text-secondary">{issue.chain_depth} / {project?.max_chain_depth ?? 20}</span>
 		</div>
-
-		<!-- Branch -->
-		{#if issue.branch_name}
-			<div class="flex items-start gap-2">
-				<span class="text-muted w-20 shrink-0 pt-px">Branch</span>
-				<button
-					onclick={copyBranch}
-					class="font-mono text-secondary hover:text-primary transition-colors text-left leading-tight break-all"
-					title="Click to copy"
-				>
-					{issue.branch_name}
-					<span class="ml-1 text-muted">{copied ? '\u2713' : '\u2398'}</span>
-				</button>
-			</div>
-		{/if}
-
-		<!-- Base branch -->
-		{#if issue.base_branch}
-			<div class="flex items-center gap-2">
-				<span class="text-muted w-20 shrink-0">Base</span>
-				<span class="font-mono text-secondary">{issue.base_branch}</span>
-			</div>
-		{/if}
-
-		<!-- Worktree -->
-		{#if issue.worktree_path}
-			<details>
-				<summary class="text-muted cursor-pointer hover:text-secondary flex items-center gap-2 list-none">
-					<span class="w-20 shrink-0">Worktree</span>
-					<span class="font-mono text-muted truncate">{'\u2026'}/{issue.worktree_path.split('/').pop()}</span>
-				</summary>
-				<div class="mt-1 ml-[5.5rem] font-mono text-muted break-all text-xs">{issue.worktree_path}</div>
-			</details>
-		{/if}
-
-		<!-- Timestamps -->
-		<div class="flex items-center gap-2">
-			<span class="text-muted w-20 shrink-0">Created</span>
-			<span class="text-secondary" title={fullTime(issue.created_at)}>{smartTime(issue.created_at)}</span>
-		</div>
-		<div class="flex items-center gap-2">
-			<span class="text-muted w-20 shrink-0">Updated</span>
-			<span class="text-secondary" title={fullTime(issue.updated_at)}>{smartTime(issue.updated_at)}</span>
-		</div>
-
-		<!-- Created by -->
-		<div class="flex items-center gap-2">
-			<span class="text-muted w-20 shrink-0">By</span>
-			<span class="text-secondary">{issue.created_by}</span>
-		</div>
-	</div>
+	{/if}
 
 	<!-- Actions -->
-	<div class="bg-surface border border-edge rounded p-4">
-		<div class="text-xs text-muted uppercase tracking-widest mb-3">Actions</div>
-		<div class="flex flex-col gap-2 text-xs">
-			{#if issue.status !== 'done'}
-				<button onclick={handlePauseResume} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-amber text-amber rounded hover:bg-amber/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0 flex items-center gap-2">
-					<span>{issue.paused ? '▶️' : '⏸️'}</span>
-					<span>{issue.paused ? 'Resume' : 'Pause'}</span>
-				</button>
-			{/if}
-
-			{#if issue.status === 'in_progress'}
-				<button onclick={handleMarkPrCreated} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0">Mark as PR Created</button>
-			{/if}
-
-			{#if issue.status !== 'done'}
-				<button onclick={handleMarkDone} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-green text-green rounded hover:bg-green/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0">Mark as Done</button>
-			{/if}
-
-			{#if issue.chain_depth > 0}
-				<button onclick={handleResetChainDepth} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-amber text-amber rounded hover:bg-amber/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0">Reset Chain Depth ({issue.chain_depth})</button>
-			{/if}
-
-			{#if issue.status.startsWith('pr_') && issue.issue_prs?.length}
-				{@const pr = issue.issue_prs[0]}
-				<a href={pr.pr_url} target="_blank" rel="noopener" class="w-full py-2.5 sm:py-1.5 border border-purple text-purple rounded hover:bg-purple/10 transition-colors text-left px-3 block min-h-[44px] sm:min-h-0 flex items-center">View PR #{pr.pr_number}</a>
-				<button onclick={handleMergePR} disabled={working} class="w-full py-2.5 sm:py-1.5 border border-cyan text-cyan rounded hover:bg-cyan/10 transition-colors text-left px-3 disabled:opacity-50 min-h-[44px] sm:min-h-0">Merge PR</button>
-			{/if}
-
-			<button onclick={onEdit} class="w-full py-2.5 sm:py-1.5 border border-edge text-secondary rounded hover:border-edge-hi hover:text-primary transition-colors text-left px-3 min-h-[44px] sm:min-h-0">Edit Issue</button>
-
-			<button onclick={() => showDeleteModal = true} class="w-full py-2.5 sm:py-1.5 border border-red/50 text-red/50 rounded hover:border-red hover:text-red transition-colors text-left px-3 min-h-[44px] sm:min-h-0">Delete Issue</button>
-		</div>
-	</div>
+	<IssueActions
+		{issue}
+		{working}
+		onPauseResume={handlePauseResume}
+		onMarkPrCreated={handleMarkPrCreated}
+		onMarkDone={handleMarkDone}
+		onResetChainDepth={handleResetChainDepth}
+		onMergePR={handleMergePR}
+		onEdit={onEdit}
+		onDelete={() => showDeleteModal = true}
+	/>
 
 	<!-- Pull Requests panel -->
 	<div class="bg-surface border border-edge rounded p-4">

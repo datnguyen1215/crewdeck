@@ -53,23 +53,24 @@ CrewDeck uses git worktrees to isolate concurrent work:
 
 Represents a body of work tied to one or more GitHub repositories.
 
-| Field                    | Type        | Constraints                                               | Description                                                                                                               |
-| ------------------------ | ----------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| id                       | TEXT (UUID) | PRIMARY KEY                                               | Unique identifier.                                                                                                        |
-| name                     | TEXT        | NOT NULL                                                  | Human-readable project name.                                                                                              |
-| description              | TEXT        |                                                           | Optional project description.                                                                                             |
-| max_concurrency          | INTEGER     | NOT NULL, DEFAULT 1                                       | Maximum number of agent processes running simultaneously.                                                                 |
-| max_chain_depth          | INTEGER     | NOT NULL, DEFAULT 20                                      | Maximum agent dispatches per issue before requiring manual reset.                                                         |
-| vcs_account_id           | TEXT        | FOREIGN KEY → VCSAccount.id, NULLABLE, ON DELETE SET NULL | VCS account used for cloning repos and agent git operations.                                                              |
-| auto_start               | INTEGER     | NOT NULL, DEFAULT 0                                       | Whether Captain automatically starts work on new issues. Stored as 0/1; exposed as boolean in API.                        |
-| auto_merge               | INTEGER     | NOT NULL, DEFAULT 0                                       | Whether Captain automatically merges ready PRs. Stored as 0/1; exposed as boolean in API.                                 |
-| captain_status           | TEXT        | NOT NULL, DEFAULT 'idle'                                  | Current captain monitor phase. One of: `idle`, `receiving`, `thinking`, `executing`.                                      |
-| captain_status_detail    | TEXT        | NULLABLE                                                  | Human-readable detail for the current phase (e.g. "Analyzing 3 events", "Dispatching agent for issue X"). NULL when idle. |
-| captain_pending_count    | INTEGER     | NOT NULL, DEFAULT 0                                       | Number of events queued for the captain monitor to process.                                                               |
-| captain_processing_since | DATETIME    | NULLABLE                                                  | UTC timestamp when the current processing cycle started. NULL when idle.                                                  |
-| created_at               | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                           |
-| memory                   | TEXT        |                                                           | Legacy field for project memory/notes. Superseded by ProjectKnowledge.                                                    |
-| updated_at               | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                           |
+| Field                    | Type        | Constraints                                               | Description                                                                                                                                 |
+| ------------------------ | ----------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                       | TEXT (UUID) | PRIMARY KEY                                               | Unique identifier.                                                                                                                          |
+| name                     | TEXT        | NOT NULL                                                  | Human-readable project name.                                                                                                                |
+| description              | TEXT        |                                                           | Optional project description.                                                                                                               |
+| max_concurrency          | INTEGER     | NOT NULL, DEFAULT 1                                       | Maximum number of agent processes running simultaneously.                                                                                   |
+| max_chain_depth          | INTEGER     | NOT NULL, DEFAULT 20                                      | Maximum agent dispatches per issue before requiring manual reset.                                                                           |
+| vcs_account_id           | TEXT        | FOREIGN KEY → VCSAccount.id, NULLABLE, ON DELETE SET NULL | VCS account used for cloning repos and agent git operations.                                                                                |
+| auto_start               | INTEGER     | NOT NULL, DEFAULT 0                                       | Whether Captain automatically starts work on new issues. Stored as 0/1; exposed as boolean in API.                                          |
+| auto_merge               | INTEGER     | NOT NULL, DEFAULT 0                                       | Whether Captain automatically merges ready PRs. Stored as 0/1; exposed as boolean in API.                                                   |
+| captain_status           | TEXT        | NOT NULL, DEFAULT 'idle'                                  | Current captain monitor phase. One of: `idle`, `receiving`, `thinking`, `executing`.                                                        |
+| captain_status_detail    | TEXT        | NULLABLE                                                  | Human-readable detail for the current phase (e.g. "Analyzing 3 events", "Dispatching agent for issue X"). NULL when idle.                   |
+| captain_pending_count    | INTEGER     | NOT NULL, DEFAULT 0                                       | Number of events queued for the captain monitor to process.                                                                                 |
+| captain_processing_since | DATETIME    | NULLABLE                                                  | UTC timestamp when the current processing cycle started. NULL when idle.                                                                    |
+| default_base_branch      | TEXT        | NOT NULL, DEFAULT 'main'                                  | Default base branch for new issues in this project. Auto-populates `Issue.base_branch` at creation time. Configurable via Project Settings. |
+| created_at               | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                                             |
+| memory                   | TEXT        |                                                           | Legacy field for project memory/notes. Superseded by ProjectKnowledge.                                                                      |
+| updated_at               | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                                             |
 
 ### VCSAccount
 
@@ -112,25 +113,25 @@ A VCS repository linked to a project.
 
 The fundamental unit of work.
 
-| Field         | Type        | Constraints                         | Description                                                                                                                     |
-| ------------- | ----------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| id            | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                              |
-| project_id    | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                                 |
-| title         | TEXT        | NOT NULL                            | Issue title.                                                                                                                    |
-| description   | TEXT        | NOT NULL                            | Detailed issue description.                                                                                                     |
-| status        | TEXT        | NOT NULL, DEFAULT 'open'            | Current status. One of: `open`, `in_progress`, `pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`, `done`.   |
-| paused        | INTEGER     | NOT NULL, DEFAULT 0                 | Whether the issue is paused. Stored as 0/1; exposed as boolean in API.                                                          |
-| created_by    | TEXT        | NOT NULL, DEFAULT 'user'            | Who created the issue. One of: `user`, `system`.                                                                                |
-| chain_depth   | INTEGER     | NOT NULL, DEFAULT 0                 | Number of agent spawns on this issue. Capped at `project.max_chain_depth`.                                                      |
-| branch_name   | TEXT        | NULLABLE                            | Git branch where work is being done.                                                                                            |
-| worktree_path | TEXT        | NULLABLE                            | Absolute path to the git worktree.                                                                                              |
-| base_branch   | TEXT        | NULLABLE                            | The branch this issue's work is based on.                                                                                       |
-| repo_id       | TEXT        | FOREIGN KEY → Repo.id, NULLABLE     | The repo this issue is being worked on in.                                                                                      |
-| agent_id      | TEXT        | NULLABLE                            | The agent currently assigned to this issue. One of the fixed agent IDs (engineer, lead, docs, librarian) or NULL if unassigned. |
-| created_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                 |
-| updated_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                 |
+| Field         | Type        | Constraints                         | Description                                                                                                                                                                                                                                                        |
+| ------------- | ----------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| id            | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                                                                                                                                                                 |
+| project_id    | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                                                                                                                                                                    |
+| title         | TEXT        | NOT NULL                            | Issue title.                                                                                                                                                                                                                                                       |
+| description   | TEXT        | NOT NULL                            | Detailed issue description.                                                                                                                                                                                                                                        |
+| status        | TEXT        | NOT NULL, DEFAULT 'open'            | Current status. One of: `open`, `in_progress`, `pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`, `done`.                                                                                                                                      |
+| paused        | INTEGER     | NOT NULL, DEFAULT 0                 | Whether the issue is paused. Stored as 0/1; exposed as boolean in API.                                                                                                                                                                                             |
+| created_by    | TEXT        | NOT NULL, DEFAULT 'user'            | Who created the issue. One of: `user`, `system`.                                                                                                                                                                                                                   |
+| chain_depth   | INTEGER     | NOT NULL, DEFAULT 0                 | Number of agent spawns on this issue. Capped at `project.max_chain_depth`.                                                                                                                                                                                         |
+| branch_name   | TEXT        | NULLABLE                            | Git branch where work is being done.                                                                                                                                                                                                                               |
+| worktree_path | TEXT        | NULLABLE                            | Absolute path to the git worktree.                                                                                                                                                                                                                                 |
+| base_branch   | TEXT        | NULLABLE                            | The branch this issue's PR targets. Resolved once at creation time: explicit value → `project.default_base_branch` → `"main"`. Backfilled to `"main"` for pre-existing issues. Editable while status is `open`; locked once work starts (`in_progress` or beyond). |
+| repo_id       | TEXT        | FOREIGN KEY → Repo.id, NULLABLE     | The repo this issue is being worked on in.                                                                                                                                                                                                                         |
+| agent_id      | TEXT        | NULLABLE                            | The agent currently assigned to this issue. One of the fixed agent IDs (engineer, lead, docs, librarian) or NULL if unassigned.                                                                                                                                    |
+| created_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                                                                                                                                                    |
+| updated_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                                                                                                                                                    |
 
-**Note:** When listing issues via the API (`GET /projects/:projectId/issues`), each issue is returned with additional computed fields `running_agent_id` and `running_agent_status` derived from a LEFT JOIN on the `AgentRun` table. These fields indicate the most recent running or queued agent for the issue (if any).
+**Note:** When listing issues via the API (`GET /projects/:projectId/issues`), each issue is returned with additional computed fields: `running_agent_id` and `running_agent_status` (derived from a LEFT JOIN on `AgentRun`), and `dependencies` and `dependents` arrays (each containing `{ id, title, status }` summaries, batch-fetched from `IssueDependency`). The detail endpoint (`GET /projects/:projectId/issues/:issueId`) also includes these arrays.
 
 ### Comment
 
@@ -163,12 +164,12 @@ Links an issue to a GitHub pull request.
 
 Tracks dependencies between issues (issue A depends on issue B).
 
-| Field              | Type        | Constraints                                          | Description                              |
-| ------------------ | ----------- | ---------------------------------------------------- | ---------------------------------------- |
-| id                 | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                       |
-| issue_id           | TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE   | The issue that has the dependency.       |
-| depends_on_issue_id| TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE   | The issue that must be completed first.  |
-| created_at         | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  |                                          |
+| Field               | Type        | Constraints                                        | Description                             |
+| ------------------- | ----------- | -------------------------------------------------- | --------------------------------------- |
+| id                  | TEXT (UUID) | PRIMARY KEY                                        | Unique identifier.                      |
+| issue_id            | TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE | The issue that has the dependency.      |
+| depends_on_issue_id | TEXT        | NOT NULL, FOREIGN KEY → Issue.id ON DELETE CASCADE | The issue that must be completed first. |
+| created_at          | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                |                                         |
 
 **Constraints:**
 
@@ -247,28 +248,6 @@ Structured knowledge entries that provide context to agents. Replaces the former
 
 ---
 
-### AgentRun (legacy duplicate)
-
-> **Note:** This section duplicates the AgentRun definition above. See the earlier definition for the canonical schema.
-
-Tracks each agent process spawn for crash recovery and observability.
-
-| Field        | Type        | Constraints                         | Description                                                                 |
-| ------------ | ----------- | ----------------------------------- | --------------------------------------------------------------------------- |
-| id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                          |
-| project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                             |
-| issue_id     | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | The issue the agent was working on. NULL for standalone runs (e.g., scans). |
-| agent_id     | TEXT        | NOT NULL                            | The agent identifier (e.g., `engineer`, `lead`).                            |
-| pid          | INTEGER     | NOT NULL                            | OS process ID of the spawned `claude` process.                              |
-| status       | TEXT        | NOT NULL, DEFAULT 'running'         | Current run status. One of: `running`, `completed`, `failed`, `timeout`.    |
-| exit_code    | INTEGER     | NULLABLE                            | Exit code of the process. NULL if still running or timed out.               |
-| started_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the process was spawned.                                               |
-| completed_at | DATETIME    | NULLABLE                            | When the process finished. NULL if still running.                           |
-
-**Note:** On server startup, any runs still in `running` status are orphaned (server crashed mid-run). `recoverOnStartup()` marks them `failed` and posts system comments on affected issues (if associated with an issue).
-
----
-
 ### ActivityLog
 
 Immutable audit trail of every action in the system.
@@ -326,10 +305,10 @@ Global per-agent model configuration. Applies machine-wide regardless of project
 
 Global system-wide configuration settings. Stores key-value pairs for machine-wide settings.
 
-| Field | Type        | Constraints | Description                       |
-| ----- | ----------- | ----------- | --------------------------------- |
-| key   | TEXT        | PRIMARY KEY | Configuration key.                |
-| value | TEXT        | NOT NULL    | Configuration value (text-based). |
+| Field | Type | Constraints | Description                       |
+| ----- | ---- | ----------- | --------------------------------- |
+| key   | TEXT | PRIMARY KEY | Configuration key.                |
+| value | TEXT | NOT NULL    | Configuration value (text-based). |
 
 **Current keys:**
 

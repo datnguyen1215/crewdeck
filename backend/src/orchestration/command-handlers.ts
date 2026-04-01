@@ -16,29 +16,7 @@ import { spawnAgent, spawnScan, postSystemComment } from "./spawner.js";
 import { IssueStatus, PRStatus } from "../constants/statuses.js";
 import { getProvider } from "../vcs/registry.js";
 import { isApprovedToMerge } from "./approval-store.js";
-
-const UUID_LENGTH = 36;
-
-/**
- * Resolve a potentially truncated issue ID to a full UUID.
- */
-function resolveIssueId(issueId: string, projectId: string): string | null {
-  const exact = issueRepo.getIssue(issueId);
-  if (exact) return exact.id;
-
-  if (issueId.length < UUID_LENGTH && issueId.length >= 8) {
-    const match = issueRepo.getIssueByPrefix(issueId, projectId);
-    if (match) {
-      logger.info(
-        { prefix: issueId, resolved: match.id },
-        "Resolved truncated issue ID",
-      );
-      return match.id;
-    }
-  }
-
-  return null;
-}
+import { resolveIssueId } from "./issue-resolver.js";
 
 interface ToolResult {
   success: boolean;
@@ -72,7 +50,10 @@ export const handleMergePR = async (
   if (!resolvedId) return { success: false, message: "Issue not found" };
 
   if (!project.auto_merge && !isApprovedToMerge(resolvedId))
-    return { success: false, message: "Auto-merge is disabled for this project" };
+    return {
+      success: false,
+      message: "Auto-merge is disabled for this project",
+    };
 
   if (!project.vcs_account_id)
     return { success: false, message: "No GitHub account linked to project" };
@@ -84,6 +65,12 @@ export const handleMergePR = async (
 
   if (issue.project_id !== projectId)
     return { success: false, message: "Issue belongs to a different project" };
+
+  if (issue.status !== IssueStatus.PR_READY_TO_MERGE)
+    return {
+      success: false,
+      message: `Cannot merge: issue status is '${issue.status}', must be 'pr_ready_to_merge'. Wait for CI to complete.`,
+    };
 
   const prs = issuePRRepo.listIssuePRs(issue.id);
   const openPR = prs.find((pr) => pr.status === PRStatus.OPEN);
@@ -347,10 +334,13 @@ export const handleCreateIssue = (
   input: { title: string; description?: string },
 ): ToolResult => {
   try {
+    const project = getProject(projectId);
+    const baseBranch = project?.default_base_branch || "main";
     const issue = issueRepo.createIssue(projectId, {
       title: input.title,
       description: input.description ?? "",
       created_by: "agent",
+      base_branch: baseBranch,
     });
     eventBus.emit("issue.created", { issue });
     return {

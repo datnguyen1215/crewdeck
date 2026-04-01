@@ -7,7 +7,10 @@ import {
   deleteEnvironmentVariable,
 } from "../db/repositories/environment-variables.js";
 import { validate } from "../middleware/validate.js";
-import { verifyProject, createOwnershipVerifier } from "../middleware/ownership.js";
+import {
+  verifyProject,
+  createOwnershipVerifier,
+} from "../middleware/ownership.js";
 import { ConflictError } from "../middleware/errors.js";
 import {
   CreateEnvironmentVariableSchema,
@@ -20,7 +23,7 @@ const router = Router({ mergeParams: true });
 const verifyEnvVarOwner = createOwnershipVerifier(
   getEnvironmentVariable,
   "Environment variable",
-  "project_id"
+  "project_id",
 );
 
 /** Mask secret values in the response */
@@ -36,6 +39,18 @@ router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   res.json(vars.map(maskSecrets));
 });
 
+function rethrowUniqueConflict(err: unknown): never {
+  if (
+    err instanceof Error &&
+    err.message.includes("UNIQUE constraint failed")
+  ) {
+    throw new ConflictError(
+      "Environment variable with this key already exists",
+    );
+  }
+  throw err;
+}
+
 router.post(
   "/",
   verifyProject,
@@ -45,15 +60,7 @@ router.post(
       const envVar = createEnvironmentVariable(req.params.projectId, req.body);
       res.status(201).json(maskSecrets(envVar));
     } catch (err) {
-      if (
-        err instanceof Error &&
-        err.message.includes("UNIQUE constraint failed")
-      ) {
-        throw new ConflictError(
-          "Environment variable with this key already exists",
-        );
-      }
-      throw err;
+      rethrowUniqueConflict(err);
     }
   },
 );
@@ -63,20 +70,15 @@ router.patch(
   verifyProject,
   validate(UpdateEnvironmentVariableSchema),
   (req: Request<{ projectId: string; envVarId: string }>, res) => {
-    const existing = verifyEnvVarOwner(req.params.envVarId, req.params.projectId);
+    const existing = verifyEnvVarOwner(
+      req.params.envVarId,
+      req.params.projectId,
+    );
     try {
       const updated = updateEnvironmentVariable(existing.id, req.body);
       res.json(maskSecrets(updated));
     } catch (err) {
-      if (
-        err instanceof Error &&
-        err.message.includes("UNIQUE constraint failed")
-      ) {
-        throw new ConflictError(
-          "Environment variable with this key already exists",
-        );
-      }
-      throw err;
+      rethrowUniqueConflict(err);
     }
   },
 );
@@ -85,7 +87,10 @@ router.delete(
   "/:envVarId",
   verifyProject,
   (req: Request<{ projectId: string; envVarId: string }>, res) => {
-    const existing = verifyEnvVarOwner(req.params.envVarId, req.params.projectId);
+    const existing = verifyEnvVarOwner(
+      req.params.envVarId,
+      req.params.projectId,
+    );
     deleteEnvironmentVariable(existing.id);
     res.status(204).send();
   },

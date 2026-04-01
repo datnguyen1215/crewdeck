@@ -4,9 +4,7 @@
  * isn't re-spawned while its batch members are still running.
  */
 import * as log from "../logger.js";
-
-/** Default batch timeout in milliseconds (30 minutes) */
-const BATCH_TIMEOUT_MS = 30 * 60 * 1000;
+import { BATCH_TIMEOUT_MS } from "../config/orchestration.js";
 
 /** Batch tracking for grouped agent spawns */
 export interface AgentBatch {

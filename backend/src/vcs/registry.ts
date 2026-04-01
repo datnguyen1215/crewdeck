@@ -6,6 +6,7 @@
 import type { VCSProvider, VCSProviderClient } from "./types.js";
 import { GitHubClient } from "./github/client.js";
 import { ValidationError } from "../middleware/errors.js";
+import { logger } from "../logger.js";
 
 const providers: Record<VCSProvider, VCSProviderClient> = {
   github: new GitHubClient(),
@@ -29,14 +30,17 @@ export function getAllProviders(): VCSProviderClient[] {
  * Parse a repository URL and return the provider name and repo info.
  * Tries each registered provider until one succeeds.
  */
-export function parseRepoUrl(
-  url: string,
-): { provider: VCSProvider; owner: string; name: string } {
+export function parseRepoUrl(url: string): {
+  provider: VCSProvider;
+  owner: string;
+  name: string;
+} {
   for (const [providerName, client] of Object.entries(providers)) {
     try {
       const parsed = client.parseRepoUrl(url);
       return { provider: providerName as VCSProvider, ...parsed };
     } catch {
+      logger.debug({ url, providerName }, "Provider could not parse URL");
       continue;
     }
   }

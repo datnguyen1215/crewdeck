@@ -4,13 +4,14 @@
 	import { listIssues, createIssue, approveIssueStart, getProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import Modal from '$lib/components/Modal.svelte';
-	import QueueMonitor from '$lib/components/QueueMonitor.svelte';
 	import ActivityTerminal from '$lib/components/ActivityTerminal.svelte';
-	import { STATUS_CFG } from '$lib/config/status.js';
-	import { smartTimeDiff, fullTime } from '$lib/utils/time.js';
+	import IssueFilters from '$lib/components/IssueFilters.svelte';
+	import IssueCard from '$lib/components/IssueCard.svelte';
+	import IssueTableRow from '$lib/components/IssueTableRow.svelte';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { createFormState } from '$lib/utils/form.svelte.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
+	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	const getAgents = getContext<() => Agent[]>('agents');
@@ -33,6 +34,18 @@
 	let sortField = $state<'created_at' | 'updated_at'>('created_at');
 	let sortDesc = $state(true);
 
+	// Base branch column toggle — persisted in localStorage
+	let showBaseBranch = $state(
+		typeof localStorage !== 'undefined'
+			? localStorage.getItem('crewdeck:showBaseBranch') === 'true'
+			: false
+	);
+	$effect(() => {
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem('crewdeck:showBaseBranch', String(showBaseBranch));
+		}
+	});
+
 	// Modal state
 	const form = createFormState({ title: '', description: '' });
 
@@ -53,24 +66,22 @@
 				.then((i) => { issues = i; })
 				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
 		};
-		const unsubs = [
-			ws.on('issue.created', reload),
-			ws.on('issue.updated', reload),
-			ws.on('issue.status_changed', reload),
-			ws.on('issue.paused', reload),
-			ws.on('issue.resumed', reload),
-			ws.on('mention.completed', reload),
-			ws.on('run.started', reload),
-			ws.on('run.completed', reload),
-		];
-		return () => unsubs.forEach(fn => fn());
+		return useWsSubscriptions(ws, {
+			'issue.created': reload,
+			'issue.updated': reload,
+			'issue.status_changed': reload,
+			'issue.paused': reload,
+			'issue.resumed': reload,
+			'mention.completed': reload,
+			'run.started': reload,
+			'run.completed': reload,
+		});
 	});
 
 	let agentMap = $derived(Object.fromEntries(agents.map((a) => [a.id, a.name])));
 
 	let filtered = $derived.by(() => {
 		let result = [...issues];
-		// Text search filter
 		if (searchQuery.trim()) {
 			const q = searchQuery.toLowerCase();
 			result = result.filter((i) =>
@@ -78,14 +89,12 @@
 				(i.description && i.description.toLowerCase().includes(q))
 			);
 		}
-		// Hide done issues unless showCompleted is enabled
 		if (!showCompleted && !filterStatuses.includes('done')) {
 			result = result.filter((i) => i.status !== 'done');
 		}
 		if (filterStatuses.length > 0) {
 			result = result.filter((i) => filterStatuses.includes(i.status));
 		}
-		// Filter by agent
 		if (filterAgent === '__unassigned__') {
 			result = result.filter((i) => !i.agent_id);
 		} else if (filterAgent) {
@@ -99,13 +108,6 @@
 		});
 		return result;
 	});
-
-	function toggleStatus(status: string) {
-		filterStatuses = filterStatuses.includes(status)
-			? filterStatuses.filter((s) => s !== status)
-			: [...filterStatuses, status];
-	}
-
 
 	// Track dispatching state per issue
 	let dispatchingIssues = $state<Set<string>>(new Set());
@@ -138,7 +140,7 @@
 				title: f.title.trim(),
 				description: f.description.trim()
 			});
-			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null }];
+			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null, dependencies: [], dependents: [] }];
 		});
 	}
 
@@ -178,97 +180,16 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="mb-5 space-y-3">
-		<!-- Search input -->
-		<div class="flex flex-col sm:flex-row sm:items-center gap-2">
-			<span class="text-xs text-muted uppercase tracking-widest hidden sm:inline">Search:</span>
-			<input
-				type="text"
-				bind:value={searchQuery}
-				placeholder="Filter by title or description…"
-				class="flex-1 w-full sm:max-w-sm bg-surface border border-edge text-secondary text-xs rounded px-3 py-2.5 sm:py-1.5 hover:border-edge-hi focus:border-cyan transition-colors outline-none placeholder:text-muted"
-			/>
-			{#if searchQuery}
-				<button
-					onclick={() => (searchQuery = '')}
-					class="px-3 py-1.5 text-xs text-muted hover:text-secondary border border-edge hover:border-edge-hi rounded transition-colors self-start"
-				>
-					Clear ×
-				</button>
-			{/if}
-		</div>
-
-		<!-- Status toggle pills -->
-		<div class="flex flex-wrap items-center gap-1.5">
-			<span class="text-xs text-muted uppercase tracking-widest mr-1 w-full sm:w-auto mb-1 sm:mb-0">Status:</span>
-			{#each Object.entries(STATUS_CFG) as [key, cfg] (key)}
-				<button
-					onclick={() => toggleStatus(key)}
-					class="px-2.5 py-1.5 sm:py-0.5 text-xs rounded border transition-colors min-h-[36px] sm:min-h-0 {filterStatuses.includes(key)
-						? `${cfg.text} ${cfg.border} bg-surface-hi`
-						: 'text-muted border-edge hover:border-edge-hi hover:text-secondary'}"
-				>
-					{cfg.label}
-				</button>
-			{/each}
-			{#if filterStatuses.length > 0}
-				<button
-					onclick={() => (filterStatuses = [])}
-					class="px-2.5 py-1.5 sm:py-0.5 text-xs text-muted hover:text-secondary border border-transparent hover:border-edge rounded transition-colors"
-				>
-					Clear ×
-				</button>
-			{/if}
-		</div>
-
-		<!-- Agent + Sort controls -->
-		<div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap">
-			<div class="flex items-center gap-2">
-				<span class="text-xs text-muted uppercase tracking-widest">Agent:</span>
-				<select
-					bind:value={filterAgent}
-					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-2 sm:py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none min-h-[36px] sm:min-h-0"
-				>
-					<option value="">All</option>
-					<option value="__unassigned__">Unassigned</option>
-					{#each agents as agent (agent.id)}
-						<option value={agent.id}>{agent.name}</option>
-					{/each}
-				</select>
-			</div>
-
-			<div class="flex items-center gap-2">
-				<span class="text-xs text-muted uppercase tracking-widest">Sort:</span>
-				<select
-					bind:value={sortField}
-					class="bg-surface border border-edge text-secondary text-xs rounded px-2 py-2 sm:py-1 hover:border-edge-hi transition-colors cursor-pointer outline-none min-h-[36px] sm:min-h-0"
-				>
-					<option value="created_at">Created</option>
-					<option value="updated_at">Updated</option>
-				</select>
-				<button
-					onclick={() => (sortDesc = !sortDesc)}
-					class="px-3 py-2 sm:py-1 bg-surface border border-edge text-secondary text-xs rounded hover:border-edge-hi hover:text-primary transition-colors min-h-[36px] sm:min-h-0"
-					title={sortDesc ? 'Descending' : 'Ascending'}
-				>
-					{sortDesc ? '↓ Desc' : '↑ Asc'}
-				</button>
-			</div>
-
-			<label class="flex items-center gap-2 cursor-pointer min-h-[36px] sm:min-h-0">
-				<input
-					type="checkbox"
-					bind:checked={showCompleted}
-					class="accent-cyan w-4 h-4"
-				/>
-				<span class="text-xs text-muted">Show completed</span>
-			</label>
-
-			<div class="sm:ml-auto">
-				<QueueMonitor />
-			</div>
-		</div>
-	</div>
+	<IssueFilters
+		bind:searchQuery
+		bind:filterStatuses
+		bind:filterAgent
+		bind:sortField
+		bind:sortDesc
+		bind:showCompleted
+		bind:showBaseBranch
+		{agents}
+	/>
 
 	<!-- Table / Empty state -->
 	{#if loading}
@@ -287,17 +208,18 @@
 		<!-- Desktop skeleton table -->
 		<div class="overflow-x-auto fade-up hidden md:block">
 			<div class="min-w-[560px] border border-edge rounded overflow-hidden">
-				<div class="grid grid-cols-[1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+				<div class="{showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
 					<div class="px-3 py-2.5">Title</div>
 					<div class="px-3 py-2.5">Status</div>
 					<div class="px-3 py-2.5">Agent</div>
+					{#if showBaseBranch}<div class="px-3 py-2.5">Base</div>{/if}
 					<div class="px-3 py-2.5 text-right">Age</div>
 					<div class="px-2 py-2.5"></div>
 				</div>
 				{#each Array(8) as _, i}
 					{@const skeletonWidths = [75, 60, 90, 55, 80, 65, 70, 85]}
 					<div
-						class="grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						class="{showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} grid border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
 					style="animation-delay: {i * 30}ms"
 					>
 						<div class="px-3 py-3 flex items-center gap-2">
@@ -309,6 +231,7 @@
 						<div class="px-3 py-3 flex items-center">
 							<div class="skeleton h-4 w-16 rounded"></div>
 						</div>
+						{#if showBaseBranch}<div class="px-3 py-3 flex items-center"><div class="skeleton h-4 w-12 rounded"></div></div>{/if}
 						<div class="px-3 py-3 flex items-center justify-end">
 							<div class="skeleton h-3 w-8 rounded"></div>
 						</div>
@@ -336,61 +259,16 @@
 		<!-- Mobile card view -->
 		<div class="flex flex-col gap-3 md:hidden">
 			{#each filtered as issue, i (issue.id)}
-				{@const cfg = STATUS_CFG[issue.status] ?? STATUS_CFG.open}
-				{@const runningAgentName = issue.running_agent_id ? agentMap[issue.running_agent_id] : null}
-				{@const isQueued = issue.running_agent_status === 'queued'}
-				{@const isDispatching = dispatchingIssues.has(issue.id)}
-				{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
-				<a
-					href="/projects/{projectId}/issues/{issue.id}"
-					class="block bg-surface border border-edge rounded-lg p-4 hover:bg-surface-hi hover:border-edge-hi transition-colors active:scale-[0.99] {issue.status === 'in_progress' ? 'border-l-green border-l-2' : ''} {issue.paused ? 'opacity-60' : ''}"
-					style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
-				>
-					<div class="flex items-start justify-between gap-3 mb-3">
-						<p class="text-primary text-sm font-medium leading-snug flex-1 min-w-0 flex items-center gap-2">
-							{#if issue.paused}
-								<span class="text-amber" title="Paused">⏸️</span>
-							{/if}
-							{issue.title}
-						</p>
-						<button
-							onclick={(e) => handleDispatch(e, issue)}
-							disabled={!canDispatch}
-							class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg border transition-colors {canDispatch ? 'border-edge text-muted hover:border-cyan hover:text-cyan hover:bg-cyan/10 active:bg-cyan/20' : 'border-transparent text-muted/40 cursor-not-allowed'}"
-							title={hasActiveAgent(issue) ? 'Agent already running' : 'Start work'}
-						>
-							{#if isDispatching}
-								<svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-									<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="12" />
-								</svg>
-							{:else}
-								<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-									<path d="M8 5v14l11-7z"/>
-								</svg>
-							{/if}
-						</button>
-					</div>
-					<div class="flex items-center gap-3 flex-wrap">
-						<span
-							class="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border {cfg.text} {cfg.border} {cfg.pulse ? 'badge-pulse' : ''}"
-							style={cfg.glow ? `box-shadow: ${cfg.glow}` : ''}
-						>
-							<span class="leading-none">{cfg.dot}</span>
-							{cfg.label}
-						</span>
-						{#if runningAgentName}
-							<span class="text-xs {isQueued ? 'text-muted' : 'text-cyan'}">
-								{runningAgentName}
-							</span>
-						{/if}
-						<span class="text-xs text-muted font-mono ml-auto" title={fullTime(issue.created_at)}>
-							{smartTimeDiff(issue.created_at)}
-						</span>
-					</div>
-					{#if issue.created_by === 'agent'}
-						<p class="text-muted text-xs mt-2">proposed by agent</p>
-					{/if}
-				</a>
+				<IssueCard
+					{issue}
+					{projectId}
+					{agentMap}
+					{showBaseBranch}
+					{project}
+					isDispatching={dispatchingIssues.has(issue.id)}
+					ondispatch={handleDispatch}
+					animationDelay={i * 25}
+				/>
 			{/each}
 		</div>
 
@@ -399,92 +277,30 @@
 				<div class="min-w-[560px] border border-edge rounded overflow-hidden">
 					<!-- Table header -->
 					<div
-						class="grid grid-cols-[1fr_148px_96px_60px_44px] text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
+						class="grid {showBaseBranch ? 'grid-cols-[1fr_148px_96px_100px_60px_44px]' : 'grid-cols-[1fr_148px_96px_60px_44px]'} text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge"
 					>
 						<div class="px-3 py-2.5">Title</div>
 						<div class="px-3 py-2.5">Status</div>
 						<div class="px-3 py-2.5">Agent</div>
+						{#if showBaseBranch}
+							<div class="px-3 py-2.5">Base</div>
+						{/if}
 						<div class="px-3 py-2.5 text-right">Age</div>
 						<div class="px-2 py-2.5"></div>
 					</div>
 
 					<!-- Rows -->
 					{#each filtered as issue, i (issue.id)}
-						{@const cfg = STATUS_CFG[issue.status] ?? STATUS_CFG.open}
-						{@const runningAgentName = issue.running_agent_id ? agentMap[issue.running_agent_id] : null}
-						{@const isQueued = issue.running_agent_status === 'queued'}
-						{@const isDispatching = dispatchingIssues.has(issue.id)}
-						{@const canDispatch = !hasActiveAgent(issue) && !isDispatching}
-						<a
-							href="/projects/{projectId}/issues/{issue.id}"
-							class="issue-row grid grid-cols-[1fr_148px_96px_60px_44px] border-b border-edge last:border-0 hover:bg-surface-hi transition-colors group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'} {issue.status === 'in_progress' ? 'in-progress-row' : ''} {issue.paused ? 'opacity-60' : ''}"
-							style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
-						>
-							<!-- Title -->
-							<div class="px-3 py-3 self-center min-w-0">
-								<p class="text-primary text-sm truncate group-hover:text-cyan transition-colors flex items-center gap-2">
-									{#if issue.paused}
-										<span class="text-amber flex-shrink-0" title="Paused">⏸️</span>
-									{/if}
-									{issue.title}
-								</p>
-								{#if issue.created_by === 'agent'}
-									<p class="text-muted text-xs mt-0.5">proposed by agent</p>
-								{/if}
-							</div>
-
-							<!-- Status badge -->
-							<div class="px-3 py-3 self-center">
-								<span
-									class="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded border {cfg.text} {cfg.border} {cfg.pulse ? 'badge-pulse' : ''}"
-									style={cfg.glow ? `box-shadow: ${cfg.glow}` : ''}
-								>
-									<span class="leading-none">{cfg.dot}</span>
-									{cfg.label}
-								</span>
-							</div>
-
-							<!-- Agent (shows running/queued agent if active, else "—") -->
-							<div class="px-3 py-3 self-center">
-								{#if runningAgentName}
-									<span class="text-sm truncate block {isQueued ? 'text-muted' : 'text-cyan'}">
-										{runningAgentName}
-									</span>
-								{:else}
-									<span class="text-sm text-muted truncate block">—</span>
-								{/if}
-							</div>
-
-							<!-- Age -->
-							<div class="px-3 py-3 self-center text-right">
-								<span
-									class="text-xs text-muted font-mono"
-									title={fullTime(issue.created_at)}
-								>
-									{smartTimeDiff(issue.created_at)}
-								</span>
-							</div>
-
-							<!-- Dispatch button -->
-							<div class="px-2 py-3 self-center">
-								<button
-									onclick={(e) => handleDispatch(e, issue)}
-									disabled={!canDispatch}
-									class="dispatch-btn w-7 h-7 flex items-center justify-center rounded border transition-colors {canDispatch ? 'border-edge text-muted hover:border-cyan hover:text-cyan hover:bg-cyan/10' : 'border-transparent text-muted/40 cursor-not-allowed'}"
-									title={hasActiveAgent(issue) ? 'Agent already running' : 'Start work'}
-								>
-									{#if isDispatching}
-										<svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-											<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="12" />
-										</svg>
-									{:else}
-										<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-											<path d="M8 5v14l11-7z"/>
-										</svg>
-									{/if}
-								</button>
-							</div>
-						</a>
+						<IssueTableRow
+							{issue}
+							{projectId}
+							{agentMap}
+							{showBaseBranch}
+							{project}
+							isDispatching={dispatchingIssues.has(issue.id)}
+							ondispatch={handleDispatch}
+							index={i}
+						/>
 					{/each}
 				</div>
 			</div>
@@ -564,29 +380,3 @@
 		</div>
 	</form>
 </Modal>
-
-<style>
-	/* Pulsing glow for in-progress badges */
-	.badge-pulse {
-		animation: pulse-glow 2s ease-in-out infinite;
-	}
-
-	/* Decision: raw rgba values used here instead of var(--glow-green) because
-	   @keyframes requires discrete color values — the CSS variable holds a full
-	   box-shadow rule, not just a color, so it can't be interpolated in keyframes. */
-	@keyframes pulse-glow {
-		0%,
-		100% {
-			box-shadow: 0 0 6px rgba(74, 222, 128, 0.3);
-		}
-		50% {
-			box-shadow: 0 0 14px rgba(74, 222, 128, 0.55);
-		}
-	}
-
-	/* Subtle left accent on in-progress rows to make them feel "alive" */
-	.in-progress-row {
-		box-shadow: inset 3px 0 0 rgba(74, 222, 128, 0.4);
-	}
-
-</style>

@@ -26,6 +26,7 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
     "auto_merge",
     "vcs_account_id",
     "model",
+    "default_base_branch",
   ]),
 };
 
@@ -75,6 +76,14 @@ export function buildAndRunUpdate<T extends object>(
     ...values,
     id,
   );
+}
+
+/**
+ * Convert a SQLite integer boolean column (0/1) to a JS boolean.
+ * Used by repository fromRow() functions to normalize SQLite integer-stored booleans.
+ */
+export function deserializeBoolean(value: unknown): boolean {
+  return Boolean(value);
 }
 
 /**

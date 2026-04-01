@@ -27,6 +27,7 @@ export interface Project {
   auto_merge: boolean;
   model: string;
   vcs_account_id: string | null;
+  default_base_branch: string;
   captain_status: "idle" | "receiving" | "thinking" | "executing";
   captain_status_detail: string | null;
   captain_pending_count: number;
@@ -77,6 +78,8 @@ export interface Issue {
 export interface IssueWithRunningAgent extends Issue {
   running_agent_id: string | null;
   running_agent_status: string | null;
+  dependencies?: IssueDependencySummary[];
+  dependents?: IssueDependencySummary[];
 }
 
 export interface IssueDependency {
@@ -84,6 +87,12 @@ export interface IssueDependency {
   issue_id: string;
   depends_on_issue_id: string;
   created_at: string;
+}
+
+export interface IssueDependencySummary {
+  id: string;
+  title: string;
+  status: string;
 }
 
 export interface Comment {
@@ -194,6 +203,8 @@ export interface IssueWithDetails extends Issue {
   issue_prs: IssuePR[];
   activity_log: ActivityLog[];
   repo: { id: string; name: string } | null;
+  dependencies: IssueDependencySummary[];
+  dependents: IssueDependencySummary[];
 }
 
 // Input types
@@ -215,6 +226,7 @@ export interface UpdateProjectInput {
   auto_start?: boolean;
   auto_merge?: boolean;
   vcs_account_id?: string | null;
+  default_base_branch?: string;
 }
 
 export interface AgentConfig {
@@ -234,6 +246,7 @@ export interface CreateIssueInput {
   status?: string;
   created_by?: string;
   agent_id?: string | null;
+  base_branch?: string;
 }
 
 export interface UpdateIssueInput {

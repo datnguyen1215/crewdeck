@@ -54,13 +54,28 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 
 **Backend** (set in `docker-compose.yml`):
 
-| Variable             | Value                   | Purpose                                                                                      |
-| -------------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
-| `DB_PATH`            | `/app/data/crewdeck.db` | SQLite database location                                                                     |
-| `CREWDECK_REPOS_DIR` | `/app/data/repos`       | Where repos are cloned                                                                       |
-| `MAX_AGENTS`         | `10`                    | Global concurrency limit (all projects)                                                      |
-| `ANTHROPIC_API_KEY`  | _(your API key)_        | Anthropic API key (required for Captain LLM agent and default Claude provider)               |
+| Variable             | Value                   | Purpose                                                                                         |
+| -------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `DB_PATH`            | `/app/data/crewdeck.db` | SQLite database location                                                                        |
+| `CREWDECK_REPOS_DIR` | `/app/data/repos`       | Where repos are cloned                                                                          |
+| `MAX_AGENTS`         | `10`                    | Global concurrency limit (all projects)                                                         |
+| `ANTHROPIC_API_KEY`  | _(your API key)_        | Anthropic API key (required for Captain LLM agent and default Claude provider)                  |
 | `ZAI_API_KEY`        | _(optional)_            | Z.AI API key (required if using GLM provider). Enables GLM option in Crew page provider toggle. |
+
+**Orchestration tuning** (optional, override defaults):
+
+| Variable                                      | Default   | Purpose                                               |
+| --------------------------------------------- | --------- | ----------------------------------------------------- |
+| `ORCHESTRATION_BATCH_TIMEOUT_MS`              | `1800000` | Max time to wait for a batch of agents (30 min)       |
+| `ORCHESTRATION_PTY_IDLE_TIMEOUT_MS`           | `1800000` | PTY session idle timeout before cleanup (30 min)      |
+| `ORCHESTRATION_PROCESS_GRACE_PERIOD_MS`       | `5000`    | SIGTERM→SIGKILL grace period (5 s)                    |
+| `ORCHESTRATION_DEFAULT_AGENT_TIMEOUT_MINUTES` | `10`      | Default agent run timeout in minutes                  |
+| `ORCHESTRATION_BATCH_CLEANUP_INTERVAL_MS`     | `300000`  | How often stale batches are cleaned up (5 min)        |
+| `ORCHESTRATION_PR_POLL_INTERVAL_MS`           | `60000`   | How often PR status is polled (60 s)                  |
+| `ORCHESTRATION_EVENT_BATCHING_WINDOW_MS`      | `5000`    | Captain event batching window (5 s)                   |
+| `ORCHESTRATION_SERVER_RECOVERY_DELAY_MS`      | `2000`    | Delay before startup recovery runs (2 s)              |
+| `ORCHESTRATION_STARTUP_BUFFER_MS`             | `500`     | Buffer after recovery before scanning issues (500 ms) |
+| `ORCHESTRATION_MAX_CONTEXT_MESSAGES`          | `10`      | Max monitor conversation messages kept in context     |
 
 **Frontend**:
 

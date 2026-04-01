@@ -125,7 +125,9 @@ captain reads issue comments and project state
 
 ### Truncated Issue ID Resolution
 
-Captain sometimes outputs truncated 8-character issue ID prefixes (e.g. `3d97b21f`) instead of full UUIDs in commands. The command handlers resolve these before executing:
+`backend/src/orchestration/issue-resolver.ts`
+
+Captain sometimes outputs truncated 8-character issue ID prefixes (e.g. `3d97b21f`) instead of full UUIDs in commands. Both `command-handlers.ts` and `plan-executor.ts` resolve these via the shared `resolveIssueId()` utility:
 
 1. Try exact match via `getIssue(id)`.
 2. If no match and the ID is shorter than 36 characters (full UUID length) but at least 8 characters, try a `LIKE prefix%` query scoped to the project via `getIssueByPrefix(prefix, projectId)`.
@@ -153,10 +155,13 @@ When `auto_start` or `auto_merge` settings are disabled, users can manually appr
 - **Merge button** → `POST /issues/:id/approve-merge` → `issue.approved_to_merge` event → Captain merges PR
 
 The approval flags are checked in `handleDispatchAgent()` and `handleMergePR()`:
+
 - `canStart = approvedToStart.has(issueId) || project.auto_start`
 - `canMerge = approvedToMerge.has(issueId) || project.auto_merge`
 
 Flags are cleared after successful dispatch/merge and stored in-memory (reset on server restart).
+
+`handleMergePR()` also enforces a hard CI gate: it rejects the merge with an error if `issue.status !== 'pr_ready_to_merge'`, regardless of approval or auto_merge settings. The issue only reaches `pr_ready_to_merge` once the PR poller confirms CI has passed and the PR is mergeable.
 
 ## MentionHandler
 
@@ -205,7 +210,7 @@ comment.added event
 When a single comment dispatches multiple agents (e.g., `/dispatch engineer lead`), the handler groups them into a **batch**:
 
 - The dispatched agents become **batch members** and are spawned immediately.
-- Batches time out after **30 minutes**. A cleanup interval (every 5 minutes) fires `handleBatchComplete` on any stale batch, preventing orphaned state.
+- Batches time out after the `ORCHESTRATION_BATCH_TIMEOUT_MS` duration (default 30 min). A cleanup interval (`ORCHESTRATION_BATCH_CLEANUP_INTERVAL_MS`, default every 5 min) fires `handleBatchComplete` on any stale batch, preventing orphaned state.
 - Only one batch is tracked per issue at a time.
 - Batches track completion of grouped dispatches so the originator isn't re-spawned while its batch members are still running.
 
@@ -224,11 +229,11 @@ If either limit is reached, the dispatch is placed in a DB-backed FIFO queue (us
 
 ### Timeouts
 
-Each spawned agent process is given a 10-minute timeout. On timeout, SIGTERM is sent; if the process does not exit within 5 seconds, SIGKILL is sent. A system comment is posted on the issue.
+Each spawned agent process is given a configurable timeout (`ORCHESTRATION_DEFAULT_AGENT_TIMEOUT_MINUTES`, default 10 min). On timeout, SIGTERM is sent; if the process does not exit within the grace period (`ORCHESTRATION_PROCESS_GRACE_PERIOD_MS`, default 5 s), SIGKILL is sent. A system comment is posted on the issue.
 
-The captain monitor's `processWithLLM()` function (in `monitor-agent.ts`) applies separate timeouts to its internal `claude -p` calls:
+The captain monitor's `processWithLLM()` function (the LLM orchestrator in `monitor-agent.ts`) applies separate timeouts to its internal `claude -p` calls:
 
-- **Main LLM call** — 2-minute timeout. On timeout, SIGTERM is sent to the `claude -p` process; if it does not exit within 5 seconds, SIGKILL is sent. This prevents a hung process from holding the queue mutex and blocking all subsequent event processing.
+- **Main LLM call** — 2-minute timeout. On timeout, SIGTERM is sent to the `claude -p` process; if it does not exit within the grace period (`ORCHESTRATION_PROCESS_GRACE_PERIOD_MS`), SIGKILL is sent. This prevents a hung process from holding the queue mutex and blocking all subsequent event processing.
 - **Retry extraction call** — 30-second timeout (same SIGTERM/SIGKILL pattern). This covers the simpler JSON extraction prompt used on retry.
 
 ## MentionParser

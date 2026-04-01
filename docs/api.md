@@ -417,7 +417,7 @@ GET /projects/:projectId/issues
 | sort       | TEXT | Sort field. One of: `created_at`, `updated_at`. Default: `created_at`.     |
 | order      | TEXT | Sort order. `asc` or `desc`. Default: `desc`.                              |
 
-**Response:** `200 OK` — Array of issue objects (without full comment thread). Each issue includes `running_agent_id` and `running_agent_status` fields indicating the currently running or queued agent (if any).
+**Response:** `200 OK` — Array of issue objects (without full comment thread). Each issue includes `running_agent_id`, `running_agent_status`, `dependencies`, and `dependents` fields.
 
 ```json
 [
@@ -428,6 +428,10 @@ GET /projects/:projectId/issues
     "status": "in_progress",
     "running_agent_id": "engineer",
     "running_agent_status": "running",
+    "dependencies": [
+      { "id": "uuid", "title": "Set up database", "status": "done" }
+    ],
+    "dependents": [],
     "...": "..."
   }
 ]
@@ -435,6 +439,8 @@ GET /projects/:projectId/issues
 
 - `running_agent_id`: The ID of the agent currently running or queued on this issue. NULL if no agent is active.
 - `running_agent_status`: Either `"running"` or `"queued"`. NULL if no agent is active.
+- `dependencies`: Issues this issue is blocked by. Each entry is `{ id, title, status }`. Empty array if none.
+- `dependents`: Issues blocked by this issue. Each entry is `{ id, title, status }`. Empty array if none.
 
 #### Get Issue
 
@@ -442,7 +448,7 @@ GET /projects/:projectId/issues
 GET /projects/:projectId/issues/:issueId
 ```
 
-**Response:** `200 OK` — Full issue object including comments, linked PRs, and activity log.
+**Response:** `200 OK` — Full issue object including comments, linked PRs, activity log, and dependency data.
 
 ```json
 {
@@ -461,10 +467,15 @@ GET /projects/:projectId/issues/:issueId
   "comments": [...],
   "issue_prs": [...],
   "activity_log": [...],
+  "dependencies": [{ "id": "uuid", "title": "Set up database", "status": "done" }],
+  "dependents": [],
   "created_at": "ISO 8601",
   "updated_at": "ISO 8601"
 }
 ```
+
+- `dependencies`: Issues this issue is blocked by. Each entry is `{ id, title, status }`. Empty array if none.
+- `dependents`: Issues blocked by this issue. Each entry is `{ id, title, status }`. Empty array if none.
 
 #### Create Issue
 
@@ -582,10 +593,12 @@ Manually approves an issue for work, bypassing the `auto_start` setting. Used wh
 ```
 
 **Validation:**
+
 - Issue must not be paused
 - Issue must not be `done`
 
 **Side effects:**
+
 - Issue ID added to in-memory `approvedToStart` Set
 - WebSocket event emitted: `issue.approved_to_start`
 - Captain receives event and dispatches engineer
@@ -609,9 +622,11 @@ Manually approves an issue for merge, bypassing the `auto_merge` setting. Used w
 ```
 
 **Validation:**
+
 - Issue status must start with `pr_` (has a PR)
 
 **Side effects:**
+
 - Issue ID added to in-memory `approvedToMerge` Set
 - WebSocket event emitted: `issue.approved_to_merge`
 - Captain receives event and merges PR
@@ -737,7 +752,14 @@ Status values: `queued`, `running`, `completed`, `failed`, `timeout`.
 
 ```
 GET /projects/:projectId/runs/:runId
+GET /projects/:projectId/runs/:runId?events_limit=50
 ```
+
+**Query Parameters:**
+
+| Parameter    | Type    | Description                                                                                   |
+| ------------ | ------- | --------------------------------------------------------------------------------------------- |
+| events_limit | INTEGER | Max events to return. Default: 20. Use `0` for all events. Must be a valid number or omitted. |
 
 **Response:** `200 OK` — AgentRun object with an additional `events` array containing all streamed events.
 
@@ -770,6 +792,8 @@ Event `type` values are strings from Claude CLI stream-json output (e.g., `assis
 | `error`       | `error` (string)                                                                |
 
 Raw events are stored as-is in the database for debugging; normalization occurs only at retrieval time.
+
+**Error:** `400 VALIDATION_ERROR` — `events_limit` is present but not a valid integer.
 
 **Error:** `404 Not Found` — Run does not exist or belongs to a different project.
 
@@ -1140,9 +1164,9 @@ GET /global-config
 }
 ```
 
-| Field    | Type | Description                                             |
-| -------- | ---- | ------------------------------------------------------- |
-| provider | TEXT | Current AI provider. One of: `claude`, `glm` (Z.AI).    |
+| Field    | Type | Description                                          |
+| -------- | ---- | ---------------------------------------------------- |
+| provider | TEXT | Current AI provider. One of: `claude`, `glm` (Z.AI). |
 
 #### Set Provider
 
@@ -1160,9 +1184,9 @@ Switches the global AI provider. When changed, all active Captain terminal sessi
 }
 ```
 
-| Field    | Required | Description                                                 |
-| -------- | -------- | ----------------------------------------------------------- |
-| provider | Yes      | Provider to use. One of: `claude`, `glm`.                   |
+| Field    | Required | Description                               |
+| -------- | -------- | ----------------------------------------- |
+| provider | Yes      | Provider to use. One of: `claude`, `glm`. |
 
 **Response:** `200 OK` — Updated global configuration.
 

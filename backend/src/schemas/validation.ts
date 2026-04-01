@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ISSUE_STATUSES, PR_STATUSES } from "../constants/statuses.js";
+import { logger } from "../logger.js";
 
 const githubUrl = z
   .string()
@@ -9,6 +10,7 @@ const githubUrl = z
       try {
         return new URL(url).hostname === "github.com";
       } catch {
+        logger.debug({ url }, "Failed to parse URL in GitHub URL validation");
         return false;
       }
     },
@@ -36,6 +38,7 @@ export const UpdateProjectSchema = CreateProjectBase.omit({
     agent_timeout_minutes: z.number().int().min(1).max(60).optional(),
     auto_start: z.boolean().optional(),
     auto_merge: z.boolean().optional(),
+    default_base_branch: z.string().min(1).optional(),
   });
 
 export const CreateRepoSchema = z.object({
@@ -47,6 +50,7 @@ export const CreateIssueSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
   created_by: z.string().optional(),
+  base_branch: z.string().min(1).optional(),
 });
 
 export const UpdateIssueSchema = z.object({

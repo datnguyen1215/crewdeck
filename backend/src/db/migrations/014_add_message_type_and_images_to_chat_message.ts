@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { logger } from "../../logger.js";
 
 export function run(db: Database.Database): void {
   try {
@@ -13,5 +14,6 @@ export function run(db: Database.Database): void {
     }
   } catch {
     // Table may not exist yet in fresh DBs — schema will create it
+    logger.debug("Migration 014 skipped: ChatMessage table not yet available");
   }
 }

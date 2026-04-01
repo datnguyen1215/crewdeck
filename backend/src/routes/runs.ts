@@ -7,11 +7,12 @@ import {
   listRecentAgentRunEvents,
 } from "../db/repositories/agent-runs.js";
 import { getCrewMember } from "../orchestration/crew.js";
-import { getIssue } from "../db/repositories/issues.js";
+import { getByIds } from "../db/repositories/issues.js";
 import {
   verifyProject,
   verifyIssueOwnership,
 } from "../middleware/ownership.js";
+import { NotFoundError, ValidationError } from "../middleware/errors.js";
 
 const router = Router({ mergeParams: true });
 
@@ -40,9 +41,15 @@ router.get(
   (req: Request<{ projectId: string }>, res) => {
     const includeEvents = req.query.include_events === "true";
     const runs = listActiveRunsForProject(req.params.projectId);
+
+    const issueIds = runs
+      .map((r) => r.issue_id)
+      .filter((id): id is string => id != null);
+    const issueMap = getByIds(issueIds);
+
     const result = runs.map((run) => {
       const agent = getCrewMember(run.agent_id);
-      const issue = run.issue_id ? getIssue(run.issue_id) : null;
+      const issue = run.issue_id ? issueMap.get(run.issue_id) : null;
       const recentEvents = includeEvents
         ? listRecentAgentRunEvents(run.id, 50)
         : [];
@@ -73,30 +80,18 @@ router.get(
     if (eventsLimitParam !== undefined) {
       const parsed = parseInt(eventsLimitParam, 10);
       if (isNaN(parsed)) {
-        res.status(400).json({
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "events_limit must be a valid number",
-          },
-        });
-        return;
+        throw new ValidationError("events_limit must be a valid number");
       }
       eventsLimit = parsed;
     }
 
     const run = getAgentRunWithEvents(req.params.runId, eventsLimit);
     if (!run) {
-      res
-        .status(404)
-        .json({ error: { code: "NOT_FOUND", message: "Run not found" } });
-      return;
+      throw new NotFoundError("Run not found");
     }
     // Verify the run belongs to this project
     if (run.project_id !== req.params.projectId) {
-      res
-        .status(404)
-        .json({ error: { code: "NOT_FOUND", message: "Run not found" } });
-      return;
+      throw new NotFoundError("Run not found");
     }
     res.json(run);
   },

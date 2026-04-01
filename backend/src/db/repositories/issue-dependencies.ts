@@ -4,8 +4,12 @@
  * Manages dependencies between issues (issue A depends on issue B).
  */
 import { db } from "../index.js";
-import type { IssueDependency } from "../../types/entities.js";
+import type {
+  IssueDependency,
+  IssueDependencySummary,
+} from "../../types/entities.js";
 import { getIssue } from "./issues.js";
+import { logger } from "../../logger.js";
 
 /**
  * List all issue IDs that the given issue depends on.
@@ -82,6 +86,10 @@ export function addDependency(
     ).run(id, issueId, dependsOnId);
   } catch {
     // UNIQUE constraint violation - dependency already exists
+    logger.debug(
+      { issueId, dependsOnId },
+      "Skipping duplicate dependency (already exists)",
+    );
     return null;
   }
 
@@ -148,7 +156,11 @@ export function setDependencies(
         ).run(id, issueId, depId);
         added.push(depId);
       } catch {
-        // Skip on constraint violation
+        // Skip on constraint violation (dependency already exists within this transaction)
+        logger.debug(
+          { issueId, depId },
+          "Skipping duplicate dependency in setDependencies",
+        );
       }
     }
 
@@ -159,27 +171,85 @@ export function setDependencies(
 }
 
 /**
+ * Generic batch query helper.
+ * Runs a SQL query with IN (?) placeholders for issueIds, initializes a Map
+ * with empty arrays for each id, then populates it using mapFn per row.
+ */
+function batchQuery<T>(
+  issueIds: string[],
+  sql: (placeholders: string) => string,
+  mapFn: (row: Record<string, string>) => { key: string; value: T },
+): Map<string, T[]> {
+  if (issueIds.length === 0) return new Map();
+
+  const placeholders = issueIds.map(() => "?").join(", ");
+  const rows = db.prepare(sql(placeholders)).all(...issueIds) as Record<
+    string,
+    string
+  >[];
+
+  const result = new Map<string, T[]>();
+  for (const issueId of issueIds) {
+    result.set(issueId, []);
+  }
+  for (const row of rows) {
+    const { key, value } = mapFn(row);
+    result.get(key)!.push(value);
+  }
+  return result;
+}
+
+/**
  * Get dependencies for multiple issues at once (batch query).
  * Returns a map of issue_id -> [depends_on_issue_id, ...]
  */
 export function listDependenciesBatch(
   issueIds: string[],
 ): Map<string, string[]> {
-  if (issueIds.length === 0) return new Map();
+  return batchQuery(
+    issueIds,
+    (p) =>
+      `SELECT issue_id, depends_on_issue_id FROM IssueDependency WHERE issue_id IN (${p})`,
+    (row) => ({ key: row.issue_id, value: row.depends_on_issue_id }),
+  );
+}
 
-  const placeholders = issueIds.map(() => "?").join(", ");
-  const rows = db
-    .prepare(
-      `SELECT issue_id, depends_on_issue_id FROM IssueDependency WHERE issue_id IN (${placeholders})`,
-    )
-    .all(...issueIds) as { issue_id: string; depends_on_issue_id: string }[];
+/**
+ * Get dependency summaries for multiple issues at once.
+ * Returns a map of issue_id -> IssueDependencySummary[] (the issues it depends on).
+ */
+export function listDependenciesBatchWithDetails(
+  issueIds: string[],
+): Map<string, IssueDependencySummary[]> {
+  return batchQuery(
+    issueIds,
+    (p) => `SELECT d.issue_id, i.id, i.title, i.status
+       FROM IssueDependency d
+       JOIN Issue i ON i.id = d.depends_on_issue_id
+       WHERE d.issue_id IN (${p})`,
+    (row) => ({
+      key: row.issue_id,
+      value: { id: row.id, title: row.title, status: row.status },
+    }),
+  );
+}
 
-  const result = new Map<string, string[]>();
-  for (const issueId of issueIds) {
-    result.set(issueId, []);
-  }
-  for (const row of rows) {
-    result.get(row.issue_id)!.push(row.depends_on_issue_id);
-  }
-  return result;
+/**
+ * Get dependent summaries for multiple issues at once.
+ * Returns a map of issue_id -> IssueDependencySummary[] (the issues that depend on it).
+ */
+export function listDependentsBatchWithDetails(
+  issueIds: string[],
+): Map<string, IssueDependencySummary[]> {
+  return batchQuery(
+    issueIds,
+    (p) => `SELECT d.depends_on_issue_id AS issue_id, i.id, i.title, i.status
+       FROM IssueDependency d
+       JOIN Issue i ON i.id = d.issue_id
+       WHERE d.depends_on_issue_id IN (${p})`,
+    (row) => ({
+      key: row.issue_id,
+      value: { id: row.id, title: row.title, status: row.status },
+    }),
+  );
 }

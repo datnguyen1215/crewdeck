@@ -27,7 +27,11 @@ import {
   UpdateKnowledgeSchema,
 } from "../schemas/validation.js";
 import { parsePRUrls } from "../pr/detector.js";
-import { handleMergePR, handleDispatchAgent, handleScanCodebase } from "../orchestration/command-handlers.js";
+import {
+  handleMergePR,
+  handleDispatchAgent,
+  handleScanCodebase,
+} from "../orchestration/command-handlers.js";
 
 // Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
@@ -80,17 +84,23 @@ const InternalCreateIssueSchema = BaseCreateIssueSchema.omit({
   created_by: true,
 }).extend({
   project_id: z.string(),
+  base_branch: z.string().min(1).optional(),
 });
 
 router.post(
   "/issues/create",
   validate(InternalCreateIssueSchema),
   (req, res) => {
-    const { project_id, title, description } = req.body;
+    const { project_id, title, description, base_branch } = req.body;
+    const project = getProject(project_id);
+    if (!project) throw new NotFoundError("Project not found");
+    const resolvedBaseBranch =
+      base_branch || project.default_base_branch || "main";
     const issue = createIssue(project_id, {
       title,
       description,
       created_by: "agent",
+      base_branch: resolvedBaseBranch,
     });
     eventBus.emit("issue.created", { issue });
     res.status(201).json(issue);
@@ -148,51 +158,55 @@ router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
 });
 
 // Captain orchestration endpoints
-router.post("/captain/merge-pr", async (req, res) => {
-  const { project_id, issue_id } = req.body;
-  if (!project_id || !issue_id) {
-    return res.status(400).json({ error: "project_id and issue_id required" });
-  }
+router.post("/captain/merge-pr", async (req, res, next) => {
   try {
+    const { project_id, issue_id } = req.body;
+    if (!project_id || !issue_id) {
+      throw new ValidationError("project_id and issue_id required");
+    }
     const result = await handleMergePR(project_id, { issue_id });
     if (!result.success) {
-      return res.status(400).json({ error: result.message });
+      throw new ValidationError(result.message);
     }
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    next(err);
   }
 });
 
-router.post("/captain/dispatch-agent", async (req, res) => {
-  const { project_id, issue_id, agent_id, instructions } = req.body;
-  if (!project_id || !issue_id || !agent_id) {
-    return res.status(400).json({ error: "project_id, issue_id, and agent_id required" });
-  }
+router.post("/captain/dispatch-agent", async (req, res, next) => {
   try {
-    const result = await handleDispatchAgent(project_id, { issue_id, agent_id, instructions });
+    const { project_id, issue_id, agent_id, instructions } = req.body;
+    if (!project_id || !issue_id || !agent_id) {
+      throw new ValidationError("project_id, issue_id, and agent_id required");
+    }
+    const result = await handleDispatchAgent(project_id, {
+      issue_id,
+      agent_id,
+      instructions,
+    });
     if (!result.success) {
-      return res.status(400).json({ error: result.message });
+      throw new ValidationError(result.message);
     }
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    next(err);
   }
 });
 
-router.post("/captain/scan-codebase", async (req, res) => {
-  const { project_id } = req.body;
-  if (!project_id) {
-    return res.status(400).json({ error: "project_id required" });
-  }
+router.post("/captain/scan-codebase", async (req, res, next) => {
   try {
+    const { project_id } = req.body;
+    if (!project_id) {
+      throw new ValidationError("project_id required");
+    }
     const result = await handleScanCodebase(project_id);
     if (!result.success) {
-      return res.status(400).json({ error: result.message });
+      throw new ValidationError(result.message);
     }
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    next(err);
   }
 });
 

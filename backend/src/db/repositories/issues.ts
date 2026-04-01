@@ -12,14 +12,18 @@ import { listComments } from "./comments.js";
 import { listIssuePRs } from "./issue-prs.js";
 import { listActivity } from "./activity-log.js";
 import { getRepo } from "./repos.js";
-import { buildAndRunUpdate } from "./utils.js";
+import { buildAndRunUpdate, deserializeBoolean } from "./utils.js";
+import {
+  listDependenciesBatchWithDetails,
+  listDependentsBatchWithDetails,
+} from "./issue-dependencies.js";
 
 function fromRowWithRunningAgent(
   row: Record<string, unknown>,
 ): IssueWithRunningAgent {
   return {
     ...(row as Omit<IssueWithRunningAgent, "paused">),
-    paused: Boolean(row.paused),
+    paused: deserializeBoolean(row.paused),
   };
 }
 
@@ -72,7 +76,7 @@ export function listIssues(
 function fromRow(row: Record<string, unknown>): Issue {
   return {
     ...(row as Omit<Issue, "paused">),
-    paused: Boolean(row.paused),
+    paused: deserializeBoolean(row.paused),
   };
 }
 
@@ -107,20 +111,25 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
   const repoRow = issue.repo_id ? getRepo(issue.repo_id) : null;
   const repo = repoRow ? { id: repoRow.id, name: repoRow.name } : null;
 
+  const depsMap = listDependenciesBatchWithDetails([id]);
+  const dependentsMap = listDependentsBatchWithDetails([id]);
+
   return {
     ...issue,
     comments: listComments(id, Infinity),
     issue_prs: listIssuePRs(id),
     activity_log: listActivity(issue.project_id, { issue_id: id }),
     repo,
+    dependencies: depsMap.get(id) ?? [],
+    dependents: dependentsMap.get(id) ?? [],
   };
 }
 
 export function createIssue(projectId: string, input: CreateIssueInput): Issue {
   const id = crypto.randomUUID();
   db.prepare(
-    `INSERT INTO Issue (id, project_id, title, description, created_by, status, agent_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO Issue (id, project_id, title, description, created_by, status, agent_id, base_branch)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     projectId,
@@ -129,6 +138,7 @@ export function createIssue(projectId: string, input: CreateIssueInput): Issue {
     input.created_by ?? "user",
     input.status ?? IssueStatus.OPEN,
     input.agent_id ?? null,
+    input.base_branch ?? null,
   );
   return getIssue(id)!;
 }
@@ -137,12 +147,6 @@ export function updateIssue(id: string, input: UpdateIssueInput): Issue {
   const overrides: Record<string, unknown> = {};
   if (input.paused !== undefined) {
     overrides.paused = input.paused ? 1 : 0;
-    // Update in-memory set before DB write (set-first ordering prevents race conditions)
-    if (input.paused) {
-      pausedIssues.add(id);
-    } else {
-      pausedIssues.delete(id);
-    }
   }
   buildAndRunUpdate("Issue", id, input, overrides);
   return getIssue(id)!;
@@ -150,7 +154,6 @@ export function updateIssue(id: string, input: UpdateIssueInput): Issue {
 
 export function deleteIssue(id: string): void {
   db.transaction(() => {
-    pausedIssues.delete(id);
     db.prepare("DELETE FROM AgentRun WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM ActivityLog WHERE issue_id = ?").run(id);
     db.prepare("DELETE FROM IssuePR WHERE issue_id = ?").run(id);
@@ -160,47 +163,58 @@ export function deleteIssue(id: string): void {
 }
 
 /**
- * In-memory set of paused issue IDs for fast checks without DB reads.
- * Initialized on server startup and updated by pauseIssue/resumeIssue.
- */
-export const pausedIssues = new Set<string>();
-
-/**
- * Initialize the pausedIssues set from the database.
- * Called on server startup.
- */
-export function initializePausedIssues(): void {
-  const rows = db
-    .prepare("SELECT id FROM Issue WHERE paused = 1")
-    .all() as { id: string }[];
-  pausedIssues.clear();
-  for (const row of rows) {
-    pausedIssues.add(row.id);
-  }
-}
-
-/**
- * Pause an issue (sets paused = 1).
- * Updates both in-memory set and database atomically.
+ * Pause an issue — pure DB update.
  */
 export function pauseIssue(issueId: string): void {
-  pausedIssues.add(issueId);
   db.prepare("UPDATE Issue SET paused = 1 WHERE id = ?").run(issueId);
 }
 
 /**
- * Resume an issue (sets paused = 0).
- * Updates both in-memory set and database atomically.
+ * Resume an issue — pure DB update.
  */
 export function resumeIssue(issueId: string): void {
-  pausedIssues.delete(issueId);
   db.prepare("UPDATE Issue SET paused = 0 WHERE id = ?").run(issueId);
 }
 
 /**
- * Check if an issue is paused without loading the full issue.
- * Uses in-memory set for performance.
+ * Batch-fetch issue titles by IDs. Returns a map of id → title.
  */
-export function isIssuePaused(issueId: string): boolean {
-  return pausedIssues.has(issueId);
+export function getTitlesByIds(ids: string[]): Map<string, string> {
+  const map = new Map<string, string>();
+  if (ids.length === 0) return map;
+  const placeholders = ids.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`SELECT id, title FROM Issue WHERE id IN (${placeholders})`)
+    .all(...ids) as { id: string; title: string }[];
+  for (const row of rows) {
+    map.set(row.id, row.title);
+  }
+  return map;
+}
+
+/**
+ * Batch-fetch issues by IDs. Returns a map of id → Issue.
+ */
+export function getByIds(ids: string[]): Map<string, Issue> {
+  const map = new Map<string, Issue>();
+  if (ids.length === 0) return map;
+  const placeholders = ids.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`SELECT * FROM Issue WHERE id IN (${placeholders})`)
+    .all(...ids) as Record<string, unknown>[];
+  for (const row of rows) {
+    const issue = fromRow(row);
+    map.set(issue.id, issue);
+  }
+  return map;
+}
+
+/**
+ * Returns the IDs of all currently paused issues.
+ */
+export function listPausedIssueIds(): string[] {
+  const rows = db.prepare("SELECT id FROM Issue WHERE paused = 1").all() as {
+    id: string;
+  }[];
+  return rows.map((r) => r.id);
 }
