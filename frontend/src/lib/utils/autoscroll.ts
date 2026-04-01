@@ -1,15 +1,9 @@
 /**
  * Svelte action that auto-scrolls a container when new content is added,
  * but only if the user is already at the bottom. Preserves scroll position
- * when the user has scrolled up.
- *
- * Optionally accepts a callback that receives a `scrollToBottom` function
- * for forced/manual scrolling regardless of position.
+ * when the user has scrolled up. Also scrolls to bottom on initial attach.
  */
-export function autoscroll(
-  node: HTMLElement,
-  callback?: (scrollToBottom: () => void) => void,
-) {
+export function autoscroll(node: HTMLElement) {
   let isAtBottom = true;
   const threshold = 30;
 
@@ -38,7 +32,8 @@ export function autoscroll(
     characterData: true,
   });
 
-  callback?.(scrollToBottom);
+  // Scroll to bottom on initial attachment
+  requestAnimationFrame(scrollToBottom);
 
   return {
     destroy() {
