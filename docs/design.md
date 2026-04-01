@@ -191,6 +191,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Provides autocomplete for `/dispatch` commands in comment input (via `DispatchInput.svelte`).
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
+- **Error handling convention**: User-facing errors from user-initiated actions (page load, form submit, status change) are shown via `toastStore.add(message, 'error')`. WS-triggered background refreshes and polling use silent `.catch(() => {})` to avoid flooding the user with transient network errors.
 
 **Backend (Node.js + TypeScript)**
 
