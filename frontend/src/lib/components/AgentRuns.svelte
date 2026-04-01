@@ -3,12 +3,12 @@
 	import { listIssueRuns, getRun, type AgentRun, type AgentRunWithEvents, type AgentRunEvent } from '$lib/api/http.js';
 	import { smartTime, fullTime } from '$lib/utils/time.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
-	import type { WsEventMap } from '$lib/api/types.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { RUN_STATUS_CFG } from '$lib/config/status.js';
 	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 	import { formatDuration, formatCost } from '$lib/utils/format.js';
 	import { renderEventContent } from '$lib/utils/event.js';
+	import { createRunEventHandlers, mergeWithLiveEvents, createLiveEventSync } from '$lib/utils/run-events.svelte.js';
 
 	let { projectId, issueId }: { projectId: string; issueId: string } = $props();
 
@@ -31,62 +31,11 @@
 		const ws = getWs();
 		if (!ws) return;
 
-		const handleRunStarted = (data: WsEventMap['run.started']) => {
-			if (data.issue_id !== issueId) return;
-			const newRun: AgentRun = {
-				id: data.agent_run_id,
-				project_id: projectId,
-				issue_id: issueId,
-				agent_id: data.agent_id,
-				pid: null,
-				status: data.status,
-				exit_code: null,
-				cost_usd: null,
-				duration_ms: null,
-				started_at: data.started_at,
-				completed_at: null,
-				created_at: new Date().toISOString()
-			};
-			runs = [newRun, ...runs];
-			liveEvents.set(newRun.id, []);
-		};
-
-		const handleRunEvent = (data: WsEventMap['run.event']) => {
-			const runId = data.agent_run_id;
-			const run = runs.find(r => r.id === runId);
-			if (!run || run.issue_id !== issueId) return;
-
-			const event: AgentRunEvent = {
-				id: data.event_id,
-				agent_run_id: runId,
-				type: data.type,
-				data: data.data,
-				created_at: data.created_at
-			};
-
-			const existing = liveEvents.get(runId) ?? [];
-			liveEvents.set(runId, [...existing, event]);
-			liveEvents = new Map(liveEvents);
-
-			if (expandedRun === runId && !expandedEvents.some(e => e.id === event.id)) {
-				expandedEvents = [...expandedEvents, event];
-			}
-		};
-
-		const handleRunCompleted = (data: WsEventMap['run.completed']) => {
-			const runId = data.agent_run_id;
-			runs = runs.map(r => {
-				if (r.id !== runId) return r;
-				return {
-					...r,
-					status: data.status,
-					exit_code: data.exit_code,
-					cost_usd: data.cost_usd,
-					duration_ms: data.duration_ms,
-					completed_at: data.completed_at
-				};
-			});
-		};
+		const { handleRunStarted, handleRunEvent, handleRunCompleted } = createRunEventHandlers(
+			issueId, projectId,
+			() => runs, (r) => { runs = r; },
+			() => liveEvents, (m) => { liveEvents = m; }
+		);
 
 		return useWsSubscriptions(ws, {
 			'run.started': handleRunStarted,
@@ -94,6 +43,14 @@
 			'run.completed': handleRunCompleted,
 		});
 	});
+
+	// Keep expanded events in sync with live events
+	$effect(createLiveEventSync(
+		() => liveEvents,
+		() => expandedRun,
+		() => expandedEvents,
+		(e) => { expandedEvents = e; }
+	));
 
 	async function loadRuns() {
 		loading = true;
@@ -120,14 +77,7 @@
 		loadingEvents = true;
 		try {
 			const full = await getRun(projectId, runId);
-			const apiEvents = full.events;
-
-			// Merge with live events, deduplicating by ID
-			// (handles race condition where event is both fetched and received via WS)
-			const live = liveEvents.get(runId) ?? [];
-			const apiEventIds = new Set(apiEvents.map(e => e.id));
-			const newLiveEvents = live.filter(e => !apiEventIds.has(e.id));
-			expandedEvents = [...apiEvents, ...newLiveEvents];
+			expandedEvents = mergeWithLiveEvents(full.events, liveEvents, runId);
 		} catch {
 			// Fallback to live events only if API fails
 			expandedEvents = liveEvents.get(runId) ?? [];

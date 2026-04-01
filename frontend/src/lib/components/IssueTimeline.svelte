@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { Comment, ActivityLog, AgentRun, AgentRunEvent } from '$lib/api/http.js';
 	import { getRun } from '$lib/api/http.js';
-	import { untrack } from 'svelte';
 	import { smartTime, fullTime, parseUTC } from '$lib/utils/time.js';
+	import { mergeWithLiveEvents, createLiveEventSync } from '$lib/utils/run-events.svelte.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { ACTOR_CFG, actorName, actionLabel, hasExpandableDetails } from '$lib/activity.js';
@@ -112,11 +112,7 @@
 			const full = await getRun(projectId, runId);
 			// Guard against stale responses if the user clicked a different run before this resolved
 			if (expandedRun !== runId) return;
-			const apiEvents = full.events;
-			const live = liveEvents.get(runId) ?? [];
-			const apiEventIds = new Set(apiEvents.map(e => e.id));
-			const newLiveEvents = live.filter(e => !apiEventIds.has(e.id));
-			expandedEvents = [...apiEvents, ...newLiveEvents];
+			expandedEvents = mergeWithLiveEvents(full.events, liveEvents, runId);
 		} catch {
 			expandedEvents = liveEvents.get(runId) ?? [];
 			toastStore.add('Failed to load run events', 'error');
@@ -126,17 +122,12 @@
 	}
 
 	// Live-update inline expanded run events when new run events stream in
-	$effect(() => {
-		if (!expandedRun) return;
-		const live = liveEvents.get(expandedRun) ?? [];
-		if (live.length === 0) return;
-		// Use untrack to read expandedEvents without creating a reactive dependency
-		const existingIds = new Set(untrack(() => expandedEvents).map(e => e.id));
-		const newEvents = live.filter(e => !existingIds.has(e.id));
-		if (newEvents.length > 0) {
-			expandedEvents = [...untrack(() => expandedEvents), ...newEvents];
-		}
-	});
+	$effect(createLiveEventSync(
+		() => liveEvents,
+		() => expandedRun,
+		() => expandedEvents,
+		(e) => { expandedEvents = e; }
+	));
 
 </script>
 
