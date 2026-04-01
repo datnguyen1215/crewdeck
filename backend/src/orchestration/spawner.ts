@@ -9,6 +9,7 @@ import * as projectRepo from "../db/repositories/projects.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as knowledgeRepo from "../db/repositories/knowledge.js";
 import * as envVarRepo from "../db/repositories/environment-variables.js";
+import * as globalEnvVarRepo from "../db/repositories/global-environment-variables.js";
 import * as repoRepo from "../db/repositories/repos.js";
 import * as agentPrompt from "./prompt.js";
 import * as database from "../db/index.js";
@@ -280,6 +281,7 @@ export const spawnScan = async (projectId: string): Promise<string> => {
 
   const envVars = envVarRepo.getEnvironmentVariablesMap(projectId);
   const env: Record<string, string> = {
+    ...globalEnvVarRepo.getMap(),
     ...envVars,
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
     CREWDECK_PROJECT_ID: projectId,
