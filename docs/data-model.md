@@ -300,7 +300,7 @@ Represents the single admin account for backend authentication. Only one row exi
 
 ### Session
 
-Represents an active login session. Old sessions are deleted on each login to prevent session fixation. Sessions persist indefinitely (no server-side expiry check; cookie `maxAge` is set to 10 years).
+Represents an active login session. Multiple sessions can exist simultaneously for the same user (multi-device login). Logging in from a new device does not invalidate existing sessions. Logout only deletes the session of the calling device. Sessions persist indefinitely (no server-side expiry check; cookie `maxAge` is set to 10 years).
 
 | Field      | Type     | Constraints                                            | Description                                                          |
 | ---------- | -------- | ------------------------------------------------------ | -------------------------------------------------------------------- |
