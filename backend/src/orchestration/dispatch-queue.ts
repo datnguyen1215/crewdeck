@@ -7,6 +7,7 @@ import * as log from "../logger.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as crew from "./crew.js";
+import * as globalConfigRepo from "../db/repositories/global-config.js";
 import { config } from "../config.js";
 import type { AgentRun } from "../types/entities.js";
 
@@ -117,9 +118,10 @@ export const drainQueue = async (
 
     // Check project limit
     const projectRunning = agentRunRepo.countRunningForProject(projectId);
-    if (projectRunning >= project.max_concurrency) {
+    const maxConcurrency = globalConfigRepo.getMaxConcurrency();
+    if (projectRunning >= maxConcurrency) {
       log.logger.debug(
-        { projectRunning, maxConcurrency: project.max_concurrency, projectId },
+        { projectRunning, maxConcurrency, projectId },
         "Project concurrency limit reached, stopping queue drain",
       );
       return;

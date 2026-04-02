@@ -23,9 +23,6 @@
 	let name = $state('');
 	let description = $state('');
 	let defaultBaseBranch = $state('main');
-	let maxConcurrency = $state(1);
-	let maxChainDepth = $state(20);
-	let agentTimeoutMinutes = $state(10);
 
 	// Environment variables state
 	let envVars = $state<EnvironmentVariable[]>([]);
@@ -50,9 +47,6 @@
 				name = p.name;
 				description = p.description ?? '';
 				defaultBaseBranch = p.default_base_branch ?? 'main';
-				maxConcurrency = p.max_concurrency;
-				maxChainDepth = p.max_chain_depth;
-				agentTimeoutMinutes = p.agent_timeout_minutes;
 			},
 			onError: 'Failed to load project',
 			onLoading: (v) => { loading = v; },
@@ -145,10 +139,7 @@
 		project != null && (
 			name !== project.name ||
 			description !== (project.description ?? '') ||
-			defaultBaseBranch !== (project.default_base_branch ?? 'main') ||
-			maxConcurrency !== project.max_concurrency ||
-			maxChainDepth !== project.max_chain_depth ||
-			agentTimeoutMinutes !== project.agent_timeout_minutes
+			defaultBaseBranch !== (project.default_base_branch ?? 'main')
 		)
 	);
 
@@ -160,17 +151,11 @@
 				name: name.trim(),
 				description: description.trim() || null,
 				default_base_branch: defaultBaseBranch.trim() || 'main',
-				max_concurrency: Number(maxConcurrency),
-				max_chain_depth: Number(maxChainDepth),
-				agent_timeout_minutes: Number(agentTimeoutMinutes),
 			});
 			project = updated;
 			name = updated.name;
 			description = updated.description ?? '';
 			defaultBaseBranch = updated.default_base_branch ?? 'main';
-			maxConcurrency = updated.max_concurrency;
-			maxChainDepth = updated.max_chain_depth;
-			agentTimeoutMinutes = updated.agent_timeout_minutes;
 			toastStore.add('Settings saved', 'success');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -184,9 +169,6 @@
 		name = project.name;
 		description = project.description ?? '';
 		defaultBaseBranch = project.default_base_branch ?? 'main';
-		maxConcurrency = project.max_concurrency;
-		maxChainDepth = project.max_chain_depth;
-		agentTimeoutMinutes = project.agent_timeout_minutes;
 	}
 </script>
 
@@ -227,24 +209,6 @@
 					<label for="settings-base-branch" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Default Base Branch</label>
 					<input id="settings-base-branch" type="text" bind:value={defaultBaseBranch} placeholder="main" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary font-mono placeholder-muted focus:outline-none focus:border-cyan transition-colors" />
 					<p class="text-muted text-xs mt-1">Branch that new issues will target by default (e.g. main, develop)</p>
-				</div>
-
-				<div>
-					<label for="settings-concurrency" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Max Concurrency</label>
-					<input id="settings-concurrency" type="number" bind:value={maxConcurrency} min="1" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
-					<p class="text-muted text-xs mt-1">Maximum concurrent agent processes per project</p>
-				</div>
-
-				<div>
-					<label for="settings-chain-depth" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Max Chain Depth</label>
-					<input id="settings-chain-depth" type="number" bind:value={maxChainDepth} min="1" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
-					<p class="text-muted text-xs mt-1">Maximum agent dispatches per issue before requiring manual reset</p>
-				</div>
-
-				<div>
-					<label for="settings-agent-timeout" class="block text-xs text-muted uppercase tracking-widest mb-1.5">Agent Timeout (minutes)</label>
-					<input id="settings-agent-timeout" type="number" bind:value={agentTimeoutMinutes} min="1" max="60" class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors" />
-					<p class="text-muted text-xs mt-1">Maximum time an agent can run before being terminated (1-60 minutes)</p>
 				</div>
 
 				<div class="flex gap-3 mt-2">

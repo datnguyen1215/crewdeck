@@ -3,6 +3,7 @@
  * Pure function after the state snapshot is provided.
  */
 import { getProject } from "../../db/repositories/projects.js";
+import * as globalConfigRepo from "../../db/repositories/global-config.js";
 import { getActiveProcessCount } from "../processes.js";
 import { buildStateSnapshot } from "./state-snapshot.js";
 
@@ -14,6 +15,7 @@ export const buildSystemPrompt = (projectId: string): string => {
   if (!project) return "";
 
   const runningAgents = getActiveProcessCount(projectId);
+  const maxConcurrency = globalConfigRepo.getMaxConcurrency();
 
   const canAutoStart = project.auto_start;
   const canMerge = project.auto_merge;
@@ -42,8 +44,8 @@ These flags are shown in the issue list snapshot above. When you see them, act o
 
 ## Current Capacity
 - Running agents: ${runningAgents}
-- Max concurrency: ${project.max_concurrency}
-- Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}
+- Max concurrency: ${maxConcurrency}
+- Available slots: ${Math.max(0, maxConcurrency - runningAgents)}
 
 ## Current State (pre-fetched snapshot)
 ${snapshot}

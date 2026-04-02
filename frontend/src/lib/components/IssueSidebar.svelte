@@ -11,12 +11,14 @@
 		issue,
 		project,
 		projectId,
+		globalConfig,
 		onStatusChange,
 		onEdit
 	}: {
 		issue: IssueWithDetails;
 		project: Project | null;
 		projectId: string;
+		globalConfig: { maxChainDepth: number } | undefined;
 		onStatusChange: () => void;
 		onEdit: () => void;
 	} = $props();
@@ -142,6 +144,7 @@
 	<IssueMetadata
 		{issue}
 		{project}
+		{globalConfig}
 		{copied}
 		bind:baseBranchEdit
 		{savingBaseBranch}

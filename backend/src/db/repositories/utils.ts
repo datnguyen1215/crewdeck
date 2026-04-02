@@ -19,9 +19,6 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
   Project: new Set([
     "name",
     "description",
-    "max_concurrency",
-    "max_chain_depth",
-    "agent_timeout_minutes",
     "auto_start",
     "auto_merge",
     "vcs_account_id",

@@ -185,7 +185,7 @@ comment.added event
     ├── for each dispatched agent:
     │       ├── skip if agent is the batch originator (will be auto-spawned later)
     │       ├── skip if agent already has an active process for this issue (deduplication)
-    │       ├── check chain_depth < project.max_chain_depth (atomic DB increment)
+    │       ├── check chain_depth < global max_chain_depth (atomic DB increment)
     │       ├── check active process count < max_concurrency
     │       │       └── if limit reached: enqueue dispatch, post "Agent X queued (N ahead)"
     │       │               system comment, emit dispatch.queued — skip remaining steps
@@ -218,14 +218,14 @@ When a single comment dispatches multiple agents (e.g., `/dispatch engineer lead
 
 ### Chain Depth
 
-Each spawn atomically increments `Issue.chain_depth`. If `chain_depth` is already at the project's `max_chain_depth` limit (default 20), the increment fails and a system comment is posted instead. Chain depth can be reset via `PATCH /api/v1/projects/:projectId/issues/:issueId` with `{ "chain_depth": 0 }`.
+Each spawn atomically increments `Issue.chain_depth`. If `chain_depth` is already at the global `max_chain_depth` limit (default 20), the increment fails and a system comment is posted instead. Chain depth can be reset via `PATCH /api/v1/projects/:projectId/issues/:issueId` with `{ "chain_depth": 0 }`.
 
 ### Concurrency
 
 Active processes are tracked in an in-memory map keyed by PID. Before spawning, the handler checks two concurrency limits:
 
 1. **Global limit** — `MAX_AGENTS` env var (default 10). Counts all running agents across all projects via `AgentRun.status='running'`.
-2. **Per-project limit** — `project.max_concurrency`. Counts running agents for the specific project.
+2. **Per-project limit** — global `max_concurrency` setting. Counts running agents for the specific project.
 
 If either limit is reached, the dispatch is placed in a DB-backed FIFO queue (using `AgentRun` table with `status='queued'`) instead of being dropped. A system comment is posted with the agent's queue position. When any active process exits, the handler dequeues the next pending dispatch for that project and spawns it. Queue state persists across server restarts — on startup, queued runs are restored from the database.
 

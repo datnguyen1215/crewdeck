@@ -151,8 +151,6 @@ Without `?stats`:
     "id": "uuid",
     "name": "My Project",
     "description": "...",
-    "max_concurrency": 3,
-    "max_chain_depth": 20,
     "model": "sonnet",
     "auto_start": false,
     "auto_merge": false,
@@ -171,8 +169,6 @@ With `?stats`:
     "id": "uuid",
     "name": "My Project",
     "description": "...",
-    "max_concurrency": 3,
-    "max_chain_depth": 20,
     "model": "sonnet",
     "auto_start": false,
     "auto_merge": false,
@@ -221,13 +217,12 @@ POST /projects
 }
 ```
 
-| Field           | Required | Default                       | Description                                                             |
-| --------------- | -------- | ----------------------------- | ----------------------------------------------------------------------- |
-| repo_url        | Yes      | —                             | Repository URL (GitHub, GitLab, etc.) to link to this project.          |
-| name            | No       | Repo name from VCS API        | Project name.                                                           |
-| description     | No       | Repo description from VCS API | Project description.                                                    |
-| max_concurrency | No       | —                             | Max concurrent agent processes.                                         |
-| vcs_account_id  | No       | null                          | ID of a connected VCSAccount to use for git operations in this project. |
+| Field          | Required | Default                       | Description                                                             |
+| -------------- | -------- | ----------------------------- | ----------------------------------------------------------------------- |
+| repo_url       | Yes      | —                             | Repository URL (GitHub, GitLab, etc.) to link to this project.          |
+| name           | No       | Repo name from VCS API        | Project name.                                                           |
+| description    | No       | Repo description from VCS API | Project description.                                                    |
+| vcs_account_id | No       | null                          | ID of a connected VCSAccount to use for git operations in this project. |
 
 **Response:** `201 Created` — The created project object.
 
@@ -241,7 +236,7 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, model, auto_start, auto_merge, vcs_account_id).
+**Request Body:** Any subset of project fields (name, description, model, auto_start, auto_merge, vcs_account_id).
 
 | Field      | Type    | Description                                                              |
 | ---------- | ------- | ------------------------------------------------------------------------ |
@@ -654,7 +649,7 @@ PATCH /projects/:projectId/issues/:issueId
 
 - WebSocket event emitted: `issue.status_changed` (when status changes).
 
-**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue (excluding the agent specified in `X-Agent-ID`). Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the project's `max_chain_depth` limit is reached.
+**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue (excluding the agent specified in `X-Agent-ID`). Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the global `max_chain_depth` limit is reached.
 
 #### Delete Issue
 
@@ -1316,13 +1311,19 @@ GET /global-config
 
 ```json
 {
-  "defaultModel": "sonnet"
+  "defaultModel": "sonnet",
+  "maxConcurrency": 5,
+  "maxChainDepth": 20,
+  "agentTimeoutMinutes": 10
 }
 ```
 
-| Field        | Type | Description                     |
-| ------------ | ---- | ------------------------------- |
-| defaultModel | TEXT | Default model for agent spawns. |
+| Field               | Type    | Description                                 |
+| ------------------- | ------- | ------------------------------------------- |
+| defaultModel        | TEXT    | Default model for agent spawns.             |
+| maxConcurrency      | INTEGER | Max concurrent agent processes per project. |
+| maxChainDepth       | INTEGER | Max agent dispatches per issue.             |
+| agentTimeoutMinutes | INTEGER | Agent process timeout in minutes.           |
 
 #### Get Default Model
 
@@ -1369,6 +1370,138 @@ Sets the default model for all agent spawns when no per-agent override is config
 ```json
 {
   "model": "opus"
+}
+```
+
+#### Get Max Concurrency
+
+```
+GET /global-config/max-concurrency
+```
+
+Returns the maximum concurrent agent processes per project.
+
+**Response:** `200 OK`
+
+```json
+{
+  "maxConcurrency": 5
+}
+```
+
+#### Set Max Concurrency
+
+```
+PUT /global-config/max-concurrency
+```
+
+Sets the maximum concurrent agent processes per project.
+
+**Request Body:**
+
+```json
+{
+  "maxConcurrency": 10
+}
+```
+
+| Field          | Required | Description               |
+| -------------- | -------- | ------------------------- |
+| maxConcurrency | Yes      | Max concurrent agents. 1–50. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "maxConcurrency": 10
+}
+```
+
+#### Get Max Chain Depth
+
+```
+GET /global-config/max-chain-depth
+```
+
+Returns the maximum agent dispatches per issue before requiring manual reset.
+
+**Response:** `200 OK`
+
+```json
+{
+  "maxChainDepth": 20
+}
+```
+
+#### Set Max Chain Depth
+
+```
+PUT /global-config/max-chain-depth
+```
+
+Sets the maximum agent dispatches per issue.
+
+**Request Body:**
+
+```json
+{
+  "maxChainDepth": 30
+}
+```
+
+| Field        | Required | Description                    |
+| ------------ | -------- | ------------------------------ |
+| maxChainDepth | Yes      | Max chain depth. 1–100.        |
+
+**Response:** `200 OK`
+
+```json
+{
+  "maxChainDepth": 30
+}
+```
+
+#### Get Agent Timeout
+
+```
+GET /global-config/agent-timeout-minutes
+```
+
+Returns the agent process timeout in minutes.
+
+**Response:** `200 OK`
+
+```json
+{
+  "agentTimeoutMinutes": 10
+}
+```
+
+#### Set Agent Timeout
+
+```
+PUT /global-config/agent-timeout-minutes
+```
+
+Sets the agent process timeout in minutes.
+
+**Request Body:**
+
+```json
+{
+  "agentTimeoutMinutes": 15
+}
+```
+
+| Field              | Required | Description                  |
+| ------------------ | -------- | ---------------------------- |
+| agentTimeoutMinutes | Yes      | Timeout in minutes. 1–60.   |
+
+**Response:** `200 OK`
+
+```json
+{
+  "agentTimeoutMinutes": 15
 }
 ```
 
@@ -1911,7 +2044,7 @@ All events follow this structure:
 | `mention.spawned`             | Agent process started for a /dispatch command                             | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, pid }`       |
 | `mention.completed`           | Agent process finished                                                    | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
 | `mention.error`               | Agent process failed                                                      | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, message }`   |
-| `mention.chain_depth_reached` | Issue chain depth limit reached (per project's `max_chain_depth` setting) | `{ project_id, issue_id, issue_title? }`                                   |
+| `mention.chain_depth_reached` | Issue chain depth limit reached (global `max_chain_depth` setting) | `{ project_id, issue_id, issue_title? }`                                   |
 | `dispatch.queued`             | Agent dispatch queued (concurrency limit reached)                         | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, position }`  |
 | `dispatch.dequeued`           | Agent dispatch dequeued and starting                                      | `{ project_id, issue_id, agent_id, agent_name?, issue_title? }`            |
 
