@@ -9,7 +9,6 @@ import {
   createAdmin,
   createSession,
   deleteSession,
-  deleteSessionsByUserId,
 } from "../db/repositories/auth.js";
 import { validate } from "../middleware/validate.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -108,8 +107,6 @@ router.post("/login", validate(LoginSchema), async (req, res, next) => {
       throw new ForbiddenError("Invalid credentials");
     }
 
-    // Delete any existing session for this user (prevent session fixation)
-    deleteSessionsByUserId(admin.id);
     setSessionCookie(res, admin.id);
     res.json({ id: admin.id, username: admin.username });
   } catch (err) {
