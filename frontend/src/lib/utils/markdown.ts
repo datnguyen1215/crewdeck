@@ -65,3 +65,33 @@ export function md(text: string): string {
 	if (inList) result.push(`</${inList}>`);
 	return result.join('');
 }
+
+/** Strip markdown syntax to produce plain text for previews */
+export function stripMarkdown(text: string): string {
+	return text
+		// Fenced code blocks → single newline
+		.replace(/```[\s\S]*?```/g, '')
+		// ATX headings
+		.replace(/^#{1,6}\s+/gm, '')
+		// Bold/italic
+		.replace(/\*\*([^*]+)\*\*/g, '$1')
+		.replace(/\*([^*]+)\*/g, '$1')
+		.replace(/__([^_]+)__/g, '$1')
+		.replace(/_([^_]+)_/g, '$1')
+		// Inline code
+		.replace(/`([^`]+)`/g, '$1')
+		// Links: [text](url) → text
+		.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+		// Images: ![alt](url) → (remove)
+		.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+		// List markers
+		.replace(/^[\s]*[-*+]\s+/gm, '')
+		.replace(/^\d+\.\s+/gm, '')
+		// Blockquotes
+		.replace(/^>\s+/gm, '')
+		// Horizontal rules
+		.replace(/^[-*_]{3,}\s*$/gm, '')
+		// Collapse whitespace
+		.replace(/\n{2,}/g, '\n')
+		.trim();
+}
