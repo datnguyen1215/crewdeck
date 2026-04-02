@@ -7,6 +7,7 @@
 	import { icons } from './icons.js';
 
 	const STORAGE_KEY = 'sidebar-collapsed';
+	const SYSTEM_STORAGE_KEY = 'sidebar-system-collapsed';
 	const MOBILE_BREAKPOINT = 768;
 
 	let projects = $state<ProjectWithStats[]>([]);
@@ -14,6 +15,7 @@
 	let collapsed = $state(false);
 	let mobileOpen = $state(false);
 	let isMobile = $state(false);
+	let systemSectionCollapsed = $state(false);
 	let projectId = $derived($page.params.projectId);
 	let pathname = $derived($page.url.pathname);
 
@@ -47,6 +49,11 @@
 			collapsed = stored === 'true';
 		}
 
+		const systemStored = localStorage.getItem(SYSTEM_STORAGE_KEY);
+		if (systemStored !== null) {
+			systemSectionCollapsed = systemStored === 'true';
+		}
+
 		// Load projects (async, but don't block)
 		const fetchProjects = () => {
 			listProjectsWithStats()
@@ -76,6 +83,11 @@
 
 	function closeMobileSidebar() {
 		if (isMobile) mobileOpen = false;
+	}
+
+	function toggleSystemSection() {
+		systemSectionCollapsed = !systemSectionCollapsed;
+		localStorage.setItem(SYSTEM_STORAGE_KEY, String(systemSectionCollapsed));
 	}
 
 	async function logout() {
@@ -214,9 +226,37 @@
 
 		<div class="mt-auto">
 			<div class="border-t border-edge my-1"></div>
-			{@render navItem('/accounts', 'Accounts', 'accounts', isActive('/accounts'))}
-			{@render navItem('/api-keys', 'API Keys', 'key', isActive('/api-keys'))}
-			{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
+			{#if collapsed && !isMobile}
+				{@render navItem('/accounts', 'Accounts', 'accounts', isActive('/accounts'))}
+				{@render navItem('/api-keys', 'API Keys', 'key', isActive('/api-keys'))}
+				{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
+			{:else}
+				<button
+					onclick={toggleSystemSection}
+					class="flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-widest text-tertiary hover:text-secondary transition-colors w-full"
+				>
+					<span class="flex-1 text-left">System</span>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="14"
+						height="14"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						class="transition-transform duration-200 {systemSectionCollapsed ? '' : 'rotate-180'}"
+					>
+						{@html icons.chevronDown}
+					</svg>
+				</button>
+				{#if !systemSectionCollapsed}
+					{@render navItem('/accounts', 'Accounts', 'accounts', isActive('/accounts'))}
+					{@render navItem('/api-keys', 'API Keys', 'key', isActive('/api-keys'))}
+					{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
+				{/if}
+			{/if}
 			<button
 				onclick={logout}
 				class="flex items-center gap-3 px-3 py-2.5 rounded text-secondary hover:text-red hover:bg-surface transition-colors whitespace-nowrap min-h-[44px] w-full {collapsed && !isMobile ? 'justify-center' : ''}"
