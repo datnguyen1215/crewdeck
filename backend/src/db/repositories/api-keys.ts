@@ -64,7 +64,7 @@ export function createApiKey(name: string): {
   const id = crypto.randomUUID();
   const raw = `sk-${randomBytes(32).toString("hex")}`;
   const keyHash = hashKey(raw);
-  const keyPrefix = raw.slice(0, 12); // sk- + 8 hex chars
+  const keyPrefix = raw.slice(0, 11); // sk- + 8 hex chars
 
   db.prepare(
     "INSERT INTO ApiKey (id, name, key_hash, key_prefix) VALUES (?, ?, ?, ?)",

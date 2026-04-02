@@ -53,7 +53,7 @@ function authenticateViaApiKey(
   const apiKey = getByKeyHash(hash);
   if (!apiKey) return null;
 
-  // Fire-and-forget last_used_at update
+  // Update last_used_at (synchronous write on every API-key-authenticated request)
   updateLastUsed(apiKey.id);
 
   return { id: apiKey.id, username: `api-key:${apiKey.name}` };
