@@ -1,11 +1,11 @@
 /**
  * Monitor History API Routes
  *
- * Provides read-only access to monitor messages (sessionless chat messages).
+ * Provides read-only access to monitor messages.
  */
 import { Router, type Request } from "express";
 import { verifyProject } from "../middleware/ownership.js";
-import { getByProject as getMonitorMessages } from "../db/repositories/chat-messages.js";
+import { getByProject as getMonitorMessages } from "../db/repositories/monitor-messages.js";
 
 const router = Router({ mergeParams: true });
 

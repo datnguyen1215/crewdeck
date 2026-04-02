@@ -1,4 +1,4 @@
-// NOTE: Migration 034 drops ChatSession and removes session_id/images from ChatMessage.
+// NOTE: Migration 035 renames ChatMessage → MonitorMessage and drops ChatSession.
 // This file is kept for migration ordering correctness only.
 import type Database from "better-sqlite3";
 
