@@ -225,8 +225,8 @@ The frontend and backend are separate directories. Each has its own `package.jso
 - Admin authentication via session cookies (bcrypt password hashing, HTTP-only cookies, rate-limited login).
 - All request validation via Zod schemas. Issue and PR status fields use Zod enum validation against centralized constants (`backend/src/constants/statuses.ts`).
 - Centralized error handling middleware (all errors formatted as `{ error: { code, message, details } }`).
-- Runs WebSocket server (`ws` library) to push real-time events to the frontend.
-- Runs separate terminal WebSocket server (`/terminal-ws`) for PTY streaming.
+- Runs WebSocket server (`ws` library) to push real-time events to the frontend. Connections require a valid session cookie — validated via `validateSessionFromCookie()` before accepting.
+- Runs separate terminal WebSocket server (`/terminal-ws`) for PTY streaming. Session validation is enforced on this endpoint as well (the most sensitive endpoint — direct shell access).
 - In-process event bus (typed EventEmitter) for decoupled internal communication between components.
 - Manages agent lifecycle — spawning `claude -p` processes, tracking active processes, enforcing concurrency limits.
 - Manages terminal sessions — persistent tmux sessions running Claude CLI with idle timeout cleanup (default 30 min, `ORCHESTRATION_PTY_IDLE_TIMEOUT_MS`).
@@ -372,6 +372,7 @@ Environment injection: project-defined env vars (from project settings), `CREWDE
 **Terminal WebSocket Server** (`backend/src/terminal-ws.ts`)
 
 - Separate WebSocket server on `/terminal-ws?projectId={id}` path.
+- **Session validation**: connections are authenticated via `validateSessionFromCookie()` from `middleware/auth.ts`. Invalid/missing sessions are rejected with `ws.close(4001, 'Unauthorized')` before any other processing.
 - Spawns `node-pty` process attaching to the project's tmux session via `tmux attach-session -t {name}`.
 - Bidirectional I/O: PTY output → WebSocket send (raw bytes), WebSocket messages → PTY write (keyboard input).
 - Resize handling: JSON messages with `{ type: "resize", cols, rows }` → `pty.resize()`.

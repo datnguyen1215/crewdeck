@@ -1,5 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
-import { getSession, cleanExpiredSessions } from "../db/repositories/auth.js";
+import {
+  getSession,
+  cleanExpiredSessions,
+  type Session,
+} from "../db/repositories/auth.js";
 import { ForbiddenError } from "./errors.js";
 
 declare global {
@@ -18,6 +22,20 @@ function maybeCleanSessions(): void {
     lastCleanup = now;
     cleanExpiredSessions();
   }
+}
+
+/**
+ * Validate a session token from a raw Cookie header string.
+ * Used by both HTTP middleware and WebSocket upgrade handlers.
+ */
+export function validateSessionFromCookie(
+  cookieHeader: string | undefined,
+): (Session & { username: string }) | null {
+  if (!cookieHeader) return null;
+  maybeCleanSessions();
+  const match = /(?:^|;\s*)session_token=([^;]*)/.exec(cookieHeader);
+  if (!match) return null;
+  return getSession(match[1]);
 }
 
 export function requireAuth(

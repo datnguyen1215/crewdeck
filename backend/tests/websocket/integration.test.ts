@@ -5,6 +5,8 @@ import { WebSocket as WsClient } from "ws";
 import { EventBus } from "../../src/events/bus.js";
 import { setupWebSocket, shutdownWebSocket } from "../../src/websocket.js";
 import { createProject } from "../../src/db/repositories/projects.js";
+import { createAdmin, createSession } from "../../src/db/repositories/auth.js";
+import bcrypt from "bcrypt";
 
 // Creates a server on a random free port and returns it with a cleanup handle
 async function startServer(bus: EventBus): Promise<{
@@ -20,7 +22,9 @@ async function startServer(bus: EventBus): Promise<{
   server.on("upgrade", (req, socket, head) => {
     const pathname = new URL(req.url ?? "", "http://localhost").pathname;
     if (pathname === "/ws") {
-      wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+      wss.handleUpgrade(req, socket, head, (ws) =>
+        wss.emit("connection", ws, req),
+      );
     } else {
       socket.destroy();
     }
@@ -31,9 +35,18 @@ async function startServer(bus: EventBus): Promise<{
   return { server, wss, port };
 }
 
-function connectWs(port: number, projectId: string): Promise<WsClient> {
+function connectWs(
+  port: number,
+  projectId: string,
+  sessionToken: string,
+): Promise<WsClient> {
   return new Promise((resolve, reject) => {
-    const ws = new WsClient(`ws://127.0.0.1:${port}/ws?projectId=${projectId}`);
+    const ws = new WsClient(
+      `ws://127.0.0.1:${port}/ws?projectId=${projectId}`,
+      {
+        headers: { Cookie: `session_token=${sessionToken}` },
+      },
+    );
     ws.once("open", () => resolve(ws));
     ws.once("error", reject);
   });
@@ -47,7 +60,9 @@ function waitForMessage(ws: WsClient): Promise<Record<string, unknown>> {
 
 function waitForClose(ws: WsClient): Promise<{ code: number; reason: string }> {
   return new Promise((resolve) => {
-    ws.once("close", (code, reason) => resolve({ code, reason: reason.toString() }));
+    ws.once("close", (code, reason) =>
+      resolve({ code, reason: reason.toString() }),
+    );
   });
 }
 
@@ -57,12 +72,20 @@ describe("WebSocket integration", () => {
   let wss: import("ws").WebSocketServer;
   let server: http.Server;
   let projectId: string;
+  let sessionToken: string;
 
   beforeAll(async () => {
     bus = new EventBus();
     ({ server, wss, port } = await startServer(bus));
     const project = createProject({ name: "ws-test-project" });
     projectId = project.id;
+
+    const admin = createAdmin("test-user", await bcrypt.hash("password", 10));
+    const session = createSession(
+      admin.id,
+      new Date(Date.now() + 86_400_000).toISOString(),
+    );
+    sessionToken = session.id;
   });
 
   afterAll(() => {
@@ -70,9 +93,8 @@ describe("WebSocket integration", () => {
     server.close();
   });
 
-
   it("client connects with valid projectId and receives events", async () => {
-    const ws = await connectWs(port, projectId);
+    const ws = await connectWs(port, projectId, sessionToken);
     const msgPromise = waitForMessage(ws);
 
     bus.emit("issue.created", {
@@ -86,28 +108,40 @@ describe("WebSocket integration", () => {
     ws.close();
   });
 
-  it("client with invalid projectId is rejected with code 4004", async () => {
-    const ws = new WsClient(`ws://127.0.0.1:${port}/ws?projectId=nonexistent-id`);
+  it("unauthenticated client is rejected with code 4001", async () => {
+    const ws = new WsClient(
+      `ws://127.0.0.1:${port}/ws?projectId=nonexistent-id`,
+    );
     const { code } = await waitForClose(ws);
-    expect(code).toBe(4004);
+    expect(code).toBe(4001);
   });
 
-  it("client without projectId is rejected with code 4004", async () => {
-    const ws = new WsClient(`ws://127.0.0.1:${port}/ws`);
+  it("client with invalid session token is rejected with code 4001", async () => {
+    const ws = new WsClient(
+      `ws://127.0.0.1:${port}/ws?projectId=${projectId}`,
+      { headers: { Cookie: "session_token=invalid-token" } },
+    );
     const { code } = await waitForClose(ws);
-    expect(code).toBe(4004);
+    expect(code).toBe(4001);
   });
 
   it("event is only delivered to clients subscribed to the matching project", async () => {
     const otherProject = createProject({ name: "other-project" });
-    const ws1 = await connectWs(port, projectId);
-    const ws2 = await connectWs(port, otherProject.id);
+    const ws1 = await connectWs(port, projectId, sessionToken);
+    const ws2 = await connectWs(port, otherProject.id, sessionToken);
 
     const msgPromise = waitForMessage(ws1);
     let ws2Received = false;
-    ws2.on("message", () => { ws2Received = true; });
+    ws2.on("message", () => {
+      ws2Received = true;
+    });
 
-    bus.emit("mention.spawned", { project_id: projectId, issue_id: "i1", agent_id: "a1", pid: 42 });
+    bus.emit("mention.spawned", {
+      project_id: projectId,
+      issue_id: "i1",
+      agent_id: "a1",
+      pid: 42,
+    });
 
     const msg = await msgPromise;
     expect(msg.event).toBe("mention.spawned");
@@ -121,7 +155,7 @@ describe("WebSocket integration", () => {
   });
 
   it("disconnected client does not receive further events", async () => {
-    const ws = await connectWs(port, projectId);
+    const ws = await connectWs(port, projectId, sessionToken);
     // Wait for it to be registered
     await new Promise((r) => setTimeout(r, 20));
 
@@ -135,5 +169,4 @@ describe("WebSocket integration", () => {
       });
     }).not.toThrow();
   });
-
 });
