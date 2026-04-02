@@ -18,9 +18,17 @@ services:
     environment:
       - PORT=9381
       - HOST=127.0.0.1
-      - CORS_ORIGIN=http://localhost:9380
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:9380}
       - DB_PATH=/app/data/crewdeck.db
       - CREWDECK_REPOS_DIR=/app/data/repos
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    network_mode: host
+    restart: unless-stopped
 
 volumes:
   crewdeck-data:
