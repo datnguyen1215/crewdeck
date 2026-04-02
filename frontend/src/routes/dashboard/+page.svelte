@@ -18,6 +18,14 @@
 		try { projects = await listProjectsWithStats(); } catch {}
 	}
 
+	async function refreshActiveAgents() {
+		try {
+			const data = await getActiveAgents();
+			activeAgents = data.activeAgents;
+			maxConcurrency = data.maxConcurrency;
+		} catch {}
+	}
+
 	async function refreshActivity() {
 		const isInitialLoad = activity.length === 0;
 		if (isInitialLoad) activityLoading = true;
@@ -56,9 +64,11 @@
 		'comment.added', 'pr.created', 'mention.spawned', 'mention.completed',
 		'mention.error', 'dispatch.queued', 'run.started', 'run.completed',
 	] as const;
+	const AGENT_EVENTS = ['run.started', 'run.completed'] as const;
 	const unsubs = [
 		...STATS_EVENTS.map((e) => globws.on(e, refreshProjects)),
 		...ACTIVITY_EVENTS.map((e) => globws.on(e, refreshActivity)),
+		...AGENT_EVENTS.map((e) => globws.on(e, refreshActiveAgents)),
 	];
 
 	onDestroy(() => {
