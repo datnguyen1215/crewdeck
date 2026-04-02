@@ -58,6 +58,10 @@ function buildApiSection(agentId: string): string {
     "- CREWDECK_PROJECT_ID — current project ID",
     "- CREWDECK_AGENT_ID — your agent ID",
     "- CREWDECK_ISSUE_ID — current issue ID",
+    "- CREWDECK_API_KEY — system API key for authentication",
+    "",
+    "All API calls require authentication. Use this header:",
+    '-H "Authorization: Bearer $CREWDECK_API_KEY"',
     "",
     "Knowledge API (read-only, via curl):",
     "- GET $CREWDECK_API_URL/api/v1/internal/knowledge/titles?project_id=$CREWDECK_PROJECT_ID — list available knowledge entries (returns id, title, category)",
@@ -120,7 +124,9 @@ export function buildPrompt(opts: BuildPromptOptions): string {
       const listing = relevant
         .map((k) => `- [${k.category}] ${k.title} (id: ${k.id})`)
         .join("\n");
-      parts.push(`## Project Knowledge\nThe following knowledge entries are available. Fetch any you need before starting work using the knowledge API.\n${listing}`);
+      parts.push(
+        `## Project Knowledge\nThe following knowledge entries are available. Fetch any you need before starting work using the knowledge API.\n${listing}`,
+      );
     }
   }
 
@@ -171,7 +177,9 @@ export function buildScanPrompt(opts: BuildScanPromptOptions): string {
     const listing = projectKnowledge
       .map((k) => `- [${k.category}] ${k.title} (id: ${k.id})`)
       .join("\n");
-    parts.push(`## Existing Knowledge\nThe following knowledge entries exist. Fetch any you need to review before creating or updating entries.\n${listing}`);
+    parts.push(
+      `## Existing Knowledge\nThe following knowledge entries exist. Fetch any you need to review before creating or updating entries.\n${listing}`,
+    );
   }
 
   if (repo)
@@ -185,6 +193,10 @@ The following environment variables are available:
 - CREWDECK_API_URL — base URL of the backend API
 - CREWDECK_PROJECT_ID — current project ID
 - CREWDECK_AGENT_ID — your agent ID
+- CREWDECK_API_KEY — system API key for authentication
+
+All API calls require authentication. Use this header:
+-H "Authorization: Bearer $CREWDECK_API_KEY"
 
 Knowledge API (read-only, via curl):
 - GET $CREWDECK_API_URL/api/v1/internal/knowledge/titles?project_id=$CREWDECK_PROJECT_ID — list available knowledge entries (returns id, title, category)

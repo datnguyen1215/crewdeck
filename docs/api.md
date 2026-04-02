@@ -14,7 +14,12 @@ The backend exposes a REST API for CRUD operations and a WebSocket server for re
 
 **Health check:** `GET /health` returns `{ "status": "ok" }` (outside the `/api/v1` prefix). This endpoint is exempt from authentication.
 
-**Authentication:** All endpoints except `GET /health`, `GET /api/v1/auth/setup-status`, and `POST /api/v1/auth/setup` require a valid session cookie (`session_token`). Unauthenticated requests return `403 FORBIDDEN`. See [Authentication](#authentication) for the auth endpoints.
+**Authentication:** All endpoints except `GET /health`, `GET /api/v1/auth/setup-status`, and `POST /api/v1/auth/setup` require authentication. Two methods are supported:
+
+1. **Session cookie** (`session_token`) — used by browser clients after login.
+2. **API key** via `Authorization: Bearer <key>` header — used by agent/captain processes and external tools.
+
+The auth middleware checks for a Bearer token first, then falls back to the session cookie. API key-authenticated requests set a synthetic session with `username` prefixed by `api-key:`. Unauthenticated requests return `403 FORBIDDEN`. See [Authentication](#authentication) for the auth endpoints and [API Keys](#api-keys) for key management.
 
 **Configuration:** Port and other settings are configured via environment variables (`.env` file).
 
@@ -24,7 +29,7 @@ The backend exposes a REST API for CRUD operations and a WebSocket server for re
 
 ### Authentication
 
-All endpoints except `GET /health`, `GET /api/v1/auth/setup-status`, and `POST /api/v1/auth/setup` require a valid session cookie (`session_token`). Sessions are managed via HTTP-only cookies.
+All endpoints except `GET /health`, `GET /api/v1/auth/setup-status`, and `POST /api/v1/auth/setup` require authentication via either a session cookie (`session_token`) or an API key (`Authorization: Bearer <key>` header). Sessions are managed via HTTP-only cookies; API keys are managed via the [API Keys](#api-keys) endpoints.
 
 #### Check Setup Status
 
@@ -1346,6 +1351,91 @@ Returns which model providers are available based on configured API keys.
 | glm    | object | GLM (Z.AI) availability (`true` if `ZAI_API_KEY` is set).          |
 
 ---
+
+### API Keys
+
+Manage user API keys for programmatic access. Key management endpoints require session authentication — API key-authenticated requests are rejected to prevent keys from managing other keys. System keys (auto-generated for agent/captain use) are hidden from this interface.
+
+#### List API Keys
+
+```
+GET /api-keys
+```
+
+Returns all user-created API keys (system keys excluded). The full key is never returned — only a prefix for identification.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "id": "uuid",
+    "name": "Claude CI Process",
+    "key_prefix": "sk-a1b2c3d4",
+    "created_at": "ISO 8601",
+    "last_used_at": "ISO 8601"
+  }
+]
+```
+
+| Field        | Type         | Description                                           |
+| ------------ | ------------ | ----------------------------------------------------- |
+| id           | TEXT (UUID)  | Unique identifier.                                    |
+| name         | TEXT         | Human-readable label assigned at creation.            |
+| key_prefix   | TEXT         | First 11 characters of the key (e.g., `sk-a1b2c3d4`). |
+| created_at   | TEXT         | When the key was created.                             |
+| last_used_at | TEXT \| null | When the key was last used for authentication.        |
+
+#### Create API Key
+
+```
+POST /api-keys
+```
+
+Creates a new API key. The full plaintext key is returned **only once** in the response.
+
+**Request Body:**
+
+```json
+{
+  "name": "Claude CI Process"
+}
+```
+
+| Field | Required | Description                       |
+| ----- | -------- | --------------------------------- |
+| name  | Yes      | Human-readable label for the key. |
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "uuid",
+  "name": "Claude CI Process",
+  "key_prefix": "sk-a1b2c3d4",
+  "created_at": "ISO 8601",
+  "last_used_at": null,
+  "key": "sk-a1b2c3d4e5f6..."
+}
+```
+
+The `key` field contains the full plaintext key. It is not stored server-side (only the SHA-256 hash is stored) and will never be shown again.
+
+**Error:** `400 VALIDATION_ERROR` — `name` is empty or not a string.
+
+#### Delete API Key
+
+```
+DELETE /api-keys/:id
+```
+
+Revokes an API key. System keys cannot be deleted.
+
+**Response:** `204 No Content`
+
+**Error:** `404 Not Found` — Key does not exist.
+
+**Error:** `403 Forbidden` — Attempting to delete a system key.
 
 ---
 

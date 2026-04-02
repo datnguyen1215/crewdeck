@@ -21,6 +21,7 @@ import type {
   CaptainStatus,
   GlobalConfig,
   GlobalEnvironmentVariable,
+  ApiKey,
 } from "./types.js";
 
 export type {
@@ -50,6 +51,7 @@ export type {
   CaptainStatus,
   GlobalConfig,
   GlobalEnvironmentVariable,
+  ApiKey,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -530,4 +532,15 @@ export function updateGlobalEnvironmentVariable(
 }
 export function deleteGlobalEnvironmentVariable(envVarId: string) {
   return request<void>("DELETE", `/global-config/environment/${e(envVarId)}`);
+}
+
+// API Keys
+export function listApiKeys() {
+  return request<ApiKey[]>("GET", "/api-keys");
+}
+export function createApiKey(name: string) {
+  return request<ApiKey & { key: string }>("POST", "/api-keys", { name });
+}
+export function deleteApiKey(id: string) {
+  return request<void>("DELETE", `/api-keys/${e(id)}`);
 }

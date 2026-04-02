@@ -215,6 +215,7 @@
 		<div class="mt-auto">
 			<div class="border-t border-edge my-1"></div>
 			{@render navItem('/accounts', 'Accounts', 'accounts', isActive('/accounts'))}
+			{@render navItem('/api-keys', 'API Keys', 'key', isActive('/api-keys'))}
 			{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
 			<button
 				onclick={logout}

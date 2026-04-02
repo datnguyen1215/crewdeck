@@ -4,6 +4,7 @@ import { pinoHttp } from "pino-http";
 import { logger } from "./logger.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requireAuth } from "./middleware/auth.js";
+import { ensureSystemKey } from "./db/repositories/api-keys.js";
 import projectsRouter from "./routes/projects.js";
 import reposRouter from "./routes/repos.js";
 import agentsRouter from "./routes/agents.js";
@@ -21,6 +22,14 @@ import globalEnvironmentRouter from "./routes/global-environment.js";
 import terminalRouter from "./routes/terminal.js";
 import monitorRouter from "./routes/monitor.js";
 import authRouter from "./routes/auth.js";
+import apiKeysRouter from "./routes/api-keys.js";
+
+// In-memory system API key — set once on startup, used for spawning agents/captains
+let systemApiKey: string | null = null;
+
+export function getSystemApiKey(): string | null {
+  return systemApiKey;
+}
 
 export interface CreateAppOpts {
   silent?: boolean;
@@ -28,6 +37,11 @@ export interface CreateAppOpts {
 }
 
 export function createApp(opts: CreateAppOpts = {}) {
+  // Ensure system API key exists — always recreates to get raw key in memory
+  if (!systemApiKey && !opts.skipAuth) {
+    systemApiKey = ensureSystemKey();
+  }
+
   const app = express();
 
   // Trust the first reverse proxy so req.ip reflects the real client IP.
@@ -71,6 +85,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/projects/:projectId`, monitorRouter);
   app.use(`${v1}/internal`, internalRouter);
   app.use(`${v1}/vcs-accounts`, vcsAccountsRouter);
+  app.use(`${v1}/api-keys`, apiKeysRouter);
 
   app.use(errorHandler);
 

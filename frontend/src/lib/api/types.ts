@@ -244,6 +244,14 @@ export interface GlobalEnvironmentVariable {
   updated_at: string;
 }
 
+export interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
 // but only includes events the frontend receives (excludes backend-only events)
 export interface WsEventMap {

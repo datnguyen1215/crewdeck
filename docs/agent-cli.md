@@ -53,12 +53,13 @@ Dispatching an agent on an issue automatically regresses its status to `in_progr
 
 The following variables are passed to each agent process:
 
-| Variable              | Description                  |
-| --------------------- | ---------------------------- |
-| `CREWDECK_API_URL`    | Backend API base URL         |
-| `CREWDECK_PROJECT_ID` | The project ID               |
-| `CREWDECK_AGENT_ID`   | The agent's ID               |
-| `CREWDECK_ISSUE_ID`   | The issue ID being worked on |
+| Variable              | Description                                                |
+| --------------------- | ---------------------------------------------------------- |
+| `CREWDECK_API_URL`    | Backend API base URL                                       |
+| `CREWDECK_PROJECT_ID` | The project ID                                             |
+| `CREWDECK_AGENT_ID`   | The agent's ID                                             |
+| `CREWDECK_ISSUE_ID`   | The issue ID being worked on                               |
+| `CREWDECK_API_KEY`    | System API key for authentication (passed as Bearer token) |
 
 In addition, any project-level environment variables configured via the [Environment Variables API](api.md#environment-variables) are injected.
 
