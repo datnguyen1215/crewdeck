@@ -15,8 +15,7 @@ import * as agentPrompt from "./prompt.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import { toContainerPath } from "../utils/paths.js";
-import { getActiveProcessCount, clearPendingSpawn } from "./processes.js";
-import { config } from "../config.js";
+import { clearPendingSpawn } from "./processes.js";
 import { cleanupSshKey } from "../utils/git-auth.js";
 import * as agentConfigRepo from "../db/repositories/agent-config.js";
 import * as globalConfigRepo from "../db/repositories/global-config.js";
@@ -83,21 +82,8 @@ export const spawnAgent = async (
       agent,
       issueId,
       projectId,
-      agentRunRepo.countRunningGlobal() >= config.maxAgents,
+      agentRunRepo.countRunningGlobal() >= globalConfigRepo.getMaxConcurrency(),
       "global limit reached",
-    )
-  ) {
-    return;
-  }
-
-  // Check project concurrency limit
-  if (
-    handleConcurrencyQueuing(
-      agent,
-      issueId,
-      projectId,
-      getActiveProcessCount(projectId) >= globalConfigRepo.getMaxConcurrency(),
-      "",
     )
   ) {
     return;
@@ -256,12 +242,12 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   const agent = crew.getCrewMember("librarian");
   if (!agent) throw new Error("Librarian agent not found");
 
-  // Check concurrency limit (scans can't be queued since they have no issue)
-  const activeCount = getActiveProcessCount(projectId);
+  // Check global concurrency limit (scans can't be queued since they have no issue)
+  const activeCount = agentRunRepo.countRunningGlobal();
   const maxConcurrency = globalConfigRepo.getMaxConcurrency();
   if (activeCount >= maxConcurrency) {
     throw new Error(
-      `Concurrency limit reached (${maxConcurrency} agents running). Try again later.`,
+      `Global concurrency limit reached (${maxConcurrency} agents running). Try again later.`,
     );
   }
 

@@ -1226,7 +1226,7 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 | ------------ | ----------- | -------------------------------- |
 | agent_run_id | TEXT (UUID) | The ID of the spawned agent run. |
 
-**Error:** `500 Internal Server Error` — If the project's concurrency limit is reached (scans cannot be queued).
+**Error:** `500 Internal Server Error` — If the global concurrency limit is reached (scans cannot be queued).
 
 **Side effects:**
 
@@ -1322,7 +1322,7 @@ GET /global-config
 | Field               | Type    | Description                                 |
 | ------------------- | ------- | ------------------------------------------- |
 | defaultModel        | TEXT    | Default model for agent spawns.             |
-| maxConcurrency      | INTEGER | Max concurrent agent processes per project. |
+| maxConcurrency      | INTEGER | Max concurrent agent processes globally (across all projects). |
 | maxChainDepth       | INTEGER | Max agent dispatches per issue.             |
 | agentTimeoutMinutes | INTEGER | Agent process timeout in minutes.           |
 
@@ -1380,7 +1380,7 @@ Sets the default model for all agent spawns when no per-agent override is config
 GET /global-config/max-concurrency
 ```
 
-Returns the maximum concurrent agent processes per project.
+Returns the maximum concurrent agent processes globally (across all projects).
 
 **Response:** `200 OK`
 
@@ -1396,7 +1396,7 @@ Returns the maximum concurrent agent processes per project.
 PUT /global-config/max-concurrency
 ```
 
-Sets the maximum concurrent agent processes per project.
+Sets the maximum concurrent agent processes globally (across all projects).
 
 **Request Body:**
 
@@ -1505,6 +1505,28 @@ Sets the agent process timeout in minutes.
   "agentTimeoutMinutes": 15
 }
 ```
+
+#### Get Active Agents
+
+```
+GET /global-config/active-agents
+```
+
+Returns the current global agent activity count and the concurrency limit. Used by the dashboard to display the "Active Agents" metric.
+
+**Response:** `200 OK`
+
+```json
+{
+  "activeAgents": 3,
+  "maxConcurrency": 5
+}
+```
+
+| Field          | Type    | Description                                            |
+| -------------- | ------- | ------------------------------------------------------ |
+| activeAgents   | INTEGER | Number of currently running agent processes globally.   |
+| maxConcurrency | INTEGER | Maximum concurrent agents allowed (global limit).      |
 
 #### Check Model Availability
 

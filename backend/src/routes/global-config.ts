@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import * as globalConfigRepo from "../db/repositories/global-config.js";
+import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import { validate } from "../middleware/validate.js";
 import { getZaiApiKey } from "../orchestration/provider-env.js";
 
@@ -80,6 +81,13 @@ router.put(
     res.json({ agentTimeoutMinutes: globalConfigRepo.getAgentTimeoutMinutes() });
   },
 );
+
+router.get("/active-agents", (_req, res) => {
+  res.json({
+    activeAgents: agentRunRepo.countRunningGlobal(),
+    maxConcurrency: globalConfigRepo.getMaxConcurrency(),
+  });
+});
 
 router.get("/model-availability", (_req, res) => {
   const zaiAvailable = !!getZaiApiKey();

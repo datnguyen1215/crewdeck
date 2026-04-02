@@ -284,24 +284,10 @@ export function listQueuedRuns(projectId?: string): AgentRun[] {
 
 /**
  * Count running agent runs globally (across all projects).
- * Used to enforce global concurrency limits.
  */
 export function countRunningGlobal(): number {
   const result = db
     .prepare("SELECT COUNT(*) as count FROM AgentRun WHERE status = 'running'")
     .get() as { count: number };
-  return result.count;
-}
-
-/**
- * Count running agent runs for a specific project.
- * Used to enforce per-project concurrency limits.
- */
-export function countRunningForProject(projectId: string): number {
-  const result = db
-    .prepare(
-      "SELECT COUNT(*) as count FROM AgentRun WHERE project_id = ? AND status = 'running'",
-    )
-    .get(projectId) as { count: number };
   return result.count;
 }
