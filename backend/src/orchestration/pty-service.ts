@@ -150,7 +150,7 @@ export async function createTerminalSession(
     ...(worktreePath ? ["-c", worktreePath] : []),
     "env",
     ...Object.entries(captainEnvVars).map(
-      ([k, v]) => `${shellQuote(k)}=${shellQuote(String(v))}`,
+      ([k, v]) => `${k}=${String(v)}`,
     ),
     "claude",
     "--model",
@@ -159,7 +159,6 @@ export async function createTerminalSession(
     systemPromptPath,
     "--dangerously-skip-permissions",
   ];
-
   return new Promise((resolve) => {
     const proc = spawn("tmux", tmuxCmd, { env });
     let resolved = false;
