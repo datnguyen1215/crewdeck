@@ -188,7 +188,8 @@ With `?stats`:
       "pr_failed_actions": 0,
       "pr_ready_to_merge": 0,
       "done": 12
-    }
+    },
+    "active_runs": 1
   }
 ]
 ```
