@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, listGlobalActivity, getGlobalConfig, getActiveAgents, type ProjectWithStats, type ActivityLog, type GlobalConfig } from '$lib/api/http.js';
+	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, type ProjectWithStats, type ActivityLog } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { GlobalWebSocket } from '$lib/api/global-ws.svelte.js';
 	import DashboardActivityFeed from '$lib/components/DashboardActivityFeed.svelte';
@@ -10,7 +10,6 @@
 	let loading = $state(true);
 	let activity = $state<ActivityLog[]>([]);
 	let activityLoading = $state(true);
-	let globalConfig = $state<GlobalConfig | null>(null);
 	let activeAgents = $state(0);
 	let maxConcurrency = $state(5);
 
@@ -39,12 +38,6 @@
 		onData: (data) => { projects = data; },
 		onError: 'Failed to load dashboard',
 		onLoading: (v) => { loading = v; },
-	});
-
-	fetchEffect(() => getGlobalConfig(), {
-		onData: (cfg) => { globalConfig = cfg; },
-		onError: 'Failed to load global config',
-		onLoading: () => {},
 	});
 
 	fetchEffect(() => getActiveAgents(), {
@@ -76,50 +69,36 @@
 		unsubs.forEach((fn) => fn());
 	});
 
-	let totals = $derived.by(() => {
-		if (projects.length === 0) return null;
-		const issues = { open: 0, in_progress: 0, pr_created: 0, pr_conflict: 0, pr_failed_actions: 0, pr_ready_to_merge: 0, done: 0 };
-		for (const p of projects) {
-			issues.open += p.issues.open;
-			issues.in_progress += p.issues.in_progress;
-			issues.pr_created += p.issues.pr_created;
-			issues.pr_conflict += p.issues.pr_conflict;
-			issues.pr_failed_actions += p.issues.pr_failed_actions;
-			issues.pr_ready_to_merge += p.issues.pr_ready_to_merge;
-			issues.done += p.issues.done;
-		}
-		return { issues };
-	});
-
-	const METRICS = [
-		{ key: 'open', label: 'Open Issues', color: 'text-blue', icon: '○' },
-		{ key: 'in_progress', label: 'In Progress', color: 'text-amber', icon: '◐' },
-		{ key: 'pr_created', label: 'PRs Created', color: 'text-purple', icon: '⤴' },
-		{ key: 'blocked', label: 'Blocked', color: 'text-red', icon: '⚠' },
-		{ key: 'pr_ready_to_merge', label: 'Ready to Merge', color: 'text-green', icon: '✓' },
-		{ key: 'agents', label: 'Active Agents', color: 'text-cyan', icon: '⟐' },
-	] as const;
-
 	const TABLE_COLS = [
-		{ key: 'open', label: 'Open', color: 'text-blue', barColor: 'bg-blue' },
-		{ key: 'in_progress', label: 'In Progress', color: 'text-amber', barColor: 'bg-amber' },
-		{ key: 'pr_created', label: 'PR', color: 'text-purple', barColor: 'bg-purple' },
-		{ key: 'blocked', label: 'Blocked', color: 'text-red', barColor: 'bg-red' },
-		{ key: 'pr_ready_to_merge', label: 'Ready', color: 'text-green', barColor: 'bg-green' },
-		{ key: 'done', label: 'Done', color: 'text-secondary', barColor: 'bg-secondary' },
+		{ key: 'open', label: 'OPEN', color: 'text-blue' },
+		{ key: 'in_progress', label: 'PROG', color: 'text-amber' },
+		{ key: 'pr_created', label: 'PR', color: 'text-purple' },
+		{ key: 'blocked', label: 'BLK', color: 'text-red' },
+		{ key: 'pr_ready_to_merge', label: 'RDY', color: 'text-green' },
+		{ key: 'done', label: 'DONE', color: 'text-secondary' },
 	] as const;
+
+	let summary = $derived.by(() => {
+		if (projects.length === 0) return '';
+		let inProgress = 0, done = 0;
+		for (const p of projects) {
+			inProgress += p.issues.in_progress;
+			done += p.issues.done;
+		}
+		return `${projects.length} project${projects.length !== 1 ? 's' : ''} │ ${activeAgents}/${maxConcurrency} agents │ ${inProgress} in progress │ ${done} done`;
+	});
 
 	function blockedCount(issues: ProjectWithStats['issues']) {
 		return issues.pr_conflict + issues.pr_failed_actions;
 	}
 
-	function totalIssues(issues: ProjectWithStats['issues']) {
-		return Object.values(issues).reduce((a, b) => a + b, 0);
-	}
-
 	function statusValue(p: ProjectWithStats, key: string): number {
 		if (key === 'blocked') return blockedCount(p.issues);
 		return p.issues[key as keyof typeof p.issues] ?? 0;
+	}
+
+	function shortId(id: string): string {
+		return id.slice(0, 8);
 	}
 </script>
 
@@ -134,188 +113,156 @@
 	</div>
 {/if}
 
-<div class="p-4 md:p-8 h-full overflow-auto pt-14 md:pt-8">
+<div class="p-4 md:p-8 h-full overflow-auto pt-14 md:pt-8 terminal-scanlines">
 	<!-- Header -->
-	<div class="mb-6 md:mb-10 fade-up">
-		<h1
-			class="text-lg md:text-xl font-bold text-primary uppercase tracking-wide"
-		>
-			DASHBOARD
+	<div class="mb-6 md:mb-8 fade-up">
+		<p class="text-muted text-xs uppercase tracking-widest mb-1">Cross-project Overview</p>
+		<h1 class="text-lg md:text-xl font-bold text-primary font-mono">
+			<span class="text-cyan">$</span> crew status --all
 		</h1>
-		<p class="text-muted text-xs mt-0.5 uppercase tracking-widest">Cross-project Overview</p>
 	</div>
 
 	{#if loading}
-		<!-- Skeleton grid -->
+		<!-- Skeleton: terminal-style -->
 		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-			<div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-4">
-				{#each Array(6) as _, i}
-					<div
-						class="bg-surface border border-edge rounded-lg p-5 flex flex-col gap-3 fade-up"
-						style="animation-delay: {i * 40}ms"
-					>
-						<div class="skeleton h-8 w-16 rounded mb-1"></div>
-						<div class="skeleton h-3 w-24 rounded"></div>
-					</div>
-				{/each}
-			</div>
-			<div class="bg-surface border border-edge rounded-lg p-5">
-				<div class="skeleton h-3 w-32 rounded mb-4"></div>
-				{#each Array(4) as _}
-					<div class="flex gap-3 mb-3">
-						<div class="skeleton w-5 h-5 rounded-full"></div>
-						<div class="flex-1">
-							<div class="skeleton h-3 w-20 rounded mb-1.5"></div>
-							<div class="skeleton h-3 w-36 rounded"></div>
+			<div class="lg:col-span-2">
+				<div class="bg-surface border border-edge rounded-sm">
+					<!-- Terminal chrome skeleton -->
+					<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
+						<div class="flex gap-1.5">
+							<div class="skeleton w-3 h-3 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
 						</div>
+						<div class="skeleton h-3 w-24 rounded ml-auto"></div>
 					</div>
-				{/each}
+					<div class="p-4 space-y-2">
+						{#each Array(4) as _}
+							<div class="skeleton h-4 w-full rounded"></div>
+						{/each}
+					</div>
+				</div>
+			</div>
+			<div>
+				<div class="bg-surface border border-edge rounded-sm">
+					<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
+						<div class="flex gap-1.5">
+							<div class="skeleton w-3 h-3 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
+						</div>
+						<div class="skeleton h-3 w-20 rounded ml-auto"></div>
+					</div>
+					<div class="p-4 space-y-2">
+						{#each Array(5) as _}
+							<div class="skeleton h-3.5 w-full rounded"></div>
+						{/each}
+					</div>
+				</div>
 			</div>
 		</div>
-	{:else if !totals}
+	{:else if projects.length === 0}
 		<!-- Empty state -->
-		<div class="flex flex-col items-center justify-center py-16 md:py-24 text-center px-4">
-			<p class="text-primary text-lg font-semibold mb-1">No projects yet</p>
-			<p class="text-muted text-sm">Create a project to see dashboard metrics</p>
+		<div class="bg-surface border border-edge rounded-sm">
+			<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
+				<div class="flex gap-1.5">
+					<span class="w-3 h-3 rounded-full bg-red"></span>
+					<span class="w-3 h-3 rounded-full bg-amber"></span>
+					<span class="w-3 h-3 rounded-full bg-green"></span>
+				</div>
+				<span class="text-muted text-xs ml-auto">bash — crew</span>
+			</div>
+			<div class="p-6 text-center">
+				<p class="text-primary text-sm font-mono mb-1">No projects yet</p>
+				<p class="text-muted text-xs font-mono">Create a project to see dashboard output</p>
+			</div>
 		</div>
 	{:else}
-		<!-- Two-column layout: cards + activity feed -->
+		<!-- Two-column layout: process list + activity log -->
 		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-			<!-- Left: Metric cards + project breakdown -->
+			<!-- Left: Process list -->
 			<div class="lg:col-span-2">
-				<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-					{#each METRICS as metric, i}
-						{@const rawValue = metric.key === 'agents'
-							? null
-							: metric.key === 'blocked'
-								? totals.issues.pr_conflict + totals.issues.pr_failed_actions
-								: totals.issues[metric.key as keyof typeof totals.issues]}
-						{@const displayValue = metric.key === 'agents'
-							? `${activeAgents}/${maxConcurrency}`
-							: String(rawValue)}
-
-						<div
-							class="bg-surface border border-edge rounded-lg p-5 flex flex-col
-								hover:border-edge-hi transition-all duration-200"
-							style="animation: fade-up 0.35s ease both; animation-delay: {i * 50}ms"
-						>
-							<span class="text-2xl mb-1 opacity-60">{metric.icon}</span>
-							<span
-								class="text-2xl md:text-3xl font-bold {metric.color}"
-								style={metric.key === 'blocked' && rawValue !== null && rawValue > 0 ? 'text-shadow: var(--glow-red)' : ''}
-							>
-								{displayValue}
-							</span>
-							<span class="text-muted text-xs mt-1 uppercase tracking-widest">{metric.label}</span>
+				<div class="bg-surface border border-edge rounded-sm fade-up">
+					<!-- Terminal chrome -->
+					<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
+						<div class="flex gap-1.5">
+							<span class="w-3 h-3 rounded-full bg-red"></span>
+							<span class="w-3 h-3 rounded-full bg-amber"></span>
+							<span class="w-3 h-3 rounded-full bg-green"></span>
 						</div>
-					{/each}
-				</div>
-
-				<!-- Project Breakdown Section -->
-				<div class="mt-8 fade-up" style="animation: fade-up 0.35s ease both; animation-delay: 350ms">
-					<div class="flex items-center justify-between mb-4">
-						<h2 class="text-primary font-semibold text-sm uppercase tracking-widest">
-							Projects Breakdown
-						</h2>
-						<span class="text-muted text-xs">{projects.length} project{projects.length !== 1 ? 's' : ''}</span>
+						<span class="text-muted text-xs ml-auto font-mono">crew status</span>
 					</div>
 
-					{#if projects.length === 0}
-						<div class="bg-surface border border-edge rounded-lg py-10 text-center">
-							<p class="text-muted text-sm">No projects to display</p>
-						</div>
-					{:else}
-						<!-- Mobile card view -->
-						<div class="flex flex-col gap-3 md:hidden">
-							{#each projects as project, i (project.id)}
-								{@const blocked = blockedCount(project.issues)}
-								{@const total = totalIssues(project.issues)}
-								<a
-									href="/projects/{project.id}"
-									class="block bg-surface border border-edge rounded-lg p-4 hover:border-edge-hi transition-all duration-200 active:scale-[0.99]"
-									style="animation: fade-up 0.3s ease both; animation-delay: {i * 40}ms"
-								>
-									<div class="flex items-center justify-between mb-2">
-										<span class="text-primary font-semibold text-sm truncate mr-2">{project.name}</span>
-									</div>
-									{#if total > 0}
-										<div class="flex h-1.5 rounded-full overflow-hidden gap-px mb-3">
-											{#each TABLE_COLS as col}
-												{@const count = statusValue(project, col.key)}
-												{#if count > 0}
-													<div class="{col.barColor} rounded-full" style="flex: {count}" title="{col.label}: {count}"></div>
-												{/if}
-											{/each}
-										</div>
-									{/if}
-									<div class="flex gap-3 text-xs">
-										{#each TABLE_COLS as col}
-											{@const count = statusValue(project, col.key)}
-											<span class={col.key === 'blocked' && blocked > 0 ? col.color : count > 0 ? 'text-primary' : 'text-muted'}>
-												{count} <span class="text-muted">{col.label}</span>
-											</span>
-										{/each}
-									</div>
-								</a>
-							{/each}
-						</div>
+					<!-- Table header -->
+					<div class="hidden md:flex text-xs uppercase tracking-wider px-4 py-2 border-b border-edge font-mono">
+						<span class="w-16 flex-shrink-0 text-muted">ID</span>
+						<span class="flex-1 min-w-0 text-muted">PROJECT</span>
+						{#each TABLE_COLS as col}
+							<span class="w-10 text-center flex-shrink-0 {col.color}">{col.label}</span>
+						{/each}
+						<span class="w-10 text-center flex-shrink-0 text-cyan">AGENTS</span>
+						<span class="w-14 text-center flex-shrink-0 text-muted">STATUS</span>
+					</div>
 
-						<!-- Desktop table view -->
-						<div class="hidden md:block overflow-x-auto border border-edge rounded">
-							<table class="w-full min-w-[700px] text-sm">
-								<thead>
-									<tr class="text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
-										<th class="text-left px-4 py-2.5 font-medium">Project</th>
-										{#each TABLE_COLS as col}
-											<th class="text-center px-3 py-2.5 font-medium">{col.label}</th>
-										{/each}
-									</tr>
-								</thead>
-								<tbody>
-									{#each projects as project, i (project.id)}
-										{@const blocked = blockedCount(project.issues)}
-										{@const total = totalIssues(project.issues)}
-										<tr
-											class="border-b border-edge last:border-0 hover:bg-surface-hi transition-colors cursor-pointer group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
-											role="link"
-											tabindex="0"
-											onclick={() => goto(`/projects/${project.id}`)}
-											onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${project.id}`)}
-											style="animation: fade-up 0.25s ease both; animation-delay: {350 + i * 40}ms"
-										>
-											<td class="px-4 py-3">
-												<div class="flex flex-col gap-1 min-w-0">
-													<span class="text-primary font-semibold truncate group-hover:text-cyan transition-colors">{project.name}</span>
-													{#if total > 0}
-														<div class="flex h-1 rounded-full overflow-hidden gap-px w-full max-w-[160px]">
-															{#each TABLE_COLS as col}
-																{@const count = statusValue(project, col.key)}
-																{#if count > 0}
-																	<div class="{col.barColor} rounded-full" style="flex: {count}"></div>
-																{/if}
-															{/each}
-														</div>
-													{/if}
-												</div>
-											</td>
-											{#each TABLE_COLS as col}
-												{@const count = statusValue(project, col.key)}
-												<td class="text-center px-3 py-3">
-													<span class={col.key === 'blocked' && blocked > 0 ? col.color + ' font-medium' : count > 0 ? 'text-primary' : 'text-muted'}>
-														{count}
-													</span>
-												</td>
-											{/each}
-										</tr>
+					<!-- Table rows -->
+					<div class="overflow-x-auto">
+						{#each projects as project, i (project.id)}
+							{@const isActive = project.active_runs > 0}
+							<!-- Mobile card view -->
+							<a
+								href="/projects/{project.id}"
+								class="block md:hidden px-4 py-2.5 border-b border-edge last:border-0 hover:bg-base-hi transition-colors {isActive ? 'bg-cyan/5' : ''}"
+								style="animation: fade-up 0.25s ease both; animation-delay: {i * 40}ms"
+							>
+								<div class="flex items-center justify-between mb-1">
+									<span class="text-primary text-xs font-mono truncate mr-2">{project.name}</span>
+									<span class="text-xs font-mono {isActive ? 'text-cyan' : 'text-muted'}">{isActive ? 'active' : 'idle'}</span>
+								</div>
+								<div class="flex gap-3 text-xs font-mono text-muted">
+									<span class="text-secondary/60">{shortId(project.id)}</span>
+									{#each TABLE_COLS as col}
+										{@const count = statusValue(project, col.key)}
+										<span class={count > 0 ? 'text-primary' : ''}>{count}</span>
 									{/each}
-								</tbody>
-							</table>
+								</div>
+							</a>
+
+							<!-- Desktop row -->
+							<div
+								class="hidden md:flex items-center px-4 py-2 border-b border-edge last:border-0 hover:bg-base-hi transition-colors cursor-pointer group {isActive ? 'bg-cyan/5' : ''}"
+								role="link"
+								tabindex="0"
+								onclick={() => goto(`/projects/${project.id}`)}
+								onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${project.id}`)}
+								style="animation: fade-up 0.25s ease both; animation-delay: {i * 40}ms"
+							>
+								<span class="w-16 text-xs font-mono text-secondary/60 flex-shrink-0">{shortId(project.id)}</span>
+								<span class="flex-1 text-xs font-mono text-primary truncate group-hover:text-cyan transition-colors">{project.name}</span>
+								{#each TABLE_COLS as col}
+									{@const count = statusValue(project, col.key)}
+									<span class="w-10 text-center text-xs font-mono flex-shrink-0 {col.key === 'blocked' && count > 0 ? 'text-red' : count > 0 ? 'text-primary' : 'text-muted'}">{count}</span>
+								{/each}
+								<span class="w-10 text-center text-xs font-mono flex-shrink-0 {isActive ? 'text-cyan' : 'text-muted'}">{project.active_runs}</span>
+								<span class="w-14 text-center text-xs font-mono flex-shrink-0 {isActive ? 'text-cyan' : 'text-muted'}">{isActive ? 'active' : 'idle'}</span>
+							</div>
+						{/each}
+					</div>
+
+					<!-- Summary line -->
+					{#if summary}
+						<div class="px-4 py-2 border-t border-edge text-xs font-mono text-muted">
+							{summary}
 						</div>
 					{/if}
+
+					<!-- Blinking cursor -->
+					<div class="px-4 py-2">
+						<span class="text-cyan font-mono text-xs">$ </span><span class="terminal-cursor"></span>
+					</div>
 				</div>
 			</div>
 
-			<!-- Right: Activity feed -->
+			<!-- Right: Activity log -->
 			<div>
 				<DashboardActivityFeed entries={activity} loading={activityLoading} />
 			</div>
