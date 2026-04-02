@@ -36,6 +36,8 @@ services:
     command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
     network_mode: host
     restart: unless-stopped
+    profiles:
+      - tunnel
 
 volumes:
   crewdeck-data:
