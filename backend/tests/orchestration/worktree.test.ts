@@ -167,20 +167,21 @@ describe("createWorktree", () => {
     expect(worktreeCmd).toContain("-b");
   });
 
-  it("uses smart branch naming: crewdeck/<issueId-short>-<prefix>/<slug>-<hash>", async () => {
+  it("uses smart branch naming: <prefix>/<slug>-<hash>", async () => {
     await createWorktree(repo, issue, "main");
 
     const calls = vi.mocked(exec).mock.calls.map((c) => c[0] as string);
     const worktreeCmd = calls.find((c) => c.includes("worktree add"));
-    // Branch should include issue ID, prefix, slugified title, and short hash
-    expect(worktreeCmd).toContain("crewdeck/abc12345-fix/the-login-bug-abc1");
+    // Branch should include prefix, slugified title, and short hash (no crewdeck/ prefix or UUID)
+    expect(worktreeCmd).toContain("fix/the-login-bug-abc1");
+    expect(worktreeCmd).not.toContain("crewdeck/abc12345-");
   });
 
   it("places worktree inside crewdeck directory under tmpdir organized by project", async () => {
     const { path } = await createWorktree(repo, issue, "main");
 
     expect(path).toContain(join("crewdeck", "my-project"));
-    expect(path).toContain("crewdeck/abc12345-fix/the-login-bug-abc1");
+    expect(path).toContain("fix/the-login-bug-abc1");
   });
 
   it("updates the issue record with branch_name, worktree_path, and base_branch", async () => {
@@ -189,7 +190,7 @@ describe("createWorktree", () => {
     expect(updateIssue).toHaveBeenCalledWith(
       issue.id,
       expect.objectContaining({
-        branch_name: expect.stringContaining("crewdeck/abc12345-fix/the-login-bug-abc1"),
+        branch_name: expect.stringContaining("fix/the-login-bug-abc1"),
         worktree_path: path,
         base_branch: "main",
       }),
@@ -277,7 +278,7 @@ describe("createWorktree", () => {
     const { path, branchName } = await createWorktree(repo, issue, "develop");
     expect(typeof path).toBe("string");
     expect(path.length).toBeGreaterThan(0);
-    expect(branchName).toContain("crewdeck/abc12345-fix/the-login-bug-abc1");
+    expect(branchName).toContain("fix/the-login-bug-abc1");
   });
 });
 
