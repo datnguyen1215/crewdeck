@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, type ProjectWithStats, type ActivityLog } from '$lib/api/http.js';
+	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, listVCSAccounts, type ProjectWithStats, type ActivityLog, type VCSAccount } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { GlobalWebSocket } from '$lib/api/global-ws.svelte.js';
 	import DashboardActivityFeed from '$lib/components/DashboardActivityFeed.svelte';
+	import Modal from '$lib/components/Modal.svelte';
+	import ProjectForm from '$lib/components/ProjectForm.svelte';
 
 	let projects = $state<ProjectWithStats[]>([]);
 	let loading = $state(true);
@@ -12,6 +14,8 @@
 	let activityLoading = $state(true);
 	let activeAgents = $state(0);
 	let maxConcurrency = $state(5);
+	let showCreateModal = $state(false);
+	let githubAccounts = $state<VCSAccount[]>([]);
 
 	async function refreshProjects() {
 		try { projects = await listProjectsWithStats(); } catch {}
@@ -49,7 +53,6 @@
 	refreshActivity();
 
 	const globws = new GlobalWebSocket();
-	globws.connect();
 
 	const STATS_EVENTS = ['run.started', 'run.completed', 'issue.status_changed', 'issue.paused', 'issue.resumed'] as const;
 	const ACTIVITY_EVENTS = [
@@ -58,11 +61,16 @@
 		'mention.error', 'dispatch.queued', 'run.started', 'run.completed',
 	] as const;
 	const AGENT_EVENTS = ['run.started', 'run.completed'] as const;
-	const unsubs = [
-		...STATS_EVENTS.map((e) => globws.on(e, refreshProjects)),
-		...ACTIVITY_EVENTS.map((e) => globws.on(e, refreshActivity)),
-		...AGENT_EVENTS.map((e) => globws.on(e, refreshActiveAgents)),
-	];
+	let unsubs: (() => void)[] = [];
+
+	onMount(() => {
+		globws.connect();
+		unsubs = [
+			...STATS_EVENTS.map((e) => globws.on(e, refreshProjects)),
+			...ACTIVITY_EVENTS.map((e) => globws.on(e, refreshActivity)),
+			...AGENT_EVENTS.map((e) => globws.on(e, refreshActiveAgents)),
+		];
+	});
 
 	onDestroy(() => {
 		globws.disconnect();
@@ -99,6 +107,11 @@
 
 	function shortId(id: string): string {
 		return id.slice(0, 8);
+	}
+
+	async function openCreateModal() {
+		showCreateModal = true;
+		try { githubAccounts = await listVCSAccounts(); } catch {}
 	}
 </script>
 
@@ -157,7 +170,11 @@
 			</div>
 			<div class="p-6 text-center">
 				<p class="text-primary text-sm font-mono mb-1">No projects yet</p>
-				<p class="text-muted text-sm font-mono">Create a project to see dashboard output</p>
+				<p class="text-muted text-sm font-mono mb-4">Create a project to see dashboard output</p>
+				<button
+					onclick={openCreateModal}
+					class="px-4 py-2 text-sm font-mono bg-cyan/10 border border-cyan text-cyan rounded-sm hover:bg-cyan/20 transition-colors"
+				>+ Create Project</button>
 			</div>
 		</div>
 	{:else}
@@ -169,6 +186,10 @@
 					<!-- Pane header -->
 					<div class="flex items-center px-4 py-2 bg-base-hi rounded-t-sm">
 						<span class="text-muted text-sm font-mono">crew status</span>
+						<button
+							onclick={openCreateModal}
+							class="ml-auto px-2.5 py-1 text-xs font-mono bg-cyan/10 border border-cyan text-cyan rounded-sm hover:bg-cyan/20 transition-colors"
+						>+ New Project</button>
 					</div>
 
 					<!-- Table header -->
@@ -243,3 +264,12 @@
 		</div>
 	{/if}
 </div>
+
+<Modal open={showCreateModal} onClose={() => showCreateModal = false} label="Create Project" maxWidth="max-w-md">
+	<h2 class="text-sm font-mono text-muted uppercase tracking-widest mb-4">Create Project</h2>
+	<ProjectForm
+		{githubAccounts}
+		onCreated={(project) => { showCreateModal = false; goto(`/projects/${project.id}`); }}
+		onCancel={() => showCreateModal = false}
+	/>
+</Modal>
