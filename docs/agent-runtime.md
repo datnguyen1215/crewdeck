@@ -222,12 +222,11 @@ Each spawn atomically increments `Issue.chain_depth`. If `chain_depth` is alread
 
 ### Concurrency
 
-Active processes are tracked in an in-memory map keyed by PID. Before spawning, the handler checks two concurrency limits:
+Active processes are tracked in an in-memory map keyed by PID. Before spawning, the handler checks a single global concurrency limit:
 
-1. **Global limit** — `MAX_AGENTS` env var (default 10). Counts all running agents across all projects via `AgentRun.status='running'`.
-2. **Per-project limit** — global `max_concurrency` setting. Counts running agents for the specific project.
+- **Global limit** — `max_concurrency` setting (default 5). Counts all running agents across all projects via `AgentRun.status='running'` (`countRunningGlobal()`).
 
-If either limit is reached, the dispatch is placed in a DB-backed FIFO queue (using `AgentRun` table with `status='queued'`) instead of being dropped. A system comment is posted with the agent's queue position. When any active process exits, the handler dequeues the next pending dispatch for that project and spawns it. Queue state persists across server restarts — on startup, queued runs are restored from the database.
+If the limit is reached, the dispatch is placed in a DB-backed FIFO queue (using `AgentRun` table with `status='queued'`) instead of being dropped. A system comment is posted with the agent's queue position. When any active process exits, the handler dequeues the next pending dispatch for that project and spawns it. Queue state persists across server restarts — on startup, queued runs are restored from the database.
 
 ### Timeouts
 

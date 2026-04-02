@@ -37,7 +37,7 @@ Agents are triggered by **`/dispatch` commands** in issue comments. When a user 
 | Max concurrency | Global setting          | System comment posted; dispatch is queued                              |
 | Process timeout | Global setting (default 10 min) | Process killed; system comment posted                                  |
 
-Chain depth is tracked per-issue and increments each time an agent is spawned on that issue. The limit is configurable via `max_chain_depth` in global settings (`/settings`). It can be reset via the "Reset chain depth" button on the issue detail page. Concurrency and timeout are also configured in global settings.
+Chain depth is tracked per-issue and increments each time an agent is spawned on that issue. The limit is configurable via `max_chain_depth` in global settings (`/settings`). It can be reset via the "Reset chain depth" button on the issue detail page. Concurrency (global across all projects) and timeout are also configured in global settings.
 
 ## Issue Status
 
