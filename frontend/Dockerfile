@@ -9,8 +9,8 @@ COPY . .
 RUN npm run build
 
 ENV HOST=127.0.0.1
-ENV PORT=9380
+ENV PORT=3000
 
-EXPOSE 9380
+EXPOSE 3000
 
 CMD ["node", "build"]

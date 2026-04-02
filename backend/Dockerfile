@@ -26,12 +26,6 @@ RUN groupadd -r app && useradd -r -g app -m -s /bin/bash app
 
 WORKDIR /app
 
-# Build the CrewDeck CLI first (from project root context)
-COPY cli/package.json cli/package-lock.json* cli/
-RUN cd cli && npm ci
-COPY cli/ cli/
-RUN cd cli && npm run build && npm link
-
 # Install backend dependencies
 COPY backend/package.json backend/package-lock.json* backend/
 RUN cd backend && npm ci
