@@ -21,6 +21,7 @@ import globalEnvironmentRouter from "./routes/global-environment.js";
 import terminalRouter from "./routes/terminal.js";
 import monitorRouter from "./routes/monitor.js";
 import authRouter from "./routes/auth.js";
+import apiKeysRouter from "./routes/api-keys.js";
 
 export interface CreateAppOpts {
   silent?: boolean;
@@ -71,6 +72,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/projects/:projectId`, monitorRouter);
   app.use(`${v1}/internal`, internalRouter);
   app.use(`${v1}/vcs-accounts`, vcsAccountsRouter);
+  app.use(`${v1}/api-keys`, apiKeysRouter);
 
   app.use(errorHandler);
 

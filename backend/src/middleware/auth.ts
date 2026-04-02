@@ -1,9 +1,11 @@
+import { createHash } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import {
   getSession,
   cleanExpiredSessions,
   type Session,
 } from "../db/repositories/auth.js";
+import { getByKeyHash, updateLastUsed } from "../db/repositories/api-keys.js";
 import { ForbiddenError } from "./errors.js";
 
 declare global {
@@ -38,6 +40,25 @@ export function validateSessionFromCookie(
   return getSession(match[1]);
 }
 
+function authenticateViaApiKey(
+  req: Request,
+): { id: string; username: string } | null {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return null;
+
+  const key = header.slice(7);
+  if (!key.startsWith("sk-")) return null;
+
+  const hash = createHash("sha256").update(key).digest("hex");
+  const apiKey = getByKeyHash(hash);
+  if (!apiKey) return null;
+
+  // Fire-and-forget last_used_at update
+  updateLastUsed(apiKey.id);
+
+  return { id: apiKey.id, username: `api-key:${apiKey.name}` };
+}
+
 export function requireAuth(
   req: Request,
   res: Response,
@@ -45,18 +66,27 @@ export function requireAuth(
 ): void {
   maybeCleanSessions();
 
+  // Try Bearer token first
+  const apiKey = authenticateViaApiKey(req);
+  if (apiKey) {
+    req.session = {
+      token: apiKey.id,
+      userId: apiKey.id,
+      username: apiKey.username,
+    };
+    next();
+    return;
+  }
+
+  // Fall back to session cookie
   const token = req.cookies?.session_token;
   if (!token) {
-    // 403 rather than 401: the client presented no credentials at all, so
-    // there is nothing to authenticate — the server simply refuses access.
     next(new ForbiddenError("Authentication required"));
     return;
   }
 
   const session = getSession(token);
   if (!session) {
-    // 403: a token was present but invalid/expired — the server understood
-    // the credentials but refuses to authorize them.
     next(new ForbiddenError("Invalid or expired session"));
     return;
   }
