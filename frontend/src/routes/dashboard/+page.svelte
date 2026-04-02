@@ -22,7 +22,7 @@
 		try {
 			activity = await listGlobalActivity({ limit: 10 });
 		} catch {}
-		activityLoading = false;
+		if (isInitialLoad) activityLoading = false;
 	}
 
 	refreshActivity();
