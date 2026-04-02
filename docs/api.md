@@ -997,7 +997,7 @@ Only runs with status `running` or `queued` are returned.
 GET /activity
 ```
 
-Returns recent activity entries across all projects. Entries are enriched with `actor_name` (agent display name), `issue_title`, and `project_name` (the owning project's name). Entries are returned in compact form (no `details` field).
+Returns recent activity entries across all projects. Entries are enriched with `actor_name` (agent display name), `issue_title`, and `project_name` (the owning project's name). Entries are returned in compact form — the `details` field is omitted, but display-critical fields are promoted to top-level properties: `from`/`to` for `issue.status_changed`, `pr_number` for `pr.created`, and `exit_code` for `mention.completed`.
 
 **Query Parameters:**
 
@@ -1027,8 +1027,9 @@ GET /projects/:projectId/activity
 | since      | DATETIME | Only entries after this timestamp. Must be a valid date (ISO 8601 or any format parseable by `new Date()`). Invalid values return `400 VALIDATION_ERROR`. |
 | limit      | INTEGER  | Max entries to return. Default: 50. Max: 500.                                                                                                             |
 | offset     | INTEGER  | Pagination offset. Default: 0.                                                                                                                            |
+| compact    | TEXT     | When `true`, omits the `details` field and promotes display-critical fields to top-level (`from`/`to` for `issue.status_changed`, `pr_number` for `pr.created`, `exit_code` for `mention.completed`). Default: `false` (full details included). |
 
-**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Entries where `actor_type` is `agent` include an additional `actor_name` field (string) with the agent's display name. Historical entries where `actor_type` is `system` but `details.agent_id` is present are also enriched with `actor_name`. Entries with an associated issue include an additional `issue_title` field (string) with the issue's title, resolved via batch lookup at query time.
+**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Entries where `actor_type` is `agent` include an additional `actor_name` field (string) with the agent's display name. Historical entries where `actor_type` is `system` but `details.agent_id` is present are also enriched with `actor_name`. Entries with an associated issue include an additional `issue_title` field (string) with the issue's title, resolved via batch lookup at query time. When `compact=true`, the `details` field is omitted and action-specific fields are promoted to top-level properties on the entry.
 
 ---
 
