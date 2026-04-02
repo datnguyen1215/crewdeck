@@ -53,8 +53,13 @@ function authenticateViaApiKey(
   const apiKey = getByKeyHash(hash);
   if (!apiKey) return null;
 
-  // Update last_used_at (synchronous write on every API-key-authenticated request)
-  updateLastUsed(apiKey.id);
+  // Throttle last_used_at updates to at most once per minute
+  if (
+    !apiKey.last_used_at ||
+    Date.now() - new Date(apiKey.last_used_at).getTime() > 60_000
+  ) {
+    updateLastUsed(apiKey.id);
+  }
 
   return { id: apiKey.id, username: `api-key:${apiKey.name}` };
 }

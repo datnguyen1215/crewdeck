@@ -37,10 +37,9 @@ export interface CreateAppOpts {
 }
 
 export function createApp(opts: CreateAppOpts = {}) {
-  // Ensure system API key exists on first startup
+  // Ensure system API key exists — always recreates to get raw key in memory
   if (!systemApiKey && !opts.skipAuth) {
-    const rawKey = ensureSystemKey();
-    if (rawKey) systemApiKey = rawKey;
+    systemApiKey = ensureSystemKey();
   }
 
   const app = express();

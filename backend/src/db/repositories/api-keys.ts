@@ -110,13 +110,15 @@ export function getSystemKey(): ApiKey | null {
 }
 
 /**
- * Ensure a system API key exists. Returns the raw key if newly created.
- * On subsequent calls, returns null (key already exists, raw key is unrecoverable).
- * On first call, the raw key should be stored in memory for the server lifetime.
+ * Ensure a system API key exists, always returning the raw key.
+ * Deletes and recreates the system key on every call since the raw key
+ * only lives in memory for the current server process lifetime.
  */
-export function ensureSystemKey(): string | null {
+export function ensureSystemKey(): string {
   const existing = getSystemKey();
-  if (existing) return null;
+  if (existing) {
+    db.prepare("DELETE FROM ApiKey WHERE id = ?").run(existing.id);
+  }
 
   const { plaintext } = createApiKey("system", true);
   return plaintext;
