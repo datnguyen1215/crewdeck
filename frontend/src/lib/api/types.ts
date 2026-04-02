@@ -2,9 +2,6 @@ export interface Project {
   id: string;
   name: string;
   description: string | null;
-  max_concurrency: number;
-  max_chain_depth: number;
-  agent_timeout_minutes: number;
   auto_start: boolean;
   auto_merge: boolean;
   model: string;
@@ -234,6 +231,9 @@ export interface CaptainStatus {
 
 export interface GlobalConfig {
   defaultModel: string;
+  maxConcurrency: number;
+  maxChainDepth: number;
+  agentTimeoutMinutes: number;
 }
 
 export interface GlobalEnvironmentVariable {

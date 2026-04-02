@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, listGlobalActivity, type ProjectWithStats, type ActivityLog } from '$lib/api/http.js';
+	import { listProjectsWithStats, listGlobalActivity, getGlobalConfig, type ProjectWithStats, type ActivityLog, type GlobalConfig } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import DashboardActivityFeed from '$lib/components/DashboardActivityFeed.svelte';
 
@@ -9,11 +9,18 @@
 	let loading = $state(true);
 	let activity = $state<ActivityLog[]>([]);
 	let activityLoading = $state(true);
+	let globalConfig = $state<GlobalConfig | null>(null);
 
 	fetchEffect(() => listProjectsWithStats(), {
 		onData: (data) => { projects = data; },
 		onError: 'Failed to load dashboard',
 		onLoading: (v) => { loading = v; },
+	});
+
+	fetchEffect(() => getGlobalConfig(), {
+		onData: (cfg) => { globalConfig = cfg; },
+		onError: 'Failed to load global config',
+		onLoading: () => {},
 	});
 
 	async function refreshActivity() {
@@ -35,7 +42,6 @@
 		if (projects.length === 0) return null;
 		const issues = { open: 0, in_progress: 0, pr_created: 0, pr_conflict: 0, pr_failed_actions: 0, pr_ready_to_merge: 0, done: 0 };
 		let activeRuns = 0;
-		let maxConcurrency = 0;
 		for (const p of projects) {
 			issues.open += p.issues.open;
 			issues.in_progress += p.issues.in_progress;
@@ -45,8 +51,8 @@
 			issues.pr_ready_to_merge += p.issues.pr_ready_to_merge;
 			issues.done += p.issues.done;
 			activeRuns += p.active_runs;
-			maxConcurrency += p.max_concurrency;
 		}
+		const maxConcurrency = globalConfig?.maxConcurrency ?? 5;
 		return { issues, activeRuns, maxConcurrency };
 	});
 
@@ -189,7 +195,7 @@
 								>
 									<div class="flex items-center justify-between mb-2">
 										<span class="text-primary font-semibold text-sm truncate mr-2">{project.name}</span>
-										<span class="text-muted text-xs flex-shrink-0">{project.active_runs}/{project.max_concurrency} agents</span>
+										<span class="text-muted text-xs flex-shrink-0">{project.active_runs}/{globalConfig?.maxConcurrency ?? 5} agents</span>
 									</div>
 									{#if total > 0}
 										<div class="flex h-1.5 rounded-full overflow-hidden gap-px mb-3">
@@ -261,7 +267,7 @@
 												</td>
 											{/each}
 											<td class="text-center px-3 py-3 text-muted">
-												<span class="text-secondary">{project.active_runs}</span>/{project.max_concurrency}
+												<span class="text-secondary">{project.active_runs}</span>/{globalConfig?.maxConcurrency ?? 5}
 											</td>
 										</tr>
 									{/each}

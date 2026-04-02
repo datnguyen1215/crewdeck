@@ -31,13 +31,13 @@ Agents are triggered by **`/dispatch` commands** in issue comments. When a user 
 
 ## Limits
 
-| Limit           | Value                        | Behavior when exceeded                                                 |
-| --------------- | ---------------------------- | ---------------------------------------------------------------------- |
-| Chain depth     | Project setting (default 20) | System comment posted; "Reset chain depth" button appears on the issue |
-| Max concurrency | Project setting              | System comment posted; dispatch is dropped                             |
-| Process timeout | 10 minutes                   | Process killed; system comment posted                                  |
+| Limit           | Value                   | Behavior when exceeded                                                 |
+| --------------- | ----------------------- | ---------------------------------------------------------------------- |
+| Chain depth     | Global setting (default 20) | System comment posted; "Reset chain depth" button appears on the issue |
+| Max concurrency | Global setting          | System comment posted; dispatch is queued                              |
+| Process timeout | Global setting (default 10 min) | Process killed; system comment posted                                  |
 
-Chain depth is tracked per-issue and increments each time an agent is spawned on that issue. The limit is configurable via `max_chain_depth` in project settings. It can be reset via the "Reset chain depth" button on the issue detail page.
+Chain depth is tracked per-issue and increments each time an agent is spawned on that issue. The limit is configurable via `max_chain_depth` in global settings (`/settings`). It can be reset via the "Reset chain depth" button on the issue detail page. Concurrency and timeout are also configured in global settings.
 
 ## Issue Status
 

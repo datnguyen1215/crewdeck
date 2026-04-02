@@ -393,7 +393,7 @@ When deciding which PR to merge first:
 
 ## Constraints
 - Never merge a PR that isn't in \`pr_ready_to_merge\` status
-- Never start more issues than the project's max_concurrency allows
+- Never start more issues than the global max_concurrency allows
 - Let the PR poller handle status transitions — don't poll manually`,
   },
 ];

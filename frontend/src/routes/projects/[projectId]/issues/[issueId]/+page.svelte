@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { getIssue, updateIssue, listActivity, getProject, listIssueRuns, addComment, editComment, deleteComment, type IssueWithDetails, type ActivityLog, type Project, type Comment, type AgentRun, type AgentRunEvent } from '$lib/api/http.js';
+	import { getIssue, updateIssue, listActivity, getProject, listIssueRuns, addComment, editComment, deleteComment, getGlobalConfig, type IssueWithDetails, type ActivityLog, type Project, type Comment, type AgentRun, type AgentRunEvent } from '$lib/api/http.js';
 	import { createFormState } from '$lib/utils/form.svelte.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { md } from '$lib/utils/markdown.js';
@@ -19,6 +19,7 @@
 
 	let issue = $state<IssueWithDetails | null>(null);
 	let project = $state<Project | null>(null);
+	let globalConfig = $state<{ maxChainDepth: number } | undefined>();
 	let loading = $state(true);
 	let projectId = $derived($page.params.projectId!);
 	let issueId = $derived($page.params.issueId!);
@@ -70,6 +71,15 @@
 		{
 			onData: (r) => { runs = r; },
 			onLoading: (v) => { runsLoading = v; },
+		}
+	);
+
+	fetchEffect(
+		() => getGlobalConfig(),
+		{
+			onData: (cfg) => { globalConfig = cfg; },
+			onError: () => {},
+			onLoading: () => {},
 		}
 	);
 
@@ -293,6 +303,7 @@
 					{issue}
 					{project}
 					{projectId}
+					{globalConfig}
 					onStatusChange={() => { getIssue(projectId, issueId).then(d => { issue = d; }).catch((err) => { toastStore.add(err instanceof Error ? err.message : 'Failed to refresh issue', 'error'); }); }}
 					onEdit={openEdit}
 				/>

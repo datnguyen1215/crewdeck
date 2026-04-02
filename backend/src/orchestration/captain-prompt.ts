@@ -4,6 +4,7 @@
  * Constructs the system prompt for captain terminal sessions.
  */
 import { getProject } from "../db/repositories/projects.js";
+import * as globalConfigRepo from "../db/repositories/global-config.js";
 import { listIssues } from "../db/repositories/issues.js";
 import { listActiveRunsForProject } from "../db/repositories/agent-runs.js";
 import { getCrewMember } from "./crew.js";
@@ -22,6 +23,7 @@ export const buildSystemPrompt = async (
   if (!project) return "";
 
   const runningAgents = getActiveProcessCount(projectId);
+  const maxConcurrency = globalConfigRepo.getMaxConcurrency();
 
   // Get project knowledge
   const projectKnowledge = listByProject(projectId);
@@ -43,8 +45,8 @@ ${project.description || "No description"}
 
 ## Current Capacity
 - Running agents: ${runningAgents}
-- Max concurrency: ${project.max_concurrency}
-- Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}`);
+- Max concurrency: ${maxConcurrency}
+- Available slots: ${Math.max(0, maxConcurrency - runningAgents)}`);
 
   // Inject project knowledge (full content for workflows/conventions)
   const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);

@@ -512,6 +512,26 @@ export function getModelAvailability(): Promise<{
   return request("GET", "/global-config/model-availability");
 }
 
+// Orchestration settings
+export function getMaxConcurrency(): Promise<{ maxConcurrency: number }> {
+  return request("GET", "/global-config/max-concurrency");
+}
+export function setMaxConcurrency(maxConcurrency: number): Promise<{ maxConcurrency: number }> {
+  return request("PUT", "/global-config/max-concurrency", { maxConcurrency });
+}
+export function getMaxChainDepth(): Promise<{ maxChainDepth: number }> {
+  return request("GET", "/global-config/max-chain-depth");
+}
+export function setMaxChainDepth(maxChainDepth: number): Promise<{ maxChainDepth: number }> {
+  return request("PUT", "/global-config/max-chain-depth", { maxChainDepth });
+}
+export function getAgentTimeoutMinutes(): Promise<{ agentTimeoutMinutes: number }> {
+  return request("GET", "/global-config/agent-timeout-minutes");
+}
+export function setAgentTimeoutMinutes(agentTimeoutMinutes: number): Promise<{ agentTimeoutMinutes: number }> {
+  return request("PUT", "/global-config/agent-timeout-minutes", { agentTimeoutMinutes });
+}
+
 // Global Environment Variables
 export function listGlobalEnvironmentVariables() {
   return request<GlobalEnvironmentVariable[]>(

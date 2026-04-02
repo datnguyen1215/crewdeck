@@ -27,8 +27,7 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - Knowledge entries for project context (conventions, structure notes, gotchas) injected into agent prompts.
 - One or more linked GitHub repositories.
 - A shared roster of 5 fixed agents (defined globally, not per-project; all are dispatchable).
-- A concurrency limit (max simultaneous agent processes).
-- A chain depth limit (max agent dispatches per issue before requiring manual reset).
+- Agent model preferences are configured globally via the `/crew` page (not per-project).
 - Agent model preferences are configured globally via the `/crew` page (not per-project).
 
 ### Agent
@@ -45,7 +44,7 @@ Orchestration is driven by `/dispatch` commands in issue comments. When a user o
 
 A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch engineer lead`. When multiple agents are dispatched, they are grouped as a batch and spawned immediately.
 
-The chain depth is tracked per issue (capped at the project's `max_chain_depth` setting, default 20) to prevent infinite loops. Concurrency is bounded by the project's `max_concurrency` setting.
+The chain depth is tracked per issue (capped at the global `max_chain_depth` setting, default 20) to prevent infinite loops. Concurrency is bounded by the global `max_concurrency` setting.
 
 ### Issue
 
@@ -499,7 +498,7 @@ Each `/dispatch` command spawns a one-shot `claude -p` process:
       ↓
 3. Per-agent-per-issue deduplication check (skip if already running)
       ↓
-4. Chain depth checked (atomic DB increment, per project's max_chain_depth)
+4. Chain depth checked (atomic DB increment, global max_chain_depth)
       ↓
 5. Concurrency checked (active processes < max_concurrency)
       → if limit reached: dispatch queued; system comment posted; stops here
@@ -548,7 +547,7 @@ This approach ensures:
 
 - Two-level concurrency limits:
   - **Global limit** (`MAX_AGENTS` env var, default 10): maximum agents running across all projects
-  - **Per-project limit** (`max_concurrency`): maximum agents per project
+  - **Per-project limit** (global `max_concurrency`): maximum agents per project
 - The MentionHandler checks both limits before each spawn.
 - If either limit is reached, the dispatch is placed in a DB-backed FIFO queue (using `AgentRun` table with `status='queued'`) and a system comment is posted with the queue position. When a running process exits, the handler dequeues the next pending dispatch and spawns it automatically. Queued runs persist across server restarts.
 

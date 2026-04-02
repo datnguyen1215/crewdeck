@@ -19,9 +19,9 @@ import { getActiveProcessCount, clearPendingSpawn } from "./processes.js";
 import { config } from "../config.js";
 import { cleanupSshKey } from "../utils/git-auth.js";
 import * as agentConfigRepo from "../db/repositories/agent-config.js";
+import * as globalConfigRepo from "../db/repositories/global-config.js";
 import { isIssuePaused } from "../services/issue-service.js";
 import type { Agent, AgentRun } from "../types/entities.js";
-import { DEFAULT_AGENT_TIMEOUT_MINUTES } from "../config/orchestration.js";
 import { postSystemComment, spawnAndTrack } from "./spawn-process.js";
 import {
   validateCanSpawn,
@@ -36,8 +36,6 @@ import {
 } from "./spawn-environment.js";
 
 export { postSystemComment } from "./spawn-process.js";
-
-const DEFAULT_MAX_CHAIN_DEPTH = 20;
 
 /**
  * Spawn an agent process for a mentioned agent on an issue.
@@ -55,7 +53,7 @@ export const spawnAgent = async (
   const project = projectRepo.getProject(projectId)!;
   const issue = issueRepo.getIssue(issueId)!;
 
-  const maxChainDepth = project.max_chain_depth ?? DEFAULT_MAX_CHAIN_DEPTH;
+  const maxChainDepth = globalConfigRepo.getMaxChainDepth();
 
   // Atomic check-and-increment to prevent concurrent mentions from exceeding the limit.
   // If chain_depth is already at MAX, the UPDATE matches zero rows and we reject.
@@ -98,7 +96,7 @@ export const spawnAgent = async (
       agent,
       issueId,
       projectId,
-      getActiveProcessCount(projectId) >= project.max_concurrency,
+      getActiveProcessCount(projectId) >= globalConfigRepo.getMaxConcurrency(),
       "",
     )
   ) {
@@ -131,8 +129,7 @@ export const spawnAgent = async (
 
   const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
 
-  const timeoutMinutes =
-    project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  const timeoutMinutes = globalConfigRepo.getAgentTimeoutMinutes();
   const model = agentConfigRepo.resolveModel(agent.id);
 
   await spawnAndTrack({
@@ -230,8 +227,7 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
   );
 
   const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
-  const timeoutMinutes =
-    project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  const timeoutMinutes = globalConfigRepo.getAgentTimeoutMinutes();
   const model = agentConfigRepo.resolveModel(agent.id);
 
   await spawnAndTrack({
@@ -262,9 +258,10 @@ export const spawnScan = async (projectId: string): Promise<string> => {
 
   // Check concurrency limit (scans can't be queued since they have no issue)
   const activeCount = getActiveProcessCount(projectId);
-  if (activeCount >= project.max_concurrency) {
+  const maxConcurrency = globalConfigRepo.getMaxConcurrency();
+  if (activeCount >= maxConcurrency) {
     throw new Error(
-      `Concurrency limit reached (${project.max_concurrency} agents running). Try again later.`,
+      `Concurrency limit reached (${maxConcurrency} agents running). Try again later.`,
     );
   }
 
@@ -288,8 +285,7 @@ export const spawnScan = async (projectId: string): Promise<string> => {
     CREWDECK_AGENT_ID: agent.id,
   };
 
-  const timeoutMinutes =
-    project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  const timeoutMinutes = globalConfigRepo.getAgentTimeoutMinutes();
 
   const model = agentConfigRepo.resolveModel(agent.id);
 

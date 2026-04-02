@@ -20,9 +20,6 @@ export interface Project {
   id: string;
   name: string;
   description: string | null;
-  max_concurrency: number;
-  max_chain_depth: number;
-  agent_timeout_minutes: number;
   auto_start: boolean;
   auto_merge: boolean;
   model: string;
@@ -232,7 +229,6 @@ export interface IssueWithDetails extends Issue {
 export interface CreateProjectInput {
   name: string;
   description?: string;
-  max_concurrency?: number;
   repo_url?: string;
   default_branch?: string;
   vcs_account_id?: string;
@@ -241,9 +237,6 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
-  max_concurrency?: number;
-  max_chain_depth?: number;
-  agent_timeout_minutes?: number;
   auto_start?: boolean;
   auto_merge?: boolean;
   vcs_account_id?: string | null;
