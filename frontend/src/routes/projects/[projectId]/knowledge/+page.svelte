@@ -355,75 +355,80 @@
 				<!-- Rows -->
 				{#each knowledge as entry, i (entry.id)}
 					{@const bg = i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}
-					<!-- Metadata row -->
+					<!-- Entry wrapper for group hover -->
 					<div
-						class="grid border-b border-edge {bg} hover:bg-surface-hi transition-colors group cursor-pointer"
-						style="grid-template-columns: 1fr auto auto auto auto; animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
-						onclick={() => openEdit(entry)}
-						onkeydown={(e) => e.key === 'Enter' && openEdit(entry)}
-						tabindex="0"
-						role="row"
+						class="group"
+						style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
 					>
-						<div class="px-3 py-2.5 flex items-center">
-							<span class="text-primary text-sm font-medium truncate">{entry.title}</span>
-						</div>
-						<div class="px-3 py-2.5 flex items-center">
-							{#if entry.category}
-								<span class="text-xs text-muted bg-surface px-1.5 py-0.5 rounded">{entry.category}</span>
-							{/if}
-						</div>
-						<div class="px-3 py-2.5 flex items-center">
-							{#if entry.source}
-								<span class="text-xs px-1.5 py-0.5 rounded {entry.source === 'librarian' ? 'bg-purple/10 text-purple border border-purple/30' : 'bg-cyan/10 text-cyan border border-cyan/30'}">
-									{entry.source}
-								</span>
-							{/if}
-						</div>
-						<div class="px-3 py-2.5 flex items-center justify-end">
-							<span class="text-xs text-muted font-mono" title={fullTime(entry.updated_at)}>{smartTimeDiff(entry.updated_at)}</span>
-						</div>
-						<span class="px-2 py-2.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onclick={(e) => e.stopPropagation()}>
-							<button
-								onclick={() => openEdit(entry)}
-								class="px-2 py-1 text-xs text-secondary hover:text-primary border border-edge hover:border-edge-hi rounded transition-colors"
-							>
-								Edit
-							</button>
-							{#if confirmingDeleteId === entry.id}
+						<!-- Metadata row -->
+						<div
+							class="grid border-b border-edge {bg} group-hover:bg-surface-hi transition-colors cursor-pointer"
+							style="grid-template-columns: 1fr auto auto auto auto"
+							onclick={() => openEdit(entry)}
+							onkeydown={(e) => e.key === 'Enter' && openEdit(entry)}
+							tabindex="0"
+							role="row"
+						>
+							<div class="px-3 py-2.5 flex items-center">
+								<span class="text-primary text-sm font-medium truncate">{entry.title}</span>
+							</div>
+							<div class="px-3 py-2.5 flex items-center">
+								{#if entry.category}
+									<span class="text-xs text-muted bg-surface px-1.5 py-0.5 rounded">{entry.category}</span>
+								{/if}
+							</div>
+							<div class="px-3 py-2.5 flex items-center">
+								{#if entry.source}
+									<span class="text-xs px-1.5 py-0.5 rounded {entry.source === 'librarian' ? 'bg-purple/10 text-purple border border-purple/30' : 'bg-cyan/10 text-cyan border border-cyan/30'}">
+										{entry.source}
+									</span>
+								{/if}
+							</div>
+							<div class="px-3 py-2.5 flex items-center justify-end">
+								<span class="text-xs text-muted font-mono" title={fullTime(entry.updated_at)}>{smartTimeDiff(entry.updated_at)}</span>
+							</div>
+							<div class="px-2 py-2.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" role="presentation" onclick={(e) => e.stopPropagation()}>
 								<button
-									onclick={() => handleDelete(entry.id)}
-									disabled={deletingId === entry.id}
-									class="px-2 py-1 text-xs text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-400/50 rounded transition-colors disabled:opacity-50"
+									onclick={() => openEdit(entry)}
+									class="px-2 py-1 text-xs text-secondary hover:text-primary border border-edge hover:border-edge-hi rounded transition-colors"
 								>
-									{deletingId === entry.id ? '...' : 'Confirm'}
+									Edit
 								</button>
-								<button
-									onclick={() => confirmingDeleteId = null}
-									class="px-2 py-1 text-xs text-muted hover:text-secondary transition-colors"
-								>
-									Cancel
-								</button>
-							{:else}
-								<button
-									onclick={() => confirmingDeleteId = entry.id}
-									class="px-2 py-1 text-xs text-red-400 hover:text-red-300 transition-colors"
-								>
-									Delete
-								</button>
-							{/if}
-						</span>
-					</div>
-					<!-- Content preview row -->
-					<div
-						class="grid border-b border-edge {bg} hover:bg-surface-hi transition-colors cursor-pointer"
-						style="grid-template-columns: 1fr; animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
-						onclick={() => openEdit(entry)}
-						onkeydown={(e) => e.key === 'Enter' && openEdit(entry)}
-						tabindex="0"
-						role="row"
-					>
-						<div class="pl-3 pb-2.5 pr-3">
-							<p class="text-secondary text-sm">{truncate(entry.content, 120)}</p>
+								{#if confirmingDeleteId === entry.id}
+									<button
+										onclick={() => handleDelete(entry.id)}
+										disabled={deletingId === entry.id}
+										class="px-2 py-1 text-xs text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-400/50 rounded transition-colors disabled:opacity-50"
+									>
+										{deletingId === entry.id ? '...' : 'Confirm'}
+									</button>
+									<button
+										onclick={() => confirmingDeleteId = null}
+										class="px-2 py-1 text-xs text-muted hover:text-secondary transition-colors"
+									>
+										Cancel
+									</button>
+								{:else}
+									<button
+										onclick={() => confirmingDeleteId = entry.id}
+										class="px-2 py-1 text-xs text-red-400 hover:text-red-300 transition-colors"
+									>
+										Delete
+									</button>
+								{/if}
+							</div>
+						</div>
+						<!-- Content preview row -->
+						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+						<div
+							class="grid border-b border-edge {bg} group-hover:bg-surface-hi transition-colors cursor-pointer"
+							style="grid-template-columns: 1fr"
+							onclick={() => openEdit(entry)}
+							role="presentation"
+						>
+							<div class="pl-3 pb-2.5 pr-3">
+								<p class="text-secondary text-sm">{truncate(entry.content, 120)}</p>
+							</div>
 						</div>
 					</div>
 				{/each}
