@@ -653,7 +653,7 @@ Permanently deletes an issue and cleans up associated resources.
 POST /projects/:projectId/issues/:issueId/pause
 ```
 
-Pauses an issue, preventing new agent dispatches until resumed.
+Pauses an issue, preventing new agent dispatches, PR creation, and PR merging until resumed.
 
 **Response:** `200 OK`
 

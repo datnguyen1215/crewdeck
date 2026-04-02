@@ -161,7 +161,9 @@ The approval flags are checked in `handleDispatchAgent()` and `handleMergePR()`:
 
 Flags are cleared after successful dispatch/merge and stored in-memory (reset on server restart).
 
-`handleMergePR()` also enforces a hard CI gate: it rejects the merge with an error if `issue.status !== 'pr_ready_to_merge'`, regardless of approval or auto_merge settings. The issue only reaches `pr_ready_to_merge` once the PR poller confirms CI has passed and the PR is mergeable.
+`handleMergePR()` also enforces a hard paused-issue gate and a hard CI gate: it rejects the merge with an error if the issue is paused or `issue.status !== 'pr_ready_to_merge'`, regardless of approval or auto_merge settings. The issue only reaches `pr_ready_to_merge` once the PR poller confirms CI has passed and the PR is mergeable.
+
+`handleCreatePR()` enforces a hard paused-issue gate: it rejects PR creation with an error if the issue is paused.
 
 ## MentionHandler
 
