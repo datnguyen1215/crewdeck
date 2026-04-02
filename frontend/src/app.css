@@ -166,25 +166,6 @@ a[role="button"]:active {
 	z-index: 1;
 }
 
-/* Blinking cursor */
-@keyframes terminal-blink {
-	0%, 60% {
-		opacity: 1;
-	}
-	61%, 100% {
-		opacity: 0;
-	}
-}
-
-.terminal-cursor {
-	display: inline-block;
-	width: 8px;
-	height: 1em;
-	background-color: var(--color-cyan);
-	animation: terminal-blink 1s step-end infinite;
-	vertical-align: text-bottom;
-}
-
 /* New entry fade-in with slide-up and glow */
 @keyframes terminal-entry-enter {
 	from {
