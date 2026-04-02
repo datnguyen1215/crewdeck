@@ -10,6 +10,15 @@ import { getCrewMember } from "../../orchestration/crew.js";
 
 type ActivityRow = Omit<ActivityLog, "details"> & { details: string | null };
 
+function getProjectNamesByIds(ids: string[]): Map<string, string> {
+  if (ids.length === 0) return new Map();
+  const placeholders = ids.map(() => "?").join(",");
+  const rows = db
+    .prepare(`SELECT id, name FROM Project WHERE id IN (${placeholders})`)
+    .all(...ids) as { id: string; name: string }[];
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
 function fromRow(row: ActivityRow): ActivityLog {
   return {
     ...row,
@@ -60,6 +69,7 @@ export function listActivity(
 export function enrichActivityEntries(
   entries: ActivityLog[],
   compact: boolean,
+  options?: { projectNames?: boolean },
 ): Record<string, unknown>[] {
   const agentCache = new Map<string, string | null>();
 
@@ -69,6 +79,11 @@ export function enrichActivityEntries(
     ),
   );
   const issueTitleCache = getTitlesByIds(issueIds);
+
+  const projectIds = options?.projectNames
+    ? Array.from(new Set(entries.map((e) => e.project_id)))
+    : [];
+  const projectNameCache = getProjectNamesByIds(projectIds);
 
   return entries.map((entry: ActivityLog) => {
     const { details, ...rest } = entry;
@@ -101,10 +116,33 @@ export function enrichActivityEntries(
       if (title) enrichments.issue_title = title;
     }
 
+    if (projectNameCache.size > 0) {
+      const name = projectNameCache.get(entry.project_id);
+      if (name) enrichments.project_name = name;
+    }
+
     return Object.keys(enrichments).length > 0
       ? { ...base, ...enrichments }
       : base;
   });
+}
+
+export function listGlobalActivity(filters: ActivityFilters = {}): ActivityLog[] {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (filters.since !== undefined) {
+    conditions.push("created_at >= ?");
+    values.push(filters.since);
+  }
+
+  const limit = Math.min(filters.limit ?? 10, 50);
+  const offset = filters.offset ?? 0;
+
+  const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
+  const sql = `SELECT * FROM ActivityLog${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`;
+  const rows = db.prepare(sql).all(...values, limit, offset) as ActivityRow[];
+  return rows.map(fromRow);
 }
 
 export function createActivity(input: CreateActivityInput): ActivityLog {

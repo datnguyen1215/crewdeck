@@ -973,6 +973,26 @@ Only runs with status `running` or `queued` are returned.
 
 ### Activity Log
 
+#### List Global Activity
+
+```
+GET /activity
+```
+
+Returns recent activity entries across all projects. Entries are enriched with `actor_name` (agent display name), `issue_title`, and `project_name` (the owning project's name). Entries are returned in compact form (no `details` field).
+
+**Query Parameters:**
+
+| Parameter | Type     | Description                                                                                                                                               |
+| --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| since     | DATETIME | Only entries after this timestamp. Must be a valid date (ISO 8601 or any format parseable by `new Date()`). Invalid values return `400 VALIDATION_ERROR`. |
+| limit     | INTEGER  | Max entries to return. Default: 10. Max: 50.                                                                                                              |
+| offset    | INTEGER  | Pagination offset. Default: 0. Must be ≥ 0.                                                                                                               |
+
+**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Each entry includes `actor_name` (for agent and system-with-agent-id entries), `issue_title` (when an associated issue exists), and `project_name` (the owning project's name).
+
+**Error:** `400 VALIDATION_ERROR` — `since` is not a valid date, `limit` is negative, or `offset` is negative.
+
 #### List Activity for a Project
 
 ```

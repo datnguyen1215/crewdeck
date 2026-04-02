@@ -23,6 +23,7 @@ import terminalRouter from "./routes/terminal.js";
 import monitorRouter from "./routes/monitor.js";
 import authRouter from "./routes/auth.js";
 import apiKeysRouter from "./routes/api-keys.js";
+import globalActivityRouter from "./routes/global-activity.js";
 
 // In-memory system API key — set once on startup, used for spawning agents/captains
 let systemApiKey: string | null = null;
@@ -86,6 +87,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/internal`, internalRouter);
   app.use(`${v1}/vcs-accounts`, vcsAccountsRouter);
   app.use(`${v1}/api-keys`, apiKeysRouter);
+  app.use(`${v1}/activity`, globalActivityRouter);
 
   app.use(errorHandler);
 

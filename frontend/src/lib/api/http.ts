@@ -302,6 +302,16 @@ export function listActivity(
   );
 }
 
+export function listGlobalActivity(filters?: {
+  limit?: number;
+  since?: string;
+}) {
+  return request<ActivityLog[]>(
+    "GET",
+    `/activity${qs(filters)}`,
+  );
+}
+
 // Environment Variables
 export function listEnvironmentVariables(projectId: string) {
   return request<EnvironmentVariable[]>(
