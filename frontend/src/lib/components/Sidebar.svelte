@@ -192,6 +192,10 @@
 	</div>
 
 	<div class="flex flex-col gap-1 p-2 flex-1 overflow-y-auto overflow-x-hidden">
+		<!-- Dashboard link -->
+		{@render navItem('/dashboard', 'Dashboard', 'dashboard', isActive('/dashboard'))}
+		<div class="border-t border-edge my-1"></div>
+
 		<!-- Projects list -->
 		{#each projects as project (project.id)}
 			<ProjectNavItem
