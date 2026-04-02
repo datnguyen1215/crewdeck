@@ -285,22 +285,22 @@ Legacy table originally designed for chat sessions. No longer actively used afte
 
 ### AgentConfig
 
-Global per-agent, per-provider model configuration. Applies machine-wide regardless of project. Each agent can have separate model settings for each AI provider.
+Global per-agent model configuration. Applies machine-wide regardless of project. Each agent can have a model override from any provider — the model name determines which provider is used.
 
-| Field    | Type        | Constraints                  | Description                                                                                                                                                            |
-| -------- | ----------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id       | TEXT (UUID) | PRIMARY KEY                  | Unique identifier.                                                                                                                                                     |
-| agent_id | TEXT        | NOT NULL                     | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                                                |
-| provider | TEXT        | NOT NULL, DEFAULT 'claude'   | AI provider for this config. One of: `claude`, `glm` (Z.AI).                                                                                                           |
-| model    | TEXT        | NULLABLE                     | Model override. For `claude`: `sonnet`, `opus`, `haiku`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. NULL means use provider default. |
+| Field    | Type        | Constraints      | Description                                                                                                                                       |
+| -------- | ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id       | TEXT (UUID) | PRIMARY KEY      | Unique identifier.                                                                                                                                |
+| agent_id | TEXT        | NOT NULL, UNIQUE | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                           |
+| model    | TEXT        | NULLABLE         | Model override. `sonnet`, `opus`, `haiku` (Claude), `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7` (Z.AI). NULL means use the global default model. |
 
 **Constraints:**
 
-- UNIQUE(agent_id, provider) — one config entry per agent per provider.
+- UNIQUE(agent_id) — one config entry per agent.
 
 **Model resolution order:**
-1. Query `AgentConfig` by (agent_id, current_provider)
-2. If not found, use provider default: `sonnet` for Claude, `glm-5-turbo` for GLM
+
+1. Query `AgentConfig` by agent_id
+2. If not found or model is NULL, use the global default model (`default_model` in GlobalConfig, default: `sonnet`)
 
 ---
 
@@ -315,14 +315,14 @@ Global system-wide configuration settings. Stores key-value pairs for machine-wi
 
 **Current keys:**
 
-- `provider` — AI provider for all agent spawns. One of: `claude` (default), `glm` (Z.AI).
+- `default_model` — Default model for all agent spawns when no per-agent override is set. One of: `sonnet` (default), `opus`, `haiku`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`.
 
-**Provider behavior:**
+**Provider inference:**
 
-- When `provider=claude`: Agent processes use default `ANTHROPIC_API_KEY` from environment.
-- When `provider=glm`: Agent processes receive `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`.
-- Switching providers terminates all active Captain terminal sessions (new sessions use the new provider).
-- GLM provider requires `ZAI_API_KEY` environment variable to be set on the backend.
+The provider is determined by the model name itself:
+
+- Models starting with `glm-` use Z.AI (requires `ZAI_API_KEY` environment variable). Agent processes receive `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`.
+- All other models use Claude/Anthropic (default `ANTHROPIC_API_KEY`).
 
 ---
 
@@ -374,7 +374,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Project → ActivityLog         | One-to-Many | A project has many activity log entries.                                    |
 | Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes.     |
 | Project → ProjectKnowledge    | One-to-Many | A project has many knowledge entries for agent context.                     |
-| AgentConfig                   | Global      | One global model config per agent (no project scope).                       |
+| AgentConfig                   | Global      | One global model config per agent (no project scope, no provider scope).    |
 | Issue → Comment               | One-to-Many | An issue has many comments.                                                 |
 | Issue → IssuePR               | One-to-Many | An issue can have multiple PRs (across repos).                              |
 | Issue → IssueDependency       | One-to-Many | An issue can depend on multiple other issues.                               |
