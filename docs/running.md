@@ -30,7 +30,7 @@ On first launch (when no admin user exists), visiting the app automatically redi
 1. Open http://localhost:9380
 2. Redirected to `/setup` — create an admin username and password
 3. Redirected to `/login` — sign in with the credentials you just created
-4. Redirected to the dashboard (`/`)
+4. Redirected to the dashboard (`/dashboard`) — the root URL `/` automatically redirects here
 
 Subsequent visits require signing in at `/login`.
 

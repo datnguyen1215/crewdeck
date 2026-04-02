@@ -187,7 +187,7 @@
 >
 	<div class="flex items-center border-b border-edge flex-shrink-0">
 		<a
-			href="/"
+			href="/dashboard"
 			onclick={closeMobileSidebar}
 			class="flex items-center gap-3 px-4 py-5 hover:bg-surface transition-colors flex-1 min-w-0 {isMobile ? 'pl-14' : ''}"
 			title={collapsed && !isMobile ? 'CrewDeck' : undefined}
