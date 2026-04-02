@@ -75,12 +75,7 @@
 				configs = configs.filter(c => c.agent_id !== agentId);
 			} else {
 				const updated = await setAgentModel(agentId, value);
-				const idx = configs.findIndex(c => c.agent_id === agentId);
-				if (idx >= 0) {
-					configs = configs.map(c => (c.agent_id === agentId) ? updated : c);
-				} else {
-					configs = [...configs, updated];
-				}
+				configs = configs.map(c => (c.agent_id === agentId) ? updated : c);
 			}
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save model', 'error');
