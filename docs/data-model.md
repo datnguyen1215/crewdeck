@@ -300,14 +300,14 @@ Represents the single admin account for backend authentication. Only one row exi
 
 ### Session
 
-Represents an active login session. Old sessions are deleted on each login to prevent session fixation. Expired sessions are periodically cleaned up (every ~10 minutes).
+Represents an active login session. Old sessions are deleted on each login to prevent session fixation. Sessions persist indefinitely (no server-side expiry check; cookie `maxAge` is set to 10 years).
 
-| Field      | Type     | Constraints                                            | Description                                            |
-| ---------- | -------- | ------------------------------------------------------ | ------------------------------------------------------ |
-| id         | TEXT     | PRIMARY KEY                                            | Session token (64-char hex, `crypto.randomBytes(32)`). |
-| user_id    | TEXT     | NOT NULL, FOREIGN KEY → AdminUser.id ON DELETE CASCADE | The admin user this session belongs to.                |
-| expires_at | DATETIME | NOT NULL                                               | When the session expires (default: 7 days).            |
-| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | When the session was created.                          |
+| Field      | Type     | Constraints                                            | Description                                                          |
+| ---------- | -------- | ------------------------------------------------------ | -------------------------------------------------------------------- |
+| id         | TEXT     | PRIMARY KEY                                            | Session token (64-char hex, `crypto.randomBytes(32)`).               |
+| user_id    | TEXT     | NOT NULL, FOREIGN KEY → AdminUser.id ON DELETE CASCADE | The admin user this session belongs to.                              |
+| expires_at | DATETIME | NULLABLE                                               | Far-future sentinel (`9999-12-31T23:59:59Z`); not checked by server. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | When the session was created.                                        |
 
 ### ApiKey
 
