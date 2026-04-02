@@ -23,8 +23,7 @@
 		if (destroyed || !term) return;
 
 		const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-		const backendHost = import.meta.env.VITE_BACKEND_URL?.replace(/^https?:\/\//, '') || location.host.replace('9380', '9381');
-		const url = `${protocol}//${backendHost}/terminal-ws?projectId=${encodeURIComponent(projectId)}`;
+		const url = `${protocol}//${location.host}/terminal-ws?projectId=${encodeURIComponent(projectId)}`;
 		const ws = new WebSocket(url);
 
 		ws.onopen = () => {

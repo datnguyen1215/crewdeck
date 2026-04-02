@@ -1,4 +1,8 @@
 :9380 {
+	handle /api/* {
+		reverse_proxy backend:9381
+	}
+
 	handle /ws* {
 		reverse_proxy backend:9381
 	}

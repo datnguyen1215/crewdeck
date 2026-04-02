@@ -1,10 +1,6 @@
 import type { WsEventMap } from "./types.js";
 
 export function wsBase(): string {
-  const backendUrl: string =
-    import.meta.env.VITE_BACKEND_URL ||
-    (import.meta.env.DEV ? "http://localhost:9381" : "");
-  if (backendUrl) return backendUrl.replace(/^http/, "ws");
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${location.host}`;
 }

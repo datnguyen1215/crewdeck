@@ -2,23 +2,6 @@
 export async function handle({ event, resolve }) {
   const { pathname } = event.url;
 
-  // Proxy API requests to backend
-  if (pathname.startsWith("/api/")) {
-    const backendUrl = process.env.VITE_BACKEND_URL || "http://localhost:9381";
-    const target = `${backendUrl}${pathname}${event.url.search}`;
-    const res = await fetch(target, {
-      method: event.request.method,
-      headers: event.request.headers,
-      body: event.request.body,
-      duplex: "half",
-    });
-    return new Response(res.body, {
-      status: res.status,
-      statusText: res.statusText,
-      headers: res.headers,
-    });
-  }
-
   // Setup page — always allow
   if (pathname.startsWith("/setup")) {
     return resolve(event);
