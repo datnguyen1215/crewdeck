@@ -8,6 +8,7 @@
 
 	const STORAGE_KEY = 'sidebar-collapsed';
 	const SYSTEM_STORAGE_KEY = 'sidebar-system-collapsed';
+	const PROJECTS_COLLAPSED_KEY = 'sidebar-projects-collapsed';
 	const MOBILE_BREAKPOINT = 768;
 
 	let projects = $state<ProjectWithStats[]>([]);
@@ -16,13 +17,21 @@
 	let mobileOpen = $state(false);
 	let isMobile = $state(false);
 	let systemSectionCollapsed = $state(false);
+	let projectsSectionCollapsed = $state(false);
 	let projectId = $derived($page.params.projectId);
 	let pathname = $derived($page.url.pathname);
 
 	// Auto-expand current project when route changes
 	$effect(() => {
-		if (projectId && !expandedProjects.has(projectId)) {
-			expandedProjects = new Set([projectId]);
+		if (projectId) {
+			if (!expandedProjects.has(projectId)) {
+				expandedProjects = new Set([projectId]);
+			}
+			// Auto-expand projects section if navigating to a project
+			if (projectsSectionCollapsed) {
+				projectsSectionCollapsed = false;
+				localStorage.setItem(PROJECTS_COLLAPSED_KEY, 'false');
+			}
 		}
 	});
 
@@ -52,6 +61,12 @@
 		const systemStored = localStorage.getItem(SYSTEM_STORAGE_KEY);
 		if (systemStored !== null) {
 			systemSectionCollapsed = systemStored === 'true';
+		}
+
+		// Load projects section collapsed state
+		const projectsStored = localStorage.getItem(PROJECTS_COLLAPSED_KEY);
+		if (projectsStored !== null) {
+			projectsSectionCollapsed = projectsStored === 'true';
 		}
 
 		// Load projects (async, but don't block)
@@ -88,6 +103,11 @@
 	function toggleSystemSection() {
 		systemSectionCollapsed = !systemSectionCollapsed;
 		localStorage.setItem(SYSTEM_STORAGE_KEY, String(systemSectionCollapsed));
+	}
+
+	function toggleProjectsSection() {
+		projectsSectionCollapsed = !projectsSectionCollapsed;
+		localStorage.setItem(PROJECTS_COLLAPSED_KEY, String(projectsSectionCollapsed));
 	}
 
 	async function logout() {
@@ -208,21 +228,47 @@
 		{@render navItem('/dashboard', 'Dashboard', 'dashboard', isActive('/dashboard'))}
 		<div class="border-t border-edge my-1"></div>
 
-		<!-- Projects list -->
-		{#each projects as project (project.id)}
-			<ProjectNavItem
-				{project}
-				{collapsed}
-				{isMobile}
-				isExpanded={expandedProjects.has(project.id)}
-				isCurrent={isProjectActive(project.id)}
-				{pathname}
-				{isActive}
-				{getActiveIssueCount}
-				onToggleProject={toggleProject}
-				onCloseMobileSidebar={closeMobileSidebar}
-			/>
-		{/each}
+		<!-- Projects section header (hidden when sidebar is collapsed/narrow) -->
+		{#if !collapsed || isMobile}
+			<button
+				onclick={toggleProjectsSection}
+				class="flex items-center gap-1 px-3 py-1.5 text-[10px] uppercase tracking-widest text-secondary hover:text-primary transition-colors cursor-pointer"
+			>
+				<span class="flex-1 text-left">Projects ({projects.length})</span>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="12"
+					height="12"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="transition-transform duration-150 {projectsSectionCollapsed ? '-rotate-90' : ''}"
+				>
+					{@html icons.chevronDown}
+				</svg>
+			</button>
+		{/if}
+
+		<!-- Projects list (hidden when section is collapsed, unless sidebar itself is collapsed/narrow) -->
+		{#if !projectsSectionCollapsed || (collapsed && !isMobile)}
+			{#each projects as project (project.id)}
+				<ProjectNavItem
+					{project}
+					{collapsed}
+					{isMobile}
+					isExpanded={expandedProjects.has(project.id)}
+					isCurrent={isProjectActive(project.id)}
+					{pathname}
+					{isActive}
+					{getActiveIssueCount}
+					onToggleProject={toggleProject}
+					onCloseMobileSidebar={closeMobileSidebar}
+				/>
+			{/each}
+		{/if}
 
 		<!-- Global Crew link -->
 		<div class="border-t border-edge my-1"></div>
