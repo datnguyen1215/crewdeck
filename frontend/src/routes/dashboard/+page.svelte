@@ -112,6 +112,13 @@
 	<title>Dashboard - CrewDeck</title>
 </svelte:head>
 
+{#if globws.state === 'reconnecting' || globws.state === 'connecting'}
+	<div class="fixed top-0 left-0 right-0 z-[300] flex items-center justify-center gap-2 py-1 bg-amber/10 border-b border-amber/30 text-amber text-xs" style="view-transition-name: none">
+		<span class="inline-block w-1.5 h-1.5 rounded-full bg-amber animate-pulse"></span>
+		{globws.state === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
+	</div>
+{/if}
+
 <div class="p-4 md:p-8 h-full overflow-auto pt-14 md:pt-8">
 	<!-- Header -->
 	<div class="mb-6 md:mb-10 fade-up">
