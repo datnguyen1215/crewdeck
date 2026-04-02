@@ -291,7 +291,7 @@ When a worktree branch already exists (subsequent agent runs on the same issue),
 CrewDeck uses two types of git worktrees:
 
 1. **Issue worktrees** — ephemeral worktrees created per issue (named `crewdeck/<issueId-short>-<prefix>/<slug>-<hash>`). Cleaned up when the issue reaches `done` status or is deleted.
-2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `crewdeck/captain-{projectId}`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck/<project-slug>/captain` and auto-rebase onto the latest default branch on creation.
+2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `captain/<project-slug>`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck/<project-slug>/captain` and auto-rebase onto the latest default branch on creation.
 
 ### Worktree Cleanup
 
