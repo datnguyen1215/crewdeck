@@ -82,7 +82,7 @@ export function initActivityLogger(): void {
     log({
       project_id,
       issue_id: issue_pr.issue_id,
-      actor_type: "user",
+      actor_type: "system",
       action: "pr.created",
       details: { pr_number: issue_pr.pr_number, pr_url: issue_pr.pr_url },
     });
@@ -92,8 +92,7 @@ export function initActivityLogger(): void {
     log({
       project_id,
       issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
+      actor_type: "system",
       action: "mention.spawned",
       details: { agent_id, pid },
     });
@@ -105,8 +104,7 @@ export function initActivityLogger(): void {
       log({
         project_id,
         issue_id,
-        actor_type: "agent",
-        actor_id: agent_id,
+        actor_type: "system",
         action: "mention.completed",
         details: { agent_id, exit_code },
       });
@@ -119,8 +117,7 @@ export function initActivityLogger(): void {
       log({
         project_id,
         issue_id,
-        actor_type: "agent",
-        actor_id: agent_id,
+        actor_type: "system",
         action: "agent.queued",
         details: { agent_id, position },
       });
@@ -131,8 +128,7 @@ export function initActivityLogger(): void {
     log({
       project_id,
       issue_id,
-      actor_type: "agent",
-      actor_id: agent_id,
+      actor_type: "system",
       action: "agent.dequeued",
       details: { agent_id },
     });
