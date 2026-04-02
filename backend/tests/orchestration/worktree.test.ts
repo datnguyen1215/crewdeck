@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
+  slugify,
   createWorktree,
   cleanupWorktree,
 } from "../../src/orchestration/worktree.js";
@@ -55,6 +56,33 @@ const issue: Issue = {
   created_at: "2026-01-01",
   updated_at: "2026-01-01",
 };
+
+describe("slugify", () => {
+  it("lowercases and replaces non-alphanumeric with dashes", () => {
+    expect(slugify("Fix the login bug")).toBe("fix-the-login-bug");
+  });
+
+  it("removes leading dashes", () => {
+    expect(slugify("---hello")).toBe("hello");
+  });
+
+  it("truncates to 40 characters", () => {
+    const long = Array(60).fill("word").join("-");
+    expect(slugify(long).length).toBeLessThanOrEqual(40);
+  });
+
+  it("does not end with a dash after truncation", () => {
+    const input = "something-long-that-truncates-with-dash-end";
+    const result = slugify(input);
+    expect(result.endsWith("-")).toBe(false);
+  });
+
+  it("handles trailing dash from original title after truncation", () => {
+    const input = "something-long-that-truncates-with-dash-";
+    const result = slugify(input);
+    expect(result.endsWith("-")).toBe(false);
+  });
+});
 
 describe("createWorktree", () => {
   beforeEach(() => {
