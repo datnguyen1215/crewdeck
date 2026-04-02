@@ -40,6 +40,10 @@
 			default: return 'text-secondary';
 		}
 	}
+
+	function truncate(str: string, max: number): string {
+		return str.length > max ? str.slice(0, max) + '…' : str;
+	}
 </script>
 
 <div class="bg-surface border border-edge rounded-sm flex flex-col h-full">
@@ -79,13 +83,20 @@
 					<!-- Separator -->
 					<span class="text-muted text-sm font-mono flex-shrink-0">&gt;</span>
 
-					<!-- Action message -->
-					<span class="text-secondary text-sm font-mono truncate flex-1">{actionLabel(entry)}</span>
-
 					<!-- Project name (desktop only) -->
 					{#if entry.project_name}
-						<span class="hidden md:inline text-muted/50 text-sm font-mono flex-shrink-0 w-24 truncate text-right">{entry.project_name}</span>
+						<span class="hidden md:inline text-muted/50 text-xs font-mono flex-shrink-0 w-24 truncate">{entry.project_name}</span>
+						<span class="hidden md:inline text-muted text-xs font-mono flex-shrink-0">&gt;</span>
 					{/if}
+
+					<!-- Issue title -->
+					{#if entry.issue_title}
+						<span class="text-secondary text-xs font-mono truncate flex-1 min-w-0">{truncate(entry.issue_title, 25)}</span>
+						<span class="text-muted text-xs font-mono flex-shrink-0">&gt;</span>
+					{/if}
+
+					<!-- Action message -->
+					<span class="text-secondary text-xs font-mono truncate flex-1 min-w-0">{actionLabel(entry)}</span>
 				</a>
 			{/each}
 		</div>
