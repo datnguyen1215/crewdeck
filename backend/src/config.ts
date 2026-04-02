@@ -25,5 +25,4 @@ export const config = {
   reposHostPath: process.env.CREWDECK_REPOS_HOST_PATH || "",
   reposContainerPath: process.env.CREWDECK_REPOS_CONTAINER_PATH || "",
   maxAgents: parseIntEnv("MAX_AGENTS", 10),
-  sessionExpiryMs: parseIntEnv("SESSION_EXPIRY_HOURS", 168) * 60 * 60 * 1000,
 };
