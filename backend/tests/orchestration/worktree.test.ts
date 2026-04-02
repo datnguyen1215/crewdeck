@@ -419,6 +419,12 @@ describe("generateBranchName", () => {
     expect(name2).toBe("fix/the-bug-def2");
   });
 
+  it('defaults to "feature" when no keyword is matched', () => {
+    expect(generateBranchName("Dashboard page redesign", "aaaa")).toBe(
+      "feature/dashboard-page-redesign-aaaa",
+    );
+  });
+
   it("keeps non-leading keywords in the slug", () => {
     expect(generateBranchName("The login bug fix", "aaaa")).toBe(
       "fix/the-login-bug-fix-aaaa",
