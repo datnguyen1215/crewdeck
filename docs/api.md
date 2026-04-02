@@ -589,7 +589,7 @@ GET /projects/:projectId/issues/:issueId
   "status": "in_progress",
   "created_by": "user",
   "chain_depth": 2,
-  "branch_name": "crewdeck/issue-uuid-short",
+  "branch_name": "crewdeck/abc12345-fix/login-bug-abc1",
   "worktree_path": "/path/to/worktree",
   "base_branch": "main",
   "repo_id": "uuid",

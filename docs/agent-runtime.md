@@ -256,11 +256,24 @@ Parses `/dispatch` commands from comment text.
 When an agent starts work on an issue that has no worktree, the backend creates one:
 
 ```
-branchName = "crewdeck/" + issue.id-short + "-" + slugify(issue.title)
+branchName = "crewdeck/" + issue.id.slice(0,8) + "-" + generateBranchName(issue.title, issue.id)
 worktreePath = tmpdir() + "/crewdeck-worktrees/" + branchName
 git -C <repoPath> fetch origin                          # updates origin/<defaultBranch>
 git -C <repoPath> worktree add -b <branchName> <worktreePath> origin/<defaultBranch>
 ```
+
+`generateBranchName(title, issueId)` produces human-like branch names with type prefix inference:
+
+1. **`inferPrefix(title)`** — detects issue type from keywords in the title:
+   - `fix`: title contains fix(e[sd])?, bug(s|gy)?, error(s)?, crash(e[sd])?, broken
+   - `refactor`: title contains refactor(s|ed|ing)?, cleanup, reorganize(s|d)?
+   - `update`: title contains update(s|d)?, change(s|d)?, modif(y|ied|ies|ications?)
+   - `chore`: title contains remove(s|d)?, delete(s|d)?, drop(s|ped|ping)?
+   - `feature`: default for everything else (add, implement, create, etc.)
+2. **Prefix stripping**: if the matched keyword starts the title (e.g., "Fix login bug"), it is stripped from the slug to avoid "fix/fix-login-bug"
+3. **Collision safety**: a 4-char short hash from `issueId` is appended (e.g., `fix/login-bug-abc1`) to prevent collisions between issues with the same title
+
+Example: "Fix login redirect loop" → `fix/login-redirect-loop-<hash>`
 
 If the fetch fails (e.g. network error), the worktree is created from the local branch instead and a warning is logged.
 
@@ -277,7 +290,7 @@ When a worktree branch already exists (subsequent agent runs on the same issue),
 
 CrewDeck uses two types of git worktrees:
 
-1. **Issue worktrees** — ephemeral worktrees created per issue (named `crewdeck/issue-<issueId>-<title-slug>`). Cleaned up when the issue reaches `done` status or is deleted.
+1. **Issue worktrees** — ephemeral worktrees created per issue (named `crewdeck/<issueId-short>-<prefix>/<slug>-<hash>`). Cleaned up when the issue reaches `done` status or is deleted.
 2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `crewdeck/captain-{projectId}`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck-worktrees/` and auto-rebase onto the latest default branch on creation.
 
 ### Worktree Cleanup
