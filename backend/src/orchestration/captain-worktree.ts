@@ -56,7 +56,7 @@ export async function createCaptainWorktree(
   }
 
   const repo = repos[0];
-  const branchName = `crewdeck/captain-${projectId.slice(0, 8)}`;
+  const branchName = "captain";
   const project = getProject(projectId);
   const projectSlug = project ? slugify(project.name) : projectId;
   const repoPath = toContainerPath(repo.local_path);
