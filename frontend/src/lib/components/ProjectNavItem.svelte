@@ -102,7 +102,6 @@
 				{@render subNavItem(`/projects/${project.id}/terminals`, 'Terminals', 'terminals', isActive(`/projects/${project.id}/terminals`), project.active_runs)}
 				{@render subNavItem(`/projects/${project.id}/chat`, 'Captain', 'chat', isActive(`/projects/${project.id}/chat`))}
 				{@render subNavItem(`/projects/${project.id}/knowledge`, 'Knowledge', 'knowledge', isActive(`/projects/${project.id}/knowledge`))}
-				{@render subNavItem(`/projects/${project.id}/activity`, 'Activity', 'activity', isActive(`/projects/${project.id}/activity`))}
 				{@render subNavItem(`/projects/${project.id}/settings`, 'Settings', 'settings', isActive(`/projects/${project.id}/settings`))}
 			</div>
 		{/if}
