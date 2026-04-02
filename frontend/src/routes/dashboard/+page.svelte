@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { listProjectsWithStats, listGlobalActivity, getGlobalConfig, type ProjectWithStats, type ActivityLog, type GlobalConfig } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
+	import { GlobalWebSocket } from '$lib/api/global-ws.svelte.js';
 	import DashboardActivityFeed from '$lib/components/DashboardActivityFeed.svelte';
 
 	let projects = $state<ProjectWithStats[]>([]);
@@ -10,6 +11,19 @@
 	let activity = $state<ActivityLog[]>([]);
 	let activityLoading = $state(true);
 	let globalConfig = $state<GlobalConfig | null>(null);
+
+	async function refreshProjects() {
+		try { projects = await listProjectsWithStats(); } catch {}
+	}
+
+	async function refreshActivity() {
+		const isInitialLoad = activity.length === 0;
+		if (isInitialLoad) activityLoading = true;
+		try {
+			activity = await listGlobalActivity({ limit: 10 });
+		} catch {}
+		if (isInitialLoad) activityLoading = false;
+	}
 
 	fetchEffect(() => listProjectsWithStats(), {
 		onData: (data) => { projects = data; },
@@ -23,20 +37,26 @@
 		onLoading: () => {},
 	});
 
-	async function refreshActivity() {
-		const isInitialLoad = activity.length === 0;
-		if (isInitialLoad) activityLoading = true;
-		try {
-			activity = await listGlobalActivity({ limit: 10 });
-		} catch {}
-		if (isInitialLoad) activityLoading = false;
-	}
-
 	refreshActivity();
 
-	const POLL_INTERVAL = 15_000;
-	let pollTimer = setInterval(refreshActivity, POLL_INTERVAL);
-	onDestroy(() => clearInterval(pollTimer));
+	const globws = new GlobalWebSocket();
+	globws.connect();
+
+	const STATS_EVENTS = ['run.started', 'run.completed', 'issue.status_changed', 'issue.paused', 'issue.resumed'] as const;
+	const ACTIVITY_EVENTS = [
+		'issue.created', 'issue.status_changed', 'issue.paused', 'issue.resumed',
+		'comment.added', 'pr.created', 'mention.spawned', 'mention.completed',
+		'mention.error', 'dispatch.queued', 'run.started', 'run.completed',
+	] as const;
+	const unsubs = [
+		...STATS_EVENTS.map((e) => globws.on(e, refreshProjects)),
+		...ACTIVITY_EVENTS.map((e) => globws.on(e, refreshActivity)),
+	];
+
+	onDestroy(() => {
+		globws.disconnect();
+		unsubs.forEach((fn) => fn());
+	});
 
 	let totals = $derived.by(() => {
 		if (projects.length === 0) return null;

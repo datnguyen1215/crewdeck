@@ -1,6 +1,6 @@
 import type { WsEventMap } from "./types.js";
 
-function wsBase(): string {
+export function wsBase(): string {
   const backendUrl: string =
     import.meta.env.VITE_BACKEND_URL ||
     (import.meta.env.DEV ? "http://localhost:9381" : "");
