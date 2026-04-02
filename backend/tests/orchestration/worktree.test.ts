@@ -134,21 +134,20 @@ describe("createWorktree", () => {
     expect(worktreeCmd).toContain("-b");
   });
 
-  it("uses smart branch naming: crewdeck/<issueId-short>-<prefix>/<slug>", async () => {
+  it("uses smart branch naming: crewdeck/<issueId-short>-<prefix>/<slug>-<hash>", async () => {
     await createWorktree(repo, issue, "main");
 
     const calls = vi.mocked(exec).mock.calls.map((c) => c[0] as string);
     const worktreeCmd = calls.find((c) => c.includes("worktree add"));
-    // Branch should include issue ID, prefix, and slugified title
-    expect(worktreeCmd).toContain("crewdeck/abc12345-fix/");
-    expect(worktreeCmd).toContain("the-login-bug");
+    // Branch should include issue ID, prefix, slugified title, and short hash
+    expect(worktreeCmd).toContain("crewdeck/abc12345-fix/the-login-bug-abc1");
   });
 
   it("places worktree inside crewdeck-worktrees directory under tmpdir", async () => {
     const { path } = await createWorktree(repo, issue, "main");
 
     expect(path).toContain("crewdeck-worktrees");
-    expect(path).toContain("crewdeck/abc12345-fix/");
+    expect(path).toContain("crewdeck/abc12345-fix/the-login-bug-abc1");
   });
 
   it("updates the issue record with branch_name, worktree_path, and base_branch", async () => {
@@ -157,7 +156,7 @@ describe("createWorktree", () => {
     expect(updateIssue).toHaveBeenCalledWith(
       issue.id,
       expect.objectContaining({
-        branch_name: expect.stringContaining("crewdeck/abc12345-fix/"),
+        branch_name: expect.stringContaining("crewdeck/abc12345-fix/the-login-bug-abc1"),
         worktree_path: path,
         base_branch: "main",
       }),
@@ -245,7 +244,7 @@ describe("createWorktree", () => {
     const { path, branchName } = await createWorktree(repo, issue, "develop");
     expect(typeof path).toBe("string");
     expect(path.length).toBeGreaterThan(0);
-    expect(branchName).toContain("crewdeck/abc12345-fix/");
+    expect(branchName).toContain("crewdeck/abc12345-fix/the-login-bug-abc1");
   });
 });
 
@@ -310,65 +309,89 @@ describe("cleanupWorktree", () => {
 
 describe("generateBranchName", () => {
   it('infers "fix" prefix for bug-related titles', () => {
-    expect(generateBranchName("Fix login redirect loop", "issue-1")).toBe(
-      "fix/login-redirect-loop",
+    expect(generateBranchName("Fix login redirect loop", "aaaa")).toBe(
+      "fix/login-redirect-loop-aaaa",
     );
-    expect(generateBranchName("App crashes on startup", "issue-2")).toBe(
-      "fix/app-crashes-on-startup",
+    expect(generateBranchName("App crashes on startup", "bbbb")).toBe(
+      "fix/app-crashes-on-startup-bbbb",
     );
-    expect(generateBranchName("Broken pagination", "issue-3")).toBe(
-      "fix/broken-pagination",
+    expect(generateBranchName("Broken pagination", "cccc")).toBe(
+      "fix/pagination-cccc",
     );
   });
 
   it('infers "feature" prefix for additive titles', () => {
-    expect(generateBranchName("Add dark mode support", "issue-4")).toBe(
-      "feature/add-dark-mode-support",
+    expect(generateBranchName("Add dark mode support", "dddd")).toBe(
+      "feature/add-dark-mode-support-dddd",
     );
-    expect(generateBranchName("Create user settings page", "issue-5")).toBe(
-      "feature/create-user-settings-page",
+    expect(generateBranchName("Create user settings page", "eeee")).toBe(
+      "feature/create-user-settings-page-eeee",
     );
   });
 
   it('infers "refactor" prefix for refactoring titles', () => {
-    expect(generateBranchName("Refactor auth module", "issue-6")).toBe(
-      "refactor/auth-module",
+    expect(generateBranchName("Refactor auth module", "ffff")).toBe(
+      "refactor/auth-module-ffff",
     );
-    expect(generateBranchName("Cleanup database queries", "issue-7")).toBe(
-      "refactor/cleanup-database-queries",
+    // "Cleanup" is a matched keyword at position 0, so it gets stripped from the slug
+    expect(generateBranchName("Cleanup database queries", "gggg")).toBe(
+      "refactor/database-queries-gggg",
     );
   });
 
   it('infers "update" prefix for modification titles', () => {
-    expect(generateBranchName("Update user profile page", "issue-8")).toBe(
-      "update/user-profile-page",
+    expect(generateBranchName("Update user profile page", "hhhh")).toBe(
+      "update/user-profile-page-hhhh",
     );
-    expect(generateBranchName("Change default theme", "issue-9")).toBe(
-      "update/change-default-theme",
+    expect(generateBranchName("Change default theme", "iiii")).toBe(
+      "update/default-theme-iiii",
     );
   });
 
   it('infers "chore" prefix for removal titles', () => {
-    expect(generateBranchName("Remove deprecated API", "issue-10")).toBe(
-      "chore/remove-deprecated-api",
+    expect(generateBranchName("Remove deprecated API", "jjjj")).toBe(
+      "chore/deprecated-api-jjjj",
     );
-    expect(generateBranchName("Delete old migration files", "issue-11")).toBe(
-      "chore/delete-old-migration-files",
+    expect(generateBranchName("Delete old migration files", "kkkk")).toBe(
+      "chore/old-migration-files-kkkk",
     );
   });
 
-  it("strips prefix word from slug only when it matches the inferred prefix name", () => {
-    expect(generateBranchName("Fix login bug", "issue-1")).toBe(
-      "fix/login-bug",
+  it("strips the actual matched leading keyword from the slug", () => {
+    expect(generateBranchName("Fix login bug", "aaaa")).toBe(
+      "fix/login-bug-aaaa",
     );
-    expect(generateBranchName("Remove deprecated API", "issue-10")).toBe(
-      "chore/remove-deprecated-api",
+    expect(generateBranchName("Fixes login redirect", "bbbb")).toBe(
+      "fix/login-redirect-bbbb",
     );
-    expect(generateBranchName("Refactor auth module", "issue-6")).toBe(
-      "refactor/auth-module",
+    expect(generateBranchName("Fixed crash on startup", "cccc")).toBe(
+      "fix/crash-on-startup-cccc",
     );
-    expect(generateBranchName("Update user profile page", "issue-8")).toBe(
-      "update/user-profile-page",
+    expect(generateBranchName("Refactor auth module", "dddd")).toBe(
+      "refactor/auth-module-dddd",
+    );
+    expect(generateBranchName("Remove deprecated API", "eeee")).toBe(
+      "chore/deprecated-api-eeee",
+    );
+    expect(generateBranchName("Update user profile page", "ffff")).toBe(
+      "update/user-profile-page-ffff",
+    );
+  });
+
+  it("appends short hash from issueId for uniqueness", () => {
+    const name1 = generateBranchName("Fix the bug", "abc11111-0000-0000-0000-000000000000");
+    const name2 = generateBranchName("Fix the bug", "def22222-0000-0000-0000-000000000000");
+    expect(name1).not.toBe(name2);
+    expect(name1).toBe("fix/the-bug-abc1");
+    expect(name2).toBe("fix/the-bug-def2");
+  });
+
+  it("keeps non-leading keywords in the slug", () => {
+    expect(generateBranchName("The login bug fix", "aaaa")).toBe(
+      "fix/the-login-bug-fix-aaaa",
+    );
+    expect(generateBranchName("Database cleanup needed", "bbbb")).toBe(
+      "refactor/database-cleanup-needed-bbbb",
     );
   });
 });
