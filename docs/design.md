@@ -162,7 +162,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │ API (v1) │ │ Server   │ │  (EventEmitter)  │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
-│  │  Auth Middleware (session cookie validation)  │ │
+│  │  Auth Middleware (session cookie or API key)  │ │
 │  └──────────────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
 │  │  MentionHandler + ProcessAdapter            │ │
@@ -226,7 +226,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 **Backend (Node.js + TypeScript)**
 
 - Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, issues, comments; crew is read-only (fixed constants).
-- Admin authentication via session cookies (bcrypt password hashing, HTTP-only cookies, rate-limited login).
+- Admin authentication via session cookies or API keys (Bearer token). Session cookies use bcrypt password hashing, HTTP-only cookies, rate-limited login. API keys use SHA-256 hashed storage; a system key is auto-generated on startup and injected into agent/captain processes. Key management endpoints are session-auth-only (API keys cannot manage other API keys).
 - All request validation via Zod schemas. Issue and PR status fields use Zod enum validation against centralized constants (`backend/src/constants/statuses.ts`).
 - Centralized error handling middleware (all errors formatted as `{ error: { code, message, details } }`).
 - Runs WebSocket server (`ws` library) to push real-time events to the frontend. Connections require a valid session cookie — validated via `validateSessionFromCookie()` before accepting.
@@ -392,7 +392,7 @@ Environment injection: project-defined env vars (from project settings), `CREWDE
 
 **SQLite Database**
 
-- Stores all persistent state: projects, issues, comments, activity logs, admin users, sessions. (Agents are fixed constants in code, not persisted.)
+- Stores all persistent state: projects, issues, comments, activity logs, admin users, sessions, API keys. (Agents are fixed constants in code, not persisted.)
 - Accessed via `better-sqlite3` with raw SQL (synchronous API).
 - File-based migration system in `backend/src/db/migrations/`. Migrations are the single source of truth — there is no separate `schema.sql`. Fresh databases run all migrations from `000_initial_schema.sql` to the latest.
 - Versioned migration system (`_migrations` table) tracks which migrations have run. Each migration runs idempotently — it checks whether its changes are already present before executing, making it safe for both fresh and existing databases. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF`.
@@ -560,16 +560,17 @@ On startup, the backend:
 
 1. Loads configuration from environment variables (`.env` file).
 2. Initializes SQLite database (runs all pending migrations from `backend/src/db/migrations/`).
-3. Initializes the activity logger (registers event listeners).
-4. Initializes the worktree cleanup listener (subscribes to `issue.status_changed`).
-5. Initializes the event commenter (subscribes to `run.completed`, `pr.status_changed`, `issue.status_changed`).
-6. Initializes the MentionHandler (subscribes to `comment.added`).
-7. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
-8. Starts the PR poller (polls VCS providers for PR status updates, default every 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`).
-9. Starts the Express HTTP server.
-10. Starts the WebSocket server (`/ws` for events).
-11. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
-12. Logs startup complete via pino.
+3. Ensures a system API key exists (deletes and recreates on every startup, storing the raw key in memory for agent/captain injection).
+4. Initializes the activity logger (registers event listeners).
+5. Initializes the worktree cleanup listener (subscribes to `issue.status_changed`).
+6. Initializes the event commenter (subscribes to `run.completed`, `pr.status_changed`, `issue.status_changed`).
+7. Initializes the MentionHandler (subscribes to `comment.added`).
+8. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
+9. Starts the PR poller (polls VCS providers for PR status updates, default every 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`).
+10. Starts the Express HTTP server.
+11. Starts the WebSocket server (`/ws` for events).
+12. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
+13. Logs startup complete via pino.
 
 Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery). Terminal sessions are also lost (clients must reconnect and recreate sessions).
 
@@ -585,7 +586,8 @@ On SIGTERM or SIGINT, the backend:
 
 ## Security and Access
 
-- **Admin authentication**: The backend requires a session cookie for all API endpoints (except health check and initial setup). A single admin account is created via `POST /api/v1/auth/setup`. Sessions use `HttpOnly; Secure; SameSite=Strict` cookies with configurable expiry (default 7 days, `SESSION_EXPIRY_HOURS`). Passwords are hashed with bcrypt (≥ 12 rounds). Login is rate-limited to 5 attempts per minute per IP.
+- **Admin authentication**: The backend requires either a session cookie or an API key for all API endpoints (except health check and initial setup). A single admin account is created via `POST /api/v1/auth/setup`. Sessions use `HttpOnly; Secure; SameSite=Strict` cookies with configurable expiry (default 7 days, `SESSION_EXPIRY_HOURS`). Passwords are hashed with bcrypt (≥ 12 rounds). Login is rate-limited to 5 attempts per minute per IP.
+- **API key authentication**: API keys provide programmatic access. The auth middleware checks for `Authorization: Bearer <key>` first, then falls back to session cookies. Keys are stored as SHA-256 hashes; the plaintext is shown only once at creation. A system API key is auto-generated on every server startup for internal agent/captain use — it is passed as `CREWDECK_API_KEY` to all spawned processes. Key management endpoints (`/api-keys`) require session auth to prevent API keys from managing other API keys. System keys are hidden from the user-facing UI.
 - **Frontend auth middleware**: `hooks.server.js` validates the session cookie on every non-auth request by calling `GET /api/v1/auth/me`. Invalid/missing sessions redirect to `/login`. If no admin exists (`needsSetup: true`), redirects to `/setup`. Auth paths (`/login`, `/setup`, `/api/v1/auth/*`) are exempt. Static assets (files with extensions) are also exempt.
 - **Auth layout**: The root layout (`+layout.svelte`) conditionally renders — auth pages (`/login`, `/setup`) get a centered layout without the sidebar; all other pages render the normal sidebar layout with a logout button at the bottom of the nav.
 - GitHub authentication is managed in-app via Device Flow OAuth (Accounts page). No host-level `gh auth login` is required.

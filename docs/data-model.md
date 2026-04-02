@@ -42,6 +42,10 @@ All persistent state is stored in a local SQLite database. This document defines
 ┌───────────┐1────N┌─────────┐
 │ AdminUser │      │ Session │
 └───────────┘      └─────────┘
+
+┌─────────┐
+│ ApiKey  │
+└─────────┘
 ```
 
 ## Worktree Management
@@ -305,6 +309,24 @@ Represents an active login session. Old sessions are deleted on each login to pr
 | expires_at | DATETIME | NOT NULL                                               | When the session expires (default: 7 days).            |
 | created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | When the session was created.                          |
 
+### ApiKey
+
+An API key for programmatic authentication. Two tiers exist: system keys (auto-generated on startup for agent/captain use) and user keys (created via the UI for external access).
+
+| Field        | Type     | Constraints                         | Description                                                                                                                              |
+| ------------ | -------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| id           | TEXT     | PRIMARY KEY                         | Unique identifier.                                                                                                                       |
+| name         | TEXT     | NOT NULL                            | Human-readable label (e.g., "Claude CI Process", "system").                                                                              |
+| key_hash     | TEXT     | NOT NULL                            | SHA-256 hash of the full API key. The plaintext key is never stored.                                                                     |
+| key_prefix   | TEXT     | NOT NULL                            | First 11 characters of the key (e.g., `sk-a1b2c3d4`) for display identification.                                                         |
+| is_system    | INTEGER  | NOT NULL, DEFAULT 0                 | Whether this is a system key (auto-generated for agent/captain use). Stored as 0/1. System keys are hidden from user-facing key listing. |
+| created_at   | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the key was created.                                                                                                                |
+| last_used_at | DATETIME | NULLABLE                            | When the key was last used for authentication. Throttled to at most one update per minute.                                               |
+
+**Key format:** `sk-` followed by 64 hex characters (32 random bytes). Only the SHA-256 hash is stored in the database. System keys are deleted and recreated on every server startup since the raw key only needs to live in memory for the current process lifetime.
+
+---
+
 ### AgentConfig
 
 Global per-agent model configuration. Applies machine-wide regardless of project. Each agent can have a model override from any provider — the model name determines which provider is used.
@@ -407,6 +429,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
 | Project → MonitorMessage      | One-to-Many | A project has many monitor messages (captain event/response history).       |
 | AdminUser → Session           | One-to-Many | An admin user has many sessions (only one admin exists).                    |
+| ApiKey                        | Standalone  | Standalone table. One system key (auto-generated) plus user-created keys.   |
 
 ## Indexes
 
@@ -432,3 +455,4 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 - `idx_agent_run_event_created` on AgentRunEvent(agent_run_id, created_at)
 - `idx_monitor_message_project` on MonitorMessage(project_id)
 - `idx_monitor_message_created` on MonitorMessage(project_id, created_at DESC)
+- `idx_api_key_hash` on ApiKey(key_hash)
