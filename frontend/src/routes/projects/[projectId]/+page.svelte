@@ -121,7 +121,8 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
-			listIssues(projectId, { limit: issues.length })
+			const opts = issues.length ? { limit: issues.length } : {};
+			listIssues(projectId, opts)
 				.then((i) => { issues = i.issues; totalIssues = i.total; })
 				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
 		};
