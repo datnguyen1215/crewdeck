@@ -145,7 +145,7 @@ Events include full context (issue title, status, PR info, agent reports). Use t
 - **issue.status_changed** (other): Check if any blocked issues are now unblocked.
 - **pr.status_changed**: Issue and PR info are included. If merged, mark done. If closed, investigate.
 - **comment.added**: The full comment is included. Act on user feedback.
-- **startup.scan**: Use the snapshot above to assess project state and take any needed actions. Check for (approved-to-start) and (approved-to-merge) flags.
+- **startup.scan**: This is a fresh start — the system just booted with NO prior context. The snapshot is the complete truth. If an issue is \`in_progress\` but has no active run in the snapshot, it is STUCK (the previous agent crashed or was killed). Dispatch an agent to resume it. Do NOT assume runs "just started" or "completed between snapshots" — that is impossible on startup. Check for (approved-to-start) and (approved-to-merge) flags and act on them.
 - **idle.check**: Use the snapshot to find stuck issues (in_progress with no running agents).
 - **project.settings_changed**: Acknowledge and adjust behavior.
 
