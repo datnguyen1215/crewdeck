@@ -487,15 +487,16 @@ export function getCaptainStatus(projectId: string): Promise<CaptainStatus> {
 export function getGlobalConfig(): Promise<GlobalConfig> {
   return request("GET", "/global-config");
 }
-export function getDefaultModel(): Promise<{ default_model: string }> {
+export function getDefaultModel(): Promise<{ model: string }> {
   return request("GET", "/global-config/default-model");
 }
-export function setDefaultModel(
-  model: string,
-): Promise<{ default_model: string }> {
+export function setDefaultModel(model: string): Promise<{ model: string }> {
   return request("PUT", "/global-config/default-model", { model });
 }
-export function getModelAvailability(): Promise<{ glm_available: boolean }> {
+export function getModelAvailability(): Promise<{
+  claude: { available: boolean };
+  glm: { available: boolean };
+}> {
   return request("GET", "/global-config/model-availability");
 }
 

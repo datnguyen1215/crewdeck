@@ -1092,7 +1092,7 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 
 ### Agent Config
 
-Global per-agent model configuration. Applies machine-wide regardless of project. Each agent can have a model override (mix-and-match across providers).
+Global per-agent model configuration. Applies machine-wide regardless of project. Each agent can be assigned any model from any provider — the model name determines which provider is used.
 
 #### List Agent Configs
 
@@ -1123,7 +1123,7 @@ GET /agent-config
 PUT /agent-config/:agentId
 ```
 
-Creates or updates the model override for a specific agent.
+Creates or updates the model for a specific agent.
 
 **Request Body:**
 
@@ -1133,9 +1133,9 @@ Creates or updates the model override for a specific agent.
 }
 ```
 
-| Field | Required | Description                                                                                                                                                   |
-| ----- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| model | Yes      | Model to use. Claude: `sonnet`, `opus`, `haiku`. GLM: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. Any model from any provider can be assigned to any agent. |
+| Field | Required | Description                                                                                                                           |
+| ----- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| model | Yes      | Model to use. One of: `sonnet`, `opus`, `haiku`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, or `null`. `null` clears the override. |
 
 **Response:** `200 OK` — The created or updated agent config object.
 
@@ -1165,13 +1165,13 @@ GET /global-config
 
 ```json
 {
-  "default_model": "sonnet"
+  "defaultModel": "sonnet"
 }
 ```
 
-| Field         | Type | Description                         |
-| ------------- | ---- | ----------------------------------- |
-| default_model | TEXT | Default model for all agent spawns. |
+| Field        | Type | Description                     |
+| ------------ | ---- | ------------------------------- |
+| defaultModel | TEXT | Default model for agent spawns. |
 
 #### Get Default Model
 
@@ -1179,15 +1179,19 @@ GET /global-config
 GET /global-config/default-model
 ```
 
-Returns the current default model.
+Returns the default model used when no per-agent override is set.
 
 **Response:** `200 OK`
 
 ```json
 {
-  "default_model": "sonnet"
+  "model": "sonnet"
 }
 ```
+
+| Field | Type | Description    |
+| ----- | ---- | -------------- |
+| model | TEXT | Default model. |
 
 #### Set Default Model
 
@@ -1195,7 +1199,7 @@ Returns the current default model.
 PUT /global-config/default-model
 ```
 
-Sets the default model used for all agent spawns unless overridden per-agent.
+Sets the default model for all agent spawns when no per-agent override is configured.
 
 **Request Body:**
 
@@ -1205,15 +1209,15 @@ Sets the default model used for all agent spawns unless overridden per-agent.
 }
 ```
 
-| Field | Required | Description              |
-| ----- | -------- | ------------------------ |
-| model | Yes      | Model to set as default. |
+| Field | Required | Description                                                                                     |
+| ----- | -------- | ----------------------------------------------------------------------------------------------- |
+| model | Yes      | Default model. One of: `sonnet`, `opus`, `haiku`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. |
 
 **Response:** `200 OK`
 
 ```json
 {
-  "default_model": "opus"
+  "model": "opus"
 }
 ```
 
@@ -1223,19 +1227,21 @@ Sets the default model used for all agent spawns unless overridden per-agent.
 GET /global-config/model-availability
 ```
 
-Returns which model groups are available. GLM models require `ZAI_API_KEY` to be set.
+Returns which model providers are available based on configured API keys.
 
 **Response:** `200 OK`
 
 ```json
 {
-  "glm_available": true
+  "claude": { "available": true },
+  "glm": { "available": true }
 }
 ```
 
-| Field         | Type    | Description                                           |
-| ------------- | ------- | ----------------------------------------------------- |
-| glm_available | BOOLEAN | Whether GLM models are available (ZAI_API_KEY is set) |
+| Field  | Type   | Description                                                        |
+| ------ | ------ | ------------------------------------------------------------------ |
+| claude | object | Claude availability (always `true` if `ANTHROPIC_API_KEY` is set). |
+| glm    | object | GLM (Z.AI) availability (`true` if `ZAI_API_KEY` is set).          |
 
 ---
 

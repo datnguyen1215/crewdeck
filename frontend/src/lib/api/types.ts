@@ -234,7 +234,7 @@ export interface CaptainStatus {
 }
 
 export interface GlobalConfig {
-  default_model: string;
+  defaultModel: string;
 }
 
 export interface GlobalEnvironmentVariable {

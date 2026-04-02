@@ -40,7 +40,7 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
     env: {
       ...process.env,
       ...opts.env,
-      ...buildProviderEnv(),
+      ...buildProviderEnv(opts.model),
       ANTHROPIC_API_KEY: "",
       GIT_TERMINAL_PROMPT: "0",
     },
@@ -146,7 +146,7 @@ export async function spawnClaudeStream(
     env: {
       ...process.env,
       ...opts.env,
-      ...buildProviderEnv(),
+      ...buildProviderEnv(opts.model),
       ANTHROPIC_API_KEY: "",
       GIT_TERMINAL_PROMPT: "0",
     },

@@ -42,8 +42,8 @@
 				if (cancelled) return;
 				agents = a;
 				configs = c;
-				defaultModel = g.default_model;
-				glmAvailable = avail.glm_available;
+				defaultModel = g.defaultModel;
+				glmAvailable = avail.glm.available;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load crew', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -58,7 +58,7 @@
 		defaultSaving = true;
 		try {
 			const result = await setDefaultModel(value);
-			defaultModel = result.default_model;
+			defaultModel = result.model;
 			toastStore.add(`Default model set to ${modelLabel(defaultModel)}`, 'success');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save default model', 'error');

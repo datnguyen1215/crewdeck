@@ -16,7 +16,7 @@ The Agent Runtime spawns AI agents as `claude -p` subprocesses. There are no tmu
 
 ### spawnClaude
 
-Spawns `claude -p` with the given prompt and system prompt. Provider-specific environment variables are injected automatically based on the model being used.
+Spawns `claude -p` with the given prompt and system prompt. Provider-specific environment variables are injected automatically based on the model name.
 
 ```
 spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
@@ -24,13 +24,13 @@ spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 
 **SpawnOpts:**
 
-| Field        | Type                   | Required | Description                                                                              |
-| ------------ | ---------------------- | -------- | ---------------------------------------------------------------------------------------- |
-| prompt       | string                 | Yes      | The task prompt (issue context + comments).                                              |
-| systemPrompt | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`. |
-| workdir      | string                 | Yes      | Absolute path to the git worktree.                                                       |
-| env          | Record<string, string> | No       | Additional environment variables.                                                        |
-| model        | string                 | No       | Claude model to use (`sonnet` or `opus`). Passed as `--model <model>` to the CLI.        |
+| Field        | Type                   | Required | Description                                                                                                          |
+| ------------ | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| prompt       | string                 | Yes      | The task prompt (issue context + comments).                                                                          |
+| systemPrompt | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`.                             |
+| workdir      | string                 | Yes      | Absolute path to the git worktree.                                                                                   |
+| env          | Record<string, string> | No       | Additional environment variables.                                                                                    |
+| model        | string                 | No       | Model to use. Resolved via AgentConfig override → global default (`sonnet`). Passed as `--model <model>` to the CLI. |
 
 **SpawnResult:**
 
@@ -59,12 +59,12 @@ claude -p <prompt> \
 
 **Provider environment variables:**
 
-Environment variables are injected based on the model being used (each agent can use any model from any provider):
+The provider is inferred from the model name:
 
-- **Claude models** (sonnet, opus, haiku): Uses `ANTHROPIC_API_KEY` from environment (no additional variables).
-- **GLM models** (glm-5.1, glm-5, glm-5-turbo, glm-4.7): Injects `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`. Requires `ZAI_API_KEY` environment variable to be set on the backend.
+- **Claude (default)**: Models not starting with `glm-` use `ANTHROPIC_API_KEY` from environment (no additional variables).
+- **GLM (Z.AI)**: Models starting with `glm-` inject `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`. Requires `ZAI_API_KEY` environment variable to be set on the backend.
 
-Provider variables are injected via `buildProviderEnv()` in `backend/src/orchestration/provider-env.ts` based on the model name and apply per-agent.
+Provider variables are injected via `buildProviderEnv(model)` in `backend/src/orchestration/provider-env.ts` and apply to all `claude -p` spawns (including Captain terminal sessions).
 
 ### spawnClaudeStream
 

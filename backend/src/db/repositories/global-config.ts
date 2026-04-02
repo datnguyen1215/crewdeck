@@ -1,17 +1,17 @@
 import { db } from "../index.js";
 
-export type Provider = "claude" | "glm";
+const DEFAULT_MODEL = "sonnet";
 
-export function getProvider(): Provider {
+export function getDefaultModel(): string {
   const row = db
     .prepare("SELECT value FROM GlobalConfig WHERE key = ?")
-    .get("provider") as { value: string } | undefined;
-  return (row?.value as Provider) ?? "claude";
+    .get("default_model") as { value: string } | undefined;
+  return row?.value ?? DEFAULT_MODEL;
 }
 
-export function setProvider(provider: Provider): void {
+export function setDefaultModel(model: string): void {
   db.prepare(
     `INSERT INTO GlobalConfig (key, value) VALUES (?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-  ).run("provider", provider);
+  ).run("default_model", model);
 }
