@@ -192,11 +192,7 @@ const HANDLER_CONFIGS: HandlerConfig[] = [
     projectIdPath: "project_id",
     filter: notIssuePaused as never,
   },
-  {
-    eventType: "pr.status_changed",
-    projectIdPath: "project_id",
-    filter: notIssuePaused as never,
-  },
+  { eventType: "pr.status_changed", projectIdPath: "project_id" },
   {
     eventType: "comment.added",
     projectIdPath: "project_id",
