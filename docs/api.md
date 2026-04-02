@@ -1823,8 +1823,6 @@ All error responses follow this structure:
 | NOT_FOUND          | 404         | Resource does not exist.                                                              |
 | VALIDATION_ERROR   | 400         | Request body fails validation.                                                        |
 | INVALID_TRANSITION | 400         | Invalid status transition.                                                            |
-| SESSION_ARCHIVED   | 400         | Cannot add messages to an archived chat session.                                      |
-| SESSION_BUSY       | 409         | Session already has an in-flight message. Wait for completion or abort.               |
 | CONFLICT           | 409         | Operation conflicts with current state (e.g., marking done while agents are running). |
-| FORBIDDEN          | 403         | Action not allowed — missing/invalid session or insufficient permissions.             |
+| FORBIDDEN          | 403         | Action not allowed — insufficient permissions.                                        |
 | INTERNAL_ERROR     | 500         | Unexpected server error.                                                              |
