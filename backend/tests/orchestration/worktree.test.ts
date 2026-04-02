@@ -3,6 +3,7 @@ import {
   createWorktree,
   cleanupWorktree,
 } from "../../src/orchestration/worktree.js";
+import { generateBranchName } from "../../src/orchestration/worktree.js";
 import type { Repo, Issue } from "../../src/types/entities.js";
 
 vi.mock("node:child_process", () => ({
@@ -133,21 +134,21 @@ describe("createWorktree", () => {
     expect(worktreeCmd).toContain("-b");
   });
 
-  it("uses correct branch naming convention: crewdeck/<issueId-short>-<slug>", async () => {
+  it("uses smart branch naming: crewdeck/<issueId-short>-<prefix>/<slug>", async () => {
     await createWorktree(repo, issue, "main");
 
     const calls = vi.mocked(exec).mock.calls.map((c) => c[0] as string);
     const worktreeCmd = calls.find((c) => c.includes("worktree add"));
-    // Branch should start with crewdeck/ and include the first 8 chars of the issue ID
-    expect(worktreeCmd).toContain("crewdeck/abc12345");
-    expect(worktreeCmd).toContain("fix-the-login-bug");
+    // Branch should include issue ID, prefix, and slugified title
+    expect(worktreeCmd).toContain("crewdeck/abc12345-fix/");
+    expect(worktreeCmd).toContain("the-login-bug");
   });
 
   it("places worktree inside crewdeck-worktrees directory under tmpdir", async () => {
     const { path } = await createWorktree(repo, issue, "main");
 
     expect(path).toContain("crewdeck-worktrees");
-    expect(path).toContain("crewdeck/abc12345");
+    expect(path).toContain("crewdeck/abc12345-fix/");
   });
 
   it("updates the issue record with branch_name, worktree_path, and base_branch", async () => {
@@ -156,7 +157,7 @@ describe("createWorktree", () => {
     expect(updateIssue).toHaveBeenCalledWith(
       issue.id,
       expect.objectContaining({
-        branch_name: expect.stringContaining("crewdeck/abc12345"),
+        branch_name: expect.stringContaining("crewdeck/abc12345-fix/"),
         worktree_path: path,
         base_branch: "main",
       }),
@@ -244,7 +245,7 @@ describe("createWorktree", () => {
     const { path, branchName } = await createWorktree(repo, issue, "develop");
     expect(typeof path).toBe("string");
     expect(path.length).toBeGreaterThan(0);
-    expect(branchName).toContain("crewdeck/abc12345");
+    expect(branchName).toContain("crewdeck/abc12345-fix/");
   });
 });
 
@@ -304,5 +305,70 @@ describe("cleanupWorktree", () => {
     await expect(
       cleanupWorktree(repo, "/tmp/wt", "crewdeck/feat", true),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("generateBranchName", () => {
+  it('infers "fix" prefix for bug-related titles', () => {
+    expect(generateBranchName("Fix login redirect loop", "issue-1")).toBe(
+      "fix/login-redirect-loop",
+    );
+    expect(generateBranchName("App crashes on startup", "issue-2")).toBe(
+      "fix/app-crashes-on-startup",
+    );
+    expect(generateBranchName("Broken pagination", "issue-3")).toBe(
+      "fix/broken-pagination",
+    );
+  });
+
+  it('infers "feature" prefix for additive titles', () => {
+    expect(generateBranchName("Add dark mode support", "issue-4")).toBe(
+      "feature/add-dark-mode-support",
+    );
+    expect(generateBranchName("Create user settings page", "issue-5")).toBe(
+      "feature/create-user-settings-page",
+    );
+  });
+
+  it('infers "refactor" prefix for refactoring titles', () => {
+    expect(generateBranchName("Refactor auth module", "issue-6")).toBe(
+      "refactor/auth-module",
+    );
+    expect(generateBranchName("Cleanup database queries", "issue-7")).toBe(
+      "refactor/cleanup-database-queries",
+    );
+  });
+
+  it('infers "update" prefix for modification titles', () => {
+    expect(generateBranchName("Update user profile page", "issue-8")).toBe(
+      "update/user-profile-page",
+    );
+    expect(generateBranchName("Change default theme", "issue-9")).toBe(
+      "update/change-default-theme",
+    );
+  });
+
+  it('infers "chore" prefix for removal titles', () => {
+    expect(generateBranchName("Remove deprecated API", "issue-10")).toBe(
+      "chore/remove-deprecated-api",
+    );
+    expect(generateBranchName("Delete old migration files", "issue-11")).toBe(
+      "chore/delete-old-migration-files",
+    );
+  });
+
+  it("strips prefix word from slug only when it matches the inferred prefix name", () => {
+    expect(generateBranchName("Fix login bug", "issue-1")).toBe(
+      "fix/login-bug",
+    );
+    expect(generateBranchName("Remove deprecated API", "issue-10")).toBe(
+      "chore/remove-deprecated-api",
+    );
+    expect(generateBranchName("Refactor auth module", "issue-6")).toBe(
+      "refactor/auth-module",
+    );
+    expect(generateBranchName("Update user profile page", "issue-8")).toBe(
+      "update/user-profile-page",
+    );
   });
 });

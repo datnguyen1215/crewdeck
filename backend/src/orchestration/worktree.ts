@@ -20,13 +20,30 @@ function slugify(title: string): string {
     .slice(0, 40);
 }
 
+function inferPrefix(title: string): string {
+  const t = title.toLowerCase();
+  if (/\b(?:fix(?:e[sd])?|bug(?:gy|s)?|error[s]?|crash(?:e[sd])?|broken)\b/.test(t)) return "fix";
+  if (/\b(?:refactor(?:s|ed|ing)?|cleanup|reorganize(?:s|d)?|reorganise(?:s|d)?)\b/.test(t)) return "refactor";
+  if (/\b(?:update[sd]?|change[sd]?|modif(?:y|ied|ies|ications?))\b/.test(t)) return "update";
+  if (/\b(?:remove[sd]?|delete[sd]?|drop(?:s|ped|ping)?)\b/.test(t)) return "chore";
+  return "feature";
+}
+
+export function generateBranchName(title: string, issueId: string): string {
+  const prefix = inferPrefix(title);
+  // Strip leading prefix word only when it directly matches the prefix name
+  const stripped = title.replace(new RegExp(`^${prefix}\\s+`, "i"), "");
+  const slug = slugify(stripped || title);
+  return `${prefix}/${slug}`;
+}
+
 export async function createWorktree(
   repo: Repo,
   issue: Issue,
   baseBranch: string,
   sshPrivateKey?: string,
 ): Promise<{ path: string; branchName: string }> {
-  const branchName = `crewdeck/${issue.id.slice(0, 8)}-${slugify(issue.title)}`;
+  const branchName = `crewdeck/${issue.id.slice(0, 8)}-${generateBranchName(issue.title, issue.id)}`;
   const repoPath = toContainerPath(repo.local_path);
   const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
 
