@@ -212,7 +212,6 @@ export interface ChatMessage {
 export interface AgentConfig {
   id: string;
   agent_id: string;
-  provider: string;
   model: string | null;
 }
 
@@ -234,10 +233,8 @@ export interface CaptainStatus {
   processing_duration_ms: number | null;
 }
 
-export type Provider = "claude" | "glm";
-
 export interface GlobalConfig {
-  provider: Provider;
+  defaultModel: string;
 }
 
 export interface GlobalEnvironmentVariable {

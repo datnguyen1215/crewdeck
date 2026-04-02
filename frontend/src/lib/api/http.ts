@@ -20,7 +20,6 @@ import type {
   MonitorEntry,
   CaptainStatus,
   GlobalConfig,
-  Provider,
   GlobalEnvironmentVariable,
 } from "./types.js";
 
@@ -50,7 +49,6 @@ export type {
   MonitorEntry,
   CaptainStatus,
   GlobalConfig,
-  Provider,
   GlobalEnvironmentVariable,
 } from "./types.js";
 
@@ -155,11 +153,11 @@ export function listAllAgents() {
 export function listAgentConfig() {
   return request<AgentConfig[]>("GET", `/agent-config`);
 }
-export function setAgentModel(agentId: string, provider: Provider, model: string) {
-  return request<AgentConfig>("PUT", `/agent-config/${e(agentId)}`, { provider, model });
+export function setAgentModel(agentId: string, model: string) {
+  return request<AgentConfig>("PUT", `/agent-config/${e(agentId)}`, { model });
 }
-export function deleteAgentConfig(agentId: string, provider: Provider) {
-  return request<void>("DELETE", `/agent-config/${e(agentId)}/${e(provider)}`);
+export function deleteAgentConfig(agentId: string) {
+  return request<void>("DELETE", `/agent-config/${e(agentId)}`);
 }
 
 // Issues
@@ -219,16 +217,18 @@ export function resumeIssue(projectId: string, issueId: string) {
   );
 }
 export function approveIssueStart(projectId: string, issueId: string) {
-  return request<{ success: boolean; issue_id: string; approved_to_start: boolean }>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/approve-start`,
-  );
+  return request<{
+    success: boolean;
+    issue_id: string;
+    approved_to_start: boolean;
+  }>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/approve-start`);
 }
 export function approveIssueMerge(projectId: string, issueId: string) {
-  return request<{ success: boolean; issue_id: string; approved_to_merge: boolean }>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/approve-merge`,
-  );
+  return request<{
+    success: boolean;
+    issue_id: string;
+    approved_to_merge: boolean;
+  }>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/approve-merge`);
 }
 
 // Comments
@@ -487,11 +487,17 @@ export function getCaptainStatus(projectId: string): Promise<CaptainStatus> {
 export function getGlobalConfig(): Promise<GlobalConfig> {
   return request("GET", "/global-config");
 }
-export function setProvider(provider: Provider): Promise<GlobalConfig> {
-  return request("PUT", "/global-config/provider", { provider });
+export function getDefaultModel(): Promise<{ model: string }> {
+  return request("GET", "/global-config/default-model");
 }
-export function isGlmAvailable(): Promise<{ available: boolean }> {
-  return request("GET", "/global-config/glm-available");
+export function setDefaultModel(model: string): Promise<{ model: string }> {
+  return request("PUT", "/global-config/default-model", { model });
+}
+export function getModelAvailability(): Promise<{
+  claude: { available: boolean };
+  glm: { available: boolean };
+}> {
+  return request("GET", "/global-config/model-availability");
 }
 
 // Global Environment Variables
