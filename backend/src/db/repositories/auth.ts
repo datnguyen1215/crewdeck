@@ -50,11 +50,14 @@ export function getAdminById(id: string): AdminUser | null {
 
 export function createSession(userId: string): Session {
   const id = crypto.randomBytes(32).toString("hex");
-  db.prepare("INSERT INTO Session (id, user_id) VALUES (?, ?)").run(id, userId);
+  const expiresAt = "9999-12-31T23:59:59Z";
+  db.prepare(
+    "INSERT INTO Session (id, user_id, expires_at) VALUES (?, ?, ?)",
+  ).run(id, userId, expiresAt);
   return {
     id,
     user_id: userId,
-    expires_at: "",
+    expires_at: expiresAt,
     created_at: new Date().toISOString(),
   };
 }

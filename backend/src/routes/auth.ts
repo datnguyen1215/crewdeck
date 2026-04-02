@@ -2,6 +2,7 @@ import type { Response } from "express";
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import { z } from "zod";
+import { config } from "../config.js";
 import {
   adminExists,
   getAdminByUsername,
@@ -21,7 +22,7 @@ const router = Router();
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: config.nodeEnv === "production",
   sameSite: "strict" as const,
   path: "/",
   maxAge: TEN_YEARS_MS,
