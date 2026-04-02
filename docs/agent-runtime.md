@@ -257,7 +257,7 @@ When an agent starts work on an issue that has no worktree, the backend creates 
 
 ```
 branchName = "crewdeck/" + issue.id.slice(0,8) + "-" + generateBranchName(issue.title, issue.id)
-worktreePath = tmpdir() + "/crewdeck-worktrees/" + branchName
+worktreePath = tmpdir() + "/crewdeck/<project-slug>/" + branchName
 git -C <repoPath> fetch origin                          # updates origin/<defaultBranch>
 git -C <repoPath> worktree add -b <branchName> <worktreePath> origin/<defaultBranch>
 ```
@@ -291,7 +291,7 @@ When a worktree branch already exists (subsequent agent runs on the same issue),
 CrewDeck uses two types of git worktrees:
 
 1. **Issue worktrees** — ephemeral worktrees created per issue (named `crewdeck/<issueId-short>-<prefix>/<slug>-<hash>`). Cleaned up when the issue reaches `done` status or is deleted.
-2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `crewdeck/captain-{projectId}`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck-worktrees/` and auto-rebase onto the latest default branch on creation.
+2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `crewdeck/captain-{projectId}`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck/<project-slug>/captain` and auto-rebase onto the latest default branch on creation.
 
 ### Worktree Cleanup
 
