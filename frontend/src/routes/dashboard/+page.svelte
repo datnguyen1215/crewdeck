@@ -172,13 +172,13 @@
 					</div>
 
 					<!-- Table header -->
-					<div class="hidden md:flex gap-1 text-sm uppercase tracking-wider px-4 py-2 border-b border-edge font-mono">
+					<div class="hidden md:flex gap-2 text-sm uppercase tracking-wider px-4 py-2 border-b border-edge font-mono">
 						<span class="w-16 flex-shrink-0 text-muted">ID</span>
 						<span class="flex-1 min-w-0 text-muted">PROJECT</span>
 						{#each TABLE_COLS as col}
-							<span class="w-10 text-center flex-shrink-0 {col.color}">{col.label}</span>
+							<span class="w-12 text-center flex-shrink-0 {col.color}">{col.label}</span>
 						{/each}
-						<span class="w-10 text-center flex-shrink-0 text-cyan">AGENTS</span>
+						<span class="w-14 text-center flex-shrink-0 text-cyan">AGENTS</span>
 						<span class="w-14 text-center flex-shrink-0 text-muted">STATUS</span>
 					</div>
 
@@ -207,7 +207,7 @@
 
 							<!-- Desktop row -->
 							<div
-								class="hidden md:flex items-center px-4 py-2 border-b border-edge last:border-0 hover:bg-base-hi transition-colors cursor-pointer group {isActive ? 'bg-cyan/5' : ''}"
+								class="hidden md:flex items-center gap-2 px-4 py-2 border-b border-edge last:border-0 hover:bg-base-hi transition-colors cursor-pointer group {isActive ? 'bg-cyan/5' : ''}"
 								role="link"
 								tabindex="0"
 								onclick={() => goto(`/projects/${project.id}`)}
@@ -218,9 +218,9 @@
 								<span class="flex-1 text-sm font-mono text-primary truncate group-hover:text-cyan transition-colors">{project.name}</span>
 								{#each TABLE_COLS as col}
 									{@const count = statusValue(project, col.key)}
-									<span class="w-10 text-center text-sm font-mono flex-shrink-0 {col.key === 'blocked' && count > 0 ? 'text-red' : count > 0 ? 'text-primary' : 'text-muted'}">{count}</span>
+									<span class="w-12 text-center text-sm font-mono flex-shrink-0 {col.key === 'blocked' && count > 0 ? 'text-red' : count > 0 ? 'text-primary' : 'text-muted'}">{count}</span>
 								{/each}
-								<span class="w-10 text-center text-sm font-mono flex-shrink-0 {isActive ? 'text-cyan' : 'text-muted'}">{project.active_runs}</span>
+								<span class="w-14 text-center text-sm font-mono flex-shrink-0 {isActive ? 'text-cyan' : 'text-muted'}">{project.active_runs}</span>
 								<span class="w-14 text-center text-sm font-mono flex-shrink-0 {isActive ? 'text-cyan' : 'text-muted'}">{isActive ? 'active' : 'idle'}</span>
 							</div>
 						{/each}
