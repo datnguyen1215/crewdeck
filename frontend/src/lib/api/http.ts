@@ -163,6 +163,13 @@ export function deleteAgentConfig(agentId: string) {
 }
 
 // Issues
+export interface ListIssuesResult {
+  issues: IssueWithRunningAgent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export function listIssues(
   projectId: string,
   filters?: {
@@ -170,9 +177,11 @@ export function listIssues(
     created_by?: string;
     sort?: string;
     order?: string;
+    limit?: number;
+    offset?: number;
   },
 ) {
-  return request<IssueWithRunningAgent[]>(
+  return request<ListIssuesResult>(
     "GET",
     `/projects/${e(projectId)}/issues${qs(filters)}`,
   );

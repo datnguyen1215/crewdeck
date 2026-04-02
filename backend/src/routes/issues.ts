@@ -1,7 +1,8 @@
 import { Router, type Request } from "express";
-import { listIssues, createIssue } from "../db/repositories/issues.js";
+import { listIssues, createIssue, listIssuesPaginated } from "../db/repositories/issues.js";
 import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
+import { ValidationError } from "../middleware/errors.js";
 import {
   verifyProject,
   verifyIssueOwnership,
@@ -27,7 +28,7 @@ const router = Router({ mergeParams: true });
 
 router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
-  const { status, created_by, sort, order, compact } = req.query as Record<
+  const { status, created_by, sort, order, compact, limit, offset } = req.query as Record<
     string,
     string
   >;
@@ -38,21 +39,58 @@ router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   if (sort === "created_at" || sort === "updated_at") filters.sort = sort;
   if (order === "asc" || order === "desc") filters.order = order;
 
-  const issues = listIssues(projectId, filters);
+  if (limit) {
+    const parsed = parseInt(limit, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new ValidationError("limit must be a non-negative integer");
+    }
+    filters.limit = parsed;
+  }
+  if (offset) {
+    const parsed = parseInt(offset, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new ValidationError("offset must be a non-negative integer");
+    }
+    filters.offset = parsed;
+  }
 
-  const issueIds = issues.map((i) => i.id);
+  // Default: exclude done status unless explicitly requested
+  if (!filters.status) {
+    filters.status = [
+      "open",
+      "in_progress",
+      "pr_created",
+      "pr_conflict",
+      "pr_failed_actions",
+      "pr_ready_to_merge",
+    ];
+  }
+
+  const result = listIssuesPaginated(projectId, filters);
+
+  const issueIds = result.issues.map((i) => i.id);
   const depsMap = listDependenciesBatchWithDetails(issueIds);
   const dependentsMap = listDependentsBatchWithDetails(issueIds);
-  const enriched = issues.map((i) => ({
+  const enriched = result.issues.map((i) => ({
     ...i,
     dependencies: depsMap.get(i.id) ?? [],
     dependents: dependentsMap.get(i.id) ?? [],
   }));
 
   if (compact === "true") {
-    res.json(enriched.map(({ description, ...rest }) => rest));
+    res.json({
+      issues: enriched.map(({ description, ...rest }) => rest),
+      total: result.total,
+      limit: result.limit,
+      offset: result.offset,
+    });
   } else {
-    res.json(enriched);
+    res.json({
+      issues: enriched,
+      total: result.total,
+      limit: result.limit,
+      offset: result.offset,
+    });
   }
 });
 

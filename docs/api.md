@@ -517,37 +517,60 @@ GET /projects/:projectId/issues
 
 **Query Parameters:**
 
-| Parameter  | Type | Description                                                                |
-| ---------- | ---- | -------------------------------------------------------------------------- |
-| status     | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
-| created_by | TEXT | Filter by creator (`user`, `agent`, or `system`).                          |
-| sort       | TEXT | Sort field. One of: `created_at`, `updated_at`. Default: `created_at`.     |
-| order      | TEXT | Sort order. `asc` or `desc`. Default: `desc`.                              |
+| Parameter  | Type    | Description                                                                                       |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------- |
+| status     | TEXT     | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). Default excludes `done`. |
+| created_by | TEXT     | Filter by creator (`user`, `agent`, or `system`).                                                 |
+| sort       | TEXT     | Sort field. One of: `created_at`, `updated_at`. Default: `created_at`.                            |
+| order      | TEXT     | Sort order. `asc` or `desc`. Default: `desc`.                                                      |
+| limit      | INTEGER | Max issues to return. Default: 50. Max: 100.                                                      |
+| offset     | INTEGER | Pagination offset. Default: 0. Must be ≥ 0.                                                       |
+| compact    | TEXT     | When `true`, excludes `description` from each issue.                                               |
 
-**Response:** `200 OK` — Array of issue objects (without full comment thread). Each issue includes `running_agent_id`, `running_agent_status`, `dependencies`, and `dependents` fields.
+When no `status` filter is provided, `done` issues are excluded by default. Include them explicitly via `?status=open,in_progress,done`.
+
+**Response:** `200 OK` — Paginated result object containing the issue array and pagination metadata.
 
 ```json
-[
-  {
-    "id": "uuid",
-    "project_id": "uuid",
-    "title": "Fix authentication bug",
-    "status": "in_progress",
-    "running_agent_id": "engineer",
-    "running_agent_status": "running",
-    "dependencies": [
-      { "id": "uuid", "title": "Set up database", "status": "done" }
-    ],
-    "dependents": [],
-    "...": "..."
-  }
-]
+{
+  "issues": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "title": "Fix authentication bug",
+      "status": "in_progress",
+      "running_agent_id": "engineer",
+      "running_agent_status": "running",
+      "dependencies": [
+        { "id": "uuid", "title": "Set up database", "status": "done" }
+      ],
+      "dependents": [],
+      "...": "..."
+    }
+  ],
+  "total": 42,
+  "limit": 50,
+  "offset": 0
+}
 ```
+
+| Field  | Type    | Description                                                |
+| ------ | ------- | ---------------------------------------------------------- |
+| issues | array   | Array of issue objects (without full comment thread).       |
+| total  | integer | Total count of matching issues (respecting status filter). |
+| limit  | integer | The applied limit (capped at 100).                         |
+| offset | integer | The applied offset.                                        |
+
+Each issue in the array includes `running_agent_id`, `running_agent_status`, `dependencies`, and `dependents` fields:
 
 - `running_agent_id`: The ID of the agent currently running or queued on this issue. NULL if no agent is active.
 - `running_agent_status`: Either `"running"` or `"queued"`. NULL if no agent is active.
 - `dependencies`: Issues this issue is blocked by. Each entry is `{ id, title, status }`. Empty array if none.
 - `dependents`: Issues blocked by this issue. Each entry is `{ id, title, status }`. Empty array if none.
+
+**Errors:**
+
+- `400 VALIDATION_ERROR` — `limit` or `offset` is not a valid non-negative integer.
 
 #### Get Issue
 
