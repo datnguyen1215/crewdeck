@@ -114,6 +114,11 @@ export interface ActivityLog {
   project_name?: string;
   action: string;
   details: Record<string, unknown>;
+  // Promoted from details in compact API responses
+  from?: string;
+  to?: string;
+  pr_number?: number;
+  exit_code?: number | null;
   created_at: string;
 }
 
