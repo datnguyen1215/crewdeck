@@ -14,12 +14,20 @@ A dashboard for managing autonomous Claude Code agents across GitHub repositorie
 docker compose up --build
 ```
 
-- **Frontend**: http://localhost:9380
-- **Backend API**: http://localhost:9381
-
-On first access, the app prompts you to create an admin account. All subsequent requests require a valid session.
+Open http://localhost:9380. On first access, the app prompts you to create an admin account.
 
 Data persists in a Docker volume across restarts. See [Running CrewDeck](docs/running.md) for details.
+
+### Exposing to the Internet
+
+To expose CrewDeck via a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/):
+
+1. Copy `.env.example` to `.env` and set your `TUNNEL_TOKEN`
+2. Run with the `tunnel` profile:
+
+```bash
+docker compose --profile tunnel up --build
+```
 
 ## Running Without Docker
 

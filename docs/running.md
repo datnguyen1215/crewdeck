@@ -36,12 +36,15 @@ Subsequent visits require signing in at `/login`.
 
 ## How It Works
 
-Docker Compose runs two services using `network_mode: host`, so ports are bound directly on the host (no port mapping):
+Docker Compose runs three core services on a bridge network. Only the Caddy reverse proxy exposes a port to the host:
 
-| Service    | Port | Description                               |
-| ---------- | ---: | ----------------------------------------- |
-| `frontend` | 9380 | SvelteKit production build (adapter-node) |
-| `backend`  | 9381 | Express API + SQLite + agent runtime      |
+| Service    | Internal Port | Description                               |
+| ---------- | ------------: | ----------------------------------------- |
+| `caddy`    |          9380 | Reverse proxy (exposed to host)           |
+| `frontend` |          3000 | SvelteKit production build (adapter-node) |
+| `backend`  |          9381 | Express API + SQLite + agent runtime      |
+
+Caddy routes `/ws` and `/terminal-ws` (WebSocket) requests to the backend, and everything else to the frontend. Only port 9380 is published to the host — the frontend and backend are not directly accessible.
 
 Both services are self-contained — no host source code is mounted. The frontend is built during `docker build` and served by Node.
 
@@ -91,9 +94,24 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 
 **Frontend**:
 
-| Variable           | Value                   | Purpose         |
-| ------------------ | ----------------------- | --------------- |
-| `VITE_BACKEND_URL` | `http://localhost:9381` | Backend API URL |
+| Variable           | Value                 | Purpose                                   |
+| ------------------ | --------------------- | ----------------------------------------- |
+| `VITE_BACKEND_URL` | `http://backend:9381` | Backend API URL (internal Docker network) |
+
+## Exposing to the Internet (Optional)
+
+CrewDeck includes an optional [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) service for public access without port forwarding.
+
+1. Create a Cloudflare Tunnel and get your tunnel token
+2. Copy `.env.example` to `.env` and set `TUNNEL_TOKEN`
+3. Configure a public hostname in the Cloudflare dashboard pointing to `localhost:9380`
+4. Run with the `tunnel` profile:
+
+```bash
+docker compose --profile tunnel up --build
+```
+
+The `cloudflared` service runs with `network_mode: host` so it can reach the published Caddy port.
 
 ## Rebuilding
 
