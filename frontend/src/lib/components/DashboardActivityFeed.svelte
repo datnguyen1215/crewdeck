@@ -33,7 +33,7 @@
 			<p class="text-muted text-sm">No recent activity</p>
 		</div>
 	{:else}
-		<div class="flex flex-col gap-3 flex-1 overflow-auto">
+		<div class="flex flex-col gap-3 flex-1 overflow-y-auto overflow-x-hidden">
 			{#each entries as entry, i (entry.id)}
 				{@const cfg = ACTOR_CFG[entry.actor_type] ?? ACTOR_CFG.system}
 				<a
