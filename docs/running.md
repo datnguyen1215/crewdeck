@@ -23,6 +23,17 @@ docker compose up --build
 - Frontend: http://localhost:9380
 - Backend API: http://localhost:9381
 
+## First-Time Setup
+
+On first launch (when no admin user exists), visiting the app automatically redirects to the setup wizard at `/setup`. The flow is:
+
+1. Open http://localhost:9380
+2. Redirected to `/setup` — create an admin username and password
+3. Redirected to `/login` — sign in with the credentials you just created
+4. Redirected to the dashboard (`/`)
+
+Subsequent visits require signing in at `/login`.
+
 ## How It Works
 
 Docker Compose runs two services using `network_mode: host`, so ports are bound directly on the host (no port mapping):

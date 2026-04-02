@@ -145,6 +145,10 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
 │  │Terminals │ │ Activity │ │ Captain (Chat)   │ │
+│  └──────────┘ └──────────┘ └──────────────────┘ │
+│  ┌──────────┐ ┌──────────┐                     │
+│  │  Login   │ │  Setup   │  (standalone pages) │
+│  └──────────┘ └──────────┘                     │
 │  │          │ │   Log    │ │                  │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 └────────────────────┬────────────────────────────┘
@@ -582,6 +586,8 @@ On SIGTERM or SIGINT, the backend:
 ## Security and Access
 
 - **Admin authentication**: The backend requires a session cookie for all API endpoints (except health check and initial setup). A single admin account is created via `POST /api/v1/auth/setup`. Sessions use `HttpOnly; Secure; SameSite=Strict` cookies with configurable expiry (default 7 days, `SESSION_EXPIRY_HOURS`). Passwords are hashed with bcrypt (≥ 12 rounds). Login is rate-limited to 5 attempts per minute per IP.
+- **Frontend auth middleware**: `hooks.server.js` validates the session cookie on every non-auth request by calling `GET /api/v1/auth/me`. Invalid/missing sessions redirect to `/login`. If no admin exists (`needsSetup: true`), redirects to `/setup`. Auth paths (`/login`, `/setup`, `/api/v1/auth/*`) are exempt. Static assets (files with extensions) are also exempt.
+- **Auth layout**: The root layout (`+layout.svelte`) conditionally renders — auth pages (`/login`, `/setup`) get a centered layout without the sidebar; all other pages render the normal sidebar layout with a logout button at the bottom of the nav.
 - GitHub authentication is managed in-app via Device Flow OAuth (Accounts page). No host-level `gh auth login` is required.
 - OAuth tokens are stored in SQLite and injected as `GH_TOKEN` into agent processes at spawn time. They are never persisted in `.git/config`.
 - Each project can be linked to a specific GitHub account, enabling per-project identity for git operations.

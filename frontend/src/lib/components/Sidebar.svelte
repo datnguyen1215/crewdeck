@@ -78,6 +78,15 @@
 		if (isMobile) mobileOpen = false;
 	}
 
+	async function logout() {
+		try {
+			await fetch('/api/v1/auth/logout', { method: 'POST' });
+		} catch {
+			// Proceed to login regardless
+		}
+		goto('/login');
+	}
+
 	function isActive(href: string) {
 		return pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
 	}
@@ -207,6 +216,29 @@
 			<div class="border-t border-edge my-1"></div>
 			{@render navItem('/accounts', 'Accounts', 'accounts', isActive('/accounts'))}
 			{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
+			<button
+				onclick={logout}
+				class="flex items-center gap-3 px-3 py-2.5 rounded text-secondary hover:text-red hover:bg-surface transition-colors whitespace-nowrap min-h-[44px] w-full {collapsed && !isMobile ? 'justify-center' : ''}"
+				title={collapsed && !isMobile ? 'Log out' : undefined}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="flex-shrink-0"
+				>
+					{@html icons.logout}
+				</svg>
+				{#if !collapsed || isMobile}
+					<span class="text-sm">Log out</span>
+				{/if}
+			</button>
 		</div>
 	</div>
 </nav>
