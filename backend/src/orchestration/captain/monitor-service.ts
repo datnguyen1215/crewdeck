@@ -182,7 +182,11 @@ const HANDLER_CONFIGS: HandlerConfig[] = [
     filter: notAgentCreated as never,
   },
   { eventType: "issue.updated", projectIdPath: "project_id" },
-  { eventType: "issue.status_changed", projectIdPath: "project_id" },
+  {
+    eventType: "issue.status_changed",
+    projectIdPath: "project_id",
+    filter: notIssuePaused as never,
+  },
   {
     eventType: "run.completed",
     projectIdPath: "project_id",

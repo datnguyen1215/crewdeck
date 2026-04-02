@@ -355,8 +355,8 @@ The captain continues the workflow up to PR creation (engineer → lead → docs
 Captain's output commands are parsed by the mention handler and executed via command-handlers.ts:
 
 - `handleDispatchAgent()` — spawns the specified agent on the issue
-- `handleMergePR()` — merges the PR using the VCS provider; rejects with an error if `issue.status !== 'pr_ready_to_merge'`, making it impossible to merge before CI passes regardless of LLM decisions
-- `handleCreatePR()` — creates a PR using the VCS provider
+- `handleMergePR()` — merges the PR using the VCS provider; rejects with an error if the issue is paused or `issue.status !== 'pr_ready_to_merge'`, making it impossible to merge before CI passes or while paused regardless of LLM decisions
+- `handleCreatePR()` — creates a PR using the VCS provider; rejects with an error if the issue is paused
 - `handleCreateIssue()` — creates a new issue
 
 Commands are restricted to captain-only (checked via `author_type === "captain"` in handler.ts).

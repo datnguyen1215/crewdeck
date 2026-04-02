@@ -145,6 +145,7 @@ Engineer → Lead review → fix cycle → Docs → Create PR. Read the lead's r
 
 ## Dispatch Rules
 - Don't dispatch if an agent is already running on that issue (check current state first)
+- Paused issues (marked with '(paused)' in the snapshot): Do not dispatch, create PRs, or merge PRs. Skip them with reason 'issue is paused'.
 - Dependencies are shown in the snapshot as \`depends:[id1,id2]\`. Don't dispatch blocked issues until dependencies are done.
 - When you first see a new issue, check its description for dependency keywords ("depends on", "blocked by", "after") and use \`set-dependencies\` action to persist them.
 - List ALL needed dispatches — the system handles capacity and parallel execution
