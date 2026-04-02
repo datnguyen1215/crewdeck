@@ -141,9 +141,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │ Cross-  │ │  Issue   │ │  Comment Thread  │ │
 │  │Dashboard │ │  Board   │ │  (@mention UI)   │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
-│  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │Terminals │ │ Activity │ │ Captain (Chat)   │ │
-│  └──────────┘ └──────────┘ └──────────────────┘ │
+│  ┌──────────┐ ┌──────────────────┐             │
+│  │Terminals │ │ Captain (Chat)   │             │
+│  └──────────┘ └──────────────────┘             │
 │  ┌──────────┐ ┌──────────┐                     │
 │  │  Login   │ │  Setup   │  (standalone pages) │
 │  └──────────┘ └──────────┘                     │

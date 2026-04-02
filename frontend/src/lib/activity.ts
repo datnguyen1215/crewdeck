@@ -64,15 +64,6 @@ export const ACTION_LABELS: Record<
   },
 };
 
-export const ACTION_DISPLAY: Record<string, string> = {
-  "issue.created": "Issue Created",
-  "issue.status_changed": "Status Changed",
-  "comment.added": "Comment Added",
-  "pr.created": "PR Created",
-  "mention.spawned": "Agent Spawned",
-  "mention.completed": "Agent Completed",
-};
-
 export function actorName(entry: ActivityLog): string {
   if (entry.actor_type === "agent") {
     if (entry.actor_name) return entry.actor_name;
@@ -115,8 +106,3 @@ export function hasExpandableDetails(entry: ActivityLog): boolean {
     d.verdict
   );
 }
-
-export const HANDOFF_ACTIONS = new Set([
-  "mention.spawned",
-  "mention.completed",
-]);
