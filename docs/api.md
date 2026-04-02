@@ -1976,6 +1976,14 @@ ws://localhost:<port>/ws?projectId=<uuid>
 
 Clients connect with a project ID to receive events scoped to that project. **Requires a valid session cookie** (`session_token`). The server validates the session before checking the project. Unauthenticated or invalid sessions receive `ws.close(4001, 'Unauthorized')`.
 
+### Global Connection
+
+```
+ws://localhost:<port>/ws?global=true
+```
+
+Clients connect without a project ID to receive events from all projects. Used by the dashboard for real-time project stats and activity feed updates. **Requires a valid session cookie** (`session_token`). Broadcasts all events except high-frequency `run.event` and monitor events. Unauthenticated or invalid sessions receive `ws.close(4001, 'Unauthorized')`.
+
 ### Terminal WebSocket Connection
 
 ```
@@ -2005,6 +2013,8 @@ Non-resize messages are treated as terminal input and written directly to the PT
 
 The frontend defines a `WsEventMap` interface in `frontend/src/lib/api/types.ts` that maps every event name to its typed payload. `ProjectWebSocket.on()` uses generic overloads so handlers receive fully typed `data` parameters with IDE autocomplete — no manual casting required.
 
+Global WebSocket subscribers use a `GlobalWsEventMap` interface — a subset of `WsEventMap` that excludes `run.event` and monitor events (to avoid flooding the dashboard with high-frequency data). The `GlobalWebSocket` class (`frontend/src/lib/api/global-ws.svelte.ts`) uses the same typed `on()` pattern as `ProjectWebSocket`.
+
 ### Event Format
 
 All events follow this structure:
@@ -2018,6 +2028,8 @@ All events follow this structure:
 ```
 
 ### Events
+
+All events below (except `run.event` and monitor events) are broadcast to both per-project subscribers and global subscribers. The `run.event` stream is only sent to per-project subscribers.
 
 #### Issue Events
 
@@ -2053,7 +2065,7 @@ All events follow this structure:
 | Event           | Description                             | Data                                                                                                                    |
 | --------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `run.started`   | Agent run started (process spawned)     | `{ agent_run_id, project_id, issue_id, agent_id, agent_name?, status, started_at }`                                     |
-| `run.event`     | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }` — `data` is normalized (see Agent Runs)                |
+| `run.event`     | Streamed event received from Claude CLI (per-project only, not broadcast to global subscribers) | `{ agent_run_id, project_id, event_id, type, data, created_at }` — `data` is normalized (see Agent Runs)                |
 | `run.completed` | Agent run finished                      | `{ agent_run_id, project_id, issue_id, agent_id, agent_name?, status, exit_code, cost_usd, duration_ms, completed_at }` |
 
 #### PR Events
@@ -2067,7 +2079,7 @@ All events follow this structure:
 
 | Event                      | Description               | Data          |
 | -------------------------- | ------------------------- | ------------- |
-| `project.settings_changed` | Project settings modified | `{ changes }` |
+| `project.settings_changed` | Project settings modified | `{ project_id, changes }` |
 
 ---
 
