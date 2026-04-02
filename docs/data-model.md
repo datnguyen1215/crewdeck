@@ -38,6 +38,10 @@ All persistent state is stored in a local SQLite database. This document defines
 ┌──────────┐       ┌─────────────┐
 │ Project  │1────N│ ChatMessage │
 └──────────┘       └─────────────┘
+
+┌───────────┐1────N┌─────────┐
+│ AdminUser │      │ Session │
+└───────────┘      └─────────┘
 ```
 
 ## Worktree Management
@@ -283,15 +287,38 @@ Legacy table originally designed for chat sessions. No longer actively used afte
 
 **Note:** This table is retained for compatibility with existing migrations but is no longer populated. Captain now operates via comment-based orchestration instead of maintaining conversation history.
 
+### AdminUser
+
+Represents the single admin account for backend authentication. Only one row exists at a time.
+
+| Field         | Type        | Constraints                         | Description                                      |
+| ------------- | ----------- | ----------------------------------- | ------------------------------------------------ |
+| id            | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                               |
+| username      | TEXT        | NOT NULL, UNIQUE                    | Admin username.                                  |
+| password_hash | TEXT        | NOT NULL                            | Bcrypt hash of the admin password (≥ 12 rounds). |
+| created_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the account was created.                    |
+
+### Session
+
+Represents an active login session. Old sessions are deleted on each login to prevent session fixation. Expired sessions are periodically cleaned up (every ~10 minutes).
+
+| Field      | Type     | Constraints                                            | Description                                            |
+| ---------- | -------- | ------------------------------------------------------ | ------------------------------------------------------ |
+| id         | TEXT     | PRIMARY KEY                                            | Session token (64-char hex, `crypto.randomBytes(32)`). |
+| user_id    | TEXT     | NOT NULL, FOREIGN KEY → AdminUser.id ON DELETE CASCADE | The admin user this session belongs to.                |
+| expires_at | DATETIME | NOT NULL                                               | When the session expires (default: 7 days).            |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | When the session was created.                          |
+
 ### AgentConfig
 
 Global per-agent model configuration. Applies machine-wide regardless of project. Each agent can have a model override from any provider — the model name determines which provider is used.
 
-| Field    | Type        | Constraints      | Description                                                                                                                                       |
-| -------- | ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id       | TEXT (UUID) | PRIMARY KEY      | Unique identifier.                                                                                                                                |
-| agent_id | TEXT        | NOT NULL, UNIQUE | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                           |
-| model    | TEXT        | NULLABLE         | Model override. `sonnet`, `opus`, `haiku` (Claude), `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7` (Z.AI). NULL means use the global default model. |
+| Field    | Type        | Constraints                | Description                                                                                                                                        |
+| -------- | ----------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id       | TEXT (UUID) | PRIMARY KEY                | Unique identifier.                                                                                                                                 |
+| agent_id | TEXT        | NOT NULL                   | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                            |
+| provider | TEXT        | NOT NULL, DEFAULT 'claude' | AI provider for this config. One of: `claude`, `glm` (Z.AI).                                                                                       |
+| model    | TEXT        | NULLABLE                   | Model override. For `claude`: `sonnet`, `opus`, `haiku`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. NULL means use provider default. |
 
 **Constraints:**
 
@@ -299,8 +326,8 @@ Global per-agent model configuration. Applies machine-wide regardless of project
 
 **Model resolution order:**
 
-1. Query `AgentConfig` by agent_id
-2. If not found or model is NULL, use the global default model (`default_model` in GlobalConfig, default: `sonnet`)
+1. Query `AgentConfig` by (agent_id, current_provider)
+2. If not found, use provider default: `sonnet` for Claude, `glm-5-turbo` for GLM
 
 ---
 
@@ -383,6 +410,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
 | Project → ChatMessage         | One-to-Many | A project has many chat messages (captain and human conversations).         |
+| AdminUser → Session           | One-to-Many | An admin user has many sessions (only one admin exists).                    |
 
 ## Indexes
 

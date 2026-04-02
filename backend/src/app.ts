@@ -1,7 +1,9 @@
 import express from "express";
+import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
 import { logger } from "./logger.js";
 import { errorHandler } from "./middleware/error-handler.js";
+import { requireAuth } from "./middleware/auth.js";
 import projectsRouter from "./routes/projects.js";
 import reposRouter from "./routes/repos.js";
 import agentsRouter from "./routes/agents.js";
@@ -18,15 +20,22 @@ import globalConfigRouter from "./routes/global-config.js";
 import globalEnvironmentRouter from "./routes/global-environment.js";
 import terminalRouter from "./routes/terminal.js";
 import chatRouter from "./routes/chat.js";
+import authRouter from "./routes/auth.js";
 
 export interface CreateAppOpts {
   silent?: boolean;
+  skipAuth?: boolean;
 }
 
 export function createApp(opts: CreateAppOpts = {}) {
   const app = express();
 
+  // Trust the first reverse proxy so req.ip reflects the real client IP.
+  // Override with TRUST_PROXY env (e.g. "loopback", "1").
+  app.set("trust proxy", process.env.TRUST_PROXY ?? 1);
+
   app.use(express.json());
+  app.use(cookieParser());
 
   if (!opts.silent) {
     app.use(pinoHttp({ logger }));
@@ -36,7 +45,14 @@ export function createApp(opts: CreateAppOpts = {}) {
     res.json({ status: "ok" });
   });
 
+  // Auth routes (public — no session required)
   const v1 = "/api/v1";
+  app.use(`${v1}/auth`, authRouter);
+
+  // All other routes require authentication (unless skipped for testing)
+  if (!opts.skipAuth) {
+    app.use(requireAuth);
+  }
   app.use(`${v1}/projects`, projectsRouter);
   app.use(`${v1}/projects/:projectId/repos`, reposRouter);
   app.use(`${v1}/crew`, agentsRouter);

@@ -54,13 +54,14 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 
 **Backend** (set in `docker-compose.yml`):
 
-| Variable             | Value                   | Purpose                                                               |
-| -------------------- | ----------------------- | --------------------------------------------------------------------- |
-| `DB_PATH`            | `/app/data/crewdeck.db` | SQLite database location                                              |
-| `CREWDECK_REPOS_DIR` | `/app/data/repos`       | Where repos are cloned                                                |
-| `MAX_AGENTS`         | `10`                    | Global concurrency limit (all projects)                               |
-| `ANTHROPIC_API_KEY`  | _(your API key)_        | Anthropic API key (required for Captain LLM agent and Claude models). |
-| `ZAI_API_KEY`        | _(optional)_            | Z.AI API key (required for GLM models).                               |
+| Variable               | Value                   | Purpose                                                                                         |
+| ---------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `DB_PATH`              | `/app/data/crewdeck.db` | SQLite database location                                                                        |
+| `CREWDECK_REPOS_DIR`   | `/app/data/repos`       | Where repos are cloned                                                                          |
+| `MAX_AGENTS`           | `10`                    | Global concurrency limit (all projects)                                                         |
+| `SESSION_EXPIRY_HOURS` | `168` (7 days)          | Session token expiry for admin login                                                            |
+| `ANTHROPIC_API_KEY`    | _(your API key)_        | Anthropic API key (required for Captain LLM agent and default Claude provider)                  |
+| `ZAI_API_KEY`          | _(optional)_            | Z.AI API key (required if using GLM provider). Enables GLM option in Crew page provider toggle. |
 
 **Orchestration tuning** (optional, override defaults):
 
