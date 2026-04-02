@@ -16,6 +16,7 @@ import { spawnAgent, spawnScan, postSystemComment } from "./spawner.js";
 import { IssueStatus, PRStatus } from "../constants/statuses.js";
 import { getProvider } from "../vcs/registry.js";
 import { isApprovedToMerge } from "./approval-store.js";
+import { isIssuePaused } from "../services/issue-service.js";
 import { resolveIssueId } from "./issue-resolver.js";
 
 interface ToolResult {
@@ -48,6 +49,9 @@ export const handleMergePR = async (
 
   const resolvedId = resolveIssueId(input.issue_id, projectId);
   if (!resolvedId) return { success: false, message: "Issue not found" };
+
+  if (isIssuePaused(resolvedId))
+    return { success: false, message: "Issue is paused" };
 
   if (!project.auto_merge && !isApprovedToMerge(resolvedId))
     return {
@@ -152,6 +156,9 @@ export const handleCreatePR = async (
 
   const resolvedId = resolveIssueId(input.issue_id, projectId);
   if (!resolvedId) return { success: false, message: "Issue not found" };
+
+  if (isIssuePaused(resolvedId))
+    return { success: false, message: "Issue is paused" };
 
   const issue = issueRepo.getIssue(resolvedId)!;
 
