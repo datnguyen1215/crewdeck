@@ -9,6 +9,8 @@ export function run(db: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- No index on Session(user_id) or Session(expires_at): acceptable for
+    -- single-admin deployment (at most a handful of sessions).
     CREATE TABLE IF NOT EXISTS Session (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

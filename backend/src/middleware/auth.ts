@@ -29,12 +29,16 @@ export function requireAuth(
 
   const token = req.cookies?.session_token;
   if (!token) {
+    // 403 rather than 401: the client presented no credentials at all, so
+    // there is nothing to authenticate — the server simply refuses access.
     next(new ForbiddenError("Authentication required"));
     return;
   }
 
   const session = getSession(token);
   if (!session) {
+    // 403: a token was present but invalid/expired — the server understood
+    // the credentials but refuses to authorize them.
     next(new ForbiddenError("Invalid or expired session"));
     return;
   }

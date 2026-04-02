@@ -30,6 +30,10 @@ export interface CreateAppOpts {
 export function createApp(opts: CreateAppOpts = {}) {
   const app = express();
 
+  // Trust the first reverse proxy so req.ip reflects the real client IP.
+  // Override with TRUST_PROXY env (e.g. "loopback", "1").
+  app.set("trust proxy", process.env.TRUST_PROXY ?? 1);
+
   app.use(express.json());
   app.use(cookieParser());
 

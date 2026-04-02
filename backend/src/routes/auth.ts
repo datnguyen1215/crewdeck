@@ -8,6 +8,7 @@ import {
   createAdmin,
   createSession,
   deleteSession,
+  deleteSessionsByUserId,
 } from "../db/repositories/auth.js";
 import { validate } from "../middleware/validate.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -26,10 +27,18 @@ const COOKIE_OPTIONS = {
   maxAge: config.sessionExpiryMs / 1000,
 };
 
-// In-memory rate limiter for login attempts
+// In-memory rate limiter for login attempts.
+// Note: req.ip is only correct behind a reverse proxy when Express
+// `trust proxy` is enabled (configured in app.ts via TRUST_PROXY env).
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
+
+  // Prune stale entries to prevent unbounded memory growth
+  for (const [key, entry] of loginAttempts) {
+    if (now > entry.resetAt) loginAttempts.delete(key);
+  }
+
   const entry = loginAttempts.get(ip);
   if (!entry || now > entry.resetAt) {
     loginAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
@@ -100,7 +109,7 @@ router.post("/login", validate(LoginSchema), async (req, res, next) => {
     }
 
     // Delete any existing session for this user (prevent session fixation)
-    // New token generated on each login
+    deleteSessionsByUserId(admin.id);
     setSessionCookie(res, admin.id);
     res.json({ id: admin.id, username: admin.username });
   } catch (err) {
