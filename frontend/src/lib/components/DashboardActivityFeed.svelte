@@ -50,14 +50,14 @@
 	</div>
 
 	{#if loading}
-		<div class="p-4 space-y-2">
+		<div class="p-3 space-y-1.5">
 			{#each Array(6) as _}
-				<div class="skeleton h-3.5 w-full rounded"></div>
+				<div class="skeleton h-3 w-full rounded"></div>
 			{/each}
 		</div>
 	{:else if entries.length === 0}
 		<div class="flex-1 flex items-center justify-center py-8 px-4">
-			<p class="text-muted text-sm font-mono">No recent activity</p>
+			<p class="text-muted text-xs font-mono">No recent activity</p>
 		</div>
 	{:else}
 		<div class="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
@@ -68,27 +68,13 @@
 					href={entry.issue_id
 						? `/projects/${entry.project_id}/issues/${entry.issue_id}`
 						: `/projects/${entry.project_id}`}
-					class="block px-4 py-1.5 border-l-[3px] hover:bg-base-hi transition-colors cursor-pointer {borderColorCls}"
-					style="opacity: {1 - i * 0.04}; animation: terminal-entry-enter 150ms ease-out both; animation-delay: {Math.min(i * 30, 200)}ms"
+					class="grid grid-cols-[2.5rem_4.5rem_7rem_1fr] gap-2 px-3 py-1 border-l-2 hover:bg-base-hi transition-colors cursor-pointer {borderColorCls}"
+					style="opacity: {1 - i * 0.03}; animation: terminal-entry-enter 150ms ease-out both; animation-delay: {Math.min(i * 30, 200)}ms"
 				>
-					<!-- Line 1: Context -->
-					<div class="flex items-baseline gap-2">
-						<span class="text-muted text-sm font-mono flex-shrink-0">[{formatTime(entry.created_at)}]</span>
-						<span class="text-sm font-mono font-semibold {colorCls} flex-shrink-0">{actorName(entry)}</span>
-						<span class="text-muted text-sm font-mono flex-shrink-0">&gt;</span>
-						{#if entry.project_name}
-							<span class="hidden md:inline text-muted/50 text-sm font-mono flex-shrink-0">{entry.project_name}</span>
-							<span class="hidden md:inline text-muted text-sm font-mono flex-shrink-0">&gt;</span>
-						{/if}
-						{#if entry.issue_title}
-							<span class="text-secondary text-sm font-mono truncate">{entry.issue_title}</span>
-						{/if}
-					</div>
-
-					<!-- Line 2: Action -->
-					<div class="pl-12 text-secondary text-sm font-mono">
-						{actionLabel(entry)}
-					</div>
+					<span class="text-muted text-xs font-mono truncate">{formatTime(entry.created_at)}</span>
+					<span class="text-xs font-mono font-medium {colorCls} truncate">{actorName(entry)}</span>
+					<span class="text-secondary/70 text-xs font-mono truncate">{entry.issue_title || '—'}</span>
+					<span class="text-secondary text-xs font-mono truncate">{actionLabel(entry)}</span>
 				</a>
 			{/each}
 		</div>
