@@ -20,13 +20,45 @@ export function slugify(title: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+type PrefixMatch = { prefix: string; leadingKeyword: string | null };
+
+const PREFIX_PATTERNS: Array<[RegExp, string]> = [
+  [/\b(?:fix(?:e[sd])?|bug(?:gy|s)?|error[s]?|crash(?:e[sd])?|broken)\b/, "fix"],
+  [/\b(?:refactor(?:s|ed|ing)?|cleanup|reorganize(?:s|d)?|reorganise(?:s|d)?)\b/, "refactor"],
+  [/\b(?:update[sd]?|change[sd]?|modif(?:y|ied|ies|ications?))\b/, "update"],
+  [/\b(?:remove[sd]?|delete[sd]?|drop(?:s|ped|ping)?)\b/, "chore"],
+];
+
+function inferPrefix(title: string): PrefixMatch {
+  for (const [pattern, prefix] of PREFIX_PATTERNS) {
+    const match = pattern.exec(title.toLowerCase());
+    if (match) {
+      const wordStart = title.toLowerCase().indexOf(match[0]);
+      const leadingKeyword = wordStart === 0 ? match[0] : null;
+      return { prefix, leadingKeyword };
+    }
+  }
+  return { prefix: "feature", leadingKeyword: null };
+}
+
+export function generateBranchName(title: string, issueId: string): string {
+  const { prefix, leadingKeyword } = inferPrefix(title);
+  // Strip the actual matched leading keyword from the slug
+  const stripped = leadingKeyword
+    ? title.slice(leadingKeyword.length).replace(/^\s+/, "")
+    : title;
+  const slug = slugify(stripped || title);
+  const shortHash = issueId.slice(0, 4);
+  return `${prefix}/${slug}-${shortHash}`;
+}
+
 export async function createWorktree(
   repo: Repo,
   issue: Issue,
   baseBranch: string,
   sshPrivateKey?: string,
 ): Promise<{ path: string; branchName: string }> {
-  const branchName = `crewdeck/${issue.id.slice(0, 8)}-${slugify(issue.title)}`;
+  const branchName = `crewdeck/${issue.id.slice(0, 8)}-${generateBranchName(issue.title, issue.id)}`;
   const repoPath = toContainerPath(repo.local_path);
   const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
 
