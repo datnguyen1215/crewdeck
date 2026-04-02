@@ -115,7 +115,16 @@
 	}
 </script>
 
-<!-- Mobile hamburger button (fixed position) -->
+<!-- Mobile overlay backdrop (rendered before hamburger so z-index stacking is correct) -->
+{#if isMobile && mobileOpen}
+	<button
+		class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+		onclick={closeMobileSidebar}
+		aria-label="Close menu"
+	></button>
+{/if}
+
+<!-- Mobile hamburger button (fixed position, z-[60] above backdrop z-[40]) -->
 {#if isMobile}
 	<button
 		onclick={toggleSidebar}
@@ -136,15 +145,6 @@
 			{@html mobileOpen ? icons.close : icons.menu}
 		</svg>
 	</button>
-{/if}
-
-<!-- Mobile overlay backdrop -->
-{#if isMobile && mobileOpen}
-	<button
-		class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
-		onclick={closeMobileSidebar}
-		aria-label="Close menu"
-	></button>
 {/if}
 
 <nav
