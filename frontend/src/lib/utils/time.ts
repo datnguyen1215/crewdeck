@@ -93,6 +93,13 @@ export function fullTime(dateStr: string | null | undefined): string {
 	return date.toLocaleString();
 }
 
+/** Format as HH:MM (24-hour) for terminal log entries. */
+export function formatTime(dateStr: string | null | undefined): string {
+	const date = parseUTC(dateStr);
+	if (isNaN(date.getTime())) return '--:--';
+	return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 /**
  * Compact smart timestamp without "ago" suffix for space-constrained UIs.
  * Same thresholds as smartTime but more compact format.
