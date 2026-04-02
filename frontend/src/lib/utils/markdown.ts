@@ -68,6 +68,7 @@ export function md(text: string): string {
 
 /** Strip markdown syntax to produce plain text for previews */
 export function stripMarkdown(text: string): string {
+	if (!text) return '';
 	return text
 		// Fenced code blocks → single newline
 		.replace(/```[\s\S]*?```/g, '')
