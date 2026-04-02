@@ -5,13 +5,13 @@
  */
 import { Router, type Request } from "express";
 import { verifyProject } from "../middleware/ownership.js";
-import { getByProject as getMonitorMessages } from "../db/repositories/chat-messages.js";
+import { getByProjectWithoutSession as getMonitorMessages } from "../db/repositories/chat-messages.js";
 
 const router = Router({ mergeParams: true });
 
 type ProjectParams = { projectId: string };
 
-// GET /monitor/history — get monitor messages
+// GET /monitor/history — get monitor messages (session_id = null)
 router.get(
   "/monitor/history",
   verifyProject,

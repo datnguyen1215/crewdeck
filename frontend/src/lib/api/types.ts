@@ -202,8 +202,10 @@ export type ChatMessageRole = "user" | "assistant";
 export interface ChatMessage {
   id: string;
   project_id: string;
+  session_id: string | null;
   role: ChatMessageRole;
   content: string;
+  images: string[] | null;
   created_at: string;
 }
 
