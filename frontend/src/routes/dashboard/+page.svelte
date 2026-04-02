@@ -172,7 +172,7 @@
 					</div>
 
 					<!-- Table header -->
-					<div class="hidden md:flex text-sm uppercase tracking-wider px-4 py-2 border-b border-edge font-mono">
+					<div class="hidden md:flex gap-1 text-sm uppercase tracking-wider px-4 py-2 border-b border-edge font-mono">
 						<span class="w-16 flex-shrink-0 text-muted">ID</span>
 						<span class="flex-1 min-w-0 text-muted">PROJECT</span>
 						{#each TABLE_COLS as col}
