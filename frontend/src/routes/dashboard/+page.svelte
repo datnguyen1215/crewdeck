@@ -115,11 +115,9 @@
 
 <div class="p-4 md:p-8 h-full overflow-auto pt-14 md:pt-8 terminal-scanlines">
 	<!-- Header -->
-	<div class="mb-6 md:mb-8 fade-up">
-		<p class="text-muted text-xs uppercase tracking-widest mb-1">Cross-project Overview</p>
-		<h1 class="text-lg md:text-xl font-bold text-primary font-mono">
-			<span class="text-cyan">$</span> crew status --all
-		</h1>
+	<div class="mb-8 md:mb-10 fade-up">
+		<p class="text-muted text-sm uppercase tracking-widest mb-2">Cross-project Overview</p>
+		<h1 class="text-xl md:text-2xl font-bold text-primary font-mono">Crew Status</h1>
 	</div>
 
 	{#if loading}
@@ -127,14 +125,9 @@
 		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 			<div class="lg:col-span-2">
 				<div class="bg-surface border border-edge rounded-sm">
-					<!-- Terminal chrome skeleton -->
-					<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
-						<div class="flex gap-1.5">
-							<div class="skeleton w-3 h-3 rounded-full"></div>
-							<div class="skeleton w-3 h-3 rounded-full"></div>
-							<div class="skeleton w-3 h-3 rounded-full"></div>
-						</div>
-						<div class="skeleton h-3 w-24 rounded ml-auto"></div>
+					<!-- Pane header skeleton -->
+					<div class="flex items-center gap-2 px-4 py-2 bg-base-hi rounded-t-sm">
+						<div class="skeleton h-4 w-28 rounded"></div>
 					</div>
 					<div class="p-4 space-y-2">
 						{#each Array(4) as _}
@@ -146,12 +139,7 @@
 			<div>
 				<div class="bg-surface border border-edge rounded-sm">
 					<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
-						<div class="flex gap-1.5">
-							<div class="skeleton w-3 h-3 rounded-full"></div>
-							<div class="skeleton w-3 h-3 rounded-full"></div>
-							<div class="skeleton w-3 h-3 rounded-full"></div>
-						</div>
-						<div class="skeleton h-3 w-20 rounded ml-auto"></div>
+						<span class="skeleton h-3.5 w-20 rounded ml-auto"></span>
 					</div>
 					<div class="p-4 space-y-2">
 						{#each Array(5) as _}
@@ -165,16 +153,11 @@
 		<!-- Empty state -->
 		<div class="bg-surface border border-edge rounded-sm">
 			<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
-				<div class="flex gap-1.5">
-					<span class="w-3 h-3 rounded-full bg-red"></span>
-					<span class="w-3 h-3 rounded-full bg-amber"></span>
-					<span class="w-3 h-3 rounded-full bg-green"></span>
-				</div>
-				<span class="text-muted text-xs ml-auto">bash — crew</span>
+				<span class="text-muted text-sm font-mono">crew status</span>
 			</div>
 			<div class="p-6 text-center">
 				<p class="text-primary text-sm font-mono mb-1">No projects yet</p>
-				<p class="text-muted text-xs font-mono">Create a project to see dashboard output</p>
+				<p class="text-muted text-sm font-mono">Create a project to see dashboard output</p>
 			</div>
 		</div>
 	{:else}
@@ -183,18 +166,13 @@
 			<!-- Left: Process list -->
 			<div class="lg:col-span-2">
 				<div class="bg-surface border border-edge rounded-sm fade-up">
-					<!-- Terminal chrome -->
-					<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
-						<div class="flex gap-1.5">
-							<span class="w-3 h-3 rounded-full bg-red"></span>
-							<span class="w-3 h-3 rounded-full bg-amber"></span>
-							<span class="w-3 h-3 rounded-full bg-green"></span>
-						</div>
-						<span class="text-muted text-xs ml-auto font-mono">crew status</span>
+					<!-- Pane header -->
+					<div class="flex items-center px-4 py-2 bg-base-hi rounded-t-sm">
+						<span class="text-muted text-sm font-mono">crew status</span>
 					</div>
 
 					<!-- Table header -->
-					<div class="hidden md:flex text-xs uppercase tracking-wider px-4 py-2 border-b border-edge font-mono">
+					<div class="hidden md:flex text-sm uppercase tracking-wider px-4 py-2 border-b border-edge font-mono">
 						<span class="w-16 flex-shrink-0 text-muted">ID</span>
 						<span class="flex-1 min-w-0 text-muted">PROJECT</span>
 						{#each TABLE_COLS as col}
@@ -215,11 +193,11 @@
 								style="animation: fade-up 0.25s ease both; animation-delay: {i * 40}ms"
 							>
 								<div class="flex items-center justify-between mb-1">
-									<span class="text-primary text-xs font-mono truncate mr-2">{project.name}</span>
-									<span class="text-xs font-mono {isActive ? 'text-cyan' : 'text-muted'}">{isActive ? 'active' : 'idle'}</span>
+									<span class="text-primary text-sm font-mono truncate mr-2">{project.name}</span>
+									<span class="text-sm font-mono {isActive ? 'text-cyan' : 'text-muted'}">{isActive ? 'active' : 'idle'}</span>
 								</div>
-								<div class="flex gap-3 text-xs font-mono text-muted">
-									<span class="text-secondary/60">{shortId(project.id)}</span>
+								<div class="flex gap-3 text-sm font-mono text-muted">
+									<span class="text-secondary/60 text-xs">{shortId(project.id)}</span>
 									{#each TABLE_COLS as col}
 										{@const count = statusValue(project, col.key)}
 										<span class={count > 0 ? 'text-primary' : ''}>{count}</span>
@@ -236,29 +214,25 @@
 								onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${project.id}`)}
 								style="animation: fade-up 0.25s ease both; animation-delay: {i * 40}ms"
 							>
-								<span class="w-16 text-xs font-mono text-secondary/60 flex-shrink-0">{shortId(project.id)}</span>
-								<span class="flex-1 text-xs font-mono text-primary truncate group-hover:text-cyan transition-colors">{project.name}</span>
+								<span class="w-16 text-sm font-mono text-secondary/60 flex-shrink-0">{shortId(project.id)}</span>
+								<span class="flex-1 text-sm font-mono text-primary truncate group-hover:text-cyan transition-colors">{project.name}</span>
 								{#each TABLE_COLS as col}
 									{@const count = statusValue(project, col.key)}
-									<span class="w-10 text-center text-xs font-mono flex-shrink-0 {col.key === 'blocked' && count > 0 ? 'text-red' : count > 0 ? 'text-primary' : 'text-muted'}">{count}</span>
+									<span class="w-10 text-center text-sm font-mono flex-shrink-0 {col.key === 'blocked' && count > 0 ? 'text-red' : count > 0 ? 'text-primary' : 'text-muted'}">{count}</span>
 								{/each}
-								<span class="w-10 text-center text-xs font-mono flex-shrink-0 {isActive ? 'text-cyan' : 'text-muted'}">{project.active_runs}</span>
-								<span class="w-14 text-center text-xs font-mono flex-shrink-0 {isActive ? 'text-cyan' : 'text-muted'}">{isActive ? 'active' : 'idle'}</span>
+								<span class="w-10 text-center text-sm font-mono flex-shrink-0 {isActive ? 'text-cyan' : 'text-muted'}">{project.active_runs}</span>
+								<span class="w-14 text-center text-sm font-mono flex-shrink-0 {isActive ? 'text-cyan' : 'text-muted'}">{isActive ? 'active' : 'idle'}</span>
 							</div>
 						{/each}
 					</div>
 
 					<!-- Summary line -->
 					{#if summary}
-						<div class="px-4 py-2 border-t border-edge text-xs font-mono text-muted">
+						<div class="px-4 py-2 border-t border-edge text-sm font-mono text-muted">
 							{summary}
 						</div>
 					{/if}
 
-					<!-- Blinking cursor -->
-					<div class="px-4 py-2">
-						<span class="text-cyan font-mono text-xs">$ </span><span class="terminal-cursor"></span>
-					</div>
 				</div>
 			</div>
 
