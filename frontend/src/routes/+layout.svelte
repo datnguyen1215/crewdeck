@@ -1,10 +1,15 @@
 <script lang="ts">
 	import '../app.css';
+	import { page } from '$app/stores';
 	import { onNavigate } from '$app/navigation';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import Toast from '$lib/components/Toast.svelte';
 
 	let { children } = $props();
+
+	const isAuthPage = $derived(
+		$page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/setup')
+	);
 
 	// Page transitions via View Transitions API
 	onNavigate((navigation) => {
@@ -18,12 +23,18 @@
 	});
 </script>
 
-<div class="flex h-screen bg-base overflow-hidden">
-	<Sidebar />
-	<main class="flex-1 overflow-auto w-full md:w-auto">
+{#if isAuthPage}
+	<div class="flex items-center justify-center min-h-screen bg-base">
 		{@render children()}
-	</main>
-</div>
+	</div>
+{:else}
+	<div class="flex h-screen bg-base overflow-hidden">
+		<Sidebar />
+		<main class="flex-1 overflow-auto w-full md:w-auto">
+			{@render children()}
+		</main>
+	</div>
+{/if}
 
 <div id="modal-portal" style="view-transition-name: none"></div>
 

@@ -25,7 +25,7 @@ export async function handle({ event, resolve }) {
   }
 
   // Static assets — skip auth
-  if (pathname.startsWith("/_app/") || pathname.includes(".")) {
+  if (pathname.startsWith("/_app/") || /\.\w+$/.test(pathname)) {
     return resolve(event);
   }
 
@@ -62,7 +62,9 @@ export async function handle({ event, resolve }) {
       });
     }
   } catch {
-    // Backend unreachable — allow through (don't block on network errors)
+    // Backend unreachable — allow request through rather than showing an error page.
+    // Trade-off: users may see unauthenticated content during outages, but the app
+    // remains accessible for development and when the backend is temporarily down.
   }
 
   return resolve(event);
