@@ -70,27 +70,22 @@
 	});
 
 	const TABLE_COLS = [
-		{ key: 'open', label: 'OPEN' },
-		{ key: 'in_progress', label: 'PROG' },
-		{ key: 'pr_created', label: 'PR' },
-		{ key: 'blocked', label: 'BLK' },
-		{ key: 'pr_ready_to_merge', label: 'RDY' },
-		{ key: 'done', label: 'DONE' },
+		{ key: 'open', label: 'OPEN', color: 'text-blue' },
+		{ key: 'in_progress', label: 'PROG', color: 'text-amber' },
+		{ key: 'pr_created', label: 'PR', color: 'text-purple' },
+		{ key: 'blocked', label: 'BLK', color: 'text-red' },
+		{ key: 'pr_ready_to_merge', label: 'RDY', color: 'text-green' },
+		{ key: 'done', label: 'DONE', color: 'text-secondary' },
 	] as const;
 
 	let summary = $derived.by(() => {
 		if (projects.length === 0) return '';
-		const totals = { open: 0, in_progress: 0, pr_created: 0, blocked: 0, pr_ready_to_merge: 0, done: 0, agents: 0 };
+		let inProgress = 0, done = 0;
 		for (const p of projects) {
-			totals.open += p.issues.open;
-			totals.in_progress += p.issues.in_progress;
-			totals.pr_created += p.issues.pr_created;
-			totals.blocked += p.issues.pr_conflict + p.issues.pr_failed_actions;
-			totals.pr_ready_to_merge += p.issues.pr_ready_to_merge;
-			totals.done += p.issues.done;
-			totals.agents += p.active_runs;
+			inProgress += p.issues.in_progress;
+			done += p.issues.done;
 		}
-		return `${projects.length} project${projects.length !== 1 ? 's' : ''} │ ${activeAgents}/${maxConcurrency} agents │ ${totals.in_progress} in progress │ ${totals.done} done`;
+		return `${projects.length} project${projects.length !== 1 ? 's' : ''} │ ${activeAgents}/${maxConcurrency} agents │ ${inProgress} in progress │ ${done} done`;
 	});
 
 	function blockedCount(issues: ProjectWithStats['issues']) {
@@ -133,13 +128,13 @@
 			<div class="lg:col-span-2">
 				<div class="bg-surface border border-edge rounded-sm">
 					<!-- Terminal chrome skeleton -->
-					<div class="flex items-center gap-2 px-4 py-2.5 border-b border-edge bg-base-hi">
+					<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
 						<div class="flex gap-1.5">
-							<div class="skeleton w-2.5 h-2.5 rounded-full"></div>
-							<div class="skeleton w-2.5 h-2.5 rounded-full"></div>
-							<div class="skeleton w-2.5 h-2.5 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
 						</div>
-						<div class="skeleton h-3 w-32 rounded"></div>
+						<div class="skeleton h-3 w-24 rounded ml-auto"></div>
 					</div>
 					<div class="p-4 space-y-2">
 						{#each Array(4) as _}
@@ -150,13 +145,13 @@
 			</div>
 			<div>
 				<div class="bg-surface border border-edge rounded-sm">
-					<div class="flex items-center gap-2 px-4 py-2.5 border-b border-edge bg-base-hi">
+					<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
 						<div class="flex gap-1.5">
-							<div class="skeleton w-2.5 h-2.5 rounded-full"></div>
-							<div class="skeleton w-2.5 h-2.5 rounded-full"></div>
-							<div class="skeleton w-2.5 h-2.5 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
+							<div class="skeleton w-3 h-3 rounded-full"></div>
 						</div>
-						<div class="skeleton h-3 w-24 rounded"></div>
+						<div class="skeleton h-3 w-20 rounded ml-auto"></div>
 					</div>
 					<div class="p-4 space-y-2">
 						{#each Array(5) as _}
@@ -169,13 +164,13 @@
 	{:else if projects.length === 0}
 		<!-- Empty state -->
 		<div class="bg-surface border border-edge rounded-sm">
-			<div class="flex items-center gap-2 px-4 py-2.5 border-b border-edge bg-base-hi">
+			<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
 				<div class="flex gap-1.5">
-					<span class="w-2.5 h-2.5 rounded-full bg-red/70"></span>
-					<span class="w-2.5 h-2.5 rounded-full bg-amber/70"></span>
-					<span class="w-2.5 h-2.5 rounded-full bg-green/70"></span>
+					<span class="w-3 h-3 rounded-full bg-red"></span>
+					<span class="w-3 h-3 rounded-full bg-amber"></span>
+					<span class="w-3 h-3 rounded-full bg-green"></span>
 				</div>
-				<span class="text-muted text-xs">bash — crew</span>
+				<span class="text-muted text-xs ml-auto">bash — crew</span>
 			</div>
 			<div class="p-6 text-center">
 				<p class="text-primary text-sm font-mono mb-1">No projects yet</p>
@@ -189,24 +184,24 @@
 			<div class="lg:col-span-2">
 				<div class="bg-surface border border-edge rounded-sm fade-up">
 					<!-- Terminal chrome -->
-					<div class="flex items-center gap-2 px-4 py-2.5 border-b border-edge bg-base-hi rounded-t-sm">
+					<div class="flex items-center gap-2 px-3 py-1.5 bg-base-hi rounded-t-sm">
 						<div class="flex gap-1.5">
-							<span class="w-2.5 h-2.5 rounded-full bg-red/70"></span>
-							<span class="w-2.5 h-2.5 rounded-full bg-amber/70"></span>
-							<span class="w-2.5 h-2.5 rounded-full bg-green/70"></span>
+							<span class="w-3 h-3 rounded-full bg-red"></span>
+							<span class="w-3 h-3 rounded-full bg-amber"></span>
+							<span class="w-3 h-3 rounded-full bg-green"></span>
 						</div>
-						<span class="text-muted text-xs font-mono">bash — crew status</span>
+						<span class="text-muted text-xs ml-auto font-mono">crew status</span>
 					</div>
 
 					<!-- Table header -->
-					<div class="hidden md:flex text-xs text-muted uppercase tracking-wider px-4 py-2 border-b border-edge font-mono">
-						<span class="w-16 flex-shrink-0">ID</span>
-						<span class="flex-1 min-w-0">PROJECT</span>
+					<div class="hidden md:flex text-xs uppercase tracking-wider px-4 py-2 border-b border-edge font-mono">
+						<span class="w-16 flex-shrink-0 text-muted">ID</span>
+						<span class="flex-1 min-w-0 text-muted">PROJECT</span>
 						{#each TABLE_COLS as col}
-							<span class="w-10 text-center flex-shrink-0">{col.label}</span>
+							<span class="w-10 text-center flex-shrink-0 {col.color}">{col.label}</span>
 						{/each}
-						<span class="w-10 text-center flex-shrink-0">AGENTS</span>
-						<span class="w-14 text-center flex-shrink-0">STATUS</span>
+						<span class="w-10 text-center flex-shrink-0 text-cyan">AGENTS</span>
+						<span class="w-14 text-center flex-shrink-0 text-muted">STATUS</span>
 					</div>
 
 					<!-- Table rows -->
