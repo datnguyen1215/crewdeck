@@ -36,7 +36,3 @@ export function getByProject(projectId: string, limit = 20): ChatMessage[] {
     .all(projectId, limit) as ChatMessageRow[];
   return rows.map(parseRow);
 }
-
-export function deleteByProject(projectId: string): void {
-  db.prepare("DELETE FROM ChatMessage WHERE project_id = ?").run(projectId);
-}
