@@ -41,9 +41,6 @@
 		}
 	}
 
-	function truncate(str: string, max: number): string {
-		return str.length > max ? str.slice(0, max) + '…' : str;
-	}
 </script>
 
 <div class="bg-surface border border-edge rounded-sm flex flex-col h-full">
@@ -71,32 +68,27 @@
 					href={entry.issue_id
 						? `/projects/${entry.project_id}/issues/${entry.issue_id}`
 						: `/projects/${entry.project_id}`}
-					class="flex items-baseline gap-2 px-4 py-1.5 border-l-[3px] hover:bg-base-hi transition-colors cursor-pointer {borderColorCls}"
+					class="block px-4 py-1.5 border-l-[3px] hover:bg-base-hi transition-colors cursor-pointer {borderColorCls}"
 					style="opacity: {1 - i * 0.04}; animation: terminal-entry-enter 150ms ease-out both; animation-delay: {Math.min(i * 30, 200)}ms"
 				>
-					<!-- Timestamp -->
-					<span class="text-muted text-sm font-mono flex-shrink-0 w-12">[{formatTime(entry.created_at)}]</span>
+					<!-- Line 1: Context -->
+					<div class="flex items-baseline gap-2">
+						<span class="text-muted text-sm font-mono flex-shrink-0">[{formatTime(entry.created_at)}]</span>
+						<span class="text-sm font-mono font-semibold {colorCls} flex-shrink-0">{actorName(entry)}</span>
+						<span class="text-muted text-sm font-mono flex-shrink-0">&gt;</span>
+						{#if entry.project_name}
+							<span class="hidden md:inline text-muted/50 text-sm font-mono flex-shrink-0">{entry.project_name}</span>
+							<span class="hidden md:inline text-muted text-sm font-mono flex-shrink-0">&gt;</span>
+						{/if}
+						{#if entry.issue_title}
+							<span class="text-secondary text-sm font-mono truncate">{entry.issue_title}</span>
+						{/if}
+					</div>
 
-					<!-- Actor -->
-					<span class="text-sm font-mono font-semibold {colorCls} flex-shrink-0 w-16 truncate">{actorName(entry)}</span>
-
-					<!-- Separator -->
-					<span class="text-muted text-sm font-mono flex-shrink-0">&gt;</span>
-
-					<!-- Project name (desktop only) -->
-					{#if entry.project_name}
-						<span class="hidden md:inline text-muted/50 text-xs font-mono flex-shrink-0 w-24 truncate">{entry.project_name}</span>
-						<span class="hidden md:inline text-muted text-xs font-mono flex-shrink-0">&gt;</span>
-					{/if}
-
-					<!-- Issue title -->
-					{#if entry.issue_title}
-						<span class="text-secondary text-xs font-mono truncate flex-1 min-w-0">{truncate(entry.issue_title, 25)}</span>
-						<span class="text-muted text-xs font-mono flex-shrink-0">&gt;</span>
-					{/if}
-
-					<!-- Action message -->
-					<span class="text-secondary text-xs font-mono truncate flex-1 min-w-0">{actionLabel(entry)}</span>
+					<!-- Line 2: Action -->
+					<div class="pl-12 text-secondary text-sm font-mono">
+						{actionLabel(entry)}
+					</div>
 				</a>
 			{/each}
 		</div>
