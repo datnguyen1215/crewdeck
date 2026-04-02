@@ -116,6 +116,7 @@ export async function createTerminalSession(
     ...globalEnvVars,
     ...projectEnvVars,
     ...buildProviderEnv(captainModel),
+    ANTHROPIC_API_KEY: "",
     CREWDECK_API_URL: `http://${config.host}:${config.port}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: "captain",
