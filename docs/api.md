@@ -1707,7 +1707,7 @@ Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_
 ws://localhost:<port>/ws?projectId=<uuid>
 ```
 
-Clients connect with a project ID to receive events scoped to that project. The server validates that the project exists on connection.
+Clients connect with a project ID to receive events scoped to that project. **Requires a valid session cookie** (`session_token`). The server validates the session before checking the project. Unauthenticated or invalid sessions receive `ws.close(4001, 'Unauthorized')`.
 
 ### Terminal WebSocket Connection
 
@@ -1715,7 +1715,9 @@ Clients connect with a project ID to receive events scoped to that project. The 
 ws://localhost:<port>/terminal-ws?projectId=<uuid>
 ```
 
-Establishes a WebSocket connection for PTY streaming. Connects to the project's tmux session and provides bidirectional I/O:
+Establishes a WebSocket connection for PTY streaming. **Requires a valid session cookie** (`session_token`). This is the most sensitive endpoint (direct shell access) — unauthenticated or invalid sessions receive `ws.close(4001, 'Unauthorized')`.
+
+Connects to the project's tmux session and provides bidirectional I/O:
 
 - **Server → Client**: Raw PTY output bytes (terminal escape sequences, text)
 - **Client → Server**: Raw keyboard input or resize messages
