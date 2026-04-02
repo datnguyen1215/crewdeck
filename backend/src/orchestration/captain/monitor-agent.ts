@@ -30,6 +30,7 @@ import {
 } from "./action-plan-extractor.js";
 import { PROCESS_GRACE_PERIOD_MS } from "../../config/orchestration.js";
 import * as globalEnvVarRepo from "../../db/repositories/global-environment-variables.js";
+import { getSystemApiKey } from "../../app.js";
 
 /**
  * Set up GitHub auth environment variables for Captain.
@@ -178,6 +179,7 @@ export const processWithLLM = async (
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: "captain",
+    ...(getSystemApiKey() ? { CREWDECK_API_KEY: getSystemApiKey()! } : {}),
   };
 
   const sshKeyPath = await setupGitHubAuth(projectId, env);
