@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { updateIssue } from "../db/repositories/issues.js";
+import { getProject } from "../db/repositories/projects.js";
 import { shellQuote } from "./shell.js";
 import { toContainerPath } from "../utils/paths.js";
 import { createGitSshEnv, cleanupSshKey } from "../utils/git-auth.js";
@@ -59,8 +60,10 @@ export async function createWorktree(
   sshPrivateKey?: string,
 ): Promise<{ path: string; branchName: string }> {
   const branchName = `crewdeck/${issue.id.slice(0, 8)}-${generateBranchName(issue.title, issue.id)}`;
+  const project = getProject(issue.project_id);
+  const projectSlug = project ? slugify(project.name) : issue.project_id;
   const repoPath = toContainerPath(repo.local_path);
-  const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
+  const worktreePath = join(tmpdir(), "crewdeck", projectSlug, branchName);
 
   // Try to fetch latest from origin (with SSH credentials if available)
   let fetchSucceeded = false;

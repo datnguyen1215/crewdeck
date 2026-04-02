@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { join } from "node:path";
 import {
   slugify,
   createWorktree,
@@ -25,6 +26,10 @@ vi.mock("node:fs", async (importOriginal) => {
 
 vi.mock("../../src/db/repositories/issues.js", () => ({
   updateIssue: vi.fn(),
+}));
+
+vi.mock("../../src/db/repositories/projects.js", () => ({
+  getProject: vi.fn().mockReturnValue({ name: "my-project" }),
 }));
 
 import { exec } from "node:child_process";
@@ -171,10 +176,10 @@ describe("createWorktree", () => {
     expect(worktreeCmd).toContain("crewdeck/abc12345-fix/the-login-bug-abc1");
   });
 
-  it("places worktree inside crewdeck-worktrees directory under tmpdir", async () => {
+  it("places worktree inside crewdeck directory under tmpdir organized by project", async () => {
     const { path } = await createWorktree(repo, issue, "main");
 
-    expect(path).toContain("crewdeck-worktrees");
+    expect(path).toContain(join("crewdeck", "my-project"));
     expect(path).toContain("crewdeck/abc12345-fix/the-login-bug-abc1");
   });
 

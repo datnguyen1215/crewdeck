@@ -14,6 +14,7 @@ import { listRepos } from "../db/repositories/repos.js";
 import { getVCSAccount } from "../db/repositories/vcs-accounts.js";
 import { toContainerPath } from "../utils/paths.js";
 import { shellQuote } from "./shell.js";
+import { slugify } from "./worktree.js";
 import { createGitSshEnv, cleanupSshKey } from "../utils/git-auth.js";
 
 const execAsync = promisify(exec);
@@ -56,8 +57,10 @@ export async function createCaptainWorktree(
 
   const repo = repos[0];
   const branchName = `crewdeck/captain-${projectId.slice(0, 8)}`;
+  const project = getProject(projectId);
+  const projectSlug = project ? slugify(project.name) : projectId;
   const repoPath = toContainerPath(repo.local_path);
-  const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
+  const worktreePath = join(tmpdir(), "crewdeck", projectSlug, "captain");
 
   // Try to fetch latest from origin
   let fetchSucceeded = false;
