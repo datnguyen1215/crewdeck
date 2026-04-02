@@ -35,9 +35,9 @@ All persistent state is stored in a local SQLite database. This document defines
 │  Issue   │1────N│ AgentRun │1────N│ AgentRunEvent  │
 └──────────┘       └──────────┘       └────────────────┘
 
-┌──────────┐       ┌─────────────┐
-│ Project  │1────N│ ChatMessage │
-└──────────┘       └─────────────┘
+┌──────────┐       ┌────────────────┐
+│ Project  │1────N│ MonitorMessage │
+└──────────┘       └────────────────┘
 
 ┌───────────┐1────N┌─────────┐
 │ AdminUser │      │ Session │
@@ -271,21 +271,17 @@ Immutable audit trail of every action in the system.
 
 ---
 
-### ChatMessage
+### MonitorMessage
 
-Legacy table originally designed for chat sessions. No longer actively used after the captain refactor to comment-based orchestration.
+Stores Captain Monitor event/response history. The monitor agent writes event batches and LLM responses here, and the frontend reads them on the Terminals page.
 
-| Field      | Type        | Constraints                                          | Description                                  |
-| ---------- | ----------- | ---------------------------------------------------- | -------------------------------------------- |
-| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                           |
-| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                              |
-| session_id | TEXT        | NULLABLE                                             | Session identifier (legacy, no longer used). |
-| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role.                                |
-| content    | TEXT        | NOT NULL                                             | Message content.                             |
-| images     | TEXT        | NULLABLE                                             | Image attachments (legacy, no longer used).  |
-| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created.                |
-
-**Note:** This table is retained for compatibility with existing migrations but is no longer populated. Captain now operates via comment-based orchestration instead of maintaining conversation history.
+| Field      | Type        | Constraints                                          | Description                   |
+| ---------- | ----------- | ---------------------------------------------------- | ----------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.            |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.               |
+| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role.                 |
+| content    | TEXT        | NOT NULL                                             | Message content.              |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created. |
 
 ### AdminUser
 
@@ -409,7 +405,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
-| Project → ChatMessage         | One-to-Many | A project has many chat messages (captain and human conversations).         |
+| Project → MonitorMessage      | One-to-Many | A project has many monitor messages (captain event/response history).       |
 | AdminUser → Session           | One-to-Many | An admin user has many sessions (only one admin exists).                    |
 
 ## Indexes
@@ -434,5 +430,5 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 - `idx_agent_run_created` on AgentRun(project_id, created_at)
 - `idx_agent_run_event_run` on AgentRunEvent(agent_run_id)
 - `idx_agent_run_event_created` on AgentRunEvent(agent_run_id, created_at)
-- `idx_chat_message_project` on ChatMessage(project_id)
-- `idx_chat_message_created` on ChatMessage(project_id, created_at DESC)
+- `idx_monitor_message_project` on MonitorMessage(project_id)
+- `idx_monitor_message_created` on MonitorMessage(project_id, created_at DESC)

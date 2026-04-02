@@ -15,7 +15,7 @@ import type {
   ActiveRun,
   ProjectKnowledge,
   LibrarianStatus,
-  ChatMessage,
+  MonitorMessage,
   AgentConfig,
   MonitorEntry,
   CaptainStatus,
@@ -44,7 +44,7 @@ export type {
   AgentRunEventType,
   ProjectKnowledge,
   LibrarianStatus,
-  ChatMessage,
+  MonitorMessage,
   AgentConfig,
   MonitorEntry,
   CaptainStatus,
@@ -473,7 +473,7 @@ export function dispatchAgent(
 export function getMonitorHistory(
   projectId: string,
   limit?: number,
-): Promise<ChatMessage[]> {
+): Promise<MonitorMessage[]> {
   const params = limit ? `?limit=${limit}` : "";
   return request("GET", `/projects/${e(projectId)}/monitor/history${params}`);
 }

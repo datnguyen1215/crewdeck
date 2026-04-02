@@ -18,7 +18,7 @@ import { resolveModel } from "../../db/repositories/agent-config.js";
 import { executePlan, formatResults } from "./plan-executor.js";
 import type { ActionPlan } from "./action-schema.js";
 
-import * as chatRepo from "../../db/repositories/chat-messages.js";
+import * as monitorRepo from "../../db/repositories/monitor-messages.js";
 import type { CaptainEvent } from "./queue.js";
 
 import { buildSystemPrompt } from "./prompt-builder.js";
@@ -143,7 +143,7 @@ export const processWithLLM = async (
   const userPrompt = sections.join("\n\n");
 
   // Save event message to DB (no session — monitor messages are sessionless)
-  chatRepo.create(projectId, "user", eventSection);
+  monitorRepo.create(projectId, "user", eventSection);
 
   // Emit captain.event_received for each event so frontend can show them
   for (const event of events) {
@@ -337,7 +337,7 @@ export const processWithLLM = async (
       project_id: projectId,
       content: finalResponse,
     });
-    chatRepo.create(projectId, "assistant", finalResponse);
+    monitorRepo.create(projectId, "assistant", finalResponse);
   }
 
   eventBus.emit("monitor.complete", {

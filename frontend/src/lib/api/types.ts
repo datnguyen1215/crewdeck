@@ -197,15 +197,13 @@ export interface LibrarianStatus {
   completed_at: string | null;
 }
 
-export type ChatMessageRole = "user" | "assistant";
+export type MonitorMessageRole = "user" | "assistant";
 
-export interface ChatMessage {
+export interface MonitorMessage {
   id: string;
   project_id: string;
-  session_id: string | null;
-  role: ChatMessageRole;
+  role: MonitorMessageRole;
   content: string;
-  images: string[] | null;
   created_at: string;
 }
 

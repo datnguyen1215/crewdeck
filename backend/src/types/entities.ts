@@ -351,15 +351,13 @@ export interface UpdateKnowledgeInput {
   source?: string | null;
 }
 
-// Chat message types
-export type ChatMessageRole = "user" | "assistant";
+// Monitor message types
+export type MonitorMessageRole = "user" | "assistant";
 
-export interface ChatMessage {
+export interface MonitorMessage {
   id: string;
   project_id: string;
-  session_id: string | null;
-  role: ChatMessageRole;
+  role: MonitorMessageRole;
   content: string;
-  images: string[] | null;
   created_at: string;
 }

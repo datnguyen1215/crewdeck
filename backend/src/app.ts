@@ -19,7 +19,7 @@ import agentConfigRouter from "./routes/agent-config.js";
 import globalConfigRouter from "./routes/global-config.js";
 import globalEnvironmentRouter from "./routes/global-environment.js";
 import terminalRouter from "./routes/terminal.js";
-import chatRouter from "./routes/chat.js";
+import monitorRouter from "./routes/monitor.js";
 import authRouter from "./routes/auth.js";
 
 export interface CreateAppOpts {
@@ -68,7 +68,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/global-config`, globalConfigRouter);
   app.use(`${v1}/global-config/environment`, globalEnvironmentRouter);
   app.use(`${v1}/projects/:projectId`, terminalRouter);
-  app.use(`${v1}/projects/:projectId`, chatRouter);
+  app.use(`${v1}/projects/:projectId`, monitorRouter);
   app.use(`${v1}/internal`, internalRouter);
   app.use(`${v1}/vcs-accounts`, vcsAccountsRouter);
 
