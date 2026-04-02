@@ -359,6 +359,9 @@ Global system-wide configuration settings. Stores key-value pairs for machine-wi
 **Current keys:**
 
 - `default_model` — Default model for all agent spawns when no per-agent override is set. One of: `sonnet` (default), `opus`, `haiku`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`.
+- `max_concurrency` — Maximum number of agents that can run concurrently across all projects. Range: 1–50. Default: `5`.
+- `max_chain_depth` — Maximum depth of the agent dispatch chain (how many agents can be spawned in sequence). Range: 1–100. Default: `20`.
+- `agent_timeout_minutes` — Maximum execution time for a single agent process before it is terminated. Range: 1–60. Default: `10`.
 
 **Provider inference:**
 
