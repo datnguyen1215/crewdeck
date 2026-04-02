@@ -28,7 +28,6 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - One or more linked GitHub repositories.
 - A shared roster of 5 fixed agents (defined globally, not per-project; all are dispatchable).
 - Agent model preferences are configured globally via the `/crew` page (not per-project).
-- Agent model preferences are configured globally via the `/crew` page (not per-project).
 
 ### Agent
 
