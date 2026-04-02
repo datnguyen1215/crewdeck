@@ -19,6 +19,7 @@ import { buildProviderEnv } from "./provider-env.js";
 import { PTY_IDLE_TIMEOUT_MS } from "../config/orchestration.js";
 import { buildSystemPrompt } from "./captain-prompt.js";
 import { createCaptainWorktree, setupGitHubAuth } from "./captain-worktree.js";
+import { resolveModel } from "../db/repositories/agent-config.js";
 
 export interface TerminalSession {
   projectId: string;
@@ -109,10 +110,11 @@ export async function createTerminalSession(
   // Precedence: global env vars < project env vars < platform-specific vars
   const globalEnvVars = globalEnvVarRepo.getMap();
   const projectEnvVars = getEnvironmentVariablesMap(projectId);
+  const captainModel = resolveModel("captain");
   const captainEnvVars: Record<string, string> = {
     ...globalEnvVars,
     ...projectEnvVars,
-    ...buildProviderEnv(),
+    ...buildProviderEnv(captainModel),
     CREWDECK_API_URL: `http://${config.host}:${config.port}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: "captain",
@@ -148,6 +150,8 @@ export async function createTerminalSession(
       ([k, v]) => `${shellQuote(k)}=${shellQuote(String(v))}`,
     ),
     "claude",
+    "--model",
+    captainModel,
     "--system-prompt-file",
     systemPromptPath,
     "--dangerously-skip-permissions",
