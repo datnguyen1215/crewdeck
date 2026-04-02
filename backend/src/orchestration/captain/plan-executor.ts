@@ -6,7 +6,7 @@
  */
 import { logger } from "../../logger.js";
 import { eventBus } from "../../events/bus.js";
-import { getActiveProcessCount } from "../processes.js";
+import * as agentRunRepo from "../../db/repositories/agent-runs.js";
 import * as globalConfigRepo from "../../db/repositories/global-config.js";
 import { getProject } from "../../db/repositories/projects.js";
 import * as issueRepo from "../../db/repositories/issues.js";
@@ -396,7 +396,7 @@ export async function executePlan(
 
   // Execute dispatch actions in parallel up to available capacity
   if (dispatchActions.length > 0) {
-    const runningAgents = getActiveProcessCount(projectId);
+    const runningAgents = agentRunRepo.countRunningGlobal();
     const availableSlots = Math.max(0, globalConfigRepo.getMaxConcurrency() - runningAgents);
 
     logger.info(

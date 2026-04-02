@@ -525,6 +525,9 @@ export function getModelAvailability(): Promise<{
 export function getMaxConcurrency(): Promise<{ maxConcurrency: number }> {
   return request("GET", "/global-config/max-concurrency");
 }
+export function getActiveAgents(): Promise<{ activeAgents: number; maxConcurrency: number }> {
+  return request("GET", "/global-config/active-agents");
+}
 export function setMaxConcurrency(maxConcurrency: number): Promise<{ maxConcurrency: number }> {
   return request("PUT", "/global-config/max-concurrency", { maxConcurrency });
 }

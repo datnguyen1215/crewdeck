@@ -1,14 +1,13 @@
 /**
  * DB-backed dispatch queue for agent runs.
  * Replaces the in-memory queue with persistent storage using AgentRun table.
- * Supports global and per-project concurrency limits.
+ * Enforces a single global concurrency limit across all projects.
  */
 import * as log from "../logger.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as crew from "./crew.js";
 import * as globalConfigRepo from "../db/repositories/global-config.js";
-import { config } from "../config.js";
 import type { AgentRun } from "../types/entities.js";
 
 /**
@@ -103,26 +102,15 @@ export const drainQueue = async (
   const project = projectRepo.getProject(projectId);
   if (!project) return;
 
-  const maxGlobal = config.maxAgents;
+  const maxConcurrency = globalConfigRepo.getMaxConcurrency();
 
   while (true) {
     // Check global limit
     const globalRunning = agentRunRepo.countRunningGlobal();
-    if (globalRunning >= maxGlobal) {
+    if (globalRunning >= maxConcurrency) {
       log.logger.debug(
-        { globalRunning, maxGlobal },
+        { globalRunning, maxConcurrency },
         "Global concurrency limit reached, stopping queue drain",
-      );
-      return;
-    }
-
-    // Check project limit
-    const projectRunning = agentRunRepo.countRunningForProject(projectId);
-    const maxConcurrency = globalConfigRepo.getMaxConcurrency();
-    if (projectRunning >= maxConcurrency) {
-      log.logger.debug(
-        { projectRunning, maxConcurrency, projectId },
-        "Project concurrency limit reached, stopping queue drain",
       );
       return;
     }

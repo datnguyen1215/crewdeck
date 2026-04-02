@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, listGlobalActivity, getGlobalConfig, type ProjectWithStats, type ActivityLog, type GlobalConfig } from '$lib/api/http.js';
+	import { listProjectsWithStats, listGlobalActivity, getGlobalConfig, getActiveAgents, type ProjectWithStats, type ActivityLog, type GlobalConfig } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { GlobalWebSocket } from '$lib/api/global-ws.svelte.js';
 	import DashboardActivityFeed from '$lib/components/DashboardActivityFeed.svelte';
@@ -11,6 +11,8 @@
 	let activity = $state<ActivityLog[]>([]);
 	let activityLoading = $state(true);
 	let globalConfig = $state<GlobalConfig | null>(null);
+	let activeAgents = $state(0);
+	let maxConcurrency = $state(5);
 
 	async function refreshProjects() {
 		try { projects = await listProjectsWithStats(); } catch {}
@@ -34,6 +36,12 @@
 	fetchEffect(() => getGlobalConfig(), {
 		onData: (cfg) => { globalConfig = cfg; },
 		onError: 'Failed to load global config',
+		onLoading: () => {},
+	});
+
+	fetchEffect(() => getActiveAgents(), {
+		onData: (data) => { activeAgents = data.activeAgents; maxConcurrency = data.maxConcurrency; },
+		onError: 'Failed to load active agents',
 		onLoading: () => {},
 	});
 
@@ -61,7 +69,6 @@
 	let totals = $derived.by(() => {
 		if (projects.length === 0) return null;
 		const issues = { open: 0, in_progress: 0, pr_created: 0, pr_conflict: 0, pr_failed_actions: 0, pr_ready_to_merge: 0, done: 0 };
-		let activeRuns = 0;
 		for (const p of projects) {
 			issues.open += p.issues.open;
 			issues.in_progress += p.issues.in_progress;
@@ -70,10 +77,8 @@
 			issues.pr_failed_actions += p.issues.pr_failed_actions;
 			issues.pr_ready_to_merge += p.issues.pr_ready_to_merge;
 			issues.done += p.issues.done;
-			activeRuns += p.active_runs;
 		}
-		const maxConcurrency = globalConfig?.maxConcurrency ?? 5;
-		return { issues, activeRuns, maxConcurrency };
+		return { issues };
 	});
 
 	const METRICS = [
@@ -176,7 +181,7 @@
 								? totals.issues.pr_conflict + totals.issues.pr_failed_actions
 								: totals.issues[metric.key as keyof typeof totals.issues]}
 						{@const displayValue = metric.key === 'agents'
-							? `${totals.activeRuns}/${totals.maxConcurrency}`
+							? `${activeAgents}/${maxConcurrency}`
 							: String(rawValue)}
 
 						<div
@@ -222,7 +227,6 @@
 								>
 									<div class="flex items-center justify-between mb-2">
 										<span class="text-primary font-semibold text-sm truncate mr-2">{project.name}</span>
-										<span class="text-muted text-xs flex-shrink-0">{project.active_runs}/{globalConfig?.maxConcurrency ?? 5} agents</span>
 									</div>
 									{#if total > 0}
 										<div class="flex h-1.5 rounded-full overflow-hidden gap-px mb-3">
@@ -255,7 +259,6 @@
 										{#each TABLE_COLS as col}
 											<th class="text-center px-3 py-2.5 font-medium">{col.label}</th>
 										{/each}
-										<th class="text-center px-3 py-2.5 font-medium">Agents</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -293,9 +296,6 @@
 													</span>
 												</td>
 											{/each}
-											<td class="text-center px-3 py-3 text-muted">
-												<span class="text-secondary">{project.active_runs}</span>/{globalConfig?.maxConcurrency ?? 5}
-											</td>
 										</tr>
 									{/each}
 								</tbody>

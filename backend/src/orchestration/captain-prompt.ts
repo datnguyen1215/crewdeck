@@ -6,9 +6,8 @@
 import { getProject } from "../db/repositories/projects.js";
 import * as globalConfigRepo from "../db/repositories/global-config.js";
 import { listIssues } from "../db/repositories/issues.js";
-import { listActiveRunsForProject } from "../db/repositories/agent-runs.js";
+import { listActiveRunsForProject, countRunningGlobal } from "../db/repositories/agent-runs.js";
 import { getCrewMember } from "./crew.js";
-import { getActiveProcessCount } from "./processes.js";
 import { listByProject } from "../db/repositories/knowledge.js";
 import { listRepos } from "../db/repositories/repos.js";
 
@@ -22,7 +21,7 @@ export const buildSystemPrompt = async (
   const project = getProject(projectId);
   if (!project) return "";
 
-  const runningAgents = getActiveProcessCount(projectId);
+  const runningAgents = countRunningGlobal();
   const maxConcurrency = globalConfigRepo.getMaxConcurrency();
 
   // Get project knowledge

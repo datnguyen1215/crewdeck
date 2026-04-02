@@ -4,7 +4,7 @@
  */
 import { getProject } from "../../db/repositories/projects.js";
 import * as globalConfigRepo from "../../db/repositories/global-config.js";
-import { getActiveProcessCount } from "../processes.js";
+import * as agentRunRepo from "../../db/repositories/agent-runs.js";
 import { buildStateSnapshot } from "./state-snapshot.js";
 
 /**
@@ -14,7 +14,7 @@ export const buildSystemPrompt = (projectId: string): string => {
   const project = getProject(projectId);
   if (!project) return "";
 
-  const runningAgents = getActiveProcessCount(projectId);
+  const runningAgents = agentRunRepo.countRunningGlobal();
   const maxConcurrency = globalConfigRepo.getMaxConcurrency();
 
   const canAutoStart = project.auto_start;
