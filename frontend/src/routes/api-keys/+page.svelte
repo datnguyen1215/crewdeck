@@ -15,6 +15,8 @@
 	// Delete confirmation
 	let deletingId = $state<string | null>(null);
 
+	const gridCols = '1fr auto auto auto auto';
+
 	$effect(() => {
 		loadKeys();
 	});
@@ -117,18 +119,50 @@
 
 	<!-- Key List -->
 	{#if loading}
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
+		<!-- Mobile skeleton cards -->
+		<div class="flex flex-col gap-3 md:hidden fade-up">
 			{#each Array(3) as _, i}
-				<div
-					class="flex flex-col p-4 bg-surface border border-edge rounded fade-up"
-					style="animation-delay: {i * 50}ms"
-				>
+				<div class="bg-surface border border-edge rounded-lg p-4 fade-up" style="animation-delay: {i * 50}ms">
 					<div class="skeleton h-4 w-3/5 rounded mb-2"></div>
-					<div class="skeleton h-3 w-2/5 rounded mb-3"></div>
-					<div class="skeleton h-3 w-4/5 rounded mb-3"></div>
-					<div class="skeleton h-7 w-24 rounded mt-auto"></div>
+					<div class="skeleton h-3 w-2/5 rounded mb-1"></div>
+					<div class="skeleton h-3 w-4/5 rounded"></div>
 				</div>
 			{/each}
+		</div>
+		<!-- Desktop skeleton table -->
+		<div class="overflow-x-auto hidden md:block fade-up">
+			<div class="min-w-[560px] border border-edge rounded overflow-hidden">
+				<div class="grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge" style="grid-template-columns: {gridCols}">
+					<div class="px-3 py-2.5">Name</div>
+					<div class="px-3 py-2.5">Key</div>
+					<div class="px-3 py-2.5">Created</div>
+					<div class="px-3 py-2.5">Last Used</div>
+					<div class="px-3 py-2.5 text-right">Actions</div>
+				</div>
+				{#each Array(3) as _, i}
+					{@const skeletonWidths = [75, 60, 90]}
+					<div
+						class="grid border-b border-edge last:border-0 fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						style="grid-template-columns: {gridCols}; animation-delay: {i * 50}ms"
+					>
+						<div class="px-3 py-3 flex items-center">
+							<div class="skeleton h-4 rounded" style="width: {skeletonWidths[i]}%"></div>
+						</div>
+						<div class="px-3 py-3 flex items-center">
+							<div class="skeleton h-3 w-20 rounded"></div>
+						</div>
+						<div class="px-3 py-3 flex items-center">
+							<div class="skeleton h-3 w-16 rounded"></div>
+						</div>
+						<div class="px-3 py-3 flex items-center">
+							<div class="skeleton h-3 w-14 rounded"></div>
+						</div>
+						<div class="px-3 py-3 flex items-center justify-end">
+							<div class="skeleton h-7 w-20 rounded"></div>
+						</div>
+					</div>
+				{/each}
+			</div>
 		</div>
 	{:else if keys.length === 0}
 		<div class="flex flex-col items-center justify-center py-24 text-center">
@@ -142,45 +176,27 @@
 			</button>
 		</div>
 	{:else}
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
+		<!-- Mobile condensed card view -->
+		<div class="flex flex-col gap-3 md:hidden">
 			{#each keys as key, i (key.id)}
 				<div
-					class="flex flex-col p-4 bg-surface border border-edge rounded hover:-translate-y-0.5 transition-all duration-200 fade-up"
+					class="bg-surface border border-edge rounded-lg p-4 fade-up"
 					style="animation-delay: {i * 50}ms"
 				>
-					<!-- Key prefix badge -->
-					<div class="flex items-center gap-2 mb-2">
-						<span class="text-xs text-muted bg-base px-2 py-0.5 rounded font-mono">
-							{key.key_prefix}...
-						</span>
-					</div>
-
-					<!-- Name -->
-					<div class="mb-3">
-						<h2 class="text-primary font-semibold truncate">{key.name}</h2>
-					</div>
-
-					<!-- Dates -->
-					<p class="text-muted text-xs mt-auto pt-3 border-t border-edge">
-						Created {formatDate(key.created_at)}
-						{#if key.last_used_at}
-							<span class="ml-2">· Used {formatDate(key.last_used_at)}</span>
-						{/if}
-					</p>
-
-					<!-- Actions -->
-					<div class="mt-3 pt-3 border-t border-edge">
+					<h2 class="text-primary font-semibold truncate mb-1">{key.name}</h2>
+					<div class="flex items-center gap-3 mb-2">
+						<span class="text-xs text-muted font-mono">{key.key_prefix}...</span>
 						{#if deletingId === key.id}
-							<div class="flex gap-2">
+							<div class="flex gap-1.5 ml-auto">
 								<button
 									onclick={() => confirmDelete(key.id)}
-									class="flex-1 py-1 text-xs text-red bg-red/10 border border-red/50 rounded hover:bg-red/20 transition-colors uppercase tracking-wide"
+									class="px-2 py-0.5 text-xs text-red bg-red/10 border border-red/50 rounded hover:bg-red/20 transition-colors uppercase tracking-wide"
 								>
 									Confirm
 								</button>
 								<button
 									onclick={() => (deletingId = null)}
-									class="flex-1 py-1 text-xs text-secondary border border-edge rounded hover:border-edge-hi transition-colors"
+									class="px-2 py-0.5 text-xs text-secondary border border-edge rounded hover:border-edge-hi transition-colors"
 								>
 									Cancel
 								</button>
@@ -188,14 +204,80 @@
 						{:else}
 							<button
 								onclick={() => (deletingId = key.id)}
-								class="w-full py-1 text-xs text-red/70 border border-edge rounded hover:border-red/50 hover:text-red transition-colors"
+								class="px-2 py-0.5 text-xs text-red/70 border border-edge rounded hover:border-red/50 hover:text-red transition-colors ml-auto"
 							>
 								Revoke
 							</button>
 						{/if}
 					</div>
+					<p class="text-muted text-xs">
+						Created {formatDate(key.created_at)}
+						{#if key.last_used_at}
+							<span class="ml-1">· Used {formatDate(key.last_used_at)}</span>
+						{/if}
+					</p>
 				</div>
 			{/each}
+		</div>
+
+		<!-- Desktop table view -->
+		<div class="overflow-x-auto hidden md:block">
+			<div class="min-w-[560px] border border-edge rounded overflow-hidden">
+				<!-- Table header -->
+				<div class="grid text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge" style="grid-template-columns: {gridCols}">
+					<div class="px-3 py-2.5">Name</div>
+					<div class="px-3 py-2.5">Key</div>
+					<div class="px-3 py-2.5">Created</div>
+					<div class="px-3 py-2.5">Last Used</div>
+					<div class="px-3 py-2.5 text-right">Actions</div>
+				</div>
+
+				<!-- Rows -->
+				{#each keys as key, i (key.id)}
+					<div
+						class="grid border-b border-edge last:border-0 hover:bg-surface-hi transition-colors fade-up {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+						style="grid-template-columns: {gridCols}; animation-delay: {i * 50}ms"
+					>
+						<div class="px-3 py-2.5 flex items-center">
+							<span class="text-primary font-medium truncate">{key.name}</span>
+						</div>
+						<div class="px-3 py-2.5 flex items-center">
+							<span class="text-muted font-mono text-xs">{key.key_prefix}...</span>
+						</div>
+						<div class="px-3 py-2.5 flex items-center">
+							<span class="text-muted text-xs">{formatDate(key.created_at)}</span>
+						</div>
+						<div class="px-3 py-2.5 flex items-center">
+							<span class="text-muted text-xs">{key.last_used_at ? formatDate(key.last_used_at) : 'Never'}</span>
+						</div>
+						<div class="px-3 py-2.5 flex items-center justify-end">
+							{#if deletingId === key.id}
+								<div class="flex gap-1.5">
+									<button
+										onclick={() => confirmDelete(key.id)}
+										class="px-2 py-1 text-xs text-red bg-red/10 border border-red/50 rounded hover:bg-red/20 transition-colors uppercase tracking-wide"
+									>
+										Confirm
+									</button>
+									<button
+										onclick={() => (deletingId = null)}
+										class="px-2 py-1 text-xs text-secondary border border-edge rounded hover:border-edge-hi transition-colors"
+									>
+										Cancel
+									</button>
+								</div>
+							{:else}
+								<button
+									onclick={() => (deletingId = key.id)}
+									class="px-2 py-1 text-xs text-red/70 border border-edge rounded hover:border-red/50 hover:text-red transition-colors"
+								>
+									Revoke
+								</button>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
 		</div>
 	{/if}
 </div>
