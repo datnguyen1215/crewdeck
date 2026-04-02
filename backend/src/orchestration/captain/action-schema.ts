@@ -44,6 +44,7 @@ export const updateIssueActionSchema = z.object({
 export const createPRActionSchema = z.object({
   type: z.literal("create-pr"),
   issue_id: z.string(),
+  body: z.string().optional(),
 });
 
 export const skipActionSchema = z.object({

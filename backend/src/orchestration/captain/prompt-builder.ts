@@ -106,13 +106,20 @@ You can include reasoning text before the <action> tags, but the tags MUST be pr
 |------|-----------------|-------------|
 | dispatch | issue_id, agent_id | Dispatch agent (engineer/lead/docs/librarian) to work on issue |
 | merge | issue_id | Merge the PR for an issue |
-| create-pr | issue_id | Create a GitHub PR for the issue (uses issue branch_name, base_branch, repo_id) |
+| create-pr | issue_id | Create a GitHub PR for the issue (uses issue branch_name, base_branch, repo_id). Optional \`body\` field for a custom PR description. |
 | comment | issue_id, content | Add a comment to an issue |
 | create-issue | title | Create a new issue (description optional) |
 | update-issue | issue_id | Update issue status/title |
 | set-dependencies | issue_id, depends_on | Set issue dependencies (depends_on is array of issue IDs) |
 | scan | (none) | Trigger librarian codebase scan |
 | skip | issue_id, reason | Skip an issue (logged for observability) |
+
+### Writing PR Descriptions
+When using create-pr, include a body field with a human-like PR description:
+- Summarize what changed in plain language (1-3 sentences)
+- Write like a developer explaining their work, not a template
+- Mention key files or areas affected without excessive structure
+- Example body value: "Moves auth token validation from middleware into a dedicated service. This simplifies the middleware stack and makes the validation logic easier to test."
 
 ### Parallel Execution
 List ALL dispatch actions needed. The system handles capacity limits and executes dispatches in parallel.

@@ -227,6 +227,7 @@ async function executeCreatePR(
 ): Promise<ActionResult> {
   const result = await handleCreatePR(projectId, {
     issue_id: action.issue_id,
+    body: action.body,
   });
   return {
     action,

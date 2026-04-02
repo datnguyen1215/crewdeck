@@ -143,7 +143,7 @@ export const handleMergePR = async (
  */
 export const handleCreatePR = async (
   projectId: string,
-  input: { issue_id: string },
+  input: { issue_id: string; body?: string },
 ): Promise<ToolResult> => {
   const project = getProject(projectId);
   if (!project) return { success: false, message: "Project not found" };
@@ -185,10 +185,15 @@ export const handleCreatePR = async (
       message: `Issue already has an open PR (#${openPR.pr_number})`,
     };
 
-  // Build PR body with structured format
-  let prBody = `## Summary\n${issue.title}`;
-  if (issue.description) {
-    prBody += `\n\n## Description\n${issue.description}`;
+  // Build PR body — use provided body or fall back to default template
+  let prBody: string;
+  if (input.body) {
+    prBody = input.body;
+  } else {
+    prBody = `## Summary\n${issue.title}`;
+    if (issue.description) {
+      prBody += `\n\n## Description\n${issue.description}`;
+    }
   }
 
   // Create PR via VCS provider

@@ -142,7 +142,7 @@ This resolution is applied to all commands that take an `issue_id` (dispatch, me
 | ------------- | --------------------- | ------------------------------- |
 | /dispatch     | `/dispatch agent_id`  | Dispatch agent to work on issue |
 | /merge        | `/merge issue_id`     | Merge PR for issue              |
-| /create-pr    | `/create-pr issue_id` | Create GitHub PR for issue      |
+| /create-pr    | `/create-pr issue_id` | Create GitHub PR for issue (supports optional `body` for custom description) |
 | /create-issue | `/create-issue title` | Create new issue                |
 
 Commands are parsed from captain's comment output and executed sequentially. Only captain can execute these orchestration commands (restricted by `author_type` check).
