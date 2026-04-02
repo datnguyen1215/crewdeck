@@ -204,8 +204,7 @@ function executeUpdateIssue(
         project_id: projectId,
         from: oldStatus,
         to: action.status,
-        actor_type: "agent",
-        actor_id: "captain",
+        actor_type: "system",
       });
     }
     return { action, success: true, message: "Issue updated" };
