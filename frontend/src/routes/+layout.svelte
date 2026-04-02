@@ -14,11 +14,15 @@
 	// Page transitions via View Transitions API
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return;
+
 		return new Promise((resolve) => {
-			document.startViewTransition(async () => {
+			const transition = document.startViewTransition(async () => {
 				resolve();
 				await navigation.complete;
 			});
+
+			// Prevent broken state if transition fails (e.g., rapid navigation)
+			transition.finished.catch(() => {});
 		});
 	});
 </script>
