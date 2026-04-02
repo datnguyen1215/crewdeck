@@ -17,6 +17,8 @@ docker compose up --build
 - **Frontend**: http://localhost:9380
 - **Backend API**: http://localhost:9381
 
+On first access, the app prompts you to create an admin account. All subsequent requests require a valid session.
+
 Data persists in a Docker volume across restarts. See [Running CrewDeck](docs/running.md) for details.
 
 ## Running Without Docker

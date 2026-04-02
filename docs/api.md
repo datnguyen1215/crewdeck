@@ -12,13 +12,114 @@ The backend exposes a REST API for CRUD operations and a WebSocket server for re
 
 **Base URL:** `http://localhost:<port>/api/v1`
 
-**Health check:** `GET /health` returns `{ "status": "ok" }` (outside the `/api/v1` prefix).
+**Health check:** `GET /health` returns `{ "status": "ok" }` (outside the `/api/v1` prefix). This endpoint is exempt from authentication.
+
+**Authentication:** All endpoints except `GET /health`, `GET /api/v1/auth/setup-status`, and `POST /api/v1/auth/setup` require a valid session cookie (`session_token`). Unauthenticated requests return `403 FORBIDDEN`. See [Authentication](#authentication) for the auth endpoints.
 
 **Configuration:** Port and other settings are configured via environment variables (`.env` file).
 
 **Validation:** All request bodies are validated with Zod schemas. Issue and PR status fields are validated as enums against the centralized status constants defined in `backend/src/constants/statuses.ts`. Invalid requests return a `VALIDATION_ERROR` response.
 
 ## REST API
+
+### Authentication
+
+All endpoints except `GET /health`, `GET /api/v1/auth/setup-status`, and `POST /api/v1/auth/setup` require a valid session cookie (`session_token`). Sessions are managed via HTTP-only cookies.
+
+#### Check Setup Status
+
+```
+GET /auth/setup-status
+```
+
+Returns whether an admin account has been created.
+
+**Response:** `200 OK`
+
+```json
+{ "needsSetup": true }
+```
+
+#### Create Admin Account
+
+```
+POST /auth/setup
+```
+
+Creates the initial admin account. Only works when no admin exists.
+
+**Request body:**
+
+| Field    | Type   | Constraints      |
+| -------- | ------ | ---------------- |
+| username | string | 1–100 characters |
+| password | string | Min 8 characters |
+
+**Response:** `201 Created`
+
+```json
+{ "id": "uuid", "username": "admin" }
+```
+
+**Errors:**
+
+- `409 CONFLICT` — Admin account already exists.
+- `400 VALIDATION_ERROR` — Invalid request body.
+
+#### Login
+
+```
+POST /auth/login
+```
+
+Validates credentials and creates a session. Rate limited to 5 attempts per minute per IP.
+
+**Request body:**
+
+| Field    | Type   | Constraints |
+| -------- | ------ | ----------- |
+| username | string | Non-empty   |
+| password | string | Non-empty   |
+
+**Response:** `200 OK`
+
+```json
+{ "id": "uuid", "username": "admin" }
+```
+
+Sets `session_token` cookie (HttpOnly, Secure in production, SameSite=Strict).
+
+**Errors:**
+
+- `403 FORBIDDEN` — Invalid credentials or rate limit exceeded.
+
+#### Logout
+
+```
+POST /auth/logout
+```
+
+Deletes the session and clears the cookie.
+
+**Response:** `200 OK`
+
+```json
+{ "ok": true }
+```
+
+#### Get Current User
+
+```
+GET /auth/me
+```
+
+Returns the current authenticated user info.
+
+**Response:** `200 OK`
+
+```json
+{ "id": "uuid", "username": "admin" }
+```
 
 ### Projects
 
@@ -1133,9 +1234,10 @@ Creates or updates the model for a specific agent.
 }
 ```
 
-| Field | Required | Description                                                                                                                           |
-| ----- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| model | Yes      | Model to use. One of: `sonnet`, `opus`, `haiku`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, or `null`. `null` clears the override. |
+| Field    | Required | Description                                                                                                                                                                         |
+| -------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| provider | Yes      | AI provider. One of: `claude`, `glm`.                                                                                                                                               |
+| model    | Yes      | Model to use. For `claude`: `sonnet`, `opus`, `haiku`, or `null`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, or `null`. `null` clears the override for that provider. |
 
 **Response:** `200 OK` — The created or updated agent config object.
 
@@ -1724,5 +1826,5 @@ All error responses follow this structure:
 | SESSION_ARCHIVED   | 400         | Cannot add messages to an archived chat session.                                      |
 | SESSION_BUSY       | 409         | Session already has an in-flight message. Wait for completion or abort.               |
 | CONFLICT           | 409         | Operation conflicts with current state (e.g., marking done while agents are running). |
-| FORBIDDEN          | 403         | Action not allowed (e.g., editing agent comments).                                    |
+| FORBIDDEN          | 403         | Action not allowed — missing/invalid session or insufficient permissions.             |
 | INTERNAL_ERROR     | 500         | Unexpected server error.                                                              |

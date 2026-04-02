@@ -115,6 +115,7 @@ Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_
 | **WebSocket**          | `ws`                            | Minimal, no abstraction overhead                                                                                                                                                   |
 | **Testing**            | Vitest + supertest              | Vitest for unit tests; supertest for HTTP integration tests                                                                                                                        |
 | **Logging**            | pino                            | Fast structured JSON logging                                                                                                                                                       |
+| **Password hashing**   | bcrypt                          | Industry-standard, adaptive cost (≥ 12 rounds)                                                                                                                                     |
 | **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate                                                                                                                                       |
 | **CSS**                | Tailwind CSS                    | Utility-first, dark theme; shared UI primitives (`Button`, `TextInput`, `Select`) in `frontend/src/lib/components/ui/` enforce consistency without a third-party component library |
 | **Configuration**      | Environment variables (`.env`)  | Simple, standard approach                                                                                                                                                          |
@@ -156,6 +157,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │   REST   │ │WebSocket │ │   Event Bus      │ │
 │  │ API (v1) │ │ Server   │ │  (EventEmitter)  │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
+│  ┌──────────────────────────────────────────────┐ │
+│  │  Auth Middleware (session cookie validation)  │ │
+│  └──────────────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
 │  │  MentionHandler + ProcessAdapter            │ │
 │  │  (comment.added → claude -p → comment)      │ │
@@ -218,6 +222,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
 **Backend (Node.js + TypeScript)**
 
 - Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, issues, comments; crew is read-only (fixed constants).
+- Admin authentication via session cookies (bcrypt password hashing, HTTP-only cookies, rate-limited login).
 - All request validation via Zod schemas. Issue and PR status fields use Zod enum validation against centralized constants (`backend/src/constants/statuses.ts`).
 - Centralized error handling middleware (all errors formatted as `{ error: { code, message, details } }`).
 - Runs WebSocket server (`ws` library) to push real-time events to the frontend.
@@ -382,7 +387,7 @@ Environment injection: project-defined env vars (from project settings), `CREWDE
 
 **SQLite Database**
 
-- Stores all persistent state: projects, issues, comments, activity logs. (Agents are fixed constants in code, not persisted.)
+- Stores all persistent state: projects, issues, comments, activity logs, admin users, sessions. (Agents are fixed constants in code, not persisted.)
 - Accessed via `better-sqlite3` with raw SQL (synchronous API).
 - File-based migration system in `backend/src/db/migrations/`. Migrations are the single source of truth — there is no separate `schema.sql`. Fresh databases run all migrations from `000_initial_schema.sql` to the latest.
 - Versioned migration system (`_migrations` table) tracks which migrations have run. Each migration runs idempotently — it checks whether its changes are already present before executing, making it safe for both fresh and existing databases. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF`.
@@ -575,10 +580,10 @@ On SIGTERM or SIGINT, the backend:
 
 ## Security and Access
 
+- **Admin authentication**: The backend requires a session cookie for all API endpoints (except health check and initial setup). A single admin account is created via `POST /api/v1/auth/setup`. Sessions use `HttpOnly; Secure; SameSite=Strict` cookies with configurable expiry (default 7 days, `SESSION_EXPIRY_HOURS`). Passwords are hashed with bcrypt (≥ 12 rounds). Login is rate-limited to 5 attempts per minute per IP.
 - GitHub authentication is managed in-app via Device Flow OAuth (Accounts page). No host-level `gh auth login` is required.
 - OAuth tokens are stored in SQLite and injected as `GH_TOKEN` into agent processes at spawn time. They are never persisted in `.git/config`.
 - Each project can be linked to a specific GitHub account, enabling per-project identity for git operations.
-- The system runs locally — no data leaves the machine except through GitHub API calls.
 - Full audit trail of all agent actions is maintained in the database.
 
 ## Future Considerations
