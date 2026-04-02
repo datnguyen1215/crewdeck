@@ -87,7 +87,23 @@ export function enrichActivityEntries(
 
   return entries.map((entry: ActivityLog) => {
     const { details, ...rest } = entry;
-    const base = compact ? rest : entry;
+    const base: Record<string, unknown> = compact ? rest : entry;
+
+    // Promote display-critical fields to top-level when compact mode strips details
+    if (compact && details && typeof details === "object") {
+      const d = details as Record<string, unknown>;
+      if (entry.action === "issue.status_changed") {
+        if (d.from !== undefined) base.from = d.from;
+        if (d.to !== undefined) base.to = d.to;
+      }
+      if (entry.action === "pr.created" && d.pr_number !== undefined) {
+        base.pr_number = d.pr_number;
+      }
+      if (entry.action === "mention.completed" && d.exit_code !== undefined) {
+        base.exit_code = d.exit_code;
+      }
+    }
+
     const enrichments: Record<string, unknown> = {};
 
     const agentIdForName =

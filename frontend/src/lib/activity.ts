@@ -85,11 +85,20 @@ export function actorName(entry: ActivityLog): string {
 export function actionLabel(entry: ActivityLog): string {
   const fn = ACTION_LABELS[entry.action];
   if (!fn) return entry.action;
-  // Inject actor_name as _actor_name so label functions can use it
+  // Inject actor_name as _actor_name so label functions can use it.
+  // Also merge promoted top-level fields (from, to, pr_number, exit_code)
+  // which are present in compact API responses where details is stripped.
   const details = (entry.details as Record<string, unknown>) ?? {};
-  const enriched = entry.actor_name
-    ? { ...details, _actor_name: entry.actor_name }
-    : details;
+  const promoted: Record<string, unknown> = {};
+  if (entry.from !== undefined) promoted.from = entry.from;
+  if (entry.to !== undefined) promoted.to = entry.to;
+  if (entry.pr_number !== undefined) promoted.pr_number = entry.pr_number;
+  if (entry.exit_code !== undefined) promoted.exit_code = entry.exit_code;
+  const enriched = {
+    ...details,
+    ...promoted,
+    ...(entry.actor_name ? { _actor_name: entry.actor_name } : {}),
+  };
   return fn(enriched);
 }
 
