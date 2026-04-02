@@ -1,10 +1,6 @@
 import { createHash } from "crypto";
 import type { Request, Response, NextFunction } from "express";
-import {
-  getSession,
-  cleanExpiredSessions,
-  type Session,
-} from "../db/repositories/auth.js";
+import { getSession, type Session } from "../db/repositories/auth.js";
 import { getByKeyHash, updateLastUsed } from "../db/repositories/api-keys.js";
 import { ForbiddenError } from "./errors.js";
 
@@ -16,16 +12,6 @@ declare global {
   }
 }
 
-// Periodically clean expired sessions (roughly every 10 minutes)
-let lastCleanup = 0;
-function maybeCleanSessions(): void {
-  const now = Date.now();
-  if (now - lastCleanup > 10 * 60 * 1000) {
-    lastCleanup = now;
-    cleanExpiredSessions();
-  }
-}
-
 /**
  * Validate a session token from a raw Cookie header string.
  * Used by both HTTP middleware and WebSocket upgrade handlers.
@@ -34,7 +20,6 @@ export function validateSessionFromCookie(
   cookieHeader: string | undefined,
 ): (Session & { username: string }) | null {
   if (!cookieHeader) return null;
-  maybeCleanSessions();
   const match = /(?:^|;\s*)session_token=([^;]*)/.exec(cookieHeader);
   if (!match) return null;
   return getSession(match[1]);
@@ -69,8 +54,6 @@ export function requireAuth(
   res: Response,
   next: NextFunction,
 ): void {
-  maybeCleanSessions();
-
   // Try Bearer token first
   const apiKey = authenticateViaApiKey(req);
   if (apiKey) {

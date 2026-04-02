@@ -2,6 +2,7 @@ import type { Response } from "express";
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import { z } from "zod";
+import { config } from "../config.js";
 import {
   adminExists,
   getAdminByUsername,
@@ -13,9 +14,9 @@ import {
 import { validate } from "../middleware/validate.js";
 import { requireAuth } from "../middleware/auth.js";
 import { ConflictError, ForbiddenError } from "../middleware/errors.js";
-import { config } from "../config.js";
-
 const BCRYPT_ROUNDS = 12;
+
+const TEN_YEARS_MS = 10 * 365.25 * 24 * 60 * 60 * 1000;
 
 const router = Router();
 
@@ -24,7 +25,7 @@ const COOKIE_OPTIONS = {
   secure: config.nodeEnv === "production",
   sameSite: "strict" as const,
   path: "/",
-  maxAge: config.sessionExpiryMs / 1000,
+  maxAge: TEN_YEARS_MS,
 };
 
 // In-memory rate limiter for login attempts.
@@ -49,8 +50,7 @@ function checkRateLimit(ip: string): boolean {
 }
 
 function setSessionCookie(res: Response, userId: string) {
-  const expiresAt = new Date(Date.now() + config.sessionExpiryMs).toISOString();
-  const session = createSession(userId, expiresAt);
+  const session = createSession(userId);
   res.cookie("session_token", session.id, COOKIE_OPTIONS);
   return session;
 }
