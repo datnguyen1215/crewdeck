@@ -1,3 +1,5 @@
+// NOTE: Migration 034 drops ChatSession and removes session_id/images from ChatMessage.
+// This file is kept for migration ordering correctness only.
 import type Database from "better-sqlite3";
 
 export function run(db: Database.Database): void {

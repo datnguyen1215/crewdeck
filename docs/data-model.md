@@ -273,19 +273,15 @@ Immutable audit trail of every action in the system.
 
 ### ChatMessage
 
-Legacy table originally designed for chat sessions. No longer actively used after the captain refactor to comment-based orchestration.
+Stores monitor conversation history. The Captain Monitor agent writes event batches and LLM responses here, and the frontend reads them on the Terminals page.
 
-| Field      | Type        | Constraints                                          | Description                                  |
-| ---------- | ----------- | ---------------------------------------------------- | -------------------------------------------- |
-| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                           |
-| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                              |
-| session_id | TEXT        | NULLABLE                                             | Session identifier (legacy, no longer used). |
-| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role.                                |
-| content    | TEXT        | NOT NULL                                             | Message content.                             |
-| images     | TEXT        | NULLABLE                                             | Image attachments (legacy, no longer used).  |
-| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created.                |
-
-**Note:** This table is retained for compatibility with existing migrations but is no longer populated. Captain now operates via comment-based orchestration instead of maintaining conversation history.
+| Field      | Type        | Constraints                                          | Description                   |
+| ---------- | ----------- | ---------------------------------------------------- | ----------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.            |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.               |
+| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role.                 |
+| content    | TEXT        | NOT NULL                                             | Message content.              |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created. |
 
 ### AdminUser
 
