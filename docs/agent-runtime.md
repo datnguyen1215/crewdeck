@@ -62,9 +62,9 @@ claude -p <prompt> \
 The provider is inferred from the model name:
 
 - **Claude (default)**: Models not starting with `glm-` use `ANTHROPIC_API_KEY` from environment (no additional variables).
-- **GLM (Z.AI)**: Models starting with `glm-` inject `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`. Requires `ZAI_API_KEY` environment variable to be set on the backend.
+- **GLM (Z.AI)**: Models starting with `glm-` inject `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`, and explicitly clear `ANTHROPIC_API_KEY` to an empty string. This prevents a host `ANTHROPIC_API_KEY` from conflicting with Z.AI authentication. Requires `ZAI_API_KEY` environment variable to be set on the backend.
 
-Provider variables are injected via `buildProviderEnv(model)` in `backend/src/orchestration/provider-env.ts` and apply to all `claude -p` spawns (including Captain terminal sessions).
+Provider variables are injected via `buildProviderEnv(model)` in `backend/src/orchestration/provider-env.ts` and apply to all `claude -p` spawns (including Captain terminal sessions). The `ANTHROPIC_API_KEY: ""` clearing is applied after `buildProviderEnv()` in both `process.ts` (agent spawns) and `pty-service.ts` (Captain PTY sessions).
 
 ### spawnClaudeStream
 
