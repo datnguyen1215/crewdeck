@@ -54,25 +54,26 @@ This snapshot was fetched at prompt build time. Use it for your initial decision
 
 ## API Reference (Read-Only — for fetching details)
 Base: \`$CREWDECK_API_URL/api/v1\`
+Auth: \`-H "Authorization: Bearer $CREWDECK_API_KEY"\`
 
 \`\`\`bash
 # Full issue details — only when you need description, comments, PRs, or activity
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
+curl -H "Authorization: Bearer $CREWDECK_API_KEY" "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
 
 # Comments on an issue
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments"
+curl -H "Authorization: Bearer $CREWDECK_API_KEY" "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments"
 
 # Runs for a specific issue
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/runs"
+curl -H "Authorization: Bearer $CREWDECK_API_KEY" "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/runs"
 
 # Single run with events
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
+curl -H "Authorization: Bearer $CREWDECK_API_KEY" "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
 
 # Activity log (filterable: issue_id, actor_type, action, since, limit)
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true"
+curl -H "Authorization: Bearer $CREWDECK_API_KEY" "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true"
 
 # Full knowledge entry
-curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
+curl -H "Authorization: Bearer $CREWDECK_API_KEY" "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
 \`\`\`
 
 ## Action Plan Output
