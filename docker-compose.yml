@@ -1,7 +1,8 @@
 services:
   caddy:
     image: caddy:2-alpine
-    network_mode: host
+    ports:
+      - "9380:9380"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
@@ -11,9 +12,8 @@ services:
 
   frontend:
     build: ./frontend
-    network_mode: host
     environment:
-      - VITE_BACKEND_URL=http://localhost:9381
+      - VITE_BACKEND_URL=http://backend:9381
     depends_on:
       - backend
 
@@ -21,13 +21,12 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    network_mode: host
     volumes:
       - crewdeck-data:/app/data
       - ~/.claude:/home/app/.claude:ro
     environment:
       - PORT=9381
-      - HOST=127.0.0.1
+      - HOST=0.0.0.0
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:9380}
       - DB_PATH=/app/data/crewdeck.db
       - CREWDECK_REPOS_DIR=/app/data/repos

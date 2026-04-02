@@ -1,13 +1,13 @@
 :9380 {
 	handle /ws* {
-		reverse_proxy localhost:9381
+		reverse_proxy backend:9381
 	}
 
 	handle /terminal-ws* {
-		reverse_proxy localhost:9381
+		reverse_proxy backend:9381
 	}
 
 	handle {
-		reverse_proxy localhost:3000
+		reverse_proxy frontend:3000
 	}
 }
