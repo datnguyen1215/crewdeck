@@ -59,7 +59,7 @@ export async function createWorktree(
   baseBranch: string,
   sshPrivateKey?: string,
 ): Promise<{ path: string; branchName: string }> {
-  const branchName = `crewdeck/${issue.id.slice(0, 8)}-${generateBranchName(issue.title, issue.id)}`;
+  const branchName = generateBranchName(issue.title, issue.id);
   const project = getProject(issue.project_id);
   const projectSlug = project ? slugify(project.name) : issue.project_id;
   const repoPath = toContainerPath(repo.local_path);
