@@ -30,6 +30,8 @@
 
 	// Filter state
 	let searchQuery = $state('');
+	let showCompleted = $state(false);
+	const ALL_STATUSES = 'open,in_progress,pr_created,pr_conflict,pr_failed_actions,pr_ready_to_merge,done';
 
 	function parseSearchQuery(query: string): { statuses: string[]; paused: boolean | null; text: string } {
 		let statuses: string[] = [];
@@ -109,7 +111,7 @@
 	const form = createFormState({ title: '', description: '' });
 
 	fetchEffect(
-		() => Promise.all([listIssues(projectId), getProject(projectId)]),
+		() => Promise.all([listIssues(projectId, showCompleted ? { status: ALL_STATUSES } : {}), getProject(projectId)]),
 		{
 			onData: ([i, p]) => { issues = i.issues; totalIssues = i.total; project = p; },
 			onError: 'Failed to load issues',
@@ -121,7 +123,8 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
-			const opts = issues.length ? { limit: issues.length } : {};
+			const opts: Record<string, unknown> = issues.length ? { limit: issues.length } : {};
+			if (showCompleted) opts.status = ALL_STATUSES;
 			listIssues(projectId, opts)
 				.then((i) => { issues = i.issues; totalIssues = i.total; })
 				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
@@ -180,7 +183,9 @@
 	async function loadMore() {
 		if (!hasMore) return;
 		try {
-			const result = await listIssues(projectId, { offset: issues.length });
+			const opts: { offset: number; status?: string } = { offset: issues.length };
+			if (showCompleted) opts.status = ALL_STATUSES;
+			const result = await listIssues(projectId, opts);
 			issues = [...issues, ...result.issues];
 			totalIssues = result.total;
 		} catch {
@@ -250,6 +255,7 @@
 		bind:sortField
 		bind:sortDesc
 		bind:visibleColumns
+		bind:showCompleted
 		{autoStart}
 		{autoMerge}
 		onCaptainToggle={handleCaptainToggle}
