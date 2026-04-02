@@ -20,6 +20,7 @@ import { PTY_IDLE_TIMEOUT_MS } from "../config/orchestration.js";
 import { buildSystemPrompt } from "./captain-prompt.js";
 import { createCaptainWorktree, setupGitHubAuth } from "./captain-worktree.js";
 import { resolveModel } from "../db/repositories/agent-config.js";
+import { getSystemApiKey } from "../app.js";
 
 export interface TerminalSession {
   projectId: string;
@@ -123,6 +124,7 @@ export async function createTerminalSession(
     // Include GitHub auth vars added by setupGitHubAuth
     ...(env.GH_TOKEN ? { GH_TOKEN: env.GH_TOKEN } : {}),
     ...(env.GIT_SSH_COMMAND ? { GIT_SSH_COMMAND: env.GIT_SSH_COMMAND } : {}),
+    ...(getSystemApiKey() ? { CREWDECK_API_KEY: getSystemApiKey()! } : {}),
   };
   // Merge captainEnvVars back into env for the spawn call
   Object.assign(env, captainEnvVars);

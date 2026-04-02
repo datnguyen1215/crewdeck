@@ -6,6 +6,7 @@ export interface ApiKey {
   name: string;
   key_hash: string;
   key_prefix: string;
+  is_system: number;
   created_at: string;
   last_used_at: string | null;
 }
@@ -31,9 +32,17 @@ function toPublic(key: ApiKey): ApiKeyPublic {
 export function listApiKeys(): ApiKeyPublic[] {
   return (
     db
-      .prepare("SELECT * FROM ApiKey ORDER BY created_at DESC")
+      .prepare(
+        "SELECT * FROM ApiKey WHERE is_system = 0 ORDER BY created_at DESC",
+      )
       .all() as ApiKey[]
   ).map(toPublic);
+}
+
+export function getApiKeyById(id: string): ApiKey | null {
+  return (
+    (db.prepare("SELECT * FROM ApiKey WHERE id = ?").get(id) as ApiKey) ?? null
+  );
 }
 
 export function getByKeyHash(hash: string): ApiKey | null {
@@ -57,7 +66,10 @@ function hashKey(key: string): string {
 /**
  * Creates a new API key. Returns the full plaintext key (only shown once).
  */
-export function createApiKey(name: string): {
+export function createApiKey(
+  name: string,
+  isSystem = false,
+): {
   apiKey: ApiKeyPublic;
   plaintext: string;
 } {
@@ -67,8 +79,8 @@ export function createApiKey(name: string): {
   const keyPrefix = raw.slice(0, 11); // sk- + 8 hex chars
 
   db.prepare(
-    "INSERT INTO ApiKey (id, name, key_hash, key_prefix) VALUES (?, ?, ?, ?)",
-  ).run(id, name, keyHash, keyPrefix);
+    "INSERT INTO ApiKey (id, name, key_hash, key_prefix, is_system) VALUES (?, ?, ?, ?, ?)",
+  ).run(id, name, keyHash, keyPrefix, isSystem ? 1 : 0);
 
   return {
     apiKey: {
@@ -85,4 +97,27 @@ export function createApiKey(name: string): {
 export function deleteApiKey(id: string): boolean {
   const result = db.prepare("DELETE FROM ApiKey WHERE id = ?").run(id);
   return result.changes > 0;
+}
+
+/**
+ * Check if a system key exists with is_system = 1.
+ */
+export function getSystemKey(): ApiKey | null {
+  return (
+    (db.prepare("SELECT * FROM ApiKey WHERE is_system = 1").get() as ApiKey) ??
+    null
+  );
+}
+
+/**
+ * Ensure a system API key exists. Returns the raw key if newly created.
+ * On subsequent calls, returns null (key already exists, raw key is unrecoverable).
+ * On first call, the raw key should be stored in memory for the server lifetime.
+ */
+export function ensureSystemKey(): string | null {
+  const existing = getSystemKey();
+  if (existing) return null;
+
+  const { plaintext } = createApiKey("system", true);
+  return plaintext;
 }

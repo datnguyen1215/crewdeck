@@ -4,6 +4,7 @@ import { pinoHttp } from "pino-http";
 import { logger } from "./logger.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requireAuth } from "./middleware/auth.js";
+import { ensureSystemKey } from "./db/repositories/api-keys.js";
 import projectsRouter from "./routes/projects.js";
 import reposRouter from "./routes/repos.js";
 import agentsRouter from "./routes/agents.js";
@@ -23,12 +24,25 @@ import monitorRouter from "./routes/monitor.js";
 import authRouter from "./routes/auth.js";
 import apiKeysRouter from "./routes/api-keys.js";
 
+// In-memory system API key — set once on startup, used for spawning agents/captains
+let systemApiKey: string | null = null;
+
+export function getSystemApiKey(): string | null {
+  return systemApiKey;
+}
+
 export interface CreateAppOpts {
   silent?: boolean;
   skipAuth?: boolean;
 }
 
 export function createApp(opts: CreateAppOpts = {}) {
+  // Ensure system API key exists on first startup
+  if (!systemApiKey && !opts.skipAuth) {
+    const rawKey = ensureSystemKey();
+    if (rawKey) systemApiKey = rawKey;
+  }
+
   const app = express();
 
   // Trust the first reverse proxy so req.ip reflects the real client IP.

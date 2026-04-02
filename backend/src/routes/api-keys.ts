@@ -41,8 +41,12 @@ router.post("/", (req, res) => {
 });
 
 router.delete("/:id", (req, res) => {
-  const deleted = apiKeys.deleteApiKey(req.params.id);
-  if (!deleted) throw new NotFoundError("API key not found");
+  const key = apiKeys.getApiKeyById(req.params.id);
+  if (!key) throw new NotFoundError("API key not found");
+  if (key.is_system) {
+    throw new ForbiddenError("Cannot delete system API key");
+  }
+  apiKeys.deleteApiKey(req.params.id);
   res.status(204).send();
 });
 

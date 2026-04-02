@@ -117,35 +117,45 @@ ${project.description || "No description"}
 
   // API Reference — only detail endpoints, since snapshot covers listing
   parts.push(`## API Reference
-Environment variables: CREWDECK_API_URL, CREWDECK_PROJECT_ID, CREWDECK_AGENT_ID
+Environment variables: CREWDECK_API_URL, CREWDECK_PROJECT_ID, CREWDECK_AGENT_ID, CREWDECK_API_KEY
+
+All API calls require authentication. Include this header:
+-H "Authorization: Bearer $CREWDECK_API_KEY"
 
 \`\`\`bash
 # Full issue details
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY"
 
 # Create issue
 curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"title": "Issue title", "description": "Description"}'
 
 # Update issue
 curl -X PUT "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"status": "done"}'
 
 # Add comment
 curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"content": "Comment text", "author_type": "captain"}'
 
 # Run details
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY"
 
 # Activity log
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true"
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY"
 
 # Full knowledge entry
-curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
+curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY"
 \`\`\`
 
 ## Available Actions
