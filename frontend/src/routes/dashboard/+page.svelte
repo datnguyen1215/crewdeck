@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { listProjectsWithStats, type ProjectWithStats } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 
@@ -194,7 +195,10 @@
 								{@const total = totalIssues(project.issues)}
 								<tr
 									class="border-b border-edge last:border-0 hover:bg-surface-hi transition-colors cursor-pointer group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
-									onclick={() => window.location.href = '/projects/{project.id}'}
+									role="link"
+									tabindex="0"
+									onclick={() => goto(`/projects/${project.id}`)}
+									onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${project.id}`)}
 									style="animation: fade-up 0.25s ease both; animation-delay: {350 + i * 40}ms"
 								>
 									<td class="px-4 py-3">
