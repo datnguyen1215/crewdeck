@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { listProjectsWithStats, type ProjectWithStats } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 
@@ -38,6 +39,28 @@
 		{ key: 'pr_ready_to_merge', label: 'Ready to Merge', color: 'text-green', icon: '✓' },
 		{ key: 'agents', label: 'Active Agents', color: 'text-cyan', icon: '⟐' },
 	] as const;
+
+	const TABLE_COLS = [
+		{ key: 'open', label: 'Open', color: 'text-blue', barColor: 'bg-blue' },
+		{ key: 'in_progress', label: 'In Progress', color: 'text-amber', barColor: 'bg-amber' },
+		{ key: 'pr_created', label: 'PR', color: 'text-purple', barColor: 'bg-purple' },
+		{ key: 'blocked', label: 'Blocked', color: 'text-red', barColor: 'bg-red' },
+		{ key: 'pr_ready_to_merge', label: 'Ready', color: 'text-green', barColor: 'bg-green' },
+		{ key: 'done', label: 'Done', color: 'text-secondary', barColor: 'bg-secondary' },
+	] as const;
+
+	function blockedCount(issues: ProjectWithStats['issues']) {
+		return issues.pr_conflict + issues.pr_failed_actions;
+	}
+
+	function totalIssues(issues: ProjectWithStats['issues']) {
+		return Object.values(issues).reduce((a, b) => a + b, 0);
+	}
+
+	function statusValue(p: ProjectWithStats, key: string): number {
+		if (key === 'blocked') return blockedCount(p.issues);
+		return p.issues[key as keyof typeof p.issues] ?? 0;
+	}
 </script>
 
 <svelte:head>
@@ -104,9 +127,112 @@
 			{/each}
 		</div>
 
-		<!-- Project summary -->
-		<p class="text-muted text-xs mt-6 uppercase tracking-widest fade-up">
-			{projects.length} project{projects.length !== 1 ? 's' : ''}
-		</p>
+		<!-- Project Breakdown Section -->
+		<div class="mt-8 fade-up" style="animation: fade-up 0.35s ease both; animation-delay: 350ms">
+			<div class="flex items-center justify-between mb-4">
+				<h2 class="text-primary font-semibold text-sm uppercase tracking-widest">
+					Projects Breakdown
+				</h2>
+				<span class="text-muted text-xs">{projects.length} project{projects.length !== 1 ? 's' : ''}</span>
+			</div>
+
+			{#if projects.length === 0}
+				<div class="bg-surface border border-edge rounded-lg py-10 text-center">
+					<p class="text-muted text-sm">No projects to display</p>
+				</div>
+			{:else}
+				<!-- Mobile card view -->
+				<div class="flex flex-col gap-3 md:hidden">
+					{#each projects as project, i (project.id)}
+						{@const blocked = blockedCount(project.issues)}
+						{@const total = totalIssues(project.issues)}
+						<a
+							href="/projects/{project.id}"
+							class="block bg-surface border border-edge rounded-lg p-4 hover:border-edge-hi transition-all duration-200 active:scale-[0.99]"
+							style="animation: fade-up 0.3s ease both; animation-delay: {i * 40}ms"
+						>
+							<div class="flex items-center justify-between mb-2">
+								<span class="text-primary font-semibold text-sm truncate mr-2">{project.name}</span>
+								<span class="text-muted text-xs flex-shrink-0">{project.active_runs}/{project.max_concurrency} agents</span>
+							</div>
+							{#if total > 0}
+								<div class="flex h-1.5 rounded-full overflow-hidden gap-px mb-3">
+									{#each TABLE_COLS as col}
+										{@const count = statusValue(project, col.key)}
+										{#if count > 0}
+											<div class="{col.barColor} rounded-full" style="flex: {count}" title="{col.label}: {count}"></div>
+										{/if}
+									{/each}
+								</div>
+							{/if}
+							<div class="flex gap-3 text-xs">
+								{#each TABLE_COLS as col}
+									{@const count = statusValue(project, col.key)}
+									<span class={col.key === 'blocked' && blocked > 0 ? col.color : count > 0 ? 'text-primary' : 'text-muted'}>
+										{count} <span class="text-muted">{col.label}</span>
+									</span>
+								{/each}
+							</div>
+						</a>
+					{/each}
+				</div>
+
+				<!-- Desktop table view -->
+				<div class="hidden md:block overflow-x-auto border border-edge rounded">
+					<table class="w-full min-w-[700px] text-sm">
+						<thead>
+							<tr class="text-xs text-muted uppercase tracking-widest bg-base-hi border-b border-edge">
+								<th class="text-left px-4 py-2.5 font-medium">Project</th>
+								{#each TABLE_COLS as col}
+									<th class="text-center px-3 py-2.5 font-medium">{col.label}</th>
+								{/each}
+								<th class="text-center px-3 py-2.5 font-medium">Agents</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each projects as project, i (project.id)}
+								{@const blocked = blockedCount(project.issues)}
+								{@const total = totalIssues(project.issues)}
+								<tr
+									class="border-b border-edge last:border-0 hover:bg-surface-hi transition-colors cursor-pointer group {i % 2 === 1 ? 'bg-base-hi' : 'bg-base'}"
+									role="link"
+									tabindex="0"
+									onclick={() => goto(`/projects/${project.id}`)}
+									onkeydown={(e) => e.key === 'Enter' && goto(`/projects/${project.id}`)}
+									style="animation: fade-up 0.25s ease both; animation-delay: {350 + i * 40}ms"
+								>
+									<td class="px-4 py-3">
+										<div class="flex flex-col gap-1 min-w-0">
+											<span class="text-primary font-semibold truncate group-hover:text-cyan transition-colors">{project.name}</span>
+											{#if total > 0}
+												<div class="flex h-1 rounded-full overflow-hidden gap-px w-full max-w-[160px]">
+													{#each TABLE_COLS as col}
+														{@const count = statusValue(project, col.key)}
+														{#if count > 0}
+															<div class="{col.barColor} rounded-full" style="flex: {count}"></div>
+														{/if}
+													{/each}
+												</div>
+											{/if}
+										</div>
+									</td>
+									{#each TABLE_COLS as col}
+										{@const count = statusValue(project, col.key)}
+										<td class="text-center px-3 py-3">
+											<span class={col.key === 'blocked' && blocked > 0 ? col.color + ' font-medium' : count > 0 ? 'text-primary' : 'text-muted'}>
+												{count}
+											</span>
+										</td>
+									{/each}
+									<td class="text-center px-3 py-3 text-muted">
+										<span class="text-secondary">{project.active_runs}</span>/{project.max_concurrency}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
+		</div>
 	{/if}
 </div>
