@@ -285,22 +285,22 @@ Legacy table originally designed for chat sessions. No longer actively used afte
 
 ### AgentConfig
 
-Global per-agent, per-provider model configuration. Applies machine-wide regardless of project. Each agent can have separate model settings for each AI provider.
+Global per-agent model configuration. Applies machine-wide regardless of project. Each agent can have a single model override (mix-and-match across providers).
 
-| Field    | Type        | Constraints                  | Description                                                                                                                                                            |
-| -------- | ----------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id       | TEXT (UUID) | PRIMARY KEY                  | Unique identifier.                                                                                                                                                     |
-| agent_id | TEXT        | NOT NULL                     | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                                                |
-| provider | TEXT        | NOT NULL, DEFAULT 'claude'   | AI provider for this config. One of: `claude`, `glm` (Z.AI).                                                                                                           |
-| model    | TEXT        | NULLABLE                     | Model override. For `claude`: `sonnet`, `opus`, `haiku`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. NULL means use provider default. |
+| Field    | Type        | Constraints | Description                                                                                                                                |
+| -------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| id       | TEXT (UUID) | PRIMARY KEY | Unique identifier.                                                                                                                         |
+| agent_id | TEXT        | NOT NULL    | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                    |
+| model    | TEXT        | NULLABLE    | Model override. Claude: `sonnet`, `opus`, `haiku`. GLM: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. NULL means use global default model. |
 
 **Constraints:**
 
-- UNIQUE(agent_id, provider) — one config entry per agent per provider.
+- UNIQUE(agent_id) — one config entry per agent.
 
 **Model resolution order:**
-1. Query `AgentConfig` by (agent_id, current_provider)
-2. If not found, use provider default: `sonnet` for Claude, `glm-5-turbo` for GLM
+
+1. Query `AgentConfig` by agent_id
+2. If not found, use global default model
 
 ---
 
@@ -315,14 +315,7 @@ Global system-wide configuration settings. Stores key-value pairs for machine-wi
 
 **Current keys:**
 
-- `provider` — AI provider for all agent spawns. One of: `claude` (default), `glm` (Z.AI).
-
-**Provider behavior:**
-
-- When `provider=claude`: Agent processes use default `ANTHROPIC_API_KEY` from environment.
-- When `provider=glm`: Agent processes receive `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`.
-- Switching providers terminates all active Captain terminal sessions (new sessions use the new provider).
-- GLM provider requires `ZAI_API_KEY` environment variable to be set on the backend.
+- `default_model` — Default model for all agent spawns unless overridden per-agent. Any supported model (Claude: `sonnet`, `opus`, `haiku`; GLM: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`).
 
 ---
 
@@ -366,23 +359,23 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 
 ## Relationships Summary
 
-| Relationship                  | Type        | Description                                                                 |
-| ----------------------------- | ----------- | --------------------------------------------------------------------------- |
-| VCSAccount → Project          | One-to-Many | A VCS account can be linked to multiple projects.                           |
-| Project → Repo                | One-to-Many | A project has multiple repos.                                               |
-| Project → Issue               | One-to-Many | A project has multiple issues.                                              |
-| Project → ActivityLog         | One-to-Many | A project has many activity log entries.                                    |
-| Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes.     |
-| Project → ProjectKnowledge    | One-to-Many | A project has many knowledge entries for agent context.                     |
-| AgentConfig                   | Global      | One global model config per agent (no project scope).                       |
-| Issue → Comment               | One-to-Many | An issue has many comments.                                                 |
-| Issue → IssuePR               | One-to-Many | An issue can have multiple PRs (across repos).                              |
-| Issue → IssueDependency       | One-to-Many | An issue can depend on multiple other issues.                               |
-| Issue → ActivityLog           | One-to-Many | An issue has many activity log entries.                                     |
-| Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
-| AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
-| Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
-| Project → ChatMessage         | One-to-Many | A project has many chat messages (captain and human conversations).         |
+| Relationship                  | Type        | Description                                                                           |
+| ----------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| VCSAccount → Project          | One-to-Many | A VCS account can be linked to multiple projects.                                     |
+| Project → Repo                | One-to-Many | A project has multiple repos.                                                         |
+| Project → Issue               | One-to-Many | A project has multiple issues.                                                        |
+| Project → ActivityLog         | One-to-Many | A project has many activity log entries.                                              |
+| Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes.               |
+| Project → ProjectKnowledge    | One-to-Many | A project has many knowledge entries for agent context.                               |
+| AgentConfig                   | Global      | One global model config per agent (no project scope, mix-and-match across providers). |
+| Issue → Comment               | One-to-Many | An issue has many comments.                                                           |
+| Issue → IssuePR               | One-to-Many | An issue can have multiple PRs (across repos).                                        |
+| Issue → IssueDependency       | One-to-Many | An issue can depend on multiple other issues.                                         |
+| Issue → ActivityLog           | One-to-Many | An issue has many activity log entries.                                               |
+| Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue.           |
+| AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                               |
+| Project → AgentRun            | One-to-Many | A project has many agent run records.                                                 |
+| Project → ChatMessage         | One-to-Many | A project has many chat messages (captain and human conversations).                   |
 
 ## Indexes
 

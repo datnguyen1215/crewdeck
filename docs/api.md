@@ -136,11 +136,11 @@ PATCH /projects/:id
 
 **Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, model, auto_start, auto_merge, vcs_account_id).
 
-| Field      | Type    | Description                                                                                         |
-| ---------- | ------- | --------------------------------------------------------------------------------------------------- |
-| model      | TEXT    | Default Claude model for agent spawning. One of: `sonnet`, `opus`.                                  |
-| auto_start | BOOLEAN | Whether Captain automatically starts work on new issues. Default: false.                            |
-| auto_merge | BOOLEAN | Whether Captain automatically merges ready PRs. Default: false.                                     |
+| Field      | Type    | Description                                                              |
+| ---------- | ------- | ------------------------------------------------------------------------ |
+| model      | TEXT    | Default Claude model for agent spawning. One of: `sonnet`, `opus`.       |
+| auto_start | BOOLEAN | Whether Captain automatically starts work on new issues. Default: false. |
+| auto_merge | BOOLEAN | Whether Captain automatically merges ready PRs. Default: false.          |
 
 **Response:** `200 OK` — The updated project object.
 
@@ -1092,7 +1092,7 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 
 ### Agent Config
 
-Global per-agent, per-provider model configuration. Applies machine-wide regardless of project. Each agent can have different model settings for each AI provider (Claude, GLM).
+Global per-agent model configuration. Applies machine-wide regardless of project. Each agent can have a model override (mix-and-match across providers).
 
 #### List Agent Configs
 
@@ -1107,13 +1107,11 @@ GET /agent-config
   {
     "id": "uuid",
     "agent_id": "engineer",
-    "provider": "claude",
     "model": "opus"
   },
   {
     "id": "uuid",
-    "agent_id": "engineer",
-    "provider": "glm",
+    "agent_id": "lead",
     "model": "glm-5.1"
   }
 ]
@@ -1125,33 +1123,29 @@ GET /agent-config
 PUT /agent-config/:agentId
 ```
 
-Creates or updates the model for a specific agent for the specified provider.
+Creates or updates the model override for a specific agent.
 
 **Request Body:**
 
 ```json
 {
-  "provider": "claude",
   "model": "opus"
 }
 ```
 
-| Field    | Required | Description                                                                                                                                                                              |
-| -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| provider | Yes      | AI provider. One of: `claude`, `glm`.                                                                                                                                                    |
-| model    | Yes      | Model to use. For `claude`: `sonnet`, `opus`, `haiku`, or `null`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, or `null`. `null` clears the override for that provider. |
+| Field | Required | Description                                                                                                                                                   |
+| ----- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| model | Yes      | Model to use. Claude: `sonnet`, `opus`, `haiku`. GLM: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. Any model from any provider can be assigned to any agent. |
 
 **Response:** `200 OK` — The created or updated agent config object.
-
-**Validation:** The model must be valid for the specified provider. Mixing providers and models (e.g., `provider: "claude"` with `model: "glm-5-turbo"`) returns `400 VALIDATION_ERROR`.
 
 #### Remove Agent Model Override
 
 ```
-DELETE /agent-config/:agentId/:provider
+DELETE /agent-config/:agentId
 ```
 
-Removes the model override for the agent and provider, falling back to the provider's default (`sonnet` for Claude, `glm-5-turbo` for GLM).
+Removes the model override for the agent, falling back to the global default model.
 
 **Response:** `204 No Content`
 
@@ -1159,7 +1153,7 @@ Removes the model override for the agent and provider, falling back to the provi
 
 ### Global Config
 
-Global system-wide configuration settings. Allows switching the AI provider for all agent spawns.
+Global system-wide configuration settings.
 
 #### Get Global Config
 
@@ -1171,64 +1165,77 @@ GET /global-config
 
 ```json
 {
-  "provider": "claude"
+  "default_model": "sonnet"
 }
 ```
 
-| Field    | Type | Description                                          |
-| -------- | ---- | ---------------------------------------------------- |
-| provider | TEXT | Current AI provider. One of: `claude`, `glm` (Z.AI). |
+| Field         | Type | Description                         |
+| ------------- | ---- | ----------------------------------- |
+| default_model | TEXT | Default model for all agent spawns. |
 
-#### Set Provider
-
-```
-PUT /global-config/provider
-```
-
-Switches the global AI provider. When changed, all active Captain terminal sessions are terminated and restarted with the new provider.
-
-**Request Body:**
-
-```json
-{
-  "provider": "glm"
-}
-```
-
-| Field    | Required | Description                               |
-| -------- | -------- | ----------------------------------------- |
-| provider | Yes      | Provider to use. One of: `claude`, `glm`. |
-
-**Response:** `200 OK` — Updated global configuration.
-
-**Error:** `409 Conflict` — Provider switch already in progress.
-
-**Side effects:**
-
-- All active Captain terminal sessions are terminated (existing tmux sessions killed)
-- New agent spawns will use the new provider
-- When `glm` is selected, agent processes receive `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`
-- Existing agent runs continue with their original provider until completion
-
-#### Check GLM Availability
+#### Get Default Model
 
 ```
-GET /global-config/glm-available
+GET /global-config/default-model
 ```
 
-Checks whether the GLM (Z.AI) provider is available by verifying the `ZAI_API_KEY` environment variable is set.
+Returns the current default model.
 
 **Response:** `200 OK`
 
 ```json
 {
-  "available": true
+  "default_model": "sonnet"
 }
 ```
 
-| Field     | Type    | Description                                            |
-| --------- | ------- | ------------------------------------------------------ |
-| available | BOOLEAN | Whether GLM provider is available (ZAI_API_KEY is set) |
+#### Set Default Model
+
+```
+PUT /global-config/default-model
+```
+
+Sets the default model used for all agent spawns unless overridden per-agent.
+
+**Request Body:**
+
+```json
+{
+  "model": "opus"
+}
+```
+
+| Field | Required | Description              |
+| ----- | -------- | ------------------------ |
+| model | Yes      | Model to set as default. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "default_model": "opus"
+}
+```
+
+#### Check Model Availability
+
+```
+GET /global-config/model-availability
+```
+
+Returns which model groups are available. GLM models require `ZAI_API_KEY` to be set.
+
+**Response:** `200 OK`
+
+```json
+{
+  "glm_available": true
+}
+```
+
+| Field         | Type    | Description                                           |
+| ------------- | ------- | ----------------------------------------------------- |
+| glm_available | BOOLEAN | Whether GLM models are available (ZAI_API_KEY is set) |
 
 ---
 

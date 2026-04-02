@@ -16,7 +16,7 @@ The Agent Runtime spawns AI agents as `claude -p` subprocesses. There are no tmu
 
 ### spawnClaude
 
-Spawns `claude -p` with the given prompt and system prompt. Provider-specific environment variables are injected automatically based on the global provider setting.
+Spawns `claude -p` with the given prompt and system prompt. Provider-specific environment variables are injected automatically based on the model being used.
 
 ```
 spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
@@ -54,17 +54,17 @@ claude -p <prompt> \
 - `--output-format json` causes Claude to return a JSON object with a `result` field containing the response text, plus cost and duration metadata.
 - The system prompt is written to a temp file and cleaned up after the process exits.
 - `--dangerously-skip-permissions` allows the agent to operate autonomously.
-- `--model <model>` is included when a model is specified (resolved via AgentConfig override → project default → `"sonnet"`).
+- `--model <model>` is included when a model is specified (resolved via AgentConfig override → global default model → `"sonnet"`).
 - `--settings '{"attribution":{"commit":"","pr":""}}'` disables AI attribution in commits and PRs (no Co-Authored-By trailers or signatures).
 
 **Provider environment variables:**
 
-The global provider setting (configurable via Crew page) determines which environment variables are injected:
+Environment variables are injected based on the model being used (each agent can use any model from any provider):
 
-- **Claude (default)**: Uses `ANTHROPIC_API_KEY` from environment (no additional variables).
-- **GLM (Z.AI)**: Injects `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`. Requires `ZAI_API_KEY` environment variable to be set on the backend.
+- **Claude models** (sonnet, opus, haiku): Uses `ANTHROPIC_API_KEY` from environment (no additional variables).
+- **GLM models** (glm-5.1, glm-5, glm-5-turbo, glm-4.7): Injects `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`. Requires `ZAI_API_KEY` environment variable to be set on the backend.
 
-Provider variables are injected via `buildProviderEnv()` in `backend/src/orchestration/provider-env.ts` and apply to all `claude -p` spawns (including Captain terminal sessions).
+Provider variables are injected via `buildProviderEnv()` in `backend/src/orchestration/provider-env.ts` based on the model name and apply per-agent.
 
 ### spawnClaudeStream
 
