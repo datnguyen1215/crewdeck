@@ -288,6 +288,15 @@ export interface IssueFilters {
   created_by?: string;
   sort?: "created_at" | "updated_at";
   order?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedIssues {
+  issues: IssueWithRunningAgent[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface CreateCommentInput {

@@ -6,6 +6,7 @@ import type {
   CreateIssueInput,
   UpdateIssueInput,
   IssueFilters,
+  PaginatedIssues,
 } from "../../types/entities.js";
 import { IssueStatus } from "../../constants/statuses.js";
 import { listComments } from "./comments.js";
@@ -31,6 +32,68 @@ export function listIssues(
   projectId: string,
   filters: IssueFilters = {},
 ): IssueWithRunningAgent[] {
+  const { conditions, values, sortCol, order } = buildListIssuesQuery(projectId, filters);
+
+  // LEFT JOIN to get the most recent running/queued agent per issue
+  // Uses a subquery to pick the single most recent active run per issue
+  const sql = `
+    SELECT i.*, ar.agent_id AS running_agent_id, ar.status AS running_agent_status
+    FROM Issue i
+    LEFT JOIN (
+      SELECT issue_id, agent_id, status,
+        ROW_NUMBER() OVER (PARTITION BY issue_id ORDER BY created_at DESC) AS rn
+      FROM AgentRun
+      WHERE status IN ('running', 'queued')
+    ) ar ON ar.issue_id = i.id AND ar.rn = 1
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY i.${sortCol} ${order}
+  `;
+
+  const rows = db.prepare(sql).all(...values) as Record<string, unknown>[];
+  return rows.map(fromRowWithRunningAgent);
+}
+
+export function listIssuesPaginated(
+  projectId: string,
+  filters: IssueFilters = {},
+): PaginatedIssues {
+  const limit = Math.min(filters.limit ?? 50, 100);
+  const offset = filters.offset ?? 0;
+  const { conditions, values, sortCol, order } = buildListIssuesQuery(projectId, filters);
+  const whereClause = conditions.join(" AND ");
+
+  const countRow = db
+    .prepare(`SELECT COUNT(*) as count FROM Issue i WHERE ${whereClause}`)
+    .get(...values) as { count: number };
+  const total = countRow.count;
+
+  const sql = `
+    SELECT i.*, ar.agent_id AS running_agent_id, ar.status AS running_agent_status
+    FROM Issue i
+    LEFT JOIN (
+      SELECT issue_id, agent_id, status,
+        ROW_NUMBER() OVER (PARTITION BY issue_id ORDER BY created_at DESC) AS rn
+      FROM AgentRun
+      WHERE status IN ('running', 'queued')
+    ) ar ON ar.issue_id = i.id AND ar.rn = 1
+    WHERE ${whereClause}
+    ORDER BY i.${sortCol} ${order}
+    LIMIT ? OFFSET ?
+  `;
+
+  const rows = db.prepare(sql).all(...values, limit, offset) as Record<string, unknown>[];
+  return {
+    issues: rows.map(fromRowWithRunningAgent),
+    total,
+    limit,
+    offset,
+  };
+}
+
+function buildListIssuesQuery(
+  projectId: string,
+  filters: IssueFilters,
+): { conditions: string[]; values: unknown[]; sortCol: string; order: string } {
   const conditions: string[] = ["i.project_id = ?"];
   const values: unknown[] = [projectId];
 
@@ -54,23 +117,7 @@ export function listIssues(
     ? filters.order!
     : "desc";
 
-  // LEFT JOIN to get the most recent running/queued agent per issue
-  // Uses a subquery to pick the single most recent active run per issue
-  const sql = `
-    SELECT i.*, ar.agent_id AS running_agent_id, ar.status AS running_agent_status
-    FROM Issue i
-    LEFT JOIN (
-      SELECT issue_id, agent_id, status,
-        ROW_NUMBER() OVER (PARTITION BY issue_id ORDER BY created_at DESC) AS rn
-      FROM AgentRun
-      WHERE status IN ('running', 'queued')
-    ) ar ON ar.issue_id = i.id AND ar.rn = 1
-    WHERE ${conditions.join(" AND ")}
-    ORDER BY i.${sortCol} ${order}
-  `;
-
-  const rows = db.prepare(sql).all(...values) as Record<string, unknown>[];
-  return rows.map(fromRowWithRunningAgent);
+  return { conditions, values, sortCol, order };
 }
 
 function fromRow(row: Record<string, unknown>): Issue {

@@ -30,10 +30,10 @@
 		try {
 			const [r, i] = await Promise.all([
 				listProjectRuns(projectId, { limit: 100 }),
-				listIssues(projectId)
+				listIssues(projectId, { limit: 1000 })
 			]);
 			runs = r;
-			issues = i;
+			issues = i.issues;
 		} catch {
 			// Ignore errors
 		} finally {

@@ -40,11 +40,11 @@
 		if (filterActors.length > 0) actParams.actor_type = filterActors[0];
 		if (filterAction) actParams.action = filterAction;
 		if (filterIssue) actParams.issue_id = filterIssue;
-		Promise.all([listActivity(projectId, actParams), listIssues(projectId)])
+		Promise.all([listActivity(projectId, actParams), listIssues(projectId, { limit: 1000 })])
 			.then(([acts, iss]) => {
 				if (cancelled) return;
 				allEntries = acts;
-				issues = iss;
+				issues = iss.issues;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load activity', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -69,10 +69,10 @@
 			if (filterActors.length > 0) actParams.actor_type = filterActors[0];
 			if (filterAction) actParams.action = filterAction;
 			if (filterIssue) actParams.issue_id = filterIssue;
-			Promise.all([listActivity(projectId, actParams), listIssues(projectId)]).then(
+			Promise.all([listActivity(projectId, actParams), listIssues(projectId, { limit: 1000 })]).then(
 				([acts, iss]) => {
 					allEntries = acts;
-					issues = iss;
+					issues = iss.issues;
 				}
 			).catch(() => {});
 		};
