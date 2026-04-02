@@ -212,7 +212,7 @@ function subscribeEvents(bus: EventBus): void {
 
   bus.on("run.started", ({ project_id, ...data }) => {
     broadcast(project_id, "run.started", data);
-    broadcastGlobal("run.started", data);
+    broadcastGlobal("run.started", { project_id, ...data });
   });
 
   bus.on("run.event", ({ project_id, ...data }) =>
@@ -221,7 +221,7 @@ function subscribeEvents(bus: EventBus): void {
 
   bus.on("run.completed", ({ project_id, ...data }) => {
     broadcast(project_id, "run.completed", data);
-    broadcastGlobal("run.completed", data);
+    broadcastGlobal("run.completed", { project_id, ...data });
   });
 
   // Project settings changed
