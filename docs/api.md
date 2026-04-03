@@ -1847,7 +1847,7 @@ The response is returned only after the Claude response is fully complete. Use W
 - Saves user message to `ChatMessage` table before spawning Claude.
 - Saves assistant response to `ChatMessage` table on completion.
 - Updates thread's `updated_at` and `session_id` (captured from Claude CLI stream).
-- Emits `chat.message`, `chat.tool_call`, `chat.tool_result`, and `chat.complete` events on the event bus.
+- Emits `chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, and `chat.complete` events on the event bus.
 - If `--resume` fails (session expired), emits `chat.session_expired`, resets `session_id` to null, and starts a fresh session transparently.
 
 ---
