@@ -63,13 +63,24 @@
 	const AGENT_EVENTS = ['run.started', 'run.completed'] as const;
 	let unsubs: (() => void)[] = [];
 
-	onMount(() => {
+	onMount(async () => {
 		globws.connect();
 		unsubs = [
 			...STATS_EVENTS.map((e) => globws.on(e, refreshProjects)),
 			...ACTIVITY_EVENTS.map((e) => globws.on(e, refreshActivity)),
 			...AGENT_EVENTS.map((e) => globws.on(e, refreshActiveAgents)),
 		];
+
+		if (projects.length === 0) {
+			try {
+				const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9381';
+				const res = await fetch(`${backendUrl}/api/v1/auth/me`, { credentials: 'include' });
+				if (res.ok) {
+					const { setupCompleted } = await res.json();
+					if (!setupCompleted) openCreateModal();
+				}
+			} catch {}
+		}
 	});
 
 	onDestroy(() => {

@@ -7,6 +7,7 @@ import {
   updateProject,
   deleteProject,
 } from "../db/repositories/projects.js";
+import { markSetupComplete } from "../db/repositories/auth.js";
 import { getLatestLibrarianRun } from "../db/repositories/agent-runs.js";
 import { resolveRepoMetadata } from "../vcs/resolve-repo-metadata.js";
 import { validate } from "../middleware/validate.js";
@@ -48,6 +49,8 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
       default_branch: metadata.default_branch,
       vcs_account_id: body.vcs_account_id,
     });
+
+    markSetupComplete(req.session!.userId);
 
     res.status(201).json(project);
   } catch (err) {

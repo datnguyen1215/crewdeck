@@ -124,7 +124,11 @@ router.post("/logout", (req, res) => {
 
 // GET /me — return current session info
 router.get("/me", requireAuth, (req, res) => {
-  res.json({ id: req.session!.userId, username: req.session!.username });
+  res.json({
+    id: req.session!.userId,
+    username: req.session!.username,
+    setupCompleted: req.session!.setupCompleted === 1,
+  });
 });
 
 export default router;
