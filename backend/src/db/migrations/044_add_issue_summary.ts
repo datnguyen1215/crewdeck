@@ -7,7 +7,7 @@ export function run(db: Database.Database): void {
   const hasSummary = cols.some((c) => c.name === "summary");
   if (!hasSummary) {
     db.exec(
-      "ALTER TABLE Issue ADD COLUMN summary TEXT DEFAULT 'Summarizing...' NOT NULL;",
+      "ALTER TABLE Issue ADD COLUMN summary TEXT DEFAULT '' NOT NULL;",
     );
   }
 }

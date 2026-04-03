@@ -76,10 +76,7 @@ export function buildStateSnapshot(projectId: string): string {
       const approvedMerge = isApprovedToMerge(i.id)
         ? " (approved-to-merge)"
         : "";
-      const summary =
-        i.summary && i.summary !== "Summarizing..."
-          ? ` | "${i.summary}"`
-          : "";
+      const summary = i.summary ? ` | "${i.summary}"` : "";
       return `- ${i.id} | ${i.status}${paused}${approvedStart}${approvedMerge}${agent}${depsInfo}${prInfo} | ${i.title}${summary}`;
     });
     parts.push(`### Issues (non-closed)\n${rows.join("\n")}`);

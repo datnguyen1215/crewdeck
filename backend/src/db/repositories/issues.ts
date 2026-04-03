@@ -182,7 +182,7 @@ export function createIssue(projectId: string, input: CreateIssueInput): Issue {
     projectId,
     input.title,
     input.description,
-    "Summarizing...",
+    input.title,
     input.created_by ?? "user",
     input.status ?? IssueStatus.OPEN,
     input.agent_id ?? null,
