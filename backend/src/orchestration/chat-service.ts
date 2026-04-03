@@ -39,12 +39,18 @@ interface ChatServiceResult {
 }
 
 /**
- * Send a message in a chat thread and get a streamed Claude response.
+ * Acquire the per-thread lock and create the user message synchronously.
+ * Returns the user message ID for the immediate HTTP 202 response.
+ *
+ * IMPORTANT: The isThreadActive check + set below are safe from TOCTOU races
+ * only because there is no `await` (yield point) between them. Node.js is
+ * single-threaded, so no other code can interleave between the check and set.
+ * Do NOT insert an `await` between these two lines without adding a proper mutex.
  */
-export async function sendMessage(
+export function acquireAndCreateMessage(
   threadId: string,
   content: string,
-): Promise<ChatServiceResult> {
+): string {
   if (isThreadActive(threadId)) {
     throw new ConflictError("A message is already being processed for this thread");
   }
@@ -52,10 +58,39 @@ export async function sendMessage(
   const thread = getThread(threadId);
   if (!thread) throw new Error(`Thread ${threadId} not found`);
 
-  activeThreads.set(threadId, true);
+  const userMsg = createMessage(threadId, "user", content);
 
+  // Set lock only after message is persisted — avoids permanent lock on DB error
+  activeThreads.set(threadId, true);
+  return userMsg.id;
+}
+
+/**
+ * Run the Claude session for a thread that already has a lock acquired.
+ * Call this after acquireAndCreateMessage in a detached promise.
+ * Emits chat.error and chat.complete on failure; chat.complete on success.
+ */
+export async function runThreadSession(threadId: string, content: string): Promise<void> {
+  let thread: NonNullable<ReturnType<typeof getThread>> | null = null;
   try {
-    return await runClaudeSession(thread, content);
+    thread = getThread(threadId);
+    if (!thread) throw new Error(`Thread ${threadId} not found`);
+
+    await runClaudeSession(thread, content);
+  } catch (err) {
+    // If thread wasn't fetched yet (getThread threw), try once more for event context
+    thread = thread ?? getThread(threadId);
+    if (!thread) return; // Thread gone — finally still releases the lock
+    logger.error({ err, threadId }, "Chat message processing failed");
+    eventBus.emit("chat.error", {
+      project_id: thread.project_id,
+      thread_id: thread.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    eventBus.emit("chat.complete", {
+      project_id: thread.project_id,
+      thread_id: thread.id,
+    });
   } finally {
     activeThreads.delete(threadId);
   }
@@ -65,8 +100,6 @@ async function runClaudeSession(
   thread: NonNullable<Awaited<ReturnType<typeof getThread>>>,
   content: string,
 ): Promise<ChatServiceResult> {
-  const userMsg = createMessage(thread.id, "user", content);
-
   const systemPrompt = await buildCaptainPrompt(thread.project_id);
   const model = globalConfigRepo.getDefaultModel();
 

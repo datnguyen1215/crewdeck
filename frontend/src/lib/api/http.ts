@@ -628,5 +628,8 @@ export function deleteChatThread(threadId: string, projectId: string) {
   return request<void>("DELETE", `/projects/${e(projectId)}/chat/threads/${e(threadId)}`);
 }
 export function sendChatMessage(threadId: string, projectId: string, content: string) {
-  return request<{ message_id: string; session_id: string }>("POST", `/projects/${e(projectId)}/chat/threads/${e(threadId)}/messages`, { content });
+  return request<{ message_id: string }>("POST", `/projects/${e(projectId)}/chat/threads/${e(threadId)}/messages`, { content });
+}
+export function getChatThreadStatus(threadId: string, projectId: string) {
+  return request<{ active: boolean }>("GET", `/projects/${e(projectId)}/chat/threads/${e(threadId)}/status`);
 }

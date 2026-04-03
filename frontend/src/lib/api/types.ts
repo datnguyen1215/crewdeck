@@ -414,8 +414,8 @@ export interface WsEventMap {
   "chat.tool_result": { project_id: string; thread_id: string; tool_name: string; result: unknown };
   "chat.thinking": { project_id: string; thread_id: string };
   "chat.complete": { project_id: string; thread_id: string };
-  "chat.session_expired": { project_id: string; thread_id: string };
   "chat.error": { project_id: string; thread_id: string; error: string };
+  "chat.session_expired": { project_id: string; thread_id: string };
 }
 
 // Subset of events broadcast to global (dashboard) WebSocket subscribers.

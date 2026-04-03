@@ -1820,7 +1820,7 @@ Deletes a thread and all its messages.
 POST /projects/:projectId/chat/threads/:threadId/messages
 ```
 
-Sends a user message and triggers a Claude response. The response is streamed in real-time via WebSocket events (see [Chat Events](#chat-events)). Only one message can be processed per thread at a time — concurrent sends return `409 CONFLICT`.
+Sends a user message and triggers a Claude response. The endpoint returns immediately (fire-and-forget); the response is streamed in real-time via WebSocket events (see [Chat Events](#chat-events)). Only one message can be processed per thread at a time — concurrent sends return `409 CONFLICT`.
 
 **Request body:**
 
@@ -1828,13 +1828,13 @@ Sends a user message and triggers a Claude response. The response is streamed in
 | ------- | ------ | -------- | ------------------------------------ |
 | content | string | Yes      | The user's message content.          |
 
-**Response:** `200 OK`
+**Response:** `202 Accepted`
 
 ```json
-{ "message_id": "uuid", "session_id": "uuid-or-null" }
+{ "message_id": "uuid" }
 ```
 
-The response is returned only after the Claude response is fully complete. Use WebSocket events for real-time streaming.
+The HTTP response is returned immediately after saving the user message and acquiring the processing lock. The Claude session runs in the background. Use WebSocket events for real-time streaming and completion notification.
 
 **Errors:**
 
@@ -1849,8 +1849,27 @@ The response is returned only after the Claude response is fully complete. Use W
 - Saves assistant response to `ChatMessage` table on completion.
 - Updates thread's `updated_at` and `session_id` (captured from Claude CLI stream).
 - Emits `chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, and `chat.complete` events on the event bus.
+- Emits `chat.error` and `chat.complete` on failure.
 - If `--resume` fails (session expired), emits `chat.session_expired`, resets `session_id` to null, and starts a fresh session transparently.
-- If the Claude process fails (exit code 1, no content), emits `chat.error` with a user-friendly message, then `chat.complete`, and returns `500 INTERNAL_SERVER_ERROR`. No assistant message is saved.
+- If the Claude process fails (exit code 1, no content), emits `chat.error` with a user-friendly message, then `chat.complete`. No assistant message is saved.
+
+#### Get Thread Status
+
+```
+GET /projects/:projectId/chat/threads/:threadId/status
+```
+
+Returns whether a thread is currently being processed by Claude. Use this to restore streaming state after page navigation.
+
+**Response:** `200 OK`
+
+```json
+{ "active": true }
+```
+
+**Errors:**
+
+- `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
 
 ---
 

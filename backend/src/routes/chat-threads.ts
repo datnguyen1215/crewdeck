@@ -9,8 +9,8 @@ import { verifyProject } from "../middleware/ownership.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import * as threadRepo from "../db/repositories/chat-threads.js";
 import * as messageRepo from "../db/repositories/chat-messages.js";
-import type { ChatThread } from "../types/entities.js";
-import { sendMessage } from "../orchestration/chat-service.js";
+import type { ChatThread, ChatMessage } from "../types/entities.js";
+import { acquireAndCreateMessage, runThreadSession, isThreadActive } from "../orchestration/chat-service.js";
 
 const router = Router({ mergeParams: true });
 
@@ -100,11 +100,11 @@ router.delete(
   },
 );
 
-// POST /chat/threads/:threadId/messages — Send message and stream Claude response
+// POST /chat/threads/:threadId/messages — Send message (fire-and-forget, 202)
 router.post(
   "/chat/threads/:threadId/messages",
   verifyProject,
-  async (req: Request<ThreadParams>, res: Response, next: NextFunction) => {
+  (req: Request<ThreadParams>, res: Response, next: NextFunction) => {
     try {
       const thread = threadRepo.getThread(req.params.threadId);
       if (!thread || thread.project_id !== req.params.projectId) {
@@ -116,11 +116,32 @@ router.post(
         throw new ValidationError("Message content is required");
       }
 
-      const result = await sendMessage(thread.id, content);
-      res.json(result);
+      // Synchronously acquire lock and create user message.
+      // Throws ConflictError (409) if already processing.
+      const userMessageId = acquireAndCreateMessage(thread.id, content);
+
+      // Respond immediately — the Claude session runs in a detached promise.
+      res.status(202).json({ message_id: userMessageId });
+
+      // Fire-and-forget: run the Claude session. Errors are logged and
+      // emitted as chat.error + chat.complete inside runThreadSession.
+      runThreadSession(thread.id, content).catch(() => {});
     } catch (err) {
       next(err);
     }
+  },
+);
+
+// GET /chat/threads/:threadId/status — Check if thread is currently processing
+router.get(
+  "/chat/threads/:threadId/status",
+  verifyProject,
+  (req: Request<ThreadParams>, res) => {
+    const thread = threadRepo.getThread(req.params.threadId);
+    if (!thread || thread.project_id !== req.params.projectId) {
+      throw new NotFoundError("Thread not found");
+    }
+    res.json({ active: isThreadActive(req.params.threadId) });
   },
 );
 
