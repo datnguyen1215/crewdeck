@@ -11,7 +11,10 @@ import {
   initMentionHandler,
   shutdownMentionHandler,
 } from "./orchestration/handler.js";
-import { initCaptain, shutdownCaptain } from "./orchestration/captain.js";
+import {
+  initMonitorService as initCaptain,
+  shutdownMonitorService as shutdownCaptain,
+} from "./orchestration/captain/monitor-service.js";
 import { recoverOnStartup } from "./orchestration/recovery.js";
 import { createApp } from "./app.js";
 import { initPRDetector } from "./pr/detector.js";
