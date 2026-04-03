@@ -121,12 +121,17 @@ function formatActivityMessage(
   action: string,
   details: Record<string, unknown>,
   actorName?: string | null,
+  actorType?: string | null,
 ): string {
   const agentLabel = actorName
     ? capitalize(actorName)
     : details.agent_id
       ? capitalize(String(details.agent_id))
-      : "Agent";
+      : actorType === "user"
+        ? "User"
+        : actorType === "system"
+          ? "System"
+          : "Agent";
 
   switch (action) {
     case "issue.created":
@@ -206,7 +211,7 @@ export function formatActivityEntry(entry: ActivityLog): TerminalLine {
     timestamp: formatTimestamp(entry.created_at),
     actor: formatActor(entry.actor_type, entry.actor_id, entry.actor_name),
     actorType,
-    message: formatActivityMessage(entry.action, details, actorName),
+    message: formatActivityMessage(entry.action, details, actorName, actorType),
     issueId: entry.issue_id || undefined,
     issueTitle: entry.issue_title,
     severity: getSeverityForAction(entry.action, details),
