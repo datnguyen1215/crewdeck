@@ -105,13 +105,21 @@ claude -p <prompt via stdin> \
 
 The Chat Service spawns `claude -p` processes for the web-based chat interface. Unlike one-shot agent spawns, chat sessions use `--resume` for persistent multi-turn conversations.
 
-### sendMessage
+### acquireAndCreateMessage
 
 ```
-sendMessage(threadId: string, content: string) → Promise<{ message_id, session_id }>
+acquireAndCreateMessage(threadId: string, content: string) → string
 ```
 
-Saves the user message to the database, spawns `claude -p` with `--resume {sessionId}` (if a session exists), streams response events via the event bus, saves the assistant response, and returns the message ID and session ID.
+Synchronously acquires the per-thread lock and creates the user message. Returns the user message ID for the immediate HTTP 202 response. Throws `ConflictError` if the thread is already locked. The lock is acquired only after the message is persisted to avoid permanent lock on DB error.
+
+### runThreadSession
+
+```
+runThreadSession(threadId: string, content: string) → Promise<void>
+```
+
+Runs the Claude session for a thread that already has a lock acquired. Call this after `acquireAndCreateMessage` in a detached (fire-and-forget) promise. Emits `chat.error` and `chat.complete` on failure; `chat.complete` on success. Always releases the lock in a `finally` block.
 
 **Command constructed:**
 
@@ -137,7 +145,7 @@ claude -p <prompt via stdin> \
 2. On subsequent messages: spawns with `--resume {sessionId}` to continue the conversation.
 3. If `--resume` fails (session expired/not found): emits `chat.session_expired`, clears the stored session ID, retries without `--resume`, and saves the new session ID.
 
-**Concurrency:** Only one `claude -p` process runs per thread at a time (in-memory lock). Concurrent sends throw `ConflictError` (HTTP 409).
+**Concurrency:** Only one `claude -p` process runs per thread at a time (in-memory lock). The `acquireAndCreateMessage()` function checks and sets the lock synchronously (no `await` between check and set), which is safe from TOCTOU races in Node.js's single-threaded model. Concurrent sends throw `ConflictError` (HTTP 409).
 
 **Environment variables:** Same pattern as agent spawns — `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, `CREWDECK_AGENT_ID`, `CREWDECK_API_KEY`, provider env vars via `buildProviderEnv(model)`, and `GIT_TERMINAL_PROMPT=0`.
 
