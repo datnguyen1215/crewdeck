@@ -71,16 +71,19 @@
 			...AGENT_EVENTS.map((e) => globws.on(e, refreshActiveAgents)),
 		];
 
-		if (projects.length === 0) {
-			try {
-				const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9381';
-				const res = await fetch(`${backendUrl}/api/v1/auth/me`, { credentials: 'include' });
-				if (res.ok) {
-					const { setupCompleted } = await res.json();
-					if (!setupCompleted) openCreateModal();
+		try {
+			const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9381';
+			const res = await fetch(`${backendUrl}/api/v1/auth/me`, { credentials: 'include' });
+			if (res.ok) {
+				const { setupCompleted } = await res.json();
+				if (!setupCompleted) {
+					const loaded = await listProjectsWithStats();
+					projects = loaded;
+					loading = false;
+					if (loaded.length === 0) openCreateModal();
 				}
-			} catch {}
-		}
+			}
+		} catch {}
 	});
 
 	onDestroy(() => {

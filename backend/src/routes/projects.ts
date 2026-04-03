@@ -50,7 +50,10 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
       vcs_account_id: body.vcs_account_id,
     });
 
-    markSetupComplete(req.session!.userId);
+    if (!req.session!.setupCompleted) {
+      markSetupComplete(req.session!.userId);
+      req.session!.setupCompleted = 1;
+    }
 
     res.status(201).json(project);
   } catch (err) {
