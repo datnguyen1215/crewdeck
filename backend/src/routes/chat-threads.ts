@@ -9,7 +9,7 @@ import { verifyProject } from "../middleware/ownership.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import * as threadRepo from "../db/repositories/chat-threads.js";
 import * as messageRepo from "../db/repositories/chat-messages.js";
-import type { ChatThread, ChatMessage } from "../types/entities.js";
+import type { ChatThread } from "../types/entities.js";
 import { sendMessage } from "../orchestration/chat-service.js";
 
 const router = Router({ mergeParams: true });
@@ -18,7 +18,7 @@ type ProjectParams = { projectId: string };
 type ThreadParams = ProjectParams & { threadId: string };
 
 interface ThreadWithMeta extends ChatThread {
-  last_message: ChatMessage | null;
+  last_message: string | null;
   message_count: number;
 }
 
@@ -39,11 +39,14 @@ router.get(
   verifyProject,
   (req: Request<ProjectParams>, res) => {
     const threads = threadRepo.listThreads(req.params.projectId);
-    const enriched: ThreadWithMeta[] = threads.map((t) => ({
-      ...t,
-      last_message: messageRepo.getLastMessage(t.id),
-      message_count: messageRepo.getMessageCount(t.id),
-    }));
+    const enriched: ThreadWithMeta[] = threads.map((t) => {
+      const lastMsg = messageRepo.getLastMessage(t.id);
+      return {
+        ...t,
+        last_message: lastMsg?.content ?? null,
+        message_count: messageRepo.getMessageCount(t.id),
+      };
+    });
     res.json(enriched);
   },
 );

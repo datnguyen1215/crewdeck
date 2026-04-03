@@ -1752,7 +1752,7 @@ Lists user chat threads for a project (monitor threads are excluded), enriched w
 
 | Extra field     | Type                    | Description                                       |
 | --------------- | ----------------------- | ------------------------------------------------- |
-| `last_message`  | `ChatMessage \| null`   | Most recent message in the thread (or null).      |
+| `last_message`  | `string \| null`        | Content text of the most recent message in the thread (or null). |
 | `message_count` | number                  | Total number of messages in the thread.           |
 
 #### Get Thread
