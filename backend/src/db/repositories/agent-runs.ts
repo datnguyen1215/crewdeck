@@ -218,13 +218,7 @@ export function getAgentRunEvent(id: string): AgentRunEvent | null {
     | AgentRunEventRow
     | undefined;
   if (!row) return null;
-  return {
-    id: row.id,
-    agent_run_id: row.agent_run_id,
-    type: row.type as AgentRunEvent["type"],
-    data: JSON.parse(row.data),
-    created_at: row.created_at,
-  };
+  return parseEventRow(row);
 }
 
 export function listAgentRunEvents(agentRunId: string): AgentRunEvent[] {
