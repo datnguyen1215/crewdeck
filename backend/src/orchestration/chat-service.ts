@@ -29,6 +29,7 @@ import * as globalEnvVarRepo from "../db/repositories/global-environment-variabl
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 import { getSystemApiKey } from "../app.js";
 import { ConflictError } from "../middleware/errors.js";
+import { normalizeEvent } from "../services/event-normalizer.js";
 
 // In-memory lock: only one claude -p process per thread at a time
 const activeThreads = new Map<string, boolean>();
@@ -290,6 +291,8 @@ async function runClaudeProcess(
   let sessionId: string | null = null;
   let sessionExpired = false;
   let lastToolCallId: string | null = null;
+  // Map tool_use_id -> tool_name for matching with tool_results in new nested format
+  const toolNamesById = new Map<string, string>();
 
   // Collect raw stdout to ensure we never lose data from fast-exiting processes.
   // Buffer partial lines across chunks so we only parse complete JSON lines.
@@ -348,45 +351,83 @@ async function runClaudeProcess(
       return;
     }
 
-    if (type === "assistant") {
-      const subtype = event.subtype as string | undefined;
-      if (subtype === "text" && typeof event.content === "string") {
-        content += event.content;
-        chatEventRepo.createEvent(msgId, "text", { content: event.content });
-        eventBus.emit("chat.message", {
-          project_id: projId,
-          thread_id: thrdId,
-          message_id: msgId,
-          content: event.content,
-        });
-      } else if (subtype === "thinking") {
-        const thinkingText = typeof event.thinking === "string" ? event.thinking : undefined;
-        chatEventRepo.createEvent(msgId, "thinking", { content: thinkingText });
-        eventBus.emit("chat.thinking", {
-          project_id: projId,
-          thread_id: thrdId,
-          message_id: msgId,
-          content: thinkingText,
-        });
-      } else if (subtype === "tool_use" && event.tool_name) {
-        const toolCallId = String(event.tool_call_id ?? `${event.tool_name}:${Date.now()}`);
-        lastToolCallId = toolCallId;
-        chatEventRepo.createEvent(msgId, "tool_call", {
-          tool_call_id: toolCallId,
-          tool_name: String(event.tool_name),
-          tool_input: event.tool_input,
-        });
-        eventBus.emit("chat.tool_call", {
-          project_id: projId,
-          thread_id: thrdId,
-          message_id: msgId,
-          tool_call_id: toolCallId,
-          tool_name: String(event.tool_name),
-          tool_input: event.tool_input,
-        });
+    if (type === "assistant" || type === "user") {
+      // Normalize handles both old flat format and new nested message.content[] format
+      const normalized = normalizeEvent({
+        id: "",
+        agent_run_id: "",
+        type,
+        data: event,
+        created_at: new Date().toISOString(),
+      });
+      const d = normalized.data as Record<string, unknown>;
+
+      if (type === "assistant") {
+        if (typeof d.text === "string" && d.text) {
+          content += d.text;
+          chatEventRepo.createEvent(msgId, "text", { content: d.text });
+          eventBus.emit("chat.message", {
+            project_id: projId,
+            thread_id: thrdId,
+            message_id: msgId,
+            content: d.text,
+          });
+        }
+        if (typeof d.thinking === "string" && d.thinking) {
+          chatEventRepo.createEvent(msgId, "thinking", { content: d.thinking });
+          eventBus.emit("chat.thinking", {
+            project_id: projId,
+            thread_id: thrdId,
+            message_id: msgId,
+            content: d.thinking,
+          });
+        }
+        if (Array.isArray(d.tool_use)) {
+          for (const tu of d.tool_use) {
+            const tuRec = tu as { id: string; name: string; input: unknown };
+            const toolCallId = tuRec.id || `${tuRec.name}:${Date.now()}`;
+            lastToolCallId = toolCallId;
+            toolNamesById.set(toolCallId, tuRec.name);
+            chatEventRepo.createEvent(msgId, "tool_call", {
+              tool_call_id: toolCallId,
+              tool_name: tuRec.name,
+              tool_input: tuRec.input,
+            });
+            eventBus.emit("chat.tool_call", {
+              project_id: projId,
+              thread_id: thrdId,
+              message_id: msgId,
+              tool_call_id: toolCallId,
+              tool_name: tuRec.name,
+              tool_input: tuRec.input,
+            });
+          }
+        }
+      }
+
+      if (type === "user" && Array.isArray(d.tool_results)) {
+        for (const tr of d.tool_results) {
+          const trRec = tr as { tool_use_id: string; output: string; is_error?: boolean };
+          const toolCallId = trRec.tool_use_id || lastToolCallId || "";
+          const toolName = toolNamesById.get(toolCallId) || "";
+          chatEventRepo.createEvent(msgId, "tool_result", {
+            tool_call_id: toolCallId,
+            tool_name: toolName,
+            result: trRec.output,
+          });
+          eventBus.emit("chat.tool_result", {
+            project_id: projId,
+            thread_id: thrdId,
+            message_id: msgId,
+            tool_call_id: toolCallId,
+            tool_name: toolName,
+            result: trRec.output,
+          });
+        }
       }
     }
 
+    // Handle legacy flat tool_result events (old Claude CLI format)
     if (type === "tool_result" && event.tool_name) {
       const toolCallId = String(event.tool_call_id ?? lastToolCallId ?? "");
       chatEventRepo.createEvent(msgId, "tool_result", {
