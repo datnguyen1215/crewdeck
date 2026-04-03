@@ -2196,7 +2196,7 @@ All events below (except `run.event` and monitor events) are broadcast to both p
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
 | `issue.created`        | New issue created                                                                                                        | Full Issue object (bare, not wrapped in `{ issue }`)         |
 | `issue.updated`        | Issue fields changed                                                                                                     | `{ issue_id, project_id, changes }`                          |
-| `issue.status_changed` | Status transition (triggers automatic worktree cleanup when `to === "done"` — DB fields always cleared in finally block) | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
+| `issue.status_changed` | Status transition (triggers automatic worktree cleanup and dependency removal when `to === "done"` — DB fields always cleared in finally block) | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
 | `issue.paused`         | Issue paused                                                                                                             | `{ issue_id, project_id }`                                   |
 | `issue.resumed`        | Issue resumed                                                                                                            | `{ issue_id, project_id }`                                   |
 
