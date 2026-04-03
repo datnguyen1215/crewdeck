@@ -27,7 +27,7 @@
   function autoResize() {
     if (!textareaEl) return;
     textareaEl.style.height = 'auto';
-    textareaEl.style.height = Math.min(textareaEl.scrollHeight, 4 * 24) + 'px';
+    textareaEl.style.height = Math.min(textareaEl.scrollHeight, 8 * 24) + 'px';
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -50,26 +50,30 @@
 </script>
 
 <div class="flex-shrink-0 border-t border-edge bg-base p-3">
-  <div class="flex items-end gap-2">
+  <div class="relative">
     <textarea
       bind:this={textareaEl}
       bind:value={text}
       onkeydown={handleKeydown}
       oninput={autoResize}
-      rows="1"
+      rows="2"
       placeholder="Type a message..."
       disabled={disabled}
-      class="flex-1 resize-none bg-surface border border-edge rounded px-3 py-2 text-sm text-primary
-        placeholder:text-muted font-mono focus:outline-none focus:border-edge-hi disabled:opacity-50
-        disabled:cursor-not-allowed max-h-24 overflow-y-auto"
+      class="w-full resize-none bg-surface border border-edge rounded-lg px-3 py-2 pr-10 text-sm text-primary
+        placeholder:text-muted font-mono focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/20
+        disabled:opacity-50 disabled:cursor-not-allowed max-h-48 overflow-y-auto"
     ></textarea>
     <button
       onclick={submit}
       disabled={disabled || !text.trim()}
-      class="flex-shrink-0 rounded px-3 py-2 text-sm font-medium transition-colors
+      aria-label="Send message"
+      class="absolute bottom-2 right-2 w-7 h-7 flex items-center justify-center rounded-full transition-colors
         {disabled || !text.trim() ? 'bg-surface text-muted cursor-not-allowed' : 'bg-cyan text-base hover:bg-cyan/80'}"
     >
-      Send
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 19V5M5 12l7-7 7 7" />
+      </svg>
     </button>
   </div>
+  <p class="text-[10px] text-muted mt-1 hidden md:block">Enter to send · Shift+Enter for newline</p>
 </div>
