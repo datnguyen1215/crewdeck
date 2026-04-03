@@ -10,8 +10,7 @@
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
 	let destroyed = false;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let term: any = null;
+	let term: import('@xterm/xterm').Terminal | null = null;
 	let ro: ResizeObserver | null = null;
 	let termWs: WebSocket | null = null;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -30,7 +29,7 @@
 			connected = true;
 			reconnectDelay = 1000;
 			// Send initial resize
-			ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+			ws.send(JSON.stringify({ type: 'resize', cols: term!.cols, rows: term!.rows }));
 		};
 
 		ws.onmessage = (event) => {

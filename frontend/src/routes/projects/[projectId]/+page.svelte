@@ -3,6 +3,7 @@
 	import { getContext } from 'svelte';
 	import { listIssues, createIssue, approveIssueStart, getProject, updateProject, type IssueWithRunningAgent, type Agent, type Project, type ListIssuesResult } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import type { WsEventMap } from '$lib/api/types.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import ActivityTerminal from '$lib/components/ActivityTerminal.svelte';
 	import IssueFilters from '$lib/components/IssueFilters.svelte';
@@ -131,8 +132,8 @@
 				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
 		};
 		return useWsSubscriptions(ws, {
-			'issue.created': (data: any) => {
-				if (skipNextCreatedId && data.id === skipNextCreatedId) {
+			'issue.created': (data: WsEventMap['issue.created']) => {
+				if (skipNextCreatedId && data.issue.id === skipNextCreatedId) {
 					skipNextCreatedId = null;
 					return;
 				}

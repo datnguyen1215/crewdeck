@@ -1,4 +1,5 @@
 import type { ActivityLog } from "$lib/api/http.js";
+import type { Issue, Comment, IssuePR } from "$lib/api/types.js";
 import { parseUTC } from "$lib/utils/time.js";
 
 export interface TerminalLine {
@@ -196,8 +197,8 @@ export function formatActivityEntry(entry: ActivityLog): TerminalLine {
   // Resolve display name: prefer enriched actor_name, then details.agent_id
   const actorName =
     entry.actor_name ||
-    (typeof (details as any).agent_id === "string"
-      ? ((details as any).agent_id as string)
+    (typeof details.agent_id === "string"
+      ? (details.agent_id as string)
       : null);
 
   return {
@@ -232,7 +233,7 @@ export function formatWsEvent(eventType: string, data: unknown): TerminalLine {
   switch (eventType) {
     case "issue.created":
       message = "Issue created";
-      issueId = String((d.issue as any)?.id || "");
+      issueId = String((d.issue as Partial<Issue>)?.id || "");
       break;
 
     case "issue.updated":
@@ -246,7 +247,7 @@ export function formatWsEvent(eventType: string, data: unknown): TerminalLine {
       const to = rawTo.replace(/_/g, " ");
       issueId = String(d.issue_id || "");
       if (d.actor_type) {
-        actorType = String(d.actor_type) as any;
+        actorType = String(d.actor_type) as "agent" | "system" | "user";
         actor = formatActor(
           String(d.actor_type),
           String(d.actor_id || ""),
@@ -267,7 +268,7 @@ export function formatWsEvent(eventType: string, data: unknown): TerminalLine {
     }
 
     case "comment.added": {
-      const comment = d.comment as any;
+      const comment = d.comment as Partial<Comment>;
       const authorId = comment?.author_type || "unknown";
       // author_type for agent comments is the agent id (e.g. "engineer")
       const commentLabel = capitalize(String(authorId));
@@ -278,7 +279,7 @@ export function formatWsEvent(eventType: string, data: unknown): TerminalLine {
 
     case "comment.updated":
       message = "Comment updated";
-      issueId = String((d.comment as any)?.issue_id || "");
+      issueId = String((d.comment as Partial<Comment>)?.issue_id || "");
       break;
 
     case "comment.deleted":
@@ -287,9 +288,9 @@ export function formatWsEvent(eventType: string, data: unknown): TerminalLine {
       break;
 
     case "pr.created": {
-      const prNumber = (d.issue_pr as any)?.pr_number || "?";
+      const prNumber = (d.issue_pr as Partial<IssuePR>)?.pr_number || "?";
       message = `PR #${prNumber} created`;
-      issueId = String((d.issue_pr as any)?.issue_id || "");
+      issueId = String((d.issue_pr as Partial<IssuePR>)?.issue_id || "");
       severity = "started";
       break;
     }
