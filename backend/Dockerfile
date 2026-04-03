@@ -37,6 +37,9 @@ RUN cd backend && npm run build
 # Ensure data directory exists
 RUN mkdir -p /app/data && chown -R app:app /app
 
+# Copy host Claude config so agents have a writable, independent ~/.claude
+COPY --from=claude-config --chown=app:app / /home/app/.claude/
+
 USER app
 
 ENV HOST=0.0.0.0
