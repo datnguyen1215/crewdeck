@@ -137,14 +137,12 @@ async function runClaudeSession(
     if (freshTmpFile) try { await unlink(freshTmpFile); } catch {}
   }
 
-  if (processFailed || !assistantContent) {
+  if (processFailed) {
     // Don't save a ghost message — emit error so frontend can show it
     eventBus.emit("chat.error", {
       project_id: thread.project_id,
       thread_id: thread.id,
-      error: processFailed
-        ? "Captain process failed. Try sending the message again."
-        : "Captain did not produce a response.",
+      error: "Captain process failed. Try sending the message again.",
     });
 
     // Update session_id if we got one from the attempt
