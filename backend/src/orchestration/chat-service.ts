@@ -38,20 +38,19 @@ interface ChatServiceResult {
   session_id: string | null;
 }
 
-interface SendMessageResult {
-  user_message_id: string;
-  message_id: string;
-  session_id: string | null;
-}
-
 /**
- * Send a message in a chat thread and get a streamed Claude response.
- * Creates the user message after acquiring the lock to prevent duplicates.
+ * Acquire the per-thread lock and create the user message synchronously.
+ * Returns the user message ID for the immediate HTTP 202 response.
+ *
+ * IMPORTANT: The isThreadActive check + set below are safe from TOCTOU races
+ * only because there is no `await` (yield point) between them. Node.js is
+ * single-threaded, so no other code can interleave between the check and set.
+ * Do NOT insert an `await` between these two lines without adding a proper mutex.
  */
-export async function sendMessage(
+export function acquireAndCreateMessage(
   threadId: string,
   content: string,
-): Promise<SendMessageResult> {
+): string {
   if (isThreadActive(threadId)) {
     throw new ConflictError("A message is already being processed for this thread");
   }
@@ -61,10 +60,32 @@ export async function sendMessage(
 
   activeThreads.set(threadId, true);
 
+  const userMsg = createMessage(threadId, "user", content);
+  return userMsg.id;
+}
+
+/**
+ * Run the Claude session for a thread that already has a lock acquired.
+ * Call this after acquireAndCreateMessage in a detached promise.
+ * Emits chat.error and chat.complete on failure; chat.complete on success.
+ */
+export async function runThreadSession(threadId: string, content: string): Promise<void> {
+  const thread = getThread(threadId);
+  if (!thread) throw new Error(`Thread ${threadId} not found`);
+
   try {
-    const userMsg = createMessage(threadId, "user", content);
-    const result = await runClaudeSession(thread, content);
-    return { user_message_id: userMsg.id, ...result };
+    await runClaudeSession(thread, content);
+  } catch (err) {
+    logger.error({ err, threadId }, "Chat message processing failed");
+    eventBus.emit("chat.error", {
+      project_id: thread.project_id,
+      thread_id: thread.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    eventBus.emit("chat.complete", {
+      project_id: thread.project_id,
+      thread_id: thread.id,
+    });
   } finally {
     activeThreads.delete(threadId);
   }

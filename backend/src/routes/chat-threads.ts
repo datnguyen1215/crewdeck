@@ -10,9 +10,7 @@ import { NotFoundError, ValidationError, ConflictError } from "../middleware/err
 import * as threadRepo from "../db/repositories/chat-threads.js";
 import * as messageRepo from "../db/repositories/chat-messages.js";
 import type { ChatThread, ChatMessage } from "../types/entities.js";
-import { sendMessage, isThreadActive } from "../orchestration/chat-service.js";
-import { eventBus } from "../events/bus.js";
-import { logger } from "../logger.js";
+import { acquireAndCreateMessage, runThreadSession, isThreadActive } from "../orchestration/chat-service.js";
 
 const router = Router({ mergeParams: true });
 
@@ -106,7 +104,7 @@ router.delete(
 router.post(
   "/chat/threads/:threadId/messages",
   verifyProject,
-  async (req: Request<ThreadParams>, res: Response, next: NextFunction) => {
+  (req: Request<ThreadParams>, res: Response, next: NextFunction) => {
     try {
       const thread = threadRepo.getThread(req.params.threadId);
       if (!thread || thread.project_id !== req.params.projectId) {
@@ -118,30 +116,16 @@ router.post(
         throw new ValidationError("Message content is required");
       }
 
-      // Fire-and-forget: sendMessage acquires the lock, creates the user message,
-      // then runs Claude. Returns 202 with the user message ID once confirmed.
-      // sendMessage will throw ConflictError if already locked.
-      sendMessage(thread.id, content)
-        .then((result) => {
-          res.status(202).json({ message_id: result.user_message_id });
-        })
-        .catch((err) => {
-          if (err instanceof ConflictError) {
-            res.status(409).json({ error: err.message });
-            return;
-          }
-          logger.error({ err, threadId: thread.id }, "Chat message processing failed");
-          eventBus.emit("chat.error", {
-            project_id: thread.project_id,
-            thread_id: thread.id,
-            error: err instanceof Error ? err.message : String(err),
-          });
-          eventBus.emit("chat.complete", {
-            project_id: thread.project_id,
-            thread_id: thread.id,
-          });
-          res.status(202).json({ message_id: "" });
-        });
+      // Synchronously acquire lock and create user message.
+      // Throws ConflictError (409) if already processing.
+      const userMessageId = acquireAndCreateMessage(thread.id, content);
+
+      // Respond immediately — the Claude session runs in a detached promise.
+      res.status(202).json({ message_id: userMessageId });
+
+      // Fire-and-forget: run the Claude session. Errors are logged and
+      // emitted as chat.error + chat.complete inside runThreadSession.
+      runThreadSession(thread.id, content).catch(() => {});
     } catch (err) {
       next(err);
     }
