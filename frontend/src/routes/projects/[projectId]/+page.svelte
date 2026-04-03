@@ -131,8 +131,8 @@
 				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
 		};
 		return useWsSubscriptions(ws, {
-			'issue.created': (data) => {
-				if (skipNextCreatedId && data.issue.id === skipNextCreatedId) {
+			'issue.created': (data: any) => {
+				if (skipNextCreatedId && data.id === skipNextCreatedId) {
 					skipNextCreatedId = null;
 					return;
 				}
