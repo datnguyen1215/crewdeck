@@ -179,14 +179,14 @@
             </div>
           </div>
         {/if}
+      {/if}
 
-        <!-- Error message -->
-        {#if chatError}
-          <div class="mb-3 border-l-[3px] border-l-red pl-3 py-0.5">
-            <div class="text-[10px] text-red">error</div>
-            <p class="text-xs text-red/80 mt-0.5">{chatError}</p>
-          </div>
-        {/if}
+      <!-- Error message (always visible, even when messages list is empty) -->
+      {#if chatError}
+        <div class="mb-3 border-l-[3px] border-l-red pl-3 py-0.5">
+          <div class="text-[10px] text-red">error</div>
+          <p class="text-xs text-red/80 mt-0.5">{chatError}</p>
+        </div>
       {/if}
     </div>
   </div>

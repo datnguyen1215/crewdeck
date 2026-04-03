@@ -157,10 +157,7 @@ async function runClaudeSession(
       thread_id: thread.id,
     });
 
-    return {
-      message_id: "",
-      session_id: capturedSessionId,
-    };
+    throw new Error("Captain process failed. Try sending the message again.");
   } else {
     // Save assistant message
     const assistantMsg = createMessage(thread.id, "assistant", assistantContent);
