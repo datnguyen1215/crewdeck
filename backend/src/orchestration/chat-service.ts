@@ -92,6 +92,7 @@ async function runClaudeSession(
 
   let capturedSessionId: string | null = sessionId;
   let assistantContent = "";
+  let processFailed = false;
 
   let freshTmpFile: string | null = null;
 
@@ -125,36 +126,66 @@ async function runClaudeSession(
 
       capturedSessionId = freshResult.sessionId;
       assistantContent = freshResult.content;
+      processFailed = freshResult.failed;
     } else {
       capturedSessionId = result.sessionId;
       assistantContent = result.content;
+      processFailed = result.failed;
     }
   } finally {
     try { await unlink(tmpFile); } catch {}
     if (freshTmpFile) try { await unlink(freshTmpFile); } catch {}
   }
 
-  // Save assistant message (fallback if captain produced no output)
-  const assistantMsg = createMessage(thread.id, "assistant", assistantContent || "Captain did not respond.");
+  if (processFailed || !assistantContent) {
+    // Don't save a ghost message — emit error so frontend can show it
+    eventBus.emit("chat.error", {
+      project_id: thread.project_id,
+      thread_id: thread.id,
+      error: processFailed
+        ? "Captain process failed. Try sending the message again."
+        : "Captain did not produce a response.",
+    });
 
-  // Update session_id if we got a new one
-  if (capturedSessionId && capturedSessionId !== thread.session_id) {
-    updateThread(thread.id, { session_id: capturedSessionId });
+    // Update session_id if we got one from the attempt
+    if (capturedSessionId && capturedSessionId !== thread.session_id) {
+      updateThread(thread.id, { session_id: capturedSessionId });
+    }
+    updateThread(thread.id, {});
+
+    // Still fire chat.complete so frontend resets streaming state
+    eventBus.emit("chat.complete", {
+      project_id: thread.project_id,
+      thread_id: thread.id,
+    });
+
+    return {
+      message_id: "",
+      session_id: capturedSessionId,
+    };
+  } else {
+    // Save assistant message
+    const assistantMsg = createMessage(thread.id, "assistant", assistantContent);
+
+    // Update session_id if we got a new one
+    if (capturedSessionId && capturedSessionId !== thread.session_id) {
+      updateThread(thread.id, { session_id: capturedSessionId });
+    }
+
+    // Touch updated_at
+    updateThread(thread.id, {});
+
+    eventBus.emit("chat.complete", {
+      project_id: thread.project_id,
+      thread_id: thread.id,
+      message_id: assistantMsg.id,
+    });
+
+    return {
+      message_id: assistantMsg.id,
+      session_id: capturedSessionId,
+    };
   }
-
-  // Touch updated_at
-  updateThread(thread.id, {});
-
-  eventBus.emit("chat.complete", {
-    project_id: thread.project_id,
-    thread_id: thread.id,
-    message_id: assistantMsg.id,
-  });
-
-  return {
-    message_id: assistantMsg.id,
-    session_id: capturedSessionId,
-  };
 }
 
 function buildClaudeArgs(sessionId: string | null, model: string): string[] {
@@ -176,6 +207,7 @@ interface ClaudeRunResult {
   content: string;
   sessionId: string | null;
   sessionExpired: boolean;
+  failed: boolean;
 }
 
 async function runClaudeProcess(
@@ -298,7 +330,8 @@ async function runClaudeProcess(
 
   if (exitCode !== 0 && !sessionExpired && !content) {
     logger.error({ exitCode, threadId }, "Claude chat process failed");
+    return { content, sessionId, sessionExpired, failed: true };
   }
 
-  return { content, sessionId, sessionExpired };
+  return { content, sessionId, sessionExpired, failed: false };
 }

@@ -188,4 +188,9 @@ export interface EventMap {
     project_id: string;
     thread_id: string;
   };
+  "chat.error": {
+    project_id: string;
+    thread_id: string;
+    error: string;
+  };
 }

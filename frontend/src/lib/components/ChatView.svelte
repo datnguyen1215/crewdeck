@@ -24,6 +24,7 @@
   let streamingToolCalls = $state<Array<{ tool_name: string; tool_input: unknown; result?: string; success: boolean }>>([]);
   let isStreaming = $state(false);
   let isProcessing = $state(false);
+  let chatError = $state<string | null>(null);
 
   // Sync messages and reset streaming state when thread prop changes
   $effect(() => {
@@ -34,6 +35,7 @@
     streamingToolCalls = [];
     isStreaming = false;
     isProcessing = false;
+    chatError = null;
   });
 
   // WebSocket subscriptions for streaming
@@ -90,6 +92,14 @@
         streamingText = '';
         streamingToolCalls = [];
       },
+      'chat.error': (data) => {
+        if (data.thread_id !== thread.id) return;
+        isProcessing = false;
+        isStreaming = false;
+        streamingText = '';
+        streamingToolCalls = [];
+        chatError = data.error;
+      },
     });
   });
 
@@ -107,6 +117,7 @@
       };
       messages = [...messages, userMsg];
       isProcessing = true;
+      chatError = null;
     } catch {
       isProcessing = false;
       // silent — error will surface through the next thread reload
@@ -166,6 +177,14 @@
             <div class="border border-dashed border-cyan/40 rounded px-3 py-2 text-sm">
               <span class="text-cyan/70 animate-pulse">Analyzing_</span>
             </div>
+          </div>
+        {/if}
+
+        <!-- Error message -->
+        {#if chatError}
+          <div class="mb-3 border-l-[3px] border-l-red pl-3 py-0.5">
+            <div class="text-[10px] text-red">error</div>
+            <p class="text-xs text-red/80 mt-0.5">{chatError}</p>
           </div>
         {/if}
       {/if}
