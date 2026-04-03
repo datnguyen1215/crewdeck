@@ -278,7 +278,7 @@ Immutable audit trail of every action in the system.
 
 ### MonitorMessage
 
-Stores Captain Monitor event/response history. The monitor agent writes event batches and LLM responses here, and the frontend reads them on the Terminals page.
+Stores Captain Monitor event/response history. The monitor agent writes event batches and LLM responses here. Messages are dual-written to the project's monitor chat thread (`ChatThread` with `type='monitor'`) as `ChatMessage` rows with role mapping (`user` → `event`, `assistant` → `assistant`). Migration `040_migrate_monitor_to_chat` copies existing rows into chat threads. The `MonitorMessage` table is retained for backward compatibility but is being deprecated in favor of `ChatMessage`.
 
 | Field      | Type        | Constraints                                          | Description                   |
 | ---------- | ----------- | ---------------------------------------------------- | ----------------------------- |

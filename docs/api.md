@@ -2238,13 +2238,15 @@ All events below (except `run.event` and monitor events) are broadcast to both p
 
 #### Chat Events
 
-| Event                  | Description                                 | Data                                                                  |
-| ---------------------- | ------------------------------------------- | --------------------------------------------------------------------- |
-| `chat.message`         | Assistant text chunk streamed               | `{ project_id, thread_id, content }`                                 |
-| `chat.tool_call`       | Tool usage by Claude during chat            | `{ project_id, thread_id, tool_name, tool_input }`                   |
-| `chat.tool_result`     | Tool result received during chat            | `{ project_id, thread_id, tool_name, result, success }`              |
-| `chat.complete`        | Chat response finished                      | `{ project_id, thread_id, message_id }`                              |
-| `chat.session_expired` | Claude session expired, new one started     | `{ project_id, thread_id }`                                          |
+| Event                    | Description                                 | Data                                                                  |
+| ------------------------ | ------------------------------------------- | --------------------------------------------------------------------- |
+| `chat.event_received`    | Monitor event received (dual-emitted)       | `{ project_id, thread_id, event_type, description }`                 |
+| `chat.thinking`          | Captain is analyzing (dual-emitted)         | `{ project_id, thread_id }`                                          |
+| `chat.message`           | Assistant text chunk streamed               | `{ project_id, thread_id, content }`                                 |
+| `chat.tool_call`         | Tool usage by Claude during chat            | `{ project_id, thread_id, tool_name, tool_input }`                   |
+| `chat.tool_result`       | Tool result received during chat            | `{ project_id, thread_id, tool_name, result, success }`              |
+| `chat.complete`          | Chat response finished                      | `{ project_id, thread_id, message_id? }`                             |
+| `chat.session_expired`   | Claude session expired, new one started     | `{ project_id, thread_id }`                                          |
 
 #### Project Events
 
