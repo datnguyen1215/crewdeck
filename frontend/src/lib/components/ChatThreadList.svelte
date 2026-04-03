@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { getContext } from 'svelte';
   import { goto } from '$app/navigation';
+  import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
   import {
     listChatThreads,
     createChatThread,
     type ChatThreadListItem,
   } from '$lib/api/http.js';
+  import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 
   let {
     projectId,
@@ -13,6 +16,8 @@
     projectId: string;
     selectedThreadId?: string;
   } = $props();
+
+  const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
   let threads = $state<ChatThreadListItem[]>([]);
   let loading = $state(true);
@@ -67,6 +72,19 @@
       .catch(() => {})
       .finally(() => { if (!cancelled) loading = false; });
     return () => { cancelled = true; };
+  });
+
+  // Reload thread list when a chat exchange completes
+  $effect(() => {
+    const ws = getWs();
+    if (!ws) return;
+    return useWsSubscriptions(ws, {
+      'chat.complete': () => {
+        listChatThreads(projectId)
+          .then((t) => { threads = t; })
+          .catch(() => {});
+      },
+    });
   });
 </script>
 
