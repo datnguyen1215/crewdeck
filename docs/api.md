@@ -123,8 +123,10 @@ Returns the current authenticated user info.
 **Response:** `200 OK`
 
 ```json
-{ "id": "uuid", "username": "admin" }
+{ "id": "uuid", "username": "admin", "setupCompleted": false }
 ```
+
+`setupCompleted` is `false` until the user creates their first project, then becomes `true`.
 
 ### Projects
 
