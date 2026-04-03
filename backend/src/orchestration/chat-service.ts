@@ -65,8 +65,6 @@ async function runClaudeSession(
   thread: NonNullable<Awaited<ReturnType<typeof getThread>>>,
   content: string,
 ): Promise<ChatServiceResult> {
-  const userMsg = createMessage(thread.id, "user", content);
-
   const systemPrompt = await buildCaptainPrompt(thread.project_id);
   const model = globalConfigRepo.getDefaultModel();
 

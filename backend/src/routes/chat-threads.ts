@@ -6,11 +6,13 @@
  */
 import { Router, type Request, type NextFunction, type Response } from "express";
 import { verifyProject } from "../middleware/ownership.js";
-import { NotFoundError, ValidationError } from "../middleware/errors.js";
+import { NotFoundError, ValidationError, ConflictError } from "../middleware/errors.js";
 import * as threadRepo from "../db/repositories/chat-threads.js";
 import * as messageRepo from "../db/repositories/chat-messages.js";
-import type { ChatThread } from "../types/entities.js";
-import { sendMessage } from "../orchestration/chat-service.js";
+import type { ChatThread, ChatMessage } from "../types/entities.js";
+import { sendMessage, isThreadActive } from "../orchestration/chat-service.js";
+import { eventBus } from "../events/bus.js";
+import { logger } from "../logger.js";
 
 const router = Router({ mergeParams: true });
 
@@ -100,7 +102,7 @@ router.delete(
   },
 );
 
-// POST /chat/threads/:threadId/messages — Send message and stream Claude response
+// POST /chat/threads/:threadId/messages — Send message (fire-and-forget, 202)
 router.post(
   "/chat/threads/:threadId/messages",
   verifyProject,
@@ -116,11 +118,40 @@ router.post(
         throw new ValidationError("Message content is required");
       }
 
-      const result = await sendMessage(thread.id, content);
-      res.json(result);
+      // Reject immediately if a message is already being processed
+      if (isThreadActive(thread.id)) {
+        throw new ConflictError("A message is already being processed for this thread");
+      }
+
+      // Save the user message immediately, then let Claude run in the background
+      const userMsg = messageRepo.createMessage(thread.id, "user", content);
+
+      sendMessage(thread.id, content).catch((err) => {
+        logger.error({ err, threadId: thread.id }, "Chat message processing failed");
+        eventBus.emit("chat.error", {
+          project_id: thread.project_id,
+          thread_id: thread.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
+      res.status(202).json({ message_id: userMsg.id });
     } catch (err) {
       next(err);
     }
+  },
+);
+
+// GET /chat/threads/:threadId/status — Check if thread is currently processing
+router.get(
+  "/chat/threads/:threadId/status",
+  verifyProject,
+  (req: Request<ThreadParams>, res) => {
+    const thread = threadRepo.getThread(req.params.threadId);
+    if (!thread || thread.project_id !== req.params.projectId) {
+      throw new NotFoundError("Thread not found");
+    }
+    res.json({ active: isThreadActive(req.params.threadId) });
   },
 );
 
