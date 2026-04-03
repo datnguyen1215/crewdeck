@@ -19,6 +19,8 @@ import { executePlan, formatResults } from "./plan-executor.js";
 import type { ActionPlan } from "./action-schema.js";
 
 import * as monitorRepo from "../../db/repositories/monitor-messages.js";
+import * as chatThreadRepo from "../../db/repositories/chat-threads.js";
+import * as chatMessageRepo from "../../db/repositories/chat-messages.js";
 import type { CaptainEvent } from "./queue.js";
 
 import { buildSystemPrompt } from "./prompt-builder.js";
@@ -146,6 +148,10 @@ export const processWithLLM = async (
   // Save event message to DB (no session — monitor messages are sessionless)
   monitorRepo.create(projectId, "user", eventSection);
 
+  // Also write to the project's monitor chat thread
+  const monitorThread = chatThreadRepo.getOrCreateMonitorThread(projectId);
+  chatMessageRepo.createMessage(monitorThread.id, "event", eventSection);
+
   // Emit captain.event_received for each event so frontend can show them
   for (const event of events) {
     const description = formatEvents([event]).replace(
@@ -157,9 +163,16 @@ export const processWithLLM = async (
       event_type: event.type,
       description,
     });
+    eventBus.emit("chat.event_received", {
+      project_id: projectId,
+      thread_id: monitorThread.id,
+      event_type: event.type,
+      description,
+    });
   }
 
   eventBus.emit("monitor.thinking", { project_id: projectId });
+  eventBus.emit("chat.thinking", { project_id: projectId, thread_id: monitorThread.id });
 
   try {
     updateCaptainStatus(
@@ -202,6 +215,11 @@ export const processWithLLM = async (
               project_id: projectId,
               content: text,
             });
+            eventBus.emit("chat.message", {
+              project_id: projectId,
+              thread_id: monitorThread.id,
+              content: text,
+            });
           }
         } else if (event.type === "tool_use") {
           eventBus.emit("monitor.tool_call", {
@@ -209,9 +227,21 @@ export const processWithLLM = async (
             tool_name: (event.name as string) ?? "unknown",
             tool_input: event.input,
           });
+          eventBus.emit("chat.tool_call", {
+            project_id: projectId,
+            thread_id: monitorThread.id,
+            tool_name: (event.name as string) ?? "unknown",
+            tool_input: event.input,
+          });
         } else if (event.type === "tool_result") {
           eventBus.emit("monitor.tool_result", {
             project_id: projectId,
+            tool_name: "bash",
+            result: event.content,
+          });
+          eventBus.emit("chat.tool_result", {
+            project_id: projectId,
+            thread_id: monitorThread.id,
             tool_name: "bash",
             result: event.content,
           });
@@ -339,12 +369,22 @@ export const processWithLLM = async (
       project_id: projectId,
       content: finalResponse,
     });
+    eventBus.emit("chat.message", {
+      project_id: projectId,
+      thread_id: monitorThread.id,
+      content: finalResponse,
+    });
     monitorRepo.create(projectId, "assistant", finalResponse);
+    chatMessageRepo.createMessage(monitorThread.id, "assistant", finalResponse);
   }
 
   eventBus.emit("monitor.complete", {
     project_id: projectId,
     response: finalResponse,
+  });
+  eventBus.emit("chat.complete", {
+    project_id: projectId,
+    thread_id: monitorThread.id,
   });
 
   return finalResponse;

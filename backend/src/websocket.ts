@@ -251,6 +251,12 @@ function subscribeEvents(bus: EventBus): void {
   });
 
   // Chat thread events
+  bus.on("chat.event_received", (data) => {
+    broadcast(data.project_id, "chat.event_received", data);
+  });
+  bus.on("chat.thinking", (data) => {
+    broadcast(data.project_id, "chat.thinking", data);
+  });
   bus.on("chat.message", (data) => {
     broadcast(data.project_id, "chat.message", data);
   });
