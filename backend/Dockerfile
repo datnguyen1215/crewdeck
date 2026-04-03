@@ -40,6 +40,12 @@ RUN mkdir -p /app/data && chown -R app:app /app
 # Copy host Claude config so agents have a writable, independent ~/.claude
 COPY --from=claude-config --chown=app:app / /home/app/.claude/
 
+# Restore .claude.json from backup if the host didn't provide it directly.
+# Claude CLI expects ~/.claude.json at the home root; the backup lives inside
+# ~/.claude/backups/ which is already copied above.
+RUN latest=$(ls -t /home/app/.claude/backups/.claude.json.backup.* 2>/dev/null | head -1) \
+    && if [ -n "$latest" ]; then cp "$latest" /home/app/.claude.json && chown app:app /home/app/.claude.json; fi
+
 USER app
 
 ENV HOST=0.0.0.0

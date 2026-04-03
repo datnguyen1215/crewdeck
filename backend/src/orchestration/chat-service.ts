@@ -14,7 +14,7 @@ import { logger } from "../logger.js";
 import { eventBus } from "../events/bus.js";
 import { buildProviderEnv } from "./provider-env.js";
 import { buildSystemPrompt as buildCaptainPrompt } from "./captain-prompt.js";
-import * as globalConfigRepo from "../db/repositories/global-config.js";
+import { resolveModel } from "../db/repositories/agent-config.js";
 import {
   getThread,
   updateThread,
@@ -101,7 +101,7 @@ async function runClaudeSession(
   content: string,
 ): Promise<ChatServiceResult> {
   const systemPrompt = await buildCaptainPrompt(thread.project_id);
-  const model = globalConfigRepo.getDefaultModel();
+  const model = resolveModel("captain");
 
   // Build environment
   const baseEnv: Record<string, string> = {
