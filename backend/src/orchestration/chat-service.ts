@@ -23,6 +23,8 @@ import {
   createMessage,
 } from "../db/repositories/chat-messages.js";
 import { listRepos } from "../db/repositories/repos.js";
+import * as globalEnvVarRepo from "../db/repositories/global-environment-variables.js";
+import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
 import { getSystemApiKey } from "../app.js";
 import { ConflictError } from "../middleware/errors.js";
 
@@ -103,8 +105,12 @@ async function runClaudeSession(
   const systemPrompt = await buildCaptainPrompt(thread.project_id);
   const model = resolveModel("captain");
 
-  // Build environment
+  // Build environment: global env vars < project env vars < platform-specific vars
+  const globalEnvVars = globalEnvVarRepo.getMap();
+  const projectEnvVars = getEnvironmentVariablesMap(thread.project_id);
   const baseEnv: Record<string, string> = {
+    ...globalEnvVars,
+    ...projectEnvVars,
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
     CREWDECK_PROJECT_ID: thread.project_id,
     CREWDECK_AGENT_ID: "captain",
