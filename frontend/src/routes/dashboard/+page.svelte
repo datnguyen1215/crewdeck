@@ -269,7 +269,7 @@
 	<h2 class="text-sm font-mono text-muted uppercase tracking-widest mb-4">Create Project</h2>
 	<ProjectForm
 		{githubAccounts}
-		onCreated={(project) => { showCreateModal = false; goto(`/projects/${project.id}`); }}
+		onCreated={() => { showCreateModal = false; refreshProjects(); }}
 		onCancel={() => showCreateModal = false}
 	/>
 </Modal>
