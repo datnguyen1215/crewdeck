@@ -50,7 +50,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   // Override with TRUST_PROXY env (e.g. "loopback", "1").
   app.set("trust proxy", process.env.TRUST_PROXY ?? 1);
 
-  app.use(express.json());
+  app.use(express.json({ limit: "5mb" }));
   app.use(cookieParser());
 
   if (!opts.silent) {
