@@ -257,6 +257,11 @@ async function runClaudeProcess(
           thread_id: threadId,
           content: event.content,
         });
+      } else if (subtype === "thinking") {
+        eventBus.emit("chat.thinking", {
+          project_id: projectId,
+          thread_id: threadId,
+        });
       } else if (subtype === "tool_use" && event.tool_name) {
         eventBus.emit("chat.tool_call", {
           project_id: projectId,
