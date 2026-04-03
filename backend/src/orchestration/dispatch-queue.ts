@@ -52,20 +52,10 @@ export const isAgentActive = (
   issueId: string,
   agentId: string,
 ): boolean => {
-  const queuedRuns = agentRunRepo.listQueuedRuns(projectId);
-  const hasQueued = queuedRuns.some(
+  const activeRuns = agentRunRepo.listActiveRunsForProject(projectId);
+  return activeRuns.some(
     (run) => run.issue_id === issueId && run.agent_id === agentId,
   );
-  if (hasQueued) return true;
-
-  const runningRuns = agentRunRepo.listActiveRunsForProject(projectId);
-  const hasRunning = runningRuns.some(
-    (run) =>
-      run.status === "running" &&
-      run.issue_id === issueId &&
-      run.agent_id === agentId,
-  );
-  return hasRunning;
 };
 
 /**
@@ -137,16 +127,7 @@ export const drainQueue = async (
       agentRunRepo.updateAgentRun(run.id, { status: "failed" });
       continue;
     }
-
-    // Skip non-dispatchable agents (e.g. captain is a background monitor, not spawnable)
-    if (agent.dispatchable === false) {
-      log.logger.warn(
-        { agentId: agent.id, runId: run.id },
-        "Queued agent is not dispatchable, marking as failed",
-      );
-      agentRunRepo.updateAgentRun(run.id, { status: "failed" });
-      continue;
-    }
+    // Non-dispatchable agents are rejected at enqueue time (enqueueRun)
 
     log.logger.info(
       { agentId: agent.id, issueId: run.issue_id, runId: run.id },
