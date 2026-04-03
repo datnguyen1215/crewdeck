@@ -2,12 +2,12 @@
 export async function handle({ event, resolve }) {
   const { pathname } = event.url;
 
-  // Setup page — always allow
-  if (pathname.startsWith("/setup")) {
+  // Register page — always allow
+  if (pathname.startsWith("/register")) {
     return resolve(event);
   }
 
-  // Login page — redirect to /setup if no admin exists yet
+  // Login page — redirect to /register if no admin exists yet
   if (pathname.startsWith("/login")) {
     const backendUrl = process.env.VITE_BACKEND_URL || "http://localhost:9381";
     try {
@@ -17,7 +17,7 @@ export async function handle({ event, resolve }) {
         if (needsSetup) {
           return new Response(null, {
             status: 302,
-            headers: { location: "/setup" },
+            headers: { location: "/register" },
           });
         }
       }
@@ -48,7 +48,7 @@ export async function handle({ event, resolve }) {
         if (setupData.needsSetup) {
           return new Response(null, {
             status: 302,
-            headers: { location: "/setup" },
+            headers: { location: "/register" },
           });
         }
       }

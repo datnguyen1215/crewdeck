@@ -7,7 +7,7 @@ import { ForbiddenError } from "./errors.js";
 declare global {
   namespace Express {
     interface Request {
-      session?: { token: string; userId: string; username: string };
+      session?: { token: string; userId: string; username: string; setupCompleted: number };
     }
   }
 }
@@ -18,7 +18,7 @@ declare global {
  */
 export function validateSessionFromCookie(
   cookieHeader: string | undefined,
-): (Session & { username: string }) | null {
+): (Session & { username: string; setup_completed: number }) | null {
   if (!cookieHeader) return null;
   const match = /(?:^|;\s*)session_token=([^;]*)/.exec(cookieHeader);
   if (!match) return null;
@@ -61,6 +61,7 @@ export function requireAuth(
       token: apiKey.id,
       userId: apiKey.id,
       username: apiKey.username,
+      setupCompleted: 1,
     };
     next();
     return;
@@ -83,6 +84,7 @@ export function requireAuth(
     token: session.id,
     userId: session.user_id,
     username: session.username,
+    setupCompleted: session.setup_completed,
   };
   next();
 }

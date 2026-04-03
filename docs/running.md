@@ -25,12 +25,12 @@ docker compose up --build
 
 ## First-Time Setup
 
-On first launch (when no admin user exists), visiting the app automatically redirects to the setup wizard at `/setup`. The flow is:
+On first launch (when no admin user exists), visiting the app automatically redirects to `/register` to create an admin account. The flow is:
 
 1. Open http://localhost:9380
-2. Redirected to `/setup` — create an admin username and password
+2. Redirected to `/register` — create an admin username and password
 3. Redirected to `/login` — sign in with the credentials you just created
-4. Redirected to the dashboard (`/dashboard`) — the root URL `/` automatically redirects here
+4. Redirected to the dashboard (`/dashboard`) — the root URL `/` automatically redirects here. On first login, the Create Project modal opens automatically to guide you through creating your first project.
 
 Subsequent visits require signing in at `/login`.
 

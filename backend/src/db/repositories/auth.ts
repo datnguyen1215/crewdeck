@@ -6,6 +6,7 @@ export interface AdminUser {
   username: string;
   password_hash: string;
   created_at: string;
+  setup_completed: number;
 }
 
 export interface Session {
@@ -64,19 +65,25 @@ export function createSession(userId: string): Session {
 
 export function getSession(
   token: string,
-): (Session & { username: string }) | null {
+): (Session & { username: string; setup_completed: number }) | null {
   return (
     (db
       .prepare(
-        `SELECT s.*, u.username FROM Session s
+        `SELECT s.*, u.username, u.setup_completed FROM Session s
      JOIN AdminUser u ON s.user_id = u.id
      WHERE s.id = ?`,
       )
-      .get(token) as (Session & { username: string }) | undefined) ?? null
+      .get(token) as (Session & { username: string; setup_completed: number }) | undefined) ?? null
   );
 }
 
 export function deleteSession(token: string): void {
   db.prepare("DELETE FROM Session WHERE id = ?").run(token);
+}
+
+export function markSetupComplete(userId: string): void {
+  db.prepare("UPDATE AdminUser SET setup_completed = 1 WHERE id = ?").run(
+    userId,
+  );
 }
 

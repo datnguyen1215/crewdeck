@@ -329,10 +329,11 @@ Represents the single admin account for backend authentication. Only one row exi
 
 | Field         | Type        | Constraints                         | Description                                      |
 | ------------- | ----------- | ----------------------------------- | ------------------------------------------------ |
-| id            | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                               |
-| username      | TEXT        | NOT NULL, UNIQUE                    | Admin username.                                  |
-| password_hash | TEXT        | NOT NULL                            | Bcrypt hash of the admin password (≥ 12 rounds). |
-| created_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the account was created.                    |
+| id               | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                               |
+| username         | TEXT        | NOT NULL, UNIQUE                    | Admin username.                                  |
+| password_hash    | TEXT        | NOT NULL                            | Bcrypt hash of the admin password (≥ 12 rounds). |
+| setup_completed  | INTEGER     | NOT NULL, DEFAULT 0                 | Whether the user has completed first-time setup (created a project). Stored as 0/1. |
+| created_at       | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the account was created.                    |
 
 ### Session
 
