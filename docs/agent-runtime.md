@@ -147,6 +147,13 @@ claude -p <prompt via stdin> \
 
 **Concurrency:** Only one `claude -p` process runs per thread at a time (in-memory lock). The `acquireAndCreateMessage()` function checks and sets the lock synchronously (no `await` between check and set), which is safe from TOCTOU races in Node.js's single-threaded model. Concurrent sends throw `ConflictError` (HTTP 409).
 
+**Stream parsing:** The `processStreamLine()` function uses `normalizeEvent()` from `event-normalizer.ts` to parse assistant and user events from the `--output-format stream-json` output. This handles both the old flat Claude CLI format (`{"type":"assistant","subtype":"text","content":"Hello"}`) and the new nested format (`{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}`). The same normalizer is used by agent runs (`spawn-process.ts`) and event retrieval, ensuring consistent behavior across all Claude CLI consumers.
+
+- For `type: "assistant"` events, normalized `text`, `thinking`, and `tool_use` fields are emitted as `chat.message`, `chat.thinking`, and `chat.tool_call` events respectively.
+- For `type: "user"` events containing `tool_results` (new nested format), each result is emitted as a `chat.tool_result` event. Tool names are resolved via an in-memory map of `tool_use_id → tool_name` populated from prior `tool_use` events.
+- Legacy flat `tool_result` events (standalone `type: "tool_result"` in old CLI format) continue to be handled directly.
+- `system` and `result` events are handled as-is (not normalized).
+
 **Environment variables:** Same pattern as agent spawns — `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, `CREWDECK_AGENT_ID`, `CREWDECK_API_KEY`, provider env vars via `buildProviderEnv(model)`, and `GIT_TERMINAL_PROMPT=0`.
 
 ## Captain Command Execution

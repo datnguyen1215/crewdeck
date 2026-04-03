@@ -906,7 +906,7 @@ GET /projects/:projectId/runs/:runId?events_limit=50
 }
 ```
 
-Event `type` values are strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`, `system`, `error`). Events are **normalized** on retrieval — the nested Claude CLI format (`message.content[]` arrays) is flattened into a simpler structure:
+Event `type` values are strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`, `system`, `error`). Events are **normalized** on retrieval — the normalizer (`event-normalizer.ts`) handles both the old flat Claude CLI format (`subtype`/`content` fields) and the new nested format (`message.content[]` arrays), flattening them into a simpler structure:
 
 | Type          | Normalized `data` fields                                                        |
 | ------------- | ------------------------------------------------------------------------------- |
