@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, type ProjectWithStats } from '$lib/api/http.js';
+	import { listProjectsWithStats, logout, type ProjectWithStats } from '$lib/api/http.js';
 	import { onMount } from 'svelte';
 	import ProjectNavItem from './ProjectNavItem.svelte';
 	import { icons } from './icons.js';
@@ -110,9 +110,9 @@
 		localStorage.setItem(PROJECTS_COLLAPSED_KEY, String(projectsSectionCollapsed));
 	}
 
-	async function logout() {
+	async function handleLogout() {
 		try {
-			await fetch('/api/v1/auth/logout', { method: 'POST' });
+			await logout();
 		} catch {
 			// Proceed to login regardless
 		}
@@ -308,7 +308,7 @@
 				{/if}
 			{/if}
 			<button
-				onclick={logout}
+				onclick={handleLogout}
 				class="flex items-center gap-3 px-3 py-2.5 rounded text-secondary hover:text-red hover:bg-surface transition-colors whitespace-nowrap min-h-[44px] w-full {collapsed && !isMobile ? 'justify-center' : ''}"
 				title={collapsed && !isMobile ? 'Log out' : undefined}
 			>

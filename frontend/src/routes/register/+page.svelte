@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { toastStore } from '$lib/stores/toasts.svelte';
+	import { checkSetupStatus, setupAccount } from '$lib/api/http.js';
 
 	let username = $state('');
 	let password = $state('');
@@ -8,10 +9,9 @@
 	let loading = $state(false);
 
 	// Redirect to /login if setup already completed
-	async function checkSetupStatus() {
+	async function checkSetup() {
 		try {
-			const res = await fetch('/api/v1/auth/setup-status');
-			const data = await res.json();
+			const data = await checkSetupStatus();
 			if (!data.needsSetup) {
 				goto('/login');
 			}
@@ -19,7 +19,7 @@
 			// If check fails, let user try anyway
 		}
 	}
-	checkSetupStatus();
+	checkSetup();
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
@@ -27,17 +27,7 @@
 
 		loading = true;
 		try {
-			const res = await fetch('/api/v1/auth/setup', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username, password }),
-			});
-
-			if (!res.ok) {
-				const body = await res.json().catch(() => ({}));
-				throw new Error(body.error || 'Setup failed');
-			}
-
+			await setupAccount(username, password);
 			goto('/login');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Setup failed', 'error');

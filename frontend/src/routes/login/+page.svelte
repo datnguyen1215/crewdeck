@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { toastStore } from '$lib/stores/toasts.svelte';
+	import { login } from '$lib/api/http.js';
 
 	let username = $state('');
 	let password = $state('');
@@ -12,17 +13,7 @@
 
 		loading = true;
 		try {
-			const res = await fetch('/api/v1/auth/login', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username, password }),
-			});
-
-			if (!res.ok) {
-				const body = await res.json().catch(() => ({}));
-				throw new Error(body.error || 'Login failed');
-			}
-
+			await login(username, password);
 			goto('/');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Login failed', 'error');
