@@ -54,7 +54,17 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(cookieParser());
 
   if (!opts.silent) {
-    app.use(pinoHttp({ logger }));
+    app.use(pinoHttp({
+      logger,
+      serializers: {
+        req(req) {
+          return { method: req.method, url: req.url };
+        },
+        res(res) {
+          return { statusCode: res.statusCode };
+        },
+      },
+    }));
   }
 
   app.get("/health", (_req, res) => {
