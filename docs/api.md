@@ -1233,7 +1233,7 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 **Side effects:**
 
 - Creates an `AgentRun` record with `issue_id: null`.
-- Spawns the librarian agent process.
+- Spawns the librarian agent process with the standard agent environment (including `CREWDECK_API_KEY` for API authentication).
 - Emits `run.started` event.
 
 ---
