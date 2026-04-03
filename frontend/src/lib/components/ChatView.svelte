@@ -21,13 +21,17 @@
 
   let messages = $state<ChatMessage[]>([]);
   let streamingText = $state('');
-  let streamingToolCalls = $state<Array<{ tool_name: string; tool_input: unknown; result?: string; success: boolean; _callIdx: number }>>([]);
-  let toolCallCounters = $state<Record<string, number>>({});
+  let streamingToolCalls = $state<Array<{ tool_name: string; tool_input: unknown; result?: string; success: boolean }>>([]);
   let isStreaming = $state(false);
 
-  // Sync messages when thread prop changes (e.g. reload after complete)
+  // Sync messages and reset streaming state when thread prop changes
   $effect(() => {
+    // read thread.id to track which thread we're on
+    const _ = thread.id;
     messages = thread.messages;
+    streamingText = '';
+    streamingToolCalls = [];
+    isStreaming = false;
   });
 
   // WebSocket subscriptions for streaming
@@ -44,32 +48,31 @@
       'chat.tool_call': (data) => {
         if (data.thread_id !== thread.id) return;
         isStreaming = true;
-        const idx = (toolCallCounters[data.tool_name] ?? 0);
-        toolCallCounters = { ...toolCallCounters, [data.tool_name]: idx + 1 };
         streamingToolCalls = [...streamingToolCalls, {
           tool_name: data.tool_name,
           tool_input: data.tool_input,
           success: true,
-          _callIdx: idx,
         }];
       },
       'chat.tool_result': (data) => {
         if (data.thread_id !== thread.id) return;
-        // Match the first unresolved call for this tool name by index
+        // Match first unresolved call for this tool name (FIFO order)
         const name = data.tool_name;
-        const nextIdx = toolCallCounters[name] ?? 0;
-        streamingToolCalls = streamingToolCalls.map(tc =>
-          tc.tool_name === name && tc.result === undefined && tc._callIdx === (nextIdx - 1)
-            ? { ...tc, result: typeof data.result === 'string' ? data.result : JSON.stringify(data.result) }
-            : tc
-        );
+        const result = typeof data.result === 'string' ? data.result : JSON.stringify(data.result);
+        let matched = false;
+        streamingToolCalls = streamingToolCalls.map(tc => {
+          if (!matched && tc.tool_name === name && tc.result === undefined) {
+            matched = true;
+            return { ...tc, result };
+          }
+          return tc;
+        });
       },
       'chat.complete': (data) => {
         if (data.thread_id !== thread.id) return;
         isStreaming = false;
         streamingText = '';
         streamingToolCalls = [];
-        toolCallCounters = {};
         // Reload thread to get canonical stored messages
         getChatThread(thread.id, projectId).then((t) => {
           messages = t.messages;
@@ -80,7 +83,6 @@
         isStreaming = false;
         streamingText = '';
         streamingToolCalls = [];
-        toolCallCounters = {};
       },
     });
   });
