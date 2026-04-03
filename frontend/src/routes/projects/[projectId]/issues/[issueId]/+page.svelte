@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { getIssue, updateIssue, listActivity, getProject, listIssueRuns, addComment, editComment, deleteComment, getGlobalConfig, type IssueWithDetails, type ActivityLog, type Project, type Comment, type AgentRun, type AgentRunEvent } from '$lib/api/http.js';
+	import { getIssue, updateIssue, listActivity, getProject, listIssueRuns, getGlobalConfig, type IssueWithDetails, type ActivityLog, type Project, type Comment, type AgentRun, type AgentRunEvent } from '$lib/api/http.js';
 	import { createFormState } from '$lib/utils/form.svelte.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import { createRunEventHandlers } from '$lib/utils/run-events.svelte.js';
+	import { createCommentActions } from '$lib/utils/comments.svelte.js';
 	import IssueSidebar from '$lib/components/IssueSidebar.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -39,12 +40,16 @@
 	let runsLoading = $state(true);
 	let liveEvents = $state<Map<string, AgentRunEvent[]>>(new Map());
 
-	// Comment edit/delete state
-	let editingCommentId = $state<string | null>(null);
-	let editingCommentText = $state('');
-	let deletingCommentId = $state<string | null>(null);
-	let commentWorking = $state(false);
-	let posting = $state(false);
+	// Comment actions
+	let commentActions: ReturnType<typeof createCommentActions> | null = $state(null);
+	$effect(() => {
+		if (!issue) { commentActions = null; return; }
+		commentActions = createCommentActions(projectId, issueId, {
+			onAdded: (c) => { issue = { ...issue!, comments: [...issue!.comments, c] }; },
+			onUpdated: (c) => { issue = { ...issue!, comments: issue!.comments.map(x => x.id === c.id ? c : x) }; },
+			onDeleted: (id) => { issue = { ...issue!, comments: issue!.comments.filter(x => x.id !== id) }; },
+		});
+	});
 
 	// Run detail modal
 	let modalRun = $state<AgentRun | null>(null);
@@ -153,51 +158,6 @@
 		editForm.show({ title: issue.title, description: issue.description ?? '' });
 	}
 
-	async function postComment(text: string) {
-		posting = true;
-		try {
-			const c = await addComment(projectId, issueId, { content: text });
-			issue = { ...issue!, comments: [...issue!.comments, c] };
-		} catch (err) {
-			toastStore.add(err instanceof Error ? err.message : 'Failed to post comment', 'error');
-		} finally {
-			posting = false;
-		}
-	}
-
-	function startEditComment(comment: Comment) {
-		editingCommentId = comment.id;
-		editingCommentText = comment.content;
-	}
-
-	async function saveEditComment() {
-		if (!editingCommentId || !editingCommentText.trim()) return;
-		commentWorking = true;
-		try {
-			const updated = await editComment(projectId, issueId, editingCommentId, { content: editingCommentText });
-			issue = { ...issue!, comments: issue!.comments.map(x => x.id === updated.id ? updated : x) };
-			editingCommentId = null;
-		} catch (err) {
-			toastStore.add(err instanceof Error ? err.message : 'Failed to edit comment', 'error');
-		} finally {
-			commentWorking = false;
-		}
-	}
-
-	async function confirmDeleteComment() {
-		if (!deletingCommentId) return;
-		commentWorking = true;
-		try {
-			await deleteComment(projectId, issueId, deletingCommentId);
-			issue = { ...issue!, comments: issue!.comments.filter(x => x.id !== deletingCommentId) };
-		} catch (err) {
-			toastStore.add(err instanceof Error ? err.message : 'Failed to delete comment', 'error');
-		} finally {
-			deletingCommentId = null;
-			commentWorking = false;
-		}
-	}
-
 	const timelineCount = $derived(
 		(issue?.comments?.length ?? 0) +
 		activityEntries.filter(a => a.action !== 'comment.added').length
@@ -283,17 +243,17 @@
 							{projectId}
 							{issueId}
 							loading={activityLoading && runsLoading}
-							{editingCommentId}
-							bind:editingCommentText
-							{commentWorking}
-							onStartEditComment={startEditComment}
-							onSaveEditComment={saveEditComment}
-							onCancelEditComment={() => { editingCommentId = null; }}
-							onDeleteComment={(id) => { deletingCommentId = id; }}
+							editingCommentId={commentActions?.editingCommentId ?? null}
+							bind:editingCommentText={commentActions!.editingCommentText}
+							commentWorking={commentActions?.commentWorking ?? false}
+							onStartEditComment={(c) => commentActions?.startEditComment(c)}
+							onSaveEditComment={() => commentActions?.saveEditComment()}
+							onCancelEditComment={() => commentActions?.cancelEditComment()}
+							onDeleteComment={(id) => commentActions?.requestDelete(id)}
 							onOpenRunModal={(run) => { modalRun = run; }}
 						/>
 
-						<DispatchInput {posting} onSubmit={postComment} />
+						<DispatchInput posting={commentActions?.posting ?? false} onSubmit={(text) => commentActions?.postComment(text)} />
 					{/if}
 				</div>
 			</div>
@@ -312,12 +272,12 @@
 	</div>
 {/if}
 
-<Modal open={deletingCommentId !== null} onClose={() => deletingCommentId = null} label="Delete comment" maxWidth="max-w-sm">
+<Modal open={commentActions?.isDeleteModalOpen ?? false} onClose={() => commentActions?.cancelDelete()} label="Delete comment" maxWidth="max-w-sm">
 	<h2 class="text-lg font-semibold text-primary mb-2">Delete this comment?</h2>
 	<p class="text-sm text-secondary mb-6">This action cannot be undone.</p>
 	<div class="flex gap-3 justify-end">
-		<button onclick={() => deletingCommentId = null} class="px-4 py-2 text-sm border border-edge text-secondary rounded hover:text-primary transition-colors">Cancel</button>
-		<button onclick={confirmDeleteComment} disabled={commentWorking} class="px-4 py-2 text-sm bg-red text-white rounded hover:bg-red/80 transition-colors disabled:opacity-50">Delete</button>
+		<button onclick={() => commentActions?.cancelDelete()} class="px-4 py-2 text-sm border border-edge text-secondary rounded hover:text-primary transition-colors">Cancel</button>
+		<button onclick={() => commentActions?.confirmDeleteComment()} disabled={commentActions?.commentWorking} class="px-4 py-2 text-sm bg-red text-white rounded hover:bg-red/80 transition-colors disabled:opacity-50">Delete</button>
 	</div>
 </Modal>
 
