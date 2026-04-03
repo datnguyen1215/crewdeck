@@ -23,6 +23,7 @@
   let streamingText = $state('');
   let streamingToolCalls = $state<Array<{ tool_name: string; tool_input: unknown; result?: string; success: boolean }>>([]);
   let isStreaming = $state(false);
+  let isProcessing = $state(false);
 
   // Sync messages and reset streaming state when thread prop changes
   $effect(() => {
@@ -32,6 +33,7 @@
     streamingText = '';
     streamingToolCalls = [];
     isStreaming = false;
+    isProcessing = false;
   });
 
   // WebSocket subscriptions for streaming
@@ -42,11 +44,13 @@
     return useWsSubscriptions(ws, {
       'chat.message': (data) => {
         if (data.thread_id !== thread.id) return;
+        isProcessing = false;
         isStreaming = true;
         streamingText += data.content;
       },
       'chat.tool_call': (data) => {
         if (data.thread_id !== thread.id) return;
+        isProcessing = false;
         isStreaming = true;
         streamingToolCalls = [...streamingToolCalls, {
           tool_name: data.tool_name,
@@ -70,6 +74,7 @@
       },
       'chat.complete': (data) => {
         if (data.thread_id !== thread.id) return;
+        isProcessing = false;
         isStreaming = false;
         streamingText = '';
         streamingToolCalls = [];
@@ -80,6 +85,7 @@
       },
       'chat.session_expired': (data) => {
         if (data.thread_id !== thread.id) return;
+        isProcessing = false;
         isStreaming = false;
         streamingText = '';
         streamingToolCalls = [];
@@ -100,7 +106,9 @@
         created_at: new Date().toISOString(),
       };
       messages = [...messages, userMsg];
+      isProcessing = true;
     } catch {
+      isProcessing = false;
       // silent — error will surface through the next thread reload
     }
   }
@@ -152,7 +160,7 @@
         {/if}
 
         <!-- Analyzing indicator (no text yet but streaming started) -->
-        {#if isStreaming && !streamingText && streamingToolCalls.length === 0}
+        {#if (isProcessing || isStreaming) && !streamingText && streamingToolCalls.length === 0}
           <div class="mb-3">
             <div class="text-xs text-muted mb-1">captain</div>
             <div class="border border-dashed border-cyan/40 rounded px-3 py-2 text-sm">
@@ -165,7 +173,7 @@
   </div>
 
   <!-- Input bar -->
-  <ChatInput disabled={isStreaming} onSend={handleSend} />
+  <ChatInput disabled={isStreaming || isProcessing} onSend={handleSend} />
 </div>
 
 {#snippet messageBubble(message: ChatMessage)}
