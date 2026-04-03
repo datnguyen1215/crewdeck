@@ -34,8 +34,11 @@ RUN cd backend && npm ci
 COPY backend/ backend/
 RUN cd backend && npm run build
 
-# Ensure data directory exists
-RUN mkdir -p /app/data && chown -R app:app /app
+# Ensure data directories exist and app user can write to them
+# /app/data — DB and repos (Docker volume mount point)
+# /app/backend/data — log files (default LOG_FILE_PATH is ./data/server.log)
+RUN mkdir -p /app/data /app/backend/data \
+    && chown app:app /app/data /app/backend/data
 
 # Copy host Claude config so agents have a writable, independent ~/.claude
 COPY --from=claude-config --chown=app:app / /home/app/.claude/

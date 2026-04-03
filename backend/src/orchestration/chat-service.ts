@@ -9,7 +9,6 @@ import { writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { createInterface } from "node:readline";
 import { logger } from "../logger.js";
 import { eventBus } from "../events/bus.js";
 import { buildProviderEnv } from "./provider-env.js";
@@ -265,18 +264,42 @@ async function runClaudeProcess(
   child.stdin!.end(prompt);
 
   let stderr = "";
-  child.stderr!.on("data", (chunk: Buffer) => {
-    stderr += chunk.toString();
+  const stderrDone = new Promise<void>((resolve) => {
+    child.stderr!.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.stderr!.on("end", resolve);
   });
 
   let content = "";
   let sessionId: string | null = null;
   let sessionExpired = false;
 
-  const rl = createInterface({ input: child.stdout!, crlfDelay: Infinity });
-  child.on("exit", () => rl.close());
-  rl.on("error", (err) => {
-    logger.error({ err }, "Chat readline error");
+  // Collect raw stdout to ensure we never lose data from fast-exiting processes.
+  // Buffer partial lines across chunks so we only parse complete JSON lines.
+  let rawStdout = "";
+  let lineBuf = "";
+  const stdoutDone = new Promise<void>((resolve) => {
+    child.stdout!.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      rawStdout += text;
+      lineBuf += text;
+
+      // Process all complete lines, keep the trailing partial for next chunk
+      const parts = lineBuf.split("\n");
+      lineBuf = parts.pop()!; // last element is either "" or a partial line
+      for (const line of parts) {
+        if (!line.trim()) continue;
+        processStreamLine(line, projectId, threadId);
+      }
+    });
+    child.stdout!.on("end", () => {
+      // Flush any remaining partial line
+      if (lineBuf.trim()) {
+        processStreamLine(lineBuf, projectId, threadId);
+      }
+      resolve();
+    });
   });
 
   // Create close promise before consuming stream to avoid race condition
@@ -285,53 +308,48 @@ async function runClaudeProcess(
     child.on("error", () => resolve(1));
   });
 
-  for await (const line of rl) {
-    if (!line.trim()) continue;
+  function processStreamLine(line: string, projId: string, thrdId: string): void {
     let event: Record<string, unknown>;
     try {
       event = JSON.parse(line);
     } catch {
-      logger.error({ line: line.slice(0, 200) }, "Failed to parse chat stream event");
-      continue;
+      return;
     }
 
     const type = event.type as string;
 
-    // Capture session ID from system events
     if (type === "system") {
       const subtype = event.subtype as string | undefined;
       if (subtype === "init" && event.session_id) {
         sessionId = String(event.session_id);
       }
-      // Detect session expiry
       if (event.message && String(event.message).includes("session")) {
         const msg = String(event.message).toLowerCase();
         if (msg.includes("expired") || msg.includes("not found") || msg.includes("invalid")) {
           sessionExpired = true;
         }
       }
-      continue;
+      return;
     }
 
-    // Handle assistant message content
     if (type === "assistant") {
       const subtype = event.subtype as string | undefined;
       if (subtype === "text" && typeof event.content === "string") {
         content += event.content;
         eventBus.emit("chat.message", {
-          project_id: projectId,
-          thread_id: threadId,
+          project_id: projId,
+          thread_id: thrdId,
           content: event.content,
         });
       } else if (subtype === "thinking") {
         eventBus.emit("chat.thinking", {
-          project_id: projectId,
-          thread_id: threadId,
+          project_id: projId,
+          thread_id: thrdId,
         });
       } else if (subtype === "tool_use" && event.tool_name) {
         eventBus.emit("chat.tool_call", {
-          project_id: projectId,
-          thread_id: threadId,
+          project_id: projId,
+          thread_id: thrdId,
           tool_name: String(event.tool_name),
           tool_input: event.tool_input,
         });
@@ -340,30 +358,36 @@ async function runClaudeProcess(
 
     if (type === "tool_result" && event.tool_name) {
       eventBus.emit("chat.tool_result", {
-        project_id: projectId,
-        thread_id: threadId,
+        project_id: projId,
+        thread_id: thrdId,
         tool_name: String(event.tool_name),
         result: event.result,
       });
     }
 
-    // Claude CLI stream-json emits "result" as the final event with session info
     if (type === "result") {
       if (event.session_id && !sessionId) {
         sessionId = String(event.session_id);
       }
+      if (event.is_error && Array.isArray(event.errors)) {
+        const errMsg = (event.errors as string[]).join(" ").toLowerCase();
+        if (errMsg.includes("session") || errMsg.includes("conversation") ||
+            errMsg.includes("not found") || errMsg.includes("expired") || errMsg.includes("invalid")) {
+          sessionExpired = true;
+        }
+      }
     }
   }
 
-  // Wait for process to exit (promise created before stream consumption)
-  const exitCode = await closePromise;
+  // Wait for process to exit and all streams to fully drain
+  const [exitCode] = await Promise.all([closePromise, stdoutDone, stderrDone]);
 
   if (stderr) {
-    logger.warn({ stderr: stderr.slice(0, 500) }, "Chat claude stderr");
+    logger.warn({ stderr: stderr.slice(0, 1000) }, "Chat claude stderr");
   }
 
   if (exitCode !== 0 && !sessionExpired && !content) {
-    logger.error({ exitCode, threadId }, "Claude chat process failed");
+    logger.error({ exitCode, stderr: stderr.slice(0, 1000), stdout: rawStdout.slice(0, 1000), threadId }, "Claude chat process failed");
     return { content, sessionId, sessionExpired, failed: true };
   }
 
