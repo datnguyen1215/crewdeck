@@ -31,7 +31,7 @@
 
   // Events loaded from API for past assistant messages (history replay)
   let historyEvents = $state<Record<string, ChatMessageEvent[]>>({});
-  let loadedEventIds = $state<Set<string>>(new Set());
+  let loadedEventIds = new Set<string>();
 
   async function loadEventsForMessage(messageId: string, threadId: string) {
     if (loadedEventIds.has(messageId)) return;
