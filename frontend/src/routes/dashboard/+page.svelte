@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, listVCSAccounts, type ProjectWithStats, type ActivityLog, type VCSAccount } from '$lib/api/http.js';
+	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, listVCSAccounts, getAuthMe, type ProjectWithStats, type ActivityLog, type VCSAccount } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { GlobalWebSocket } from '$lib/api/global-ws.svelte.js';
 	import DashboardActivityFeed from '$lib/components/DashboardActivityFeed.svelte';
@@ -72,16 +72,12 @@
 		];
 
 		try {
-			const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:9381';
-			const res = await fetch(`${backendUrl}/api/v1/auth/me`, { credentials: 'include' });
-			if (res.ok) {
-				const { setupCompleted } = await res.json();
-				if (!setupCompleted) {
-					const loaded = await listProjectsWithStats();
-					projects = loaded;
-					loading = false;
-					if (loaded.length === 0) openCreateModal();
-				}
+			const { setupCompleted } = await getAuthMe();
+			if (!setupCompleted) {
+				const loaded = await listProjectsWithStats();
+				projects = loaded;
+				loading = false;
+				if (loaded.length === 0) openCreateModal();
 			}
 		} catch {}
 	});

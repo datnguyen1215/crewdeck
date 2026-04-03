@@ -109,6 +109,23 @@ async function request<T>(
 
 const e = encodeURIComponent;
 
+// Auth (unauthenticated endpoints)
+export function checkSetupStatus() {
+  return request<{ needsSetup: boolean }>("GET", "/auth/setup-status");
+}
+export function setupAccount(username: string, password: string) {
+  return request<{ id: string; username: string }>("POST", "/auth/setup", { username, password });
+}
+export function login(username: string, password: string) {
+  return request<{ id: string; username: string }>("POST", "/auth/login", { username, password });
+}
+export function getAuthMe() {
+  return request<{ setupCompleted: boolean }>("GET", "/auth/me");
+}
+export function logout() {
+  return request<void>("POST", "/auth/logout");
+}
+
 // Projects
 export function listProjects() {
   return request<Project[]>("GET", "/projects");
