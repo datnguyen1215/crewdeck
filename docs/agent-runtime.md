@@ -386,7 +386,7 @@ function buildPrompt(opts: BuildPromptOptions): string
 
 The function accepts a single options object containing all required and optional fields.
 
-**Role-specific API access:** The prompt's API section varies by `agentId`. All agents receive the `CREWDECK_API_KEY` environment variable and instructions to include `Authorization: Bearer $CREWDECK_API_KEY` in all curl calls. All agents receive read-only access to the knowledge API (list titles, get full entries). Only the librarian receives write access (create, update, delete knowledge entries). All non-librarian agents receive a notice that their stdout is automatically posted as a comment.
+**Role-specific API access:** The prompt's API section varies by `agentId`. All agents (including librarian scans) receive the `CREWDECK_API_KEY` environment variable and instructions to include `Authorization: Bearer $CREWDECK_API_KEY` in all curl calls. All agents receive read-only access to the knowledge API (list titles, get full entries). Only the librarian receives write access (create, update, delete knowledge entries). All non-librarian agents receive a notice that their stdout is automatically posted as a comment.
 
 **Project knowledge:** Knowledge entries are injected as a `## Project Knowledge` section. Each entry is rendered as a level-3 heading with its title and category, followed by the content:
 

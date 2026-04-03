@@ -22,7 +22,7 @@ import { getSystemApiKey } from "../app.js";
 export function buildAgentEnvironment(
   projectId: string,
   agentId: string,
-  issueId: string,
+  issueId?: string,
   creds?: ReturnType<typeof getProjectCredentials>,
 ): {
   env: Record<string, string>;
@@ -38,7 +38,7 @@ export function buildAgentEnvironment(
     CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: agentId,
-    CREWDECK_ISSUE_ID: issueId,
+    ...(issueId ? { CREWDECK_ISSUE_ID: issueId } : {}),
     ...(getSystemApiKey() ? { CREWDECK_API_KEY: getSystemApiKey()! } : {}),
   };
 
