@@ -93,6 +93,13 @@ export function fullTime(dateStr: string | null | undefined): string {
 	return date.toLocaleString();
 }
 
+/** Format as HH:MM:SS (24-hour) for chat message timestamps. */
+export function formatTimestamp(dateStr: string | null | undefined): string {
+	const date = parseUTC(dateStr);
+	if (isNaN(date.getTime())) return '--:--:--';
+	return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 /** Format as HH:MM (24-hour) for terminal log entries. */
 export function formatTime(dateStr: string | null | undefined): string {
 	const date = parseUTC(dateStr);

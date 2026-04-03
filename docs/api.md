@@ -1783,13 +1783,14 @@ Returns a single thread with its messages (paginated).
 PATCH /projects/:projectId/chat/threads/:threadId
 ```
 
-Updates a thread. Only the `title` field is user-editable.
+Updates a thread. The `title` field is user-editable. The `session_id` field can be set to `null` to start a fresh Claude session (preserving chat history).
 
 **Request body:**
 
-| Field | Type   | Required | Description    |
-| ----- | ------ | -------- | -------------- |
-| title | string | Yes      | New thread title. |
+| Field      | Type            | Required | Description                                                         |
+| ---------- | --------------- | -------- | ------------------------------------------------------------------- |
+| title      | string          | No       | New thread title.                                                   |
+| session_id | string or null  | No       | Set to `null` to clear the session and start a fresh Claude session. |
 
 **Response:** `200 OK` — Updated thread object.
 
@@ -2241,7 +2242,7 @@ All events below (except `run.event` and monitor events) are broadcast to both p
 | ---------------------- | ------------------------------------------- | --------------------------------------------------------------------- |
 | `chat.message`         | Assistant text chunk streamed               | `{ project_id, thread_id, content }`                                 |
 | `chat.tool_call`       | Tool usage by Claude during chat            | `{ project_id, thread_id, tool_name, tool_input }`                   |
-| `chat.tool_result`     | Tool result received during chat            | `{ project_id, thread_id, tool_name, result }`                       |
+| `chat.tool_result`     | Tool result received during chat            | `{ project_id, thread_id, tool_name, result, success }`              |
 | `chat.complete`        | Chat response finished                      | `{ project_id, thread_id, message_id }`                              |
 | `chat.session_expired` | Claude session expired, new one started     | `{ project_id, thread_id }`                                          |
 

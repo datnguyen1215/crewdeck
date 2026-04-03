@@ -604,7 +604,7 @@ export function createChatThread(projectId: string, data?: { title?: string }) {
 export function getChatThread(threadId: string, projectId: string, limit?: number, offset?: number) {
   return request<ChatThreadDetail>("GET", `/projects/${e(projectId)}/chat/threads/${e(threadId)}${qs({ limit, offset })}`);
 }
-export function updateChatThread(threadId: string, projectId: string, data: { title?: string }) {
+export function updateChatThread(threadId: string, projectId: string, data: { title?: string; session_id?: string | null }) {
   return request<ChatThread>("PATCH", `/projects/${e(projectId)}/chat/threads/${e(threadId)}`, data);
 }
 export function deleteChatThread(threadId: string, projectId: string) {
