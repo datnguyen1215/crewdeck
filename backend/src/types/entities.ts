@@ -374,6 +374,20 @@ export interface ChatMessage {
   created_at: string;
 }
 
+export type ChatMessageEventType = "thinking" | "text" | "tool_call" | "tool_result" | "system" | "result";
+
+export interface ChatMessageEvent {
+  id: string;
+  message_id: string;
+  type: ChatMessageEventType;
+  data: unknown;
+  created_at: string;
+}
+
+export interface ChatMessageWithEvents extends ChatMessage {
+  events: ChatMessageEvent[];
+}
+
 // Monitor message types
 export type MonitorMessageRole = "user" | "assistant";
 

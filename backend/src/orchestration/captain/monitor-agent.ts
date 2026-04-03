@@ -40,13 +40,8 @@ import { getSystemApiKey } from "../../app.js";
 // --- Helpers ---
 
 // Event suffixes where monitor and chat payloads have identical shape
-// (chat just adds thread_id).
-type SharedSuffix =
-  | "event_received"
-  | "thinking"
-  | "message"
-  | "tool_call"
-  | "tool_result";
+// (chat just adds thread_id). Only event_received still shares shape.
+type SharedSuffix = "event_received";
 
 type MonitorKey<K extends SharedSuffix> = `monitor.${K}`;
 type ChatKey<K extends SharedSuffix> = `chat.${K}`;
@@ -74,6 +69,30 @@ function emitDual<K extends SharedSuffix>(
       ...monitorPayload,
     } as EventMap[ChatKey<K>],
   );
+}
+
+/** Emit monitor and chat thinking events (different shapes since chat needs message_id). */
+function emitThinking(projectId: string, threadId: string) {
+  eventBus.emit("monitor.thinking", { project_id: projectId });
+  eventBus.emit("chat.thinking", { project_id: projectId, thread_id: threadId, message_id: "" });
+}
+
+/** Emit monitor and chat message events (different shapes). */
+function emitMonitorMessage(projectId: string, threadId: string, content: string) {
+  eventBus.emit("monitor.message", { project_id: projectId, content });
+  eventBus.emit("chat.message", { project_id: projectId, thread_id: threadId, message_id: "", content });
+}
+
+/** Emit monitor and chat tool_call events (different shapes). */
+function emitMonitorToolCall(projectId: string, threadId: string, toolName: string, toolInput: unknown) {
+  eventBus.emit("monitor.tool_call", { project_id: projectId, tool_name: toolName, tool_input: toolInput });
+  eventBus.emit("chat.tool_call", { project_id: projectId, thread_id: threadId, message_id: "", tool_call_id: "", tool_name: toolName, tool_input: toolInput });
+}
+
+/** Emit monitor and chat tool_result events (different shapes). */
+function emitMonitorToolResult(projectId: string, threadId: string, toolName: string, result: unknown) {
+  eventBus.emit("monitor.tool_result", { project_id: projectId, tool_name: toolName, result });
+  eventBus.emit("chat.tool_result", { project_id: projectId, thread_id: threadId, message_id: "", tool_call_id: "", tool_name: toolName, result });
 }
 
 /** Save events to DB and broadcast each one via event bus. */
@@ -134,18 +153,15 @@ function createStreamHandler(
           | undefined;
         const text = content?.content?.[0]?.text;
         if (text) {
-          emitDual("message", projectId, { content: text }, monitorThread.id);
+          emitMonitorMessage(projectId, monitorThread.id, text);
         }
       } else if (event.type === "tool_use") {
-        emitDual("tool_call", projectId, {
-          tool_name: (event.name as string) ?? "unknown",
-          tool_input: event.input,
-        }, monitorThread.id);
+        emitMonitorToolCall(projectId, monitorThread.id,
+          (event.name as string) ?? "unknown",
+          event.input,
+        );
       } else if (event.type === "tool_result") {
-        emitDual("tool_result", projectId, {
-          tool_name: "bash",
-          result: event.content,
-        }, monitorThread.id);
+        emitMonitorToolResult(projectId, monitorThread.id, "bash", event.content);
       }
     } catch (eventErr) {
       logger.warn(
@@ -205,7 +221,7 @@ function persistAndBroadcastResponse(
   finalResponse: string,
 ) {
   if (finalResponse) {
-    emitDual("message", projectId, { content: finalResponse }, monitorThread.id);
+    emitMonitorMessage(projectId, monitorThread.id, finalResponse);
     monitorRepo.create(projectId, "assistant", finalResponse);
     chatMessageRepo.createMessage(monitorThread.id, "assistant", finalResponse);
   }
@@ -213,7 +229,7 @@ function persistAndBroadcastResponse(
   // complete events have different shapes (monitor has response, chat does not),
   // so they can't go through emitDual.
   eventBus.emit("monitor.complete", { project_id: projectId, response: finalResponse });
-  eventBus.emit("chat.complete", { project_id: projectId, thread_id: monitorThread.id });
+  eventBus.emit("chat.complete", { project_id: projectId, thread_id: monitorThread.id, message_id: "" });
 }
 
 /** Build the user prompt from events and monitor history. Returns both the full prompt and the events-only section. */
@@ -336,7 +352,7 @@ export const processWithLLM = async (
   const { userPrompt, eventSection } = buildUserPrompt(events, projectId);
   const monitorThread = chatThreadRepo.getOrCreateMonitorThread(projectId);
   persistAndBroadcastEvents(projectId, events, monitorThread, eventSection);
-  emitDual("thinking", projectId, {}, monitorThread.id);
+  emitThinking(projectId, monitorThread.id);
 
   try {
     updateCaptainStatus(projectId, "thinking",

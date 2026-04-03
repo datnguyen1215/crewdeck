@@ -20,7 +20,9 @@ import {
 } from "../db/repositories/chat-threads.js";
 import {
   createMessage,
+  updateMessage,
 } from "../db/repositories/chat-messages.js";
+import * as chatEventRepo from "../db/repositories/chat-message-events.js";
 import { listRepos } from "../db/repositories/repos.js";
 import * as globalEnvVarRepo from "../db/repositories/global-environment-variables.js";
 import { getEnvironmentVariablesMap } from "../db/repositories/environment-variables.js";
@@ -73,11 +75,13 @@ export function acquireAndCreateMessage(
  */
 export async function runThreadSession(threadId: string, content: string): Promise<void> {
   let thread: NonNullable<ReturnType<typeof getThread>> | null = null;
+  let assistantMsgId: string | null = null;
   try {
     thread = getThread(threadId);
     if (!thread) throw new Error(`Thread ${threadId} not found`);
 
-    await runClaudeSession(thread, content);
+    const result = await runClaudeSession(thread, content);
+    assistantMsgId = result.message_id;
   } catch (err) {
     // If thread wasn't fetched yet (getThread threw), try once more for event context
     thread = thread ?? getThread(threadId);
@@ -91,6 +95,7 @@ export async function runThreadSession(threadId: string, content: string): Promi
     eventBus.emit("chat.complete", {
       project_id: thread.project_id,
       thread_id: thread.id,
+      message_id: assistantMsgId ?? "",
     });
   } finally {
     activeThreads.delete(threadId);
@@ -128,6 +133,10 @@ async function runClaudeSession(
   const repos = listRepos(thread.project_id);
   const workdir = repos.length > 0 ? repos[0].local_path : tmpdir();
 
+  // Create the assistant message row early so we can attach events to it
+  const assistantMsg = createMessage(thread.id, "assistant", "");
+  const assistantMsgId = assistantMsg.id;
+
   let capturedSessionId: string | null = sessionId;
   let assistantContent = "";
   let processFailed = false;
@@ -140,7 +149,7 @@ async function runClaudeSession(
       ...buildProviderEnv(model),
       ANTHROPIC_API_KEY: "",
       GIT_TERMINAL_PROMPT: "0",
-    }, tmpFile, thread.project_id, thread.id);
+    }, tmpFile, thread.project_id, thread.id, assistantMsgId);
 
     if (result.sessionExpired && needsResume) {
       // Session expired — clear it and retry fresh
@@ -160,7 +169,7 @@ async function runClaudeSession(
         ...buildProviderEnv(model),
         ANTHROPIC_API_KEY: "",
         GIT_TERMINAL_PROMPT: "0",
-      }, freshTmpFile, thread.project_id, thread.id);
+      }, freshTmpFile, thread.project_id, thread.id, assistantMsgId);
 
       capturedSessionId = freshResult.sessionId;
       assistantContent = freshResult.content;
@@ -193,12 +202,13 @@ async function runClaudeSession(
     eventBus.emit("chat.complete", {
       project_id: thread.project_id,
       thread_id: thread.id,
+      message_id: assistantMsgId,
     });
 
     throw new Error("Captain process failed. Try sending the message again.");
   } else {
-    // Save assistant message
-    const assistantMsg = createMessage(thread.id, "assistant", assistantContent);
+    // Update assistant message with final content
+    updateMessage(assistantMsgId, assistantContent);
 
     // Update session_id if we got a new one
     if (capturedSessionId && capturedSessionId !== thread.session_id) {
@@ -211,11 +221,11 @@ async function runClaudeSession(
     eventBus.emit("chat.complete", {
       project_id: thread.project_id,
       thread_id: thread.id,
-      message_id: assistantMsg.id,
+      message_id: assistantMsgId,
     });
 
     return {
-      message_id: assistantMsg.id,
+      message_id: assistantMsgId,
       session_id: capturedSessionId,
     };
   }
@@ -251,6 +261,7 @@ async function runClaudeProcess(
   tmpFile: string,
   projectId: string,
   threadId: string,
+  messageId: string,
 ): Promise<ClaudeRunResult> {
   // Replace the PLACEHOLDER with actual tmpFile path
   const finalArgs = args.map((a) => (a === "PLACEHOLDER" ? tmpFile : a));
@@ -290,13 +301,13 @@ async function runClaudeProcess(
       lineBuf = parts.pop()!; // last element is either "" or a partial line
       for (const line of parts) {
         if (!line.trim()) continue;
-        processStreamLine(line, projectId, threadId);
+        processStreamLine(line, projectId, threadId, messageId);
       }
     });
     child.stdout!.on("end", () => {
       // Flush any remaining partial line
       if (lineBuf.trim()) {
-        processStreamLine(lineBuf, projectId, threadId);
+        processStreamLine(lineBuf, projectId, threadId, messageId);
       }
       resolve();
     });
@@ -308,7 +319,7 @@ async function runClaudeProcess(
     child.on("error", () => resolve(1));
   });
 
-  function processStreamLine(line: string, projId: string, thrdId: string): void {
+  function processStreamLine(line: string, projId: string, thrdId: string, msgId: string): void {
     let event: Record<string, unknown>;
     try {
       event = JSON.parse(line);
@@ -336,20 +347,34 @@ async function runClaudeProcess(
       const subtype = event.subtype as string | undefined;
       if (subtype === "text" && typeof event.content === "string") {
         content += event.content;
+        chatEventRepo.createEvent(msgId, "text", { content: event.content });
         eventBus.emit("chat.message", {
           project_id: projId,
           thread_id: thrdId,
+          message_id: msgId,
           content: event.content,
         });
       } else if (subtype === "thinking") {
+        const thinkingText = typeof event.thinking === "string" ? event.thinking : undefined;
+        chatEventRepo.createEvent(msgId, "thinking", { content: thinkingText });
         eventBus.emit("chat.thinking", {
           project_id: projId,
           thread_id: thrdId,
+          message_id: msgId,
+          content: thinkingText,
         });
       } else if (subtype === "tool_use" && event.tool_name) {
+        const toolCallId = String(event.tool_call_id ?? randomUUID());
+        chatEventRepo.createEvent(msgId, "tool_call", {
+          tool_call_id: toolCallId,
+          tool_name: String(event.tool_name),
+          tool_input: event.tool_input,
+        });
         eventBus.emit("chat.tool_call", {
           project_id: projId,
           thread_id: thrdId,
+          message_id: msgId,
+          tool_call_id: toolCallId,
           tool_name: String(event.tool_name),
           tool_input: event.tool_input,
         });
@@ -357,9 +382,17 @@ async function runClaudeProcess(
     }
 
     if (type === "tool_result" && event.tool_name) {
+      const toolCallId = String(event.tool_call_id ?? "");
+      chatEventRepo.createEvent(msgId, "tool_result", {
+        tool_call_id: toolCallId,
+        tool_name: String(event.tool_name),
+        result: event.result,
+      });
       eventBus.emit("chat.tool_result", {
         project_id: projId,
         thread_id: thrdId,
+        message_id: msgId,
+        tool_call_id: toolCallId,
         tool_name: String(event.tool_name),
         result: event.result,
       });
@@ -376,6 +409,7 @@ async function runClaudeProcess(
           sessionExpired = true;
         }
       }
+      chatEventRepo.createEvent(msgId, "result", event);
     }
   }
 

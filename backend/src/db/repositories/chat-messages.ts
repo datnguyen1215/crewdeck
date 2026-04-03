@@ -49,6 +49,11 @@ export function getLastMessage(threadId: string): ChatMessage | null {
   );
 }
 
+export function updateMessage(id: string, content: string): ChatMessage {
+  db.prepare("UPDATE ChatMessage SET content = ? WHERE id = ?").run(content, id);
+  return db.prepare("SELECT * FROM ChatMessage WHERE id = ?").get(id) as ChatMessage;
+}
+
 export function deleteMessagesByThread(threadId: string): void {
   db.prepare("DELETE FROM ChatMessage WHERE thread_id = ?").run(threadId);
 }

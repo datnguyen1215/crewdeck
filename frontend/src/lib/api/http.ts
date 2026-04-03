@@ -25,6 +25,7 @@ import type {
   ChatThread,
   ChatThreadListItem,
   ChatThreadDetail,
+  ChatMessageEvent,
 } from "./types.js";
 
 export type {
@@ -59,6 +60,7 @@ export type {
   ChatThreadListItem,
   ChatThreadDetail,
   ChatMessage,
+  ChatMessageEventType,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -632,4 +634,7 @@ export function sendChatMessage(threadId: string, projectId: string, content: st
 }
 export function getChatThreadStatus(threadId: string, projectId: string) {
   return request<{ active: boolean }>("GET", `/projects/${e(projectId)}/chat/threads/${e(threadId)}/status`);
+}
+export function getChatMessageEvents(threadId: string, messageId: string, projectId: string) {
+  return request<{ events: ChatMessageEvent[] }>("GET", `/projects/${e(projectId)}/chat/threads/${e(threadId)}/messages/${e(messageId)}/events`);
 }
