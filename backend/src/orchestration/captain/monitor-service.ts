@@ -151,17 +151,19 @@ async function processQueue(
   }
 }
 
-// Domain-specific filter predicates
-const notAgentCreated = (data: { issue: { created_by: string } }) =>
-  data.issue.created_by !== "agent";
-
-const notIssuePaused = (data: { issue_id: string | null }) =>
-  !(data.issue_id && isIssuePaused(data.issue_id));
-
-const userAuthorOnly = (data: { comment: { author_type: string } }) =>
-  data.comment.author_type === "user";
-
 type AnyData = Record<string, unknown>;
+
+// Domain-specific filter predicates
+const notAgentCreated = (data: AnyData): boolean =>
+  (data.issue as AnyData)?.created_by !== "agent";
+
+const notIssuePaused = (data: AnyData): boolean => {
+  const issueId = data.issue_id as string | null | undefined;
+  return !(issueId && isIssuePaused(issueId));
+};
+
+const userAuthorOnly = (data: AnyData): boolean =>
+  (data.comment as AnyData)?.author_type === "user";
 
 // Event types handled by the monitor (subset of EventMap that are also CaptainEventType)
 type MonitorEventType = CaptainEventType & keyof EventMap;
@@ -170,7 +172,7 @@ interface HandlerConfig {
   eventType: MonitorEventType;
   // dot-separated path to project_id within the event data
   projectIdPath: string;
-  filter?: (data: never) => boolean;
+  filter?: (data: AnyData) => boolean;
 }
 
 const HANDLER_CONFIGS: HandlerConfig[] = [
@@ -179,24 +181,24 @@ const HANDLER_CONFIGS: HandlerConfig[] = [
   {
     eventType: "issue.created",
     projectIdPath: "issue.project_id",
-    filter: notAgentCreated as never,
+    filter: notAgentCreated,
   },
   { eventType: "issue.updated", projectIdPath: "project_id" },
   {
     eventType: "issue.status_changed",
     projectIdPath: "project_id",
-    filter: notIssuePaused as never,
+    filter: notIssuePaused,
   },
   {
     eventType: "run.completed",
     projectIdPath: "project_id",
-    filter: notIssuePaused as never,
+    filter: notIssuePaused,
   },
   { eventType: "pr.status_changed", projectIdPath: "project_id" },
   {
     eventType: "comment.added",
     projectIdPath: "project_id",
-    filter: userAuthorOnly as never,
+    filter: userAuthorOnly,
   },
   { eventType: "project.settings_changed", projectIdPath: "project_id" },
   { eventType: "issue.approved_to_start", projectIdPath: "project_id" },
@@ -215,8 +217,8 @@ function getNestedValue(obj: AnyData, path: string): unknown {
 function createProjectHandlers(projectId: string): () => void {
   const handlers = HANDLER_CONFIGS.map(
     ({ eventType, projectIdPath, filter }) => {
-      const handler = (data: never) => {
-        if (getNestedValue(data as AnyData, projectIdPath) !== projectId)
+      const handler = (data: AnyData) => {
+        if (getNestedValue(data, projectIdPath) !== projectId)
           return;
         if (filter && !filter(data)) return;
         queueAndProcess({

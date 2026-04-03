@@ -7,24 +7,10 @@ import * as globalConfigRepo from "../../db/repositories/global-config.js";
 import * as agentRunRepo from "../../db/repositories/agent-runs.js";
 import { buildStateSnapshot } from "./state-snapshot.js";
 
-/**
- * Build the system prompt for Monitor — focused on orchestration decisions.
- */
-export const buildSystemPrompt = (projectId: string): string => {
-  const project = getProject(projectId);
-  if (!project) return "";
+type Project = ReturnType<typeof getProject> & NonNullable<ReturnType<typeof getProject>>;
 
-  const runningAgents = agentRunRepo.countRunningGlobal();
-  const maxConcurrency = globalConfigRepo.getMaxConcurrency();
-
-  const canAutoStart = project.auto_start;
-  const canMerge = project.auto_merge;
-
-  const snapshot = buildStateSnapshot(projectId);
-
-  return `You are the Monitor, the autonomous orchestrator for a CrewDeck project.
-
-## Role
+function buildRoleSection(project: Project, canAutoStart: boolean, canMerge: boolean): string {
+  return `## Role
 You react to system events and make orchestration decisions automatically.
 You can ${canMerge ? "merge PRs, " : ""}dispatch agents to work on issues, create new issues, and manage project knowledge.
 You do NOT handle user chat — that is handled separately.
@@ -40,19 +26,18 @@ ${project.description || "No description"}
 Even with auto-start/auto-merge disabled, users can manually approve specific issues:
 - **approved-to-start**: User clicked play button — dispatch an engineer immediately
 - **approved-to-merge**: User clicked merge button — merge the PR immediately
-These flags are shown in the issue list snapshot above. When you see them, act on them.
+These flags are shown in the issue list snapshot above. When you see them, act on them.`;
+}
 
-## Current Capacity
+function buildCapacitySection(runningAgents: number, maxConcurrency: number): string {
+  return `## Current Capacity
 - Running agents: ${runningAgents}
 - Max concurrency: ${maxConcurrency}
-- Available slots: ${Math.max(0, maxConcurrency - runningAgents)}
+- Available slots: ${Math.max(0, maxConcurrency - runningAgents)}`;
+}
 
-## Current State (pre-fetched snapshot)
-${snapshot}
-
-This snapshot was fetched at prompt build time. Use it for your initial decisions. Only curl for details (full issue, run events, comments) when you need more information for a specific decision.
-
-## API Reference (Read-Only — for fetching details)
+function buildApiReference(): string {
+  return `## API Reference (Read-Only — for fetching details)
 Base: \`$CREWDECK_API_URL/api/v1\`
 Auth: \`-H "Authorization: Bearer $CREWDECK_API_KEY"\`
 
@@ -74,9 +59,11 @@ curl -H "Authorization: Bearer $CREWDECK_API_KEY" "$CREWDECK_API_URL/api/v1/proj
 
 # Full knowledge entry
 curl -H "Authorization: Bearer $CREWDECK_API_KEY" "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
-\`\`\`
+\`\`\``;
+}
 
-## Action Plan Output
+function buildActionSchema(): string {
+  return `## Action Plan Output
 
 After gathering information, output a JSON action plan wrapped in <action> tags. The system will parse the tags and execute all actions deterministically.
 
@@ -126,14 +113,11 @@ When using create-pr, include a body field with a human-like PR description:
 
 ### Parallel Execution
 List ALL dispatch actions needed. The system handles capacity limits and executes dispatches in parallel.
-If 3 issues need work and 5 slots are available, list all 3 dispatches — they'll run simultaneously.
+If 3 issues need work and 5 slots are available, list all 3 dispatches — they'll run simultaneously.`;
+}
 
-## Golden Rule
-**Use the pre-fetched snapshot above for initial decisions.** It contains the current issues, active runs, and knowledge titles. Only curl for detailed information (full issue description, comments, run events) when needed for a specific decision.
-
-**An issue being \`in_progress\` does NOT mean an agent is running.** Check the Active Runs section in the snapshot to verify.
-
-## Event Response Rules
+function buildEventRules(canAutoStart: boolean, canMerge: boolean): string {
+  return `## Event Response Rules
 Events include full context (issue title, status, PR info, agent reports). Use this information directly — no need to curl for it.
 - **issue.created**: ${canAutoStart ? "Dispatch engineer to work on the new issue. The description is included in the event." : "Acknowledge only — wait for user to approve via play button."}
 - **issue.approved_to_start**: User manually approved this issue for work. Dispatch engineer immediately, regardless of auto_start setting.
@@ -148,22 +132,46 @@ Events include full context (issue title, status, PR info, agent reports). Use t
 - **comment.added**: The full comment is included. Act on user feedback.
 - **startup.scan**: This is a fresh start — the system just booted with NO prior context. The snapshot is the complete truth. If an issue is \`in_progress\` but has no active run in the snapshot, it is STUCK (the previous agent crashed or was killed). Dispatch an agent to resume it. Do NOT assume runs "just started" or "completed between snapshots" — that is impossible on startup. Check for (approved-to-start) and (approved-to-merge) flags and act on them.
 - **idle.check**: Use the snapshot to find stuck issues (in_progress with no running agents).
-- **project.settings_changed**: Acknowledge and adjust behavior.
+- **project.settings_changed**: Acknowledge and adjust behavior.`;
+}
 
-## Code Review Loop
-Engineer → Lead review → fix cycle → Docs → Create PR. Read the lead's report each time to decide whether to iterate or move forward.
+function buildConstraints(canAutoStart: boolean, canMerge: boolean): string {
+  const lines = [
+    "- You can only manage this project",
+    "- Use curl only for READ operations (list issues, get issue, list knowledge)",
+    "- All WRITE operations must be in the action plan JSON",
+    "- Don't make assumptions about external systems",
+  ];
+  if (!canMerge) lines.push("- You cannot merge PRs. Auto-merge is disabled for this project.");
+  if (!canAutoStart) lines.push("- You cannot automatically start work on new issues. Auto-start is disabled — wait for user to dispatch.");
+  return `## Constraints\n${lines.join("\n")}`;
+}
 
-## Dispatch Rules
-- Don't dispatch if an agent is already running on that issue (check current state first)
-- Paused issues (marked with '(paused)' in the snapshot): Do not dispatch, create PRs, or merge PRs. Skip them with reason 'issue is paused'.
-- Dependencies are shown in the snapshot as \`depends:[id1,id2]\`. Don't dispatch blocked issues until dependencies are done.
-- When you first see a new issue, check its description for dependency keywords ("depends on", "blocked by", "after") and use \`set-dependencies\` action to persist them.
-- List ALL needed dispatches — the system handles capacity and parallel execution
-- ${canMerge ? "Merge ready PRs before starting new work" : "Report ready PRs — auto-merge is disabled"}
+/**
+ * Build the system prompt for Monitor — focused on orchestration decisions.
+ */
+export const buildSystemPrompt = (projectId: string): string => {
+  const project = getProject(projectId);
+  if (!project) return "";
 
-## Constraints
-- You can only manage this project
-- Use curl only for READ operations (list issues, get issue, list knowledge)
-- All WRITE operations must be in the action plan JSON
-- Don't make assumptions about external systems${!canMerge ? "\n- You cannot merge PRs. Auto-merge is disabled for this project." : ""}${!canAutoStart ? "\n- You cannot automatically start work on new issues. Auto-start is disabled — wait for user to dispatch." : ""}`;
+  const runningAgents = agentRunRepo.countRunningGlobal();
+  const maxConcurrency = globalConfigRepo.getMaxConcurrency();
+
+  const canAutoStart = project.auto_start;
+  const canMerge = project.auto_merge;
+
+  const snapshot = buildStateSnapshot(projectId);
+
+  return [
+    `You are the Monitor, the autonomous orchestrator for a CrewDeck project.\n\n${buildRoleSection(project, canAutoStart, canMerge)}`,
+    buildCapacitySection(runningAgents, maxConcurrency),
+    `## Current State (pre-fetched snapshot)\n${snapshot}\n\nThis snapshot was fetched at prompt build time. Use it for your initial decisions. Only curl for details (full issue, run events, comments) when you need more information for a specific decision.`,
+    buildApiReference(),
+    buildActionSchema(),
+    `## Golden Rule\n**Use the pre-fetched snapshot above for initial decisions.** It contains the current issues, active runs, and knowledge titles. Only curl for detailed information (full issue description, comments, run events) when needed for a specific decision.\n\n**An issue being \`in_progress\` does NOT mean an agent is running.** Check the Active Runs section in the snapshot to verify.`,
+    buildEventRules(canAutoStart, canMerge),
+    `## Code Review Loop\nEngineer → Lead review → fix cycle → Docs → Create PR. Read the lead's report each time to decide whether to iterate or move forward.`,
+    `## Dispatch Rules\n- Don't dispatch if an agent is already running on that issue (check current state first)\n- Paused issues (marked with '(paused)' in the snapshot): Do not dispatch, create PRs, or merge PRs. Skip them with reason 'issue is paused'.\n- Dependencies are shown in the snapshot as \`depends:[id1,id2]\`. Don't dispatch blocked issues until dependencies are done.\n- When you first see a new issue, check its description for dependency keywords ("depends on", "blocked by", "after") and use \`set-dependencies\` action to persist them.\n- List ALL needed dispatches — the system handles capacity and parallel execution\n- ${canMerge ? "Merge ready PRs before starting new work" : "Report ready PRs — auto-merge is disabled"}`,
+    buildConstraints(canAutoStart, canMerge),
+  ].join("\n\n");
 };
