@@ -272,6 +272,9 @@ function subscribeEvents(bus: EventBus): void {
   bus.on("chat.session_expired", (data) => {
     broadcast(data.project_id, "chat.session_expired", data);
   });
+  bus.on("chat.error", (data) => {
+    broadcast(data.project_id, "chat.error", data);
+  });
 }
 
 interface ExtendedWebSocket extends WebSocket {

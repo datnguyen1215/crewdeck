@@ -129,7 +129,7 @@ claude -p <prompt via stdin> \
 - The prompt is written to stdin (same pattern as `spawnClaudeStream`).
 - `--model <model>` is included, resolved via `getDefaultModel()` from `GlobalConfig`.
 - System prompt is always built via `buildCaptainPrompt()` (captain prompt builder), giving all chat threads the same project context as agent sessions.
-- If the assistant response is empty, "Captain did not respond." is saved as a fallback.
+**Error handling:** If the Claude process exits with a non-zero code and no content, `sendMessage` throws an error (HTTP 500). Before throwing, it emits `chat.error` with a user-friendly message and `chat.complete` so the frontend can reset streaming state. No ghost assistant message is saved.
 
 **Session lifecycle:**
 

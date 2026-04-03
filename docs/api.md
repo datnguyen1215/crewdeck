@@ -1841,6 +1841,7 @@ The response is returned only after the Claude response is fully complete. Use W
 - `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
 - `400 VALIDATION_ERROR` — Missing or invalid `content`.
 - `409 CONFLICT` — A message is already being processed for this thread.
+- `500` — Claude process failed (exit code 1, no content produced). `chat.error` WebSocket event is emitted with details.
 
 **Side effects:**
 
@@ -1849,6 +1850,7 @@ The response is returned only after the Claude response is fully complete. Use W
 - Updates thread's `updated_at` and `session_id` (captured from Claude CLI stream).
 - Emits `chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, and `chat.complete` events on the event bus.
 - If `--resume` fails (session expired), emits `chat.session_expired`, resets `session_id` to null, and starts a fresh session transparently.
+- If the Claude process fails (exit code 1, no content), emits `chat.error` with a user-friendly message, then `chat.complete`, and returns `500 INTERNAL_SERVER_ERROR`. No assistant message is saved.
 
 ---
 
@@ -2242,6 +2244,7 @@ All events below (except `run.event` and monitor events) are broadcast to both p
 | `chat.tool_call`         | Tool usage by Claude during chat            | `{ project_id, thread_id, tool_name, tool_input }`                   |
 | `chat.tool_result`       | Tool result received during chat            | `{ project_id, thread_id, tool_name, result, success }`              |
 | `chat.complete`          | Chat response finished                      | `{ project_id, thread_id, message_id? }`                             |
+| `chat.error`             | Claude process failed                       | `{ project_id, thread_id, error }`                                   |
 | `chat.session_expired`   | Claude session expired, new one started     | `{ project_id, thread_id }`                                          |
 
 #### Project Events
