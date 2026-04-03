@@ -76,11 +76,14 @@ router.patch(
     if (!thread || thread.project_id !== req.params.projectId) {
       throw new NotFoundError("Thread not found");
     }
-    const { title } = req.body as { title?: string };
-    if (title === undefined) {
+    const { title, session_id } = req.body as { title?: string; session_id?: string | null };
+    if (title === undefined && session_id === undefined) {
       throw new ValidationError("No fields to update");
     }
-    const updated = threadRepo.updateThread(thread.id, { title });
+    const updated = threadRepo.updateThread(thread.id, {
+      ...(title !== undefined ? { title } : {}),
+      ...(session_id !== undefined ? { session_id } : {}),
+    });
     res.json(updated);
   },
 );
