@@ -181,6 +181,25 @@ export function markRunFailed(id: string): AgentRun | null {
 }
 
 // AgentRunEvent functions
+
+interface AgentRunEventRow {
+  id: string;
+  agent_run_id: string;
+  type: string;
+  data: string;
+  created_at: string;
+}
+
+function parseEventRow(row: AgentRunEventRow): AgentRunEvent {
+  return normalizeEvent({
+    id: row.id,
+    agent_run_id: row.agent_run_id,
+    type: row.type as AgentRunEvent["type"],
+    data: JSON.parse(row.data),
+    created_at: row.created_at,
+  });
+}
+
 export function createAgentRunEvent(
   agentRunId: string,
   type: string,
@@ -196,13 +215,7 @@ export function createAgentRunEvent(
 
 export function getAgentRunEvent(id: string): AgentRunEvent | null {
   const row = db.prepare("SELECT * FROM AgentRunEvent WHERE id = ?").get(id) as
-    | {
-        id: string;
-        agent_run_id: string;
-        type: string;
-        data: string;
-        created_at: string;
-      }
+    | AgentRunEventRow
     | undefined;
   if (!row) return null;
   return {
@@ -219,22 +232,8 @@ export function listAgentRunEvents(agentRunId: string): AgentRunEvent[] {
     .prepare(
       "SELECT * FROM AgentRunEvent WHERE agent_run_id = ? ORDER BY created_at ASC",
     )
-    .all(agentRunId) as {
-    id: string;
-    agent_run_id: string;
-    type: string;
-    data: string;
-    created_at: string;
-  }[];
-  return rows.map((row) =>
-    normalizeEvent({
-      id: row.id,
-      agent_run_id: row.agent_run_id,
-      type: row.type as AgentRunEvent["type"],
-      data: JSON.parse(row.data),
-      created_at: row.created_at,
-    }),
-  );
+    .all(agentRunId) as AgentRunEventRow[];
+  return rows.map(parseEventRow);
 }
 
 export function listRecentAgentRunEvents(
@@ -245,22 +244,8 @@ export function listRecentAgentRunEvents(
     .prepare(
       "SELECT * FROM (SELECT * FROM AgentRunEvent WHERE agent_run_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC",
     )
-    .all(agentRunId, limit) as {
-    id: string;
-    agent_run_id: string;
-    type: string;
-    data: string;
-    created_at: string;
-  }[];
-  return rows.map((row) =>
-    normalizeEvent({
-      id: row.id,
-      agent_run_id: row.agent_run_id,
-      type: row.type as AgentRunEvent["type"],
-      data: JSON.parse(row.data),
-      created_at: row.created_at,
-    }),
-  );
+    .all(agentRunId, limit) as AgentRunEventRow[];
+  return rows.map(parseEventRow);
 }
 
 /**
