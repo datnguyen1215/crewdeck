@@ -228,11 +228,6 @@
               </div>
             {/if}
           </div>
-        {:else if streamingMessageId}
-          <!-- Analyzing indicator (no events yet but we have a message_id) -->
-          <div class="mb-3">
-            <ChatTerminalBox events={[]} streaming={true} />
-          </div>
         {:else if isProcessing}
           <div class="mb-3">
             <div class="border border-dashed border-cyan/40 rounded px-3 py-2 text-sm">
