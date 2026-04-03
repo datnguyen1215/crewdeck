@@ -258,6 +258,34 @@ export interface ApiKey {
   last_used_at: string | null;
 }
 
+export interface ChatThread {
+  id: string;
+  project_id: string;
+  title: string | null;
+  type: 'monitor' | 'user';
+  session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatThreadListItem extends ChatThread {
+  last_message: string | null;
+  message_count: number;
+}
+
+export interface ChatThreadDetail extends ChatThread {
+  messages: ChatMessage[];
+}
+
+export interface ChatMessage {
+  id: string;
+  thread_id: string;
+  role: 'user' | 'assistant' | 'system' | 'event' | 'tool';
+  content: string;
+  metadata: string | null;
+  created_at: string;
+}
+
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
 // but only includes events the frontend receives (excludes backend-only events)
 export interface WsEventMap {
@@ -382,6 +410,11 @@ export interface WsEventMap {
     result: unknown;
   };
   "monitor.complete": { project_id: string; response: string };
+  "chat.message": { project_id: string; thread_id: string; content: string };
+  "chat.tool_call": { project_id: string; thread_id: string; tool_name: string; tool_input: unknown };
+  "chat.tool_result": { project_id: string; thread_id: string; tool_name: string; result: unknown };
+  "chat.complete": { project_id: string; thread_id: string };
+  "chat.session_expired": { project_id: string; thread_id: string };
 }
 
 // Subset of events broadcast to global (dashboard) WebSocket subscribers.

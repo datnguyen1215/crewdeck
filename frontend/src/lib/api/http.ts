@@ -22,6 +22,9 @@ import type {
   GlobalConfig,
   GlobalEnvironmentVariable,
   ApiKey,
+  ChatThread,
+  ChatThreadListItem,
+  ChatThreadDetail,
 } from "./types.js";
 
 export type {
@@ -52,6 +55,10 @@ export type {
   GlobalConfig,
   GlobalEnvironmentVariable,
   ApiKey,
+  ChatThread,
+  ChatThreadListItem,
+  ChatThreadDetail,
+  ChatMessage,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -585,4 +592,24 @@ export function createApiKey(name: string) {
 }
 export function deleteApiKey(id: string) {
   return request<void>("DELETE", `/api-keys/${e(id)}`);
+}
+
+// Chat Threads
+export function listChatThreads(projectId: string) {
+  return request<ChatThreadListItem[]>("GET", `/projects/${e(projectId)}/chat/threads`);
+}
+export function createChatThread(projectId: string, data?: { title?: string }) {
+  return request<ChatThread>("POST", `/projects/${e(projectId)}/chat/threads`, data);
+}
+export function getChatThread(threadId: string, projectId: string, limit?: number, offset?: number) {
+  return request<ChatThreadDetail>("GET", `/projects/${e(projectId)}/chat/threads/${e(threadId)}${qs({ limit, offset })}`);
+}
+export function updateChatThread(threadId: string, projectId: string, data: { title?: string }) {
+  return request<ChatThread>("PATCH", `/projects/${e(projectId)}/chat/threads/${e(threadId)}`, data);
+}
+export function deleteChatThread(threadId: string, projectId: string) {
+  return request<void>("DELETE", `/projects/${e(projectId)}/chat/threads/${e(threadId)}`);
+}
+export function sendChatMessage(threadId: string, projectId: string, content: string) {
+  return request<{ message_id: string; session_id: string }>("POST", `/projects/${e(projectId)}/chat/threads/${e(threadId)}/messages`, { content });
 }
