@@ -104,7 +104,7 @@ export function runMigrationsSync(
 
   // Fix duplicate 027 prefix: rename old record so the new filename is recognized
   db.prepare(
-    "UPDATE _migrations SET name = '041_global_agent_config' WHERE name = '027_global_agent_config'",
+    "UPDATE _migrations SET name = '041_global_agent_config' WHERE name = '027_global_agent_config' AND NOT EXISTS (SELECT 1 FROM _migrations WHERE name = '041_global_agent_config')",
   ).run();
 
   const alreadyApplied = getAppliedMigrations(db);
