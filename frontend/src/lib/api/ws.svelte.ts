@@ -13,7 +13,8 @@ export interface WsMessage<E extends WsEvent = WsEvent> {
   timestamp: string;
 }
 
-type Handler = (data: any) => void;
+type Handler<E extends WsEvent = WsEvent> = (data: WsEventMap[E]) => void;
+type AnyHandler = (data: Record<string, unknown>) => void;
 
 export type WsState =
   | "connecting"
@@ -27,7 +28,7 @@ const MAX_DELAY = 30000;
 export class ProjectWebSocket {
   #ws: WebSocket | null = null;
   #projectId: string;
-  #listeners = new Map<string, Set<Handler>>();
+  #listeners = new Map<string, Set<AnyHandler>>();
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   #reconnectDelay = INITIAL_DELAY;
   #intentionalClose = false;
@@ -59,7 +60,7 @@ export class ProjectWebSocket {
     handler: (data: WsEventMap[E]) => void,
   ): () => void;
   on(event: "*", handler: (data: Record<string, unknown>) => void): () => void;
-  on(event: string, handler: Handler) {
+  on(event: string, handler: AnyHandler) {
     let set = this.#listeners.get(event);
     if (!set) {
       set = new Set();
@@ -99,7 +100,7 @@ export class ProjectWebSocket {
   }
 
   #dispatch(event: WsEvent, data: WsEventMap[WsEvent]) {
-    this.#listeners.get(event)?.forEach((h) => h(data));
+    this.#listeners.get(event)?.forEach((h) => h(data as Record<string, unknown>));
     this.#listeners
       .get("*")
       ?.forEach((h) =>
