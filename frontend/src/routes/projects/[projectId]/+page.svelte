@@ -23,7 +23,7 @@
 	let project = $state<Project | null>(null);
 	let loading = $state(true);
 	let totalIssues = $state(0);
-	let skipNextReload = false;
+	let skipNextCreatedId: string | null = null;
 	let hasMore = $derived(issues.length < totalIssues);
 
 	let projectId = $derived($page.params.projectId!);
@@ -124,10 +124,6 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
-			if (skipNextReload) {
-				skipNextReload = false;
-				return;
-			}
 			const opts: Record<string, unknown> = issues.length ? { limit: issues.length } : {};
 			if (showCompleted) opts.status = ALL_STATUSES;
 			listIssues(projectId, opts)
@@ -135,7 +131,13 @@
 				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
 		};
 		return useWsSubscriptions(ws, {
-			'issue.created': reload,
+			'issue.created': (data) => {
+				if (skipNextCreatedId && data.issue.id === skipNextCreatedId) {
+					skipNextCreatedId = null;
+					return;
+				}
+				reload();
+			},
 			'issue.updated': reload,
 			'issue.status_changed': reload,
 			'issue.paused': reload,
@@ -228,7 +230,7 @@
 			});
 			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null, dependencies: [], dependents: [] }];
 			totalIssues += 1;
-			skipNextReload = true;
+			skipNextCreatedId = issue.id;
 		});
 	}
 
