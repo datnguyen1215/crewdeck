@@ -353,6 +353,30 @@ export interface UpdateKnowledgeInput {
   source?: string | null;
 }
 
+// Chat types
+export type ChatThreadType = "monitor" | "user";
+
+export interface ChatThread {
+  id: string;
+  project_id: string;
+  title: string | null;
+  type: ChatThreadType;
+  session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ChatMessageRole = "user" | "assistant" | "system" | "event" | "tool";
+
+export interface ChatMessage {
+  id: string;
+  thread_id: string;
+  role: ChatMessageRole;
+  content: string;
+  metadata: string | null;
+  created_at: string;
+}
+
 // Monitor message types
 export type MonitorMessageRole = "user" | "assistant";
 
