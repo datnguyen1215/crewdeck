@@ -33,12 +33,12 @@
   let historyEvents = $state<Record<string, ChatMessageEvent[]>>({});
   let loadedEventIds = $state<Set<string>>(new Set());
 
-  async function loadEventsForMessage(messageId: string) {
+  async function loadEventsForMessage(messageId: string, threadId: string) {
     if (loadedEventIds.has(messageId)) return;
     loadedEventIds.add(messageId);
     try {
-      const { events } = await getChatMessageEvents(thread.id, messageId, projectId);
-      if (events.length > 0) {
+      const { events } = await getChatMessageEvents(threadId, messageId, projectId);
+      if (events.length > 0 && thread.id === threadId) {
         historyEvents[messageId] = events;
       }
     } catch {
@@ -74,7 +74,7 @@
     // Lazy-load events for past assistant messages
     for (const msg of thread.messages) {
       if (msg.role === 'assistant') {
-        loadEventsForMessage(msg.id);
+        loadEventsForMessage(msg.id, id);
       }
     }
   });

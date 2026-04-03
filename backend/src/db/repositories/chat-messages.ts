@@ -54,6 +54,14 @@ export function updateMessage(id: string, content: string): ChatMessage {
   return db.prepare("SELECT * FROM ChatMessage WHERE id = ?").get(id) as ChatMessage;
 }
 
+export function getMessage(id: string): ChatMessage | null {
+  return (db.prepare("SELECT * FROM ChatMessage WHERE id = ?").get(id) as ChatMessage) ?? null;
+}
+
+export function deleteMessage(id: string): void {
+  db.prepare("DELETE FROM ChatMessage WHERE id = ?").run(id);
+}
+
 export function deleteMessagesByThread(threadId: string): void {
   db.prepare("DELETE FROM ChatMessage WHERE thread_id = ?").run(threadId);
 }

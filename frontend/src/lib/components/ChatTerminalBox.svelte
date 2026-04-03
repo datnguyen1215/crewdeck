@@ -63,7 +63,7 @@
       <span class="event-icon">💭</span>
       <span class="event-text thinking-text">
         {#if isCollapsed || !streaming}
-          Thinking... <span class="text-muted">({typeof event.data.content === 'string' ? truncate(event.data.content, 60) : 'done'})</span>
+          Thinking... <span class="muted-text">({typeof event.data.content === 'string' ? truncate(event.data.content, 60) : 'done'})</span>
         {:else}
           {typeof event.data.content === 'string' ? truncate(event.data.content, 200) : 'Thinking...'}
         {/if}
@@ -71,7 +71,7 @@
     </button>
     {#if !isCollapsed && streaming && typeof event.data.content === 'string' && event.data.content}
       <div class="thinking-detail">
-        <pre class="whitespace-pre-wrap break-words text-xs">{event.data.content}</pre>
+        <pre class="thinking-detail-pre">{event.data.content}</pre>
       </div>
     {/if}
 
@@ -82,7 +82,7 @@
       <span class="event-icon">⚡</span>
       <span class="event-text tool-name">{event.data.tool_name}</span>
       {#if preview}
-        <span class="event-text text-muted ml-1">{preview}</span>
+        <span class="event-text muted-text tool-preview">{preview}</span>
       {/if}
       <span class="spinner" class:invisible={!streaming}></span>
     </div>
@@ -91,7 +91,7 @@
     {@const res = formatResult(event.data.result)}
     <button class="event-row tool-result-row" onclick={() => toggle(event.id)} data-collapsed={isCollapsed}>
       <span class="event-dot" class:result-ok={!res.isError} class:result-err={res.isError}></span>
-      <span class="event-text" class:text-green={!res.isError} class:text-red={res.isError}>
+      <span class="event-text" class:ok-text={!res.isError} class:err-text={res.isError}>
         {#if isCollapsed}
           {res.isError ? 'Error' : 'Done'}
         {:else}
@@ -106,13 +106,13 @@
   {:else if event.type === 'result'}
     <div class="event-row result-row">
       <span class="event-dot result-dot"></span>
-      <span class="event-text text-muted">Complete</span>
+      <span class="event-text muted-text">Complete</span>
     </div>
 
   {:else}
     <div class="event-row">
       <span class="event-dot"></span>
-      <span class="event-text text-muted">{event.type}</span>
+      <span class="event-text muted-text">{event.type}</span>
     </div>
   {/if}
 {/snippet}
@@ -287,17 +287,26 @@
     visibility: hidden;
   }
 
-  :global(.text-muted) {
+  .muted-text {
     color: rgba(255, 255, 255, 0.4);
   }
-  :global(.text-green) {
+
+  .ok-text {
     color: #22c55e;
   }
-  :global(.text-red) {
+
+  .err-text {
     color: #ef4444;
   }
-  :global(.ml-1) {
+
+  .tool-preview {
     margin-left: 4px;
+  }
+
+  .thinking-detail-pre {
+    white-space: pre-wrap;
+    word-break: break-words;
+    font-size: 11px;
   }
 
   @keyframes pulse-dot {

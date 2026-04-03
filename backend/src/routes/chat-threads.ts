@@ -158,6 +158,11 @@ router.get(
     if (!thread || thread.project_id !== req.params.projectId) {
       throw new NotFoundError("Thread not found");
     }
+    // Verify the message belongs to this thread
+    const message = messageRepo.getMessage(req.params.messageId);
+    if (!message || message.thread_id !== req.params.threadId) {
+      throw new NotFoundError("Message not found");
+    }
     const events = chatEventRepo.listEvents(req.params.messageId);
     res.json({ events });
   },

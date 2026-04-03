@@ -21,6 +21,7 @@ import {
 import {
   createMessage,
   updateMessage,
+  deleteMessage,
 } from "../db/repositories/chat-messages.js";
 import * as chatEventRepo from "../db/repositories/chat-message-events.js";
 import { listRepos } from "../db/repositories/repos.js";
@@ -205,6 +206,9 @@ async function runClaudeSession(
       message_id: assistantMsgId,
     });
 
+    // Delete the ghost assistant message so the thread isn't left with empty content
+    deleteMessage(assistantMsgId);
+
     throw new Error("Captain process failed. Try sending the message again.");
   } else {
     // Update assistant message with final content
@@ -285,6 +289,7 @@ async function runClaudeProcess(
   let content = "";
   let sessionId: string | null = null;
   let sessionExpired = false;
+  let lastToolCallId: string | null = null;
 
   // Collect raw stdout to ensure we never lose data from fast-exiting processes.
   // Buffer partial lines across chunks so we only parse complete JSON lines.
@@ -364,7 +369,8 @@ async function runClaudeProcess(
           content: thinkingText,
         });
       } else if (subtype === "tool_use" && event.tool_name) {
-        const toolCallId = String(event.tool_call_id ?? randomUUID());
+        const toolCallId = String(event.tool_call_id ?? `${event.tool_name}:${Date.now()}`);
+        lastToolCallId = toolCallId;
         chatEventRepo.createEvent(msgId, "tool_call", {
           tool_call_id: toolCallId,
           tool_name: String(event.tool_name),
@@ -382,7 +388,7 @@ async function runClaudeProcess(
     }
 
     if (type === "tool_result" && event.tool_name) {
-      const toolCallId = String(event.tool_call_id ?? "");
+      const toolCallId = String(event.tool_call_id ?? lastToolCallId ?? "");
       chatEventRepo.createEvent(msgId, "tool_result", {
         tool_call_id: toolCallId,
         tool_name: String(event.tool_name),
