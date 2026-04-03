@@ -6,9 +6,12 @@
 	import ProjectNavItem from './ProjectNavItem.svelte';
 	import { icons } from './icons.js';
 
-	const STORAGE_KEY = 'sidebar-collapsed';
-	const SYSTEM_STORAGE_KEY = 'sidebar-system-collapsed';
-	const PROJECTS_COLLAPSED_KEY = 'sidebar-projects-collapsed';
+	const STORAGE_KEY = 'crewdeck:sidebar:collapsed';
+	const LEGACY_STORAGE_KEY = 'sidebar-collapsed';
+	const SYSTEM_STORAGE_KEY = 'crewdeck:sidebar:systemCollapsed';
+	const LEGACY_SYSTEM_STORAGE_KEY = 'sidebar-system-collapsed';
+	const PROJECTS_COLLAPSED_KEY = 'crewdeck:sidebar:projectsCollapsed';
+	const LEGACY_PROJECTS_COLLAPSED_KEY = 'sidebar-projects-collapsed';
 	const MOBILE_BREAKPOINT = 768;
 
 	let projects = $state<ProjectWithStats[]>([]);
@@ -52,22 +55,26 @@
 		checkMobile();
 		window.addEventListener('resize', checkMobile);
 
-		// Load collapsed state from localStorage (desktop only)
-		const stored = localStorage.getItem(STORAGE_KEY);
-		if (stored !== null) {
-			collapsed = stored === 'true';
+		// Load collapsed state from localStorage (desktop only), migrating from legacy keys
+		function migrateKey(newKey: string, legacyKey: string): string | null {
+			const value = localStorage.getItem(newKey);
+			if (value !== null) return value;
+			const legacy = localStorage.getItem(legacyKey);
+			if (legacy !== null) {
+				localStorage.setItem(newKey, legacy);
+				localStorage.removeItem(legacyKey);
+			}
+			return legacy;
 		}
 
-		const systemStored = localStorage.getItem(SYSTEM_STORAGE_KEY);
-		if (systemStored !== null) {
-			systemSectionCollapsed = systemStored === 'true';
-		}
+		const stored = migrateKey(STORAGE_KEY, LEGACY_STORAGE_KEY);
+		if (stored !== null) collapsed = stored === 'true';
 
-		// Load projects section collapsed state
-		const projectsStored = localStorage.getItem(PROJECTS_COLLAPSED_KEY);
-		if (projectsStored !== null) {
-			projectsSectionCollapsed = projectsStored === 'true';
-		}
+		const systemStored = migrateKey(SYSTEM_STORAGE_KEY, LEGACY_SYSTEM_STORAGE_KEY);
+		if (systemStored !== null) systemSectionCollapsed = systemStored === 'true';
+
+		const projectsStored = migrateKey(PROJECTS_COLLAPSED_KEY, LEGACY_PROJECTS_COLLAPSED_KEY);
+		if (projectsStored !== null) projectsSectionCollapsed = projectsStored === 'true';
 
 		// Load projects (async, but don't block)
 		const fetchProjects = () => {
