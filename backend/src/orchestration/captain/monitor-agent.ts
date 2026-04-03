@@ -39,22 +39,24 @@ import { getSystemApiKey } from "../../app.js";
 
 // --- Helpers ---
 
-type DualEventSuffix =
+// Event suffixes where monitor and chat payloads have identical shape
+// (chat just adds thread_id).
+type SharedSuffix =
   | "event_received"
   | "thinking"
   | "message"
   | "tool_call"
-  | "tool_result"
-  | "complete";
+  | "tool_result";
 
-type MonitorKey<K extends DualEventSuffix> = `monitor.${K}`;
-type ChatKey<K extends DualEventSuffix> = `chat.${K}`;
+type MonitorKey<K extends SharedSuffix> = `monitor.${K}`;
+type ChatKey<K extends SharedSuffix> = `chat.${K}`;
 
 /**
  * Emit to both `monitor.{suffix}` and `chat.{suffix}` in one call.
  * The chat payload is the monitor payload plus `thread_id`.
+ * Only for events where monitor/chat share the same shape.
  */
-function emitDual<K extends DualEventSuffix>(
+function emitDual<K extends SharedSuffix>(
   suffix: K,
   projectId: string,
   monitorPayload: Omit<EventMap[MonitorKey<K>], "project_id">,
@@ -70,7 +72,7 @@ function emitDual<K extends DualEventSuffix>(
       project_id: projectId,
       thread_id: threadId,
       ...monitorPayload,
-    } as unknown as EventMap[ChatKey<K>],
+    } as EventMap[ChatKey<K>],
   );
 }
 
@@ -208,11 +210,14 @@ function persistAndBroadcastResponse(
     chatMessageRepo.createMessage(monitorThread.id, "assistant", finalResponse);
   }
 
-  emitDual("complete", projectId, { response: finalResponse }, monitorThread.id);
+  // complete events have different shapes (monitor has response, chat does not),
+  // so they can't go through emitDual.
+  eventBus.emit("monitor.complete", { project_id: projectId, response: finalResponse });
+  eventBus.emit("chat.complete", { project_id: projectId, thread_id: monitorThread.id });
 }
 
-/** Build the user prompt from events and monitor history. */
-function buildUserPrompt(events: CaptainEvent[], projectId: string): string {
+/** Build the user prompt from events and monitor history. Returns both the full prompt and the events-only section. */
+function buildUserPrompt(events: CaptainEvent[], projectId: string): { userPrompt: string; eventSection: string } {
   const eventText = formatEvents(events);
   const eventSection = eventText
     ? `## Events\n${eventText}\n\nProcess these events and output a JSON action plan.`
@@ -222,7 +227,7 @@ function buildUserPrompt(events: CaptainEvent[], projectId: string): string {
   const sections: string[] = [];
   if (history) sections.push(`## Recent Monitor History\n${history}`);
   sections.push(eventSection);
-  return sections.join("\n\n");
+  return { userPrompt: sections.join("\n\n"), eventSection };
 }
 
 /** Execute a valid action plan, updating captain status. */
@@ -328,9 +333,9 @@ export const processWithLLM = async (
   const systemPrompt = buildSystemPrompt(projectId);
   if (!systemPrompt) return "Error: Project not found";
 
-  const userPrompt = buildUserPrompt(events, projectId);
+  const { userPrompt, eventSection } = buildUserPrompt(events, projectId);
   const monitorThread = chatThreadRepo.getOrCreateMonitorThread(projectId);
-  persistAndBroadcastEvents(projectId, events, monitorThread, userPrompt);
+  persistAndBroadcastEvents(projectId, events, monitorThread, eventSection);
   emitDual("thinking", projectId, {}, monitorThread.id);
 
   try {
