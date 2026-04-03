@@ -152,6 +152,16 @@ export interface EventMap {
     response: string;
   };
   // Chat thread events
+  "chat.event_received": {
+    project_id: string;
+    thread_id: string;
+    event_type: string;
+    description: string;
+  };
+  "chat.thinking": {
+    project_id: string;
+    thread_id: string;
+  };
   "chat.message": {
     project_id: string;
     thread_id: string;
