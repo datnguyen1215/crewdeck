@@ -18,9 +18,6 @@
   let loading = $state(true);
   let creating = $state(false);
 
-  let monitorThreads = $derived(threads.filter((t) => t.type === 'monitor'));
-  let userThreads = $derived(threads.filter((t) => t.type === 'user'));
-
   async function handleNewThread() {
     if (creating) return;
     creating = true;
@@ -96,17 +93,7 @@
     {:else if threads.length === 0}
       <div class="p-4 text-xs text-muted text-center">No threads yet</div>
     {:else}
-      <!-- Monitor threads (pinned) -->
-      {#each monitorThreads as thread (thread.id)}
-        {@render threadItem(thread)}
-      {/each}
-
-      {#if monitorThreads.length > 0 && userThreads.length > 0}
-        <div class="border-t border-edge mx-2 my-1"></div>
-      {/if}
-
-      <!-- User threads -->
-      {#each userThreads as thread (thread.id)}
+      {#each threads as thread (thread.id)}
         {@render threadItem(thread)}
       {/each}
     {/if}
@@ -116,17 +103,13 @@
 {#snippet threadItem(thread: ChatThreadListItem)}
   <button
     onclick={() => selectThread(thread.id)}
-    class="w-full text-left px-3 py-2.5 border-l-[3px] transition-colors hover:bg-surface-hi
-      {thread.type === 'monitor' ? 'border-l-cyan' : 'border-l-edge'}
+    class="w-full text-left px-3 py-2.5 border-l-[3px] border-l-edge transition-colors hover:bg-surface-hi
       {selectedThreadId === thread.id ? 'bg-surface-hi' : ''}"
   >
     <div class="flex items-center gap-2 min-w-0">
       <span class="text-xs truncate flex-1 text-primary">
         {thread.title || 'Untitled'}
       </span>
-      {#if thread.type === 'monitor'}
-        <span class="text-[10px] text-cyan bg-cyan/10 px-1.5 py-0.5 rounded flex-shrink-0">auto</span>
-      {/if}
       <span class="text-[10px] text-muted flex-shrink-0">{formatTime(thread.updated_at)}</span>
     </div>
     {#if thread.last_message}

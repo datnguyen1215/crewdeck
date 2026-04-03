@@ -1,14 +1,21 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getContext } from 'svelte';
-	import { listActiveRuns, getProject, type ActiveRun, type Project } from '$lib/api/http.js';
+	import { getContext, onMount } from 'svelte';
+	import { listActiveRuns, getProject, getMonitorHistory, getCaptainStatus, type ActiveRun, type Project } from '$lib/api/http.js';
+	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
-	import type { WsEventMap } from '$lib/api/types.js';
+	import type { MonitorEntry, WsEventMap } from '$lib/api/types.js';
 	import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import { md } from '$lib/utils/markdown.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
+	import { mapMessageToEntry } from '$lib/utils/monitor.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 
+	// Captain monitor state
+	let monitorEntries = $state<MonitorEntry[]>([]);
+	let monitorLoading = $state(true);
+	let isAnalyzing = $state(false);
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
@@ -23,6 +30,129 @@
 			onLoading: (v) => { loading = v; },
 		}
 	);
+
+	// Load monitor history and captain status on mount
+	onMount(async () => {
+		try {
+			const [history, captainStatus] = await Promise.all([
+				getMonitorHistory(projectId, 20),
+				getCaptainStatus(projectId).catch(() => null),
+			]);
+			monitorEntries = history.map(mapMessageToEntry);
+			if (captainStatus && captainStatus.status !== 'idle') {
+				isAnalyzing = true;
+			}
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to load monitor history', 'error');
+		} finally {
+			monitorLoading = false;
+		}
+	});
+
+	// Subscribe to monitor WebSocket events
+	$effect(() => {
+		const ws = getWs();
+		if (!ws || monitorLoading) return;
+
+		const handleEventReceived = (data: WsEventMap['monitor.event_received']) => {
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'event',
+				content: `${data.event_type} - ${data.description ?? ''}`,
+				timestamp: new Date(),
+			}];
+		};
+
+		const handleThinking = () => {
+			isAnalyzing = true;
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'thinking',
+				content: 'Analyzing...',
+				timestamp: new Date(),
+			}];
+		};
+
+		const handleMessage = (data: WsEventMap['monitor.message']) => {
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'message',
+				content: data.content,
+				timestamp: new Date(),
+			}];
+		};
+
+		const handleToolCall = (data: WsEventMap['monitor.tool_call']) => {
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'tool_call',
+				content: `${data.tool_name}`,
+				toolName: data.tool_name,
+				toolInput: data.tool_input,
+				timestamp: new Date(),
+			}];
+		};
+
+		const handleToolResult = (data: WsEventMap['monitor.tool_result']) => {
+			const result = data.result as { success: boolean; message: string } | undefined;
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'tool_result',
+				content: result?.message ?? '',
+				toolName: data.tool_name,
+				success: result?.success ?? true,
+				timestamp: new Date(),
+			}];
+		};
+
+		const handleComplete = () => {
+			isAnalyzing = false;
+			monitorEntries = monitorEntries.filter(e => e.type !== 'thinking');
+		};
+
+		return useWsSubscriptions(ws, {
+			'monitor.event_received': handleEventReceived,
+			'monitor.thinking': handleThinking,
+			'monitor.message': handleMessage,
+			'monitor.tool_call': handleToolCall,
+			'monitor.tool_result': handleToolResult,
+			'monitor.complete': handleComplete,
+		});
+	});
+
+	function formatMonitorTime(date: Date): string {
+		return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+	}
+
+	function formatToolInput(input: unknown): string {
+		if (!input) return '';
+		if (typeof input === 'object') {
+			return Object.entries(input as Record<string, unknown>)
+				.map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+				.join(', ');
+		}
+		return String(input);
+	}
+
+	function monitorTypeLabel(type: MonitorEntry['type']): string {
+		switch (type) {
+			case 'event': return 'event';
+			case 'thinking': return 'monitor';
+			case 'message': return 'monitor';
+			case 'tool_call': return 'tool';
+			case 'tool_result': return 'tool';
+		}
+	}
+
+	function monitorTypeColor(type: MonitorEntry['type']): string {
+		switch (type) {
+			case 'event': return 'text-yellow/80';
+			case 'thinking': return 'text-cyan';
+			case 'message': return 'text-cyan';
+			case 'tool_call': return 'text-purple';
+			case 'tool_result': return 'text-purple';
+		}
+	}
 
 	// Live updates via WebSocket
 	$effect(() => {
@@ -56,6 +186,7 @@
 			'run.started': handleRunStarted,
 			'run.event': handleRunEvent,
 			'run.completed': handleRunCompleted,
+			// Also reload on mention events which may spawn runs
 			'mention.spawned': handleRunStarted,
 			'mention.completed': handleMentionCompleted,
 			'dispatch.dequeued': handleRunStarted,
@@ -95,6 +226,7 @@
 		const d = event.data as Record<string, unknown> | null;
 		switch (event.type) {
 			case 'assistant': {
+				// Normalized: d.text, d.tool_use[]
 				if (d?.text) return { label: 'Assistant', content: d.text as string };
 				if (Array.isArray(d?.tool_use) && d.tool_use.length > 0) {
 					return formatToolUse(d.tool_use[0] as { name: string; input: unknown });
@@ -102,6 +234,7 @@
 				return { label: 'Assistant', content: null };
 			}
 			case 'user': {
+				// Normalized: d.tool_results[]
 				if (Array.isArray(d?.tool_results) && d.tool_results.length > 0) {
 					const result = d.tool_results[0] as { output: string };
 					return { label: 'Result', content: result.output || null };
@@ -109,12 +242,14 @@
 				return { label: 'User', content: null };
 			}
 			case 'tool_use': {
+				// Normalized: d.tool_use[]
 				if (Array.isArray(d?.tool_use) && d.tool_use.length > 0) {
 					return formatToolUse(d.tool_use[0] as { name: string; input: unknown });
 				}
 				return { label: 'Tool', content: null };
 			}
 			case 'tool_result': {
+				// Normalized: d.tool_results[]
 				if (Array.isArray(d?.tool_results) && d.tool_results.length > 0) {
 					const result = d.tool_results[0] as { output: string };
 					return { label: 'Result', content: result.output || null };
@@ -122,6 +257,7 @@
 				return { label: 'Result', content: null };
 			}
 			case 'system': {
+				// Normalized: d.model, d.subtype, d.message
 				if (d?.model) return { label: 'System', content: `Session started (${d.model})` };
 				if (d?.subtype) return { label: 'System', content: d.subtype as string };
 				if (d?.message) return { label: 'System', content: d.message as string };
@@ -196,14 +332,72 @@
 		</div>
 	</div>
 
-	<!-- Deprecation notice -->
-	<div class="mb-4 px-3 py-2 rounded bg-surface border border-edge text-xs text-muted">
-		Captain orchestration feed has moved to <a href="/projects/{projectId}/chat" class="text-cyan hover:underline">Chat</a>.
-		This page shows active agent run terminals only.
-	</div>
-
-	<!-- Agent runs grid -->
+	<!-- Terminals grid: captain monitor + active agent runs -->
 	<div class="grid grid-cols-1 gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
+		<!-- Captain Monitor Card -->
+		<div class="bg-surface border border-cyan/30 rounded-lg overflow-hidden flex flex-col fade-up">
+			<div class="px-4 py-3 border-b border-cyan/30 bg-cyan/5">
+				<div class="flex items-center gap-2 mb-1">
+					<span class="text-sm font-medium text-cyan">Captain</span>
+					<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border {isAnalyzing ? 'text-cyan bg-cyan/10 border-cyan/30' : 'text-muted bg-surface border-edge'}">
+						{isAnalyzing ? 'Analyzing' : 'Monitoring'}
+					</span>
+					{#if isAnalyzing}
+						<span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse"></span>
+					{/if}
+				</div>
+				<p class="text-xs text-muted">Project orchestration feed</p>
+			</div>
+
+			<div
+				use:autoscroll
+				class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs bg-black/20"
+			>
+				{#if monitorLoading}
+					<div class="text-muted py-8 text-center">
+						<p class="animate-pulse">Loading monitor history...</p>
+					</div>
+				{:else if monitorEntries.length === 0}
+					<div class="text-muted py-8 text-center">
+						<p class="mb-2">Monitor feed empty.</p>
+						<p class="text-xs">Orchestration events will appear here.</p>
+					</div>
+				{:else}
+					<div class="space-y-2">
+						{#each monitorEntries.slice(-50) as entry (entry.id)}
+							<div class="flex gap-2 min-w-0">
+								<span class="text-muted/50 flex-shrink-0">[{formatMonitorTime(entry.timestamp)}]</span>
+								<span class="{monitorTypeColor(entry.type)} flex-shrink-0">[{monitorTypeLabel(entry.type)}]</span>
+								{#if entry.type === 'event'}
+									<span class="text-muted break-words min-w-0">{entry.content}</span>
+								{:else if entry.type === 'thinking'}
+									<span class="text-muted animate-pulse min-w-0">{entry.content}</span>
+								{:else if entry.type === 'message'}
+									<span class="text-primary prose prose-sm prose-invert max-w-none inline break-words min-w-0">
+										{@html md(entry.content)}
+									</span>
+								{:else if entry.type === 'tool_call'}
+									<span class="text-purple break-words min-w-0">
+										<span class="text-muted/50">-></span> {entry.toolName}({formatToolInput(entry.toolInput)})
+									</span>
+								{:else if entry.type === 'tool_result'}
+									<span class="text-muted/50 flex-shrink-0">-></span>
+									<span class="{entry.success ? 'text-green' : 'text-red'} min-w-0">
+										{entry.success ? 'ok' : 'err'}:
+									</span>
+									<span class="text-muted break-words min-w-0">{entry.content}</span>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<div class="px-4 py-2 border-t border-cyan/30 text-xs text-muted bg-cyan/5">
+				<span class="font-mono">Read-only feed</span>
+			</div>
+		</div>
+
 		{#if loading}
 			<!-- Loading skeletons for agent runs -->
 			{#each Array(2) as _, i}
