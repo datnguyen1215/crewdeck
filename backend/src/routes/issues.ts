@@ -23,6 +23,7 @@ import {
   listDependenciesBatchWithDetails,
   listDependentsBatchWithDetails,
 } from "../db/repositories/issue-dependencies.js";
+import { summarizeIssueAsync } from "../orchestration/summarizer.js";
 
 const router = Router({ mergeParams: true });
 
@@ -114,6 +115,9 @@ router.post(
     });
     eventBus.emit("issue.created", { issue });
     res.status(201).json(issue);
+
+    // Fire-and-forget: generate summary asynchronously (errors handled internally)
+    summarizeIssueAsync(issue.id, issue.title, issue.description);
   },
 );
 

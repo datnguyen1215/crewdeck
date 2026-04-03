@@ -59,6 +59,7 @@ export interface Issue {
   project_id: string;
   title: string;
   description: string;
+  summary: string | null;
   status: string;
   created_by: string;
   chain_depth: number;
@@ -266,6 +267,7 @@ export interface CreateIssueInput {
 export interface UpdateIssueInput {
   title?: string;
   description?: string;
+  summary?: string;
   status?: string;
   chain_depth?: number;
   branch_name?: string | null;
