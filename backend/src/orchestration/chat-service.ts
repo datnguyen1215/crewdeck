@@ -21,7 +21,6 @@ import {
 } from "../db/repositories/chat-threads.js";
 import {
   createMessage,
-  getLastMessage,
 } from "../db/repositories/chat-messages.js";
 import { listRepos } from "../db/repositories/repos.js";
 import { listByProject } from "../db/repositories/knowledge.js";
@@ -127,6 +126,8 @@ async function runClaudeSession(
   let capturedSessionId: string | null = sessionId;
   let assistantContent = "";
 
+  let freshTmpFile: string | null = null;
+
   try {
     const result = await runClaudeProcess(args, content, workdir, {
       ...baseEnv,
@@ -145,7 +146,7 @@ async function runClaudeSession(
 
       // Retry without resume
       const freshArgs = buildClaudeArgs(null);
-      const freshTmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
+      freshTmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
       await writeFile(freshTmpFile, systemPrompt, "utf-8");
 
       const freshResult = await runClaudeProcess(freshArgs, content, workdir, {
@@ -163,6 +164,7 @@ async function runClaudeSession(
     }
   } finally {
     try { await unlink(tmpFile); } catch {}
+    if (freshTmpFile) try { await unlink(freshTmpFile); } catch {}
   }
 
   // Save assistant message
@@ -243,6 +245,12 @@ async function runClaudeProcess(
     logger.error({ err }, "Chat readline error");
   });
 
+  // Create close promise before consuming stream to avoid race condition
+  const closePromise = new Promise<number>((resolve) => {
+    child.on("close", (code) => resolve(code ?? 1));
+    child.on("error", () => resolve(1));
+  });
+
   for await (const line of rl) {
     if (!line.trim()) continue;
     let event: Record<string, unknown>;
@@ -308,11 +316,8 @@ async function runClaudeProcess(
     }
   }
 
-  // Wait for process to exit
-  const exitCode = await new Promise<number>((resolve) => {
-    child.on("close", (code) => resolve(code ?? 1));
-    child.on("error", () => resolve(1));
-  });
+  // Wait for process to exit (promise created before stream consumption)
+  const exitCode = await closePromise;
 
   if (stderr) {
     logger.warn({ stderr: stderr.slice(0, 500) }, "Chat claude stderr");

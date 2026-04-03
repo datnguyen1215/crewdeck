@@ -4,7 +4,7 @@
  * CRUD for chat threads and message sending endpoint that spawns
  * claude -p with session management.
  */
-import { Router, type Request } from "express";
+import { Router, type Request, type NextFunction, type Response } from "express";
 import { verifyProject } from "../middleware/ownership.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import * as threadRepo from "../db/repositories/chat-threads.js";
@@ -111,19 +111,23 @@ router.delete(
 router.post(
   "/chat/threads/:threadId/messages",
   verifyProject,
-  async (req: Request<ThreadParams>, res) => {
-    const thread = threadRepo.getThread(req.params.threadId);
-    if (!thread || thread.project_id !== req.params.projectId) {
-      throw new NotFoundError("Thread not found");
-    }
+  async (req: Request<ThreadParams>, res: Response, next: NextFunction) => {
+    try {
+      const thread = threadRepo.getThread(req.params.threadId);
+      if (!thread || thread.project_id !== req.params.projectId) {
+        throw new NotFoundError("Thread not found");
+      }
 
-    const { content } = req.body as { content?: string };
-    if (!content || typeof content !== "string") {
-      throw new ValidationError("Message content is required");
-    }
+      const { content } = req.body as { content?: string };
+      if (!content || typeof content !== "string") {
+        throw new ValidationError("Message content is required");
+      }
 
-    const result = await sendMessage(thread.id, content);
-    res.json(result);
+      const result = await sendMessage(thread.id, content);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
   },
 );
 
