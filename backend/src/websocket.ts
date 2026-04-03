@@ -249,6 +249,23 @@ function subscribeEvents(bus: EventBus): void {
   bus.on("monitor.complete", (data) => {
     broadcast(data.project_id, "monitor.complete", data);
   });
+
+  // Chat thread events
+  bus.on("chat.message", (data) => {
+    broadcast(data.project_id, "chat.message", data);
+  });
+  bus.on("chat.tool_call", (data) => {
+    broadcast(data.project_id, "chat.tool_call", data);
+  });
+  bus.on("chat.tool_result", (data) => {
+    broadcast(data.project_id, "chat.tool_result", data);
+  });
+  bus.on("chat.complete", (data) => {
+    broadcast(data.project_id, "chat.complete", data);
+  });
+  bus.on("chat.session_expired", (data) => {
+    broadcast(data.project_id, "chat.session_expired", data);
+  });
 }
 
 interface ExtendedWebSocket extends WebSocket {

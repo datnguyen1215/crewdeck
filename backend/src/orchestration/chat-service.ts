@@ -1,0 +1,326 @@
+/**
+ * Chat Service
+ *
+ * Handles Claude session lifecycle for chat threads. Spawns claude -p with
+ * --resume for persistent sessions, streams events via the event bus.
+ */
+import { spawn, type ChildProcess } from "node:child_process";
+import { writeFile, unlink } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
+import { createInterface } from "node:readline";
+import { logger } from "../logger.js";
+import { eventBus } from "../events/bus.js";
+import { buildProviderEnv } from "./provider-env.js";
+import { getProject } from "../db/repositories/projects.js";
+import { buildSystemPrompt as buildCaptainPrompt } from "./captain-prompt.js";
+import {
+  getThread,
+  updateThread,
+} from "../db/repositories/chat-threads.js";
+import {
+  createMessage,
+  getLastMessage,
+} from "../db/repositories/chat-messages.js";
+import { listRepos } from "../db/repositories/repos.js";
+import { listByProject } from "../db/repositories/knowledge.js";
+import { getSystemApiKey } from "../app.js";
+import { ConflictError } from "../middleware/errors.js";
+
+// In-memory lock: only one claude -p process per thread at a time
+const activeThreads = new Map<string, boolean>();
+
+export function isThreadActive(threadId: string): boolean {
+  return activeThreads.get(threadId) ?? false;
+}
+
+interface ChatServiceResult {
+  message_id: string;
+  session_id: string | null;
+}
+
+/**
+ * Build a simple system prompt for user chat threads.
+ */
+function buildUserSystemPrompt(projectId: string): string {
+  const project = getProject(projectId);
+  if (!project) return "You are a helpful assistant.";
+
+  const parts: string[] = [];
+  parts.push(`You are a helpful assistant for the project "${project.name}".
+${project.description ? `Project description: ${project.description}` : ""}`);
+
+  const knowledge = listByProject(projectId);
+  const injectable = knowledge.filter(
+    (k) => k.category === "workflows" || k.category === "conventions",
+  );
+  if (injectable.length > 0) {
+    const entries = injectable
+      .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
+      .join("\n\n");
+    parts.push(`## Project Knowledge\n${entries}`);
+  }
+
+  const repos = listRepos(projectId);
+  if (repos.length > 0) {
+    parts.push(`## Repository\n${repos[0].name} at ${repos[0].local_path}`);
+  }
+
+  return parts.join("\n\n");
+}
+
+/**
+ * Send a message in a chat thread and get a streamed Claude response.
+ */
+export async function sendMessage(
+  threadId: string,
+  content: string,
+): Promise<ChatServiceResult> {
+  if (isThreadActive(threadId)) {
+    throw new ConflictError("A message is already being processed for this thread");
+  }
+
+  const thread = getThread(threadId);
+  if (!thread) throw new Error(`Thread ${threadId} not found`);
+
+  activeThreads.set(threadId, true);
+
+  try {
+    return await runClaudeSession(thread, content);
+  } finally {
+    activeThreads.delete(threadId);
+  }
+}
+
+async function runClaudeSession(
+  thread: NonNullable<Awaited<ReturnType<typeof getThread>>>,
+  content: string,
+): Promise<ChatServiceResult> {
+  const userMsg = createMessage(thread.id, "user", content);
+
+  const systemPrompt =
+    thread.type === "monitor"
+      ? await buildCaptainPrompt(thread.project_id)
+      : buildUserSystemPrompt(thread.project_id);
+
+  // Build environment
+  const baseEnv: Record<string, string> = {
+    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
+    CREWDECK_PROJECT_ID: thread.project_id,
+    CREWDECK_AGENT_ID: "captain",
+    ...(getSystemApiKey() ? { CREWDECK_API_KEY: getSystemApiKey()! } : {}),
+  };
+
+  // Try with --resume first if we have a session_id, fall back to fresh session
+  const sessionId = thread.session_id;
+  const needsResume = !!sessionId;
+
+  const tmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
+  await writeFile(tmpFile, systemPrompt, "utf-8");
+
+  const args = buildClaudeArgs(sessionId);
+
+  const repos = listRepos(thread.project_id);
+  const workdir = repos.length > 0 ? repos[0].local_path : tmpdir();
+
+  let capturedSessionId: string | null = sessionId;
+  let assistantContent = "";
+
+  try {
+    const result = await runClaudeProcess(args, content, workdir, {
+      ...baseEnv,
+      ...buildProviderEnv(),
+      ANTHROPIC_API_KEY: "",
+      GIT_TERMINAL_PROMPT: "0",
+    }, tmpFile, thread.project_id, thread.id);
+
+    if (result.sessionExpired && needsResume) {
+      // Session expired — clear it and retry fresh
+      eventBus.emit("chat.session_expired", {
+        project_id: thread.project_id,
+        thread_id: thread.id,
+      });
+      updateThread(thread.id, { session_id: null });
+
+      // Retry without resume
+      const freshArgs = buildClaudeArgs(null);
+      const freshTmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
+      await writeFile(freshTmpFile, systemPrompt, "utf-8");
+
+      const freshResult = await runClaudeProcess(freshArgs, content, workdir, {
+        ...baseEnv,
+        ...buildProviderEnv(),
+        ANTHROPIC_API_KEY: "",
+        GIT_TERMINAL_PROMPT: "0",
+      }, freshTmpFile, thread.project_id, thread.id);
+
+      capturedSessionId = freshResult.sessionId;
+      assistantContent = freshResult.content;
+    } else {
+      capturedSessionId = result.sessionId;
+      assistantContent = result.content;
+    }
+  } finally {
+    try { await unlink(tmpFile); } catch {}
+  }
+
+  // Save assistant message
+  const assistantMsg = createMessage(thread.id, "assistant", assistantContent);
+
+  // Update session_id if we got a new one
+  if (capturedSessionId && capturedSessionId !== thread.session_id) {
+    updateThread(thread.id, { session_id: capturedSessionId });
+  }
+
+  // Touch updated_at
+  updateThread(thread.id, {});
+
+  eventBus.emit("chat.complete", {
+    project_id: thread.project_id,
+    thread_id: thread.id,
+    message_id: assistantMsg.id,
+  });
+
+  return {
+    message_id: assistantMsg.id,
+    session_id: capturedSessionId,
+  };
+}
+
+function buildClaudeArgs(sessionId: string | null): string[] {
+  const args = [
+    "-p",
+    "--verbose",
+    "--system-prompt-file", "PLACEHOLDER", // replaced per-call
+    "--output-format", "stream-json",
+    "--dangerously-skip-permissions",
+  ];
+  if (sessionId) {
+    args.push("--resume", sessionId);
+  }
+  return args;
+}
+
+interface ClaudeRunResult {
+  content: string;
+  sessionId: string | null;
+  sessionExpired: boolean;
+}
+
+async function runClaudeProcess(
+  args: string[],
+  prompt: string,
+  workdir: string,
+  env: Record<string, string>,
+  tmpFile: string,
+  projectId: string,
+  threadId: string,
+): Promise<ClaudeRunResult> {
+  // Replace the PLACEHOLDER with actual tmpFile path
+  const finalArgs = args.map((a) => (a === "PLACEHOLDER" ? tmpFile : a));
+
+  const child = spawn("claude", finalArgs, {
+    cwd: workdir,
+    env: { ...process.env, ...env },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  child.stdin!.end(prompt);
+
+  let stderr = "";
+  child.stderr!.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+
+  let content = "";
+  let sessionId: string | null = null;
+  let sessionExpired = false;
+
+  const rl = createInterface({ input: child.stdout!, crlfDelay: Infinity });
+  child.on("exit", () => rl.close());
+  rl.on("error", (err) => {
+    logger.error({ err }, "Chat readline error");
+  });
+
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      logger.error({ line: line.slice(0, 200) }, "Failed to parse chat stream event");
+      continue;
+    }
+
+    const type = event.type as string;
+
+    // Capture session ID from system events
+    if (type === "system") {
+      const subtype = event.subtype as string | undefined;
+      if (subtype === "init" && event.session_id) {
+        sessionId = String(event.session_id);
+      }
+      // Detect session expiry
+      if (event.message && String(event.message).includes("session")) {
+        const msg = String(event.message).toLowerCase();
+        if (msg.includes("expired") || msg.includes("not found") || msg.includes("invalid")) {
+          sessionExpired = true;
+        }
+      }
+      continue;
+    }
+
+    // Handle assistant message content
+    if (type === "assistant") {
+      const subtype = event.subtype as string | undefined;
+      if (subtype === "text" && typeof event.content === "string") {
+        content += event.content;
+        eventBus.emit("chat.message", {
+          project_id: projectId,
+          thread_id: threadId,
+          content: event.content,
+        });
+      } else if (subtype === "tool_use" && event.tool_name) {
+        eventBus.emit("chat.tool_call", {
+          project_id: projectId,
+          thread_id: threadId,
+          tool_name: String(event.tool_name),
+          tool_input: event.tool_input,
+        });
+      }
+    }
+
+    if (type === "tool_result" && event.tool_name) {
+      eventBus.emit("chat.tool_result", {
+        project_id: projectId,
+        thread_id: threadId,
+        tool_name: String(event.tool_name),
+        result: event.result,
+      });
+    }
+
+    // Claude CLI stream-json emits "result" as the final event with session info
+    if (type === "result") {
+      if (event.session_id && !sessionId) {
+        sessionId = String(event.session_id);
+      }
+    }
+  }
+
+  // Wait for process to exit
+  const exitCode = await new Promise<number>((resolve) => {
+    child.on("close", (code) => resolve(code ?? 1));
+    child.on("error", () => resolve(1));
+  });
+
+  if (stderr) {
+    logger.warn({ stderr: stderr.slice(0, 500) }, "Chat claude stderr");
+  }
+
+  if (exitCode !== 0 && !sessionExpired && !content) {
+    logger.error({ exitCode, threadId }, "Claude chat process failed");
+  }
+
+  return { content, sessionId, sessionExpired };
+}

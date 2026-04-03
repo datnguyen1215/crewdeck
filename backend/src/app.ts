@@ -21,6 +21,7 @@ import globalConfigRouter from "./routes/global-config.js";
 import globalEnvironmentRouter from "./routes/global-environment.js";
 import terminalRouter from "./routes/terminal.js";
 import monitorRouter from "./routes/monitor.js";
+import chatThreadsRouter from "./routes/chat-threads.js";
 import authRouter from "./routes/auth.js";
 import apiKeysRouter from "./routes/api-keys.js";
 import globalActivityRouter from "./routes/global-activity.js";
@@ -84,6 +85,7 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/global-config/environment`, globalEnvironmentRouter);
   app.use(`${v1}/projects/:projectId`, terminalRouter);
   app.use(`${v1}/projects/:projectId`, monitorRouter);
+  app.use(`${v1}/projects/:projectId`, chatThreadsRouter);
   app.use(`${v1}/internal`, internalRouter);
   app.use(`${v1}/vcs-accounts`, vcsAccountsRouter);
   app.use(`${v1}/api-keys`, apiKeysRouter);
