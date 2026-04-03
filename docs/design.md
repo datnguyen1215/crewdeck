@@ -391,8 +391,10 @@ Handles Claude session lifecycle for the web-based chat interface. Each chat thr
 - **Session expiry recovery**: If `--resume` fails (expired/invalid session), the service emits `chat.session_expired`, clears the stored session ID, and starts a fresh session transparently.
 - **Concurrency control**: An in-memory lock (Map<threadId, boolean>) ensures only one `claude -p` process runs per thread at a time. Concurrent sends return `409 CONFLICT`.
 - **Event streaming**: Emits `chat.message`, `chat.tool_call`, `chat.tool_result`, `chat.complete`, and `chat.session_expired` events on the event bus with `project_id` and `thread_id` for frontend filtering. The monitor agent also dual-writes to the project's monitor chat thread — events save as `role: 'event'`, assistant responses as `role: 'assistant'` — and emits `chat.*` equivalents of `monitor.*` events (`chat.event_received`, `chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, `chat.complete`) so the Chat UI receives real-time monitor activity without needing to subscribe to `monitor.*` events.
-- **System prompts**: Uses the captain prompt builder (`captain-prompt.ts`) for monitor threads; a simpler prompt with project context (knowledge, repo info) for user threads.
-- **Environment**: Same pattern as monitor agent — sets `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, GitHub auth, provider API keys, etc.
+- **System prompts**: Always uses the captain prompt builder (`captain-prompt.ts`) for all threads, giving chat the same project context (issues, API reference, available actions) as agent sessions.
+- **Model resolution**: Resolves model via `getDefaultModel()` (from `GlobalConfig`) and passes `--model <model>` to the Claude CLI, matching how agent spawns resolve models.
+- **Empty response handling**: If captain produces no output, the saved message shows "Captain did not respond." instead of a blank.
+- **Environment**: Same pattern as monitor agent — sets `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, GitHub auth, provider API keys (via `buildProviderEnv(model)`), etc.
 
 **Event Bus**
 
