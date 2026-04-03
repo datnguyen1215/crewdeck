@@ -28,5 +28,5 @@ export function run(db: Database.Database): void {
       CREATE INDEX idx_chat_message_thread ON ChatMessage(thread_id);
       CREATE INDEX idx_chat_message_thread_created ON ChatMessage(thread_id, created_at ASC);
     `);
-  });
+  })();
 }
