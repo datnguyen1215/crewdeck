@@ -2,7 +2,7 @@
   import { getContext } from 'svelte';
   import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
   import { autoscroll } from '$lib/utils/autoscroll.js';
-  import { md } from '$lib/utils/markdown.js';
+  import { md, esc } from '$lib/utils/markdown.js';
   import { formatTimestamp } from '$lib/utils/time.js';
   import { sendChatMessage, getChatThread } from '$lib/api/http.js';
   import ChatInput from './ChatInput.svelte';
@@ -19,12 +19,13 @@
 
   const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
-  let messages = $state<ChatMessage[]>(thread.messages);
+  let messages = $state<ChatMessage[]>([]);
   let streamingText = $state('');
-  let streamingToolCalls = $state<Array<{ tool_name: string; tool_input: unknown; result?: unknown; success?: boolean }>>([]);
+  let streamingToolCalls = $state<Array<{ tool_name: string; tool_input: unknown; result?: string; success: boolean; _callIdx: number }>>([]);
+  let toolCallCounters = $state<Record<string, number>>({});
   let isStreaming = $state(false);
 
-  // Keep messages in sync when thread prop changes (e.g. reload after complete)
+  // Sync messages when thread prop changes (e.g. reload after complete)
   $effect(() => {
     messages = thread.messages;
   });
@@ -43,16 +44,23 @@
       'chat.tool_call': (data) => {
         if (data.thread_id !== thread.id) return;
         isStreaming = true;
+        const idx = (toolCallCounters[data.tool_name] ?? 0);
+        toolCallCounters = { ...toolCallCounters, [data.tool_name]: idx + 1 };
         streamingToolCalls = [...streamingToolCalls, {
           tool_name: data.tool_name,
           tool_input: data.tool_input,
+          success: true,
+          _callIdx: idx,
         }];
       },
       'chat.tool_result': (data) => {
         if (data.thread_id !== thread.id) return;
+        // Match the first unresolved call for this tool name by index
+        const name = data.tool_name;
+        const nextIdx = toolCallCounters[name] ?? 0;
         streamingToolCalls = streamingToolCalls.map(tc =>
-          tc.tool_name === data.tool_name
-            ? { ...tc, result: data.result, success: true }
+          tc.tool_name === name && tc.result === undefined && tc._callIdx === (nextIdx - 1)
+            ? { ...tc, result: typeof data.result === 'string' ? data.result : JSON.stringify(data.result) }
             : tc
         );
       },
@@ -61,6 +69,7 @@
         isStreaming = false;
         streamingText = '';
         streamingToolCalls = [];
+        toolCallCounters = {};
         // Reload thread to get canonical stored messages
         getChatThread(thread.id, projectId).then((t) => {
           messages = t.messages;
@@ -71,6 +80,7 @@
         isStreaming = false;
         streamingText = '';
         streamingToolCalls = [];
+        toolCallCounters = {};
       },
     });
   });
@@ -104,8 +114,17 @@
 
   function formatToolInput(input: unknown): string {
     if (input === undefined || input === null) return '';
-    if (typeof input === 'string') return input.length > 80 ? input.slice(0, 80) + '...' : input;
-    return JSON.stringify(input).length > 80 ? JSON.stringify(input).slice(0, 80) + '...' : JSON.stringify(input);
+    if (typeof input === 'string') return input.length > 80 ? input.slice(0, 80) + '…' : input;
+    const s = JSON.stringify(input);
+    return s.length > 80 ? s.slice(0, 80) + '…' : s;
+  }
+
+  /** Build an escaped arrow line for @html rendering */
+  function toolLine(label: string, text: string): string {
+    return `→ ${esc(label)}(${esc(text)})`;
+  }
+  function toolResultLine(ok: boolean, text: string): string {
+    return ok ? `→ ok: ${esc(text)}` : `→ err: ${esc(text)}`;
   }
 </script>
 
@@ -187,15 +206,15 @@
       </div>
       {#if meta?.tool_name}
         <p class="text-xs font-mono text-secondary mt-0.5">
-          {@html `&rarr; ${meta.tool_name}(${formatToolInput(meta.tool_input)})`}
+          {@html toolLine(meta.tool_name, formatToolInput(meta.tool_input))}
         </p>
         {#if meta.success === true}
           <p class="text-xs font-mono text-green mt-0.5">
-            {@html `&rarr; ok: ${meta.result ?? ''}`}
+            {@html toolResultLine(true, meta.result ?? '')}
           </p>
         {:else if meta.success === false}
           <p class="text-xs font-mono text-red mt-0.5">
-            {@html `&rarr; err: ${meta.result ?? 'unknown error'}`}
+            {@html toolResultLine(false, meta.result ?? 'unknown error')}
           </p>
         {/if}
       {:else}
@@ -222,16 +241,16 @@
       <span class="text-[10px] text-purple">tool</span>
     </div>
     <p class="text-xs font-mono text-secondary mt-0.5">
-      {@html `&rarr; ${tc.tool_name}(${formatToolInput(tc.tool_input)})`}
+      {@html toolLine(tc.tool_name, formatToolInput(tc.tool_input))}
     </p>
     {#if tc.result !== undefined}
       {#if tc.success}
         <p class="text-xs font-mono text-green mt-0.5">
-          {@html `&rarr; ok: ${tc.result}`}
+          {@html toolResultLine(true, tc.result)}
         </p>
       {:else}
         <p class="text-xs font-mono text-red mt-0.5">
-          {@html `&rarr; err: ${tc.result}`}
+          {@html toolResultLine(false, tc.result)}
         </p>
       {/if}
     {/if}

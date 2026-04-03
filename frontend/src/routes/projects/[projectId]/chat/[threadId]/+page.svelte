@@ -4,7 +4,6 @@
   import { getContext } from 'svelte';
   import { getProject, getChatThread, updateChatThread, deleteChatThread, type Project, type ChatThreadDetail } from '$lib/api/http.js';
   import { useWsSubscriptions } from '$lib/utils/ws-subscriptions.js';
-  import { toastStore } from '$lib/stores/toasts.svelte.js';
   import ChatView from '$lib/components/ChatView.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
@@ -91,9 +90,11 @@
   function confirmDelete() {
     if (!thread) return;
     deleteChatThread(thread.id, projectId).then(() => {
+      deleting = false;
       goto(`/projects/${projectId}/chat`);
-    }).catch(() => {});
-    deleting = false;
+    }).catch(() => {
+      deleting = false;
+    });
   }
 
   function startNewSession() {
