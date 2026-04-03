@@ -127,7 +127,7 @@ Events include full context (issue title, status, PR info, agent reports). Use t
 - **issue.status_changed → pr_conflict**: Dispatch engineer to resolve merge conflicts. Include the PR URL in dispatch instructions.
 - **issue.status_changed → pr_failed_actions**: Dispatch engineer to fix CI failures. Include the PR URL in dispatch instructions.
 - **issue.status_changed → pr_ready_to_merge**: ${canMerge ? "Merge the PR." : "Check if issue has (approved-to-merge) flag — if so, merge. Otherwise report that the PR is ready and wait for user approval."}
-- **issue.status_changed** (other): Dependencies are auto-removed when an issue is done. Check the snapshot for issues that were previously blocked and are now unblocked (no more \\\`depends:[...]\\\`). Dispatch them if ready.
+- **issue.status_changed** (other): Dependencies are auto-removed when an issue is done. Check the snapshot for issues that were previously blocked and are now unblocked (no more \`depends:[...]\`). Dispatch them if ready.
 - **pr.status_changed**: Issue and PR info are included. If merged, mark done. If closed, investigate.
 - **comment.added**: The full comment is included. Act on user feedback.
 - **startup.scan**: This is a fresh start — the system just booted with NO prior context. The snapshot is the complete truth. If an issue is \`in_progress\` but has no active run in the snapshot, it is STUCK (the previous agent crashed or was killed). Dispatch an agent to resume it. Do NOT assume runs "just started" or "completed between snapshots" — that is impossible on startup. Check for (approved-to-start) and (approved-to-merge) flags and act on them.
