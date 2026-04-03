@@ -39,6 +39,10 @@ All persistent state is stored in a local SQLite database. This document defines
 │ Project  │1────N│ MonitorMessage │
 └──────────┘       └────────────────┘
 
+┌──────────┐       ┌─────────────┐       ┌─────────────┐
+│ Project  │1────N│ ChatThread  │1────N│ ChatMessage │
+└──────────┘       └─────────────┘       └─────────────┘
+
 ┌───────────┐1────N┌─────────┐
 │ AdminUser │      │ Session │
 └───────────┘      └─────────┘
@@ -284,6 +288,41 @@ Stores Captain Monitor event/response history. The monitor agent writes event ba
 | content    | TEXT        | NOT NULL                                             | Message content.              |
 | created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created. |
 
+---
+
+### ChatThread
+
+A persistent conversation thread for the web-based chat interface. Each thread belongs to a project and can be a monitor thread (auto-created, one per project) or a user thread (created manually). Threads can optionally hold a Claude CLI session ID for resuming conversations.
+
+| Field      | Type        | Constraints                                          | Description                                                                                        |
+| ---------- | ----------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                                                 |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                                                    |
+| title      | TEXT        | NULLABLE                                             | User-visible title. NULL until renamed.                                                             |
+| type       | TEXT        | NOT NULL, CHECK (type IN ('monitor', 'user'))        | Thread type. `monitor` threads are auto-created (one per project); `user` threads are user-created. |
+| session_id | TEXT        | NULLABLE                                             | Claude CLI session ID for `--resume`. NULL when no active session exists or session has expired.    |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the thread was created.                                                                       |
+| updated_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the thread was last updated (auto-set on field changes).                                       |
+
+**Constraints:**
+
+- UNIQUE index on (project_id) WHERE type = 'monitor' — enforces at most one monitor thread per project. Uses a partial unique index (`idx_chat_thread_one_monitor`).
+
+---
+
+### ChatMessage
+
+A message within a chat thread. Messages are ordered chronologically (ASC) for display. Supports multiple roles including user, assistant, system, event, and tool.
+
+| Field      | Type        | Constraints                                           | Description                                                                       |
+| ---------- | ----------- | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                           | Unique identifier.                                                                |
+| thread_id  | TEXT        | NOT NULL, FOREIGN KEY → ChatThread.id ON DELETE CASCADE | The thread this message belongs to. Deleting a thread cascades to its messages.  |
+| role       | TEXT        | NOT NULL, CHECK (role IN ('user', 'assistant', 'system', 'event', 'tool')) | Message sender role.                                                             |
+| content    | TEXT        | NOT NULL                                              | Message content.                                                                  |
+| metadata   | TEXT        | NULLABLE                                              | JSON string for extra data (e.g., `tool_name`, `tool_input`, `success`). Parsed with `JSON.parse()` in the repository layer. |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                   | When the message was created.                                                     |
+
 ### AdminUser
 
 Represents the single admin account for backend authentication. Only one row exists at a time.
@@ -428,6 +467,8 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
 | Project → MonitorMessage      | One-to-Many | A project has many monitor messages (captain event/response history).       |
+| Project → ChatThread          | One-to-Many | A project has many chat threads (web chat interface).                       |
+| ChatThread → ChatMessage      | One-to-Many | A thread has many messages (ordered chronologically).                       |
 | AdminUser → Session           | One-to-Many | An admin user has many sessions (only one admin exists).                    |
 | ApiKey                        | Standalone  | Standalone table. One system key (auto-generated) plus user-created keys.   |
 
@@ -455,4 +496,9 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 - `idx_agent_run_event_created` on AgentRunEvent(agent_run_id, created_at)
 - `idx_monitor_message_project` on MonitorMessage(project_id)
 - `idx_monitor_message_created` on MonitorMessage(project_id, created_at DESC)
+- `idx_chat_thread_project` on ChatThread(project_id)
+- `idx_chat_thread_project_updated` on ChatThread(project_id, updated_at DESC)
+- `idx_chat_thread_one_monitor` UNIQUE on ChatThread(project_id) WHERE type = 'monitor'
+- `idx_chat_message_thread` on ChatMessage(thread_id)
+- `idx_chat_message_thread_created` on ChatMessage(thread_id, created_at ASC)
 - `idx_api_key_hash` on ApiKey(key_hash)
