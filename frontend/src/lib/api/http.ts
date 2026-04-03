@@ -114,10 +114,10 @@ export function checkSetupStatus() {
   return request<{ needsSetup: boolean }>("GET", "/auth/setup-status");
 }
 export function setupAccount(username: string, password: string) {
-  return request<{ success: boolean }>("POST", "/auth/setup", { username, password });
+  return request<{ id: string; username: string }>("POST", "/auth/setup", { username, password });
 }
 export function login(username: string, password: string) {
-  return request<{ success: boolean }>("POST", "/auth/login", { username, password });
+  return request<{ id: string; username: string }>("POST", "/auth/login", { username, password });
 }
 export function getAuthMe() {
   return request<{ setupCompleted: boolean }>("GET", "/auth/me");
