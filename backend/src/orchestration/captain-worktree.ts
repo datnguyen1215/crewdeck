@@ -6,7 +6,6 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { logger } from "../logger.js";
 import { getProject } from "../db/repositories/projects.js";
@@ -16,6 +15,7 @@ import { toContainerPath } from "../utils/paths.js";
 import { shellQuote } from "./shell.js";
 import { slugify } from "./worktree.js";
 import { createGitSshEnv, cleanupSshKey } from "../utils/git-auth.js";
+import { config } from "../config.js";
 
 const execAsync = promisify(exec);
 
@@ -60,7 +60,7 @@ export async function createCaptainWorktree(
   const projectSlug = project ? slugify(project.name) : projectId;
   const branchName = `captain/${projectSlug}`;
   const repoPath = toContainerPath(repo.local_path);
-  const worktreePath = join(tmpdir(), "crewdeck", projectSlug, "captain");
+  const worktreePath = join(config.worktreesDir, projectSlug, "captain");
 
   // Try to fetch latest from origin
   let fetchSucceeded = false;

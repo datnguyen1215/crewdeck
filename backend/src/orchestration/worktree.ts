@@ -2,7 +2,6 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { updateIssue } from "../db/repositories/issues.js";
 import { getProject } from "../db/repositories/projects.js";
 import { shellQuote } from "./shell.js";
@@ -10,6 +9,7 @@ import { toContainerPath } from "../utils/paths.js";
 import { createGitSshEnv, cleanupSshKey } from "../utils/git-auth.js";
 import type { Repo, Issue } from "../types/entities.js";
 import { logger } from "../logger.js";
+import { config } from "../config.js";
 
 const execAsync = promisify(exec);
 
@@ -63,7 +63,7 @@ export async function createWorktree(
   const project = getProject(issue.project_id);
   const projectSlug = project ? slugify(project.name) : issue.project_id;
   const repoPath = toContainerPath(repo.local_path);
-  const worktreePath = join(tmpdir(), "crewdeck", projectSlug, branchName);
+  const worktreePath = join(config.worktreesDir, projectSlug, branchName);
 
   // Try to fetch latest from origin (with SSH credentials if available)
   let fetchSucceeded = false;

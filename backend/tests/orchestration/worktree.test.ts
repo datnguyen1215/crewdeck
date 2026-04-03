@@ -32,6 +32,17 @@ vi.mock("../../src/db/repositories/projects.js", () => ({
   getProject: vi.fn().mockReturnValue({ name: "my-project" }),
 }));
 
+vi.mock("../../src/config.js", () => ({
+  config: {
+    worktreesDir: "/test/worktrees",
+    logFilePath: "/tmp/test-crewdeck.log",
+    logLevel: "silent",
+    dbPath: "/tmp/test.db",
+    reposDir: "/tmp/repos",
+    nodeEnv: "test",
+  },
+}));
+
 import { exec } from "node:child_process";
 import { updateIssue } from "../../src/db/repositories/issues.js";
 import { mockExec as mockExecSuccess } from "../helpers/exec.js";
@@ -180,7 +191,7 @@ describe("createWorktree", () => {
   it("places worktree inside crewdeck directory under tmpdir organized by project", async () => {
     const { path } = await createWorktree(repo, issue, "main");
 
-    expect(path).toContain(join("crewdeck", "my-project"));
+    expect(path).toContain(join("/test/worktrees", "my-project"));
     expect(path).toContain("fix/the-login-bug-abc1");
   });
 

@@ -22,6 +22,7 @@ export const config = {
   nodeEnv: optional("NODE_ENV", "development"),
   reposDir: optional("CREWDECK_REPOS_DIR", "./data/repos"),
   logFilePath: optional("LOG_FILE_PATH", "./data/server.log"),
+  worktreesDir: optional("CREWDECK_WORKTREES_DIR", "./data/worktrees"),
   reposHostPath: process.env.CREWDECK_REPOS_HOST_PATH || "",
   reposContainerPath: process.env.CREWDECK_REPOS_CONTAINER_PATH || "",
 };
