@@ -186,6 +186,13 @@ Tracks dependencies between issues (issue A depends on issue B).
 - UNIQUE(issue_id, depends_on_issue_id) — a dependency can only be recorded once.
 - Circular dependencies are prevented at the repository level.
 
+**Automatic cleanup:**
+
+Dependency rows are removed automatically in two cases:
+
+1. **Issue reaches `done` status** — An event listener (`initDependencyCleanup()`) removes all rows where other issues depend on the resolved issue. This unblocks dependent issues so the captain can dispatch them.
+2. **Issue is deleted** — `ON DELETE CASCADE` on both foreign keys removes all associated dependency rows.
+
 ### AgentRun
 
 Records a single execution of an agent. Can be associated with an issue (for `/dispatch` spawns) or run standalone (for scans).

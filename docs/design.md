@@ -556,12 +556,15 @@ Worktrees are automatically cleaned up via event-driven and synchronous mechanis
   3. **Always clears** `worktree_path` and `branch_name` DB fields (via `finally` block), regardless of cleanup success
   4. Logs warnings on failure but continues (cleanup errors are non-fatal)
 
+- **Event-driven dependency cleanup (`initDependencyCleanup()`)** — Listens for `issue.status_changed` events with `to === "done"`. When triggered, removes all `IssueDependency` rows where other issues depend on the resolved issue. This uses `listDependents(issue_id)` to find blocked issues, then `removeDependency()` for each. Removal is idempotent. Issue deletion is handled separately by `ON DELETE CASCADE` on the `IssueDependency` table.
+
 - **Synchronous cleanup on deletion** — DELETE `/issues/:issueId` and POST `/issues/:issueId/discard` routes call cleanup before deleting database records to prevent worktree leaks
 
 This approach ensures:
 
 - No unbounded disk usage from abandoned worktrees
 - Database never points to broken or partially-cleaned worktree state
+- No stale dependency rows blocking the captain from dispatching unblocked issues
 - Cleanup failures don't block issue status transitions or deletions
 - Early exit optimization when path already gone (no unnecessary git operations)
 
@@ -582,14 +585,15 @@ On startup, the backend:
 3. Ensures a system API key exists (deletes and recreates on every startup, storing the raw key in memory for agent/captain injection).
 4. Initializes the activity logger (registers event listeners).
 5. Initializes the worktree cleanup listener (subscribes to `issue.status_changed`).
-6. Initializes the event commenter (subscribes to `run.completed`, `pr.status_changed`, `issue.status_changed`).
-7. Initializes the MentionHandler (subscribes to `comment.added`).
-8. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
-9. Starts the PR poller (polls VCS providers for PR status updates, default every 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`).
-10. Starts the Express HTTP server.
-11. Starts the WebSocket server (`/ws` for events).
-12. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
-13. Logs startup complete via pino.
+6. Initializes the dependency cleanup listener (subscribes to `issue.status_changed`).
+7. Initializes the event commenter (subscribes to `run.completed`, `pr.status_changed`, `issue.status_changed`).
+8. Initializes the MentionHandler (subscribes to `comment.added`).
+9. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
+10. Starts the PR poller (polls VCS providers for PR status updates, default every 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`).
+11. Starts the Express HTTP server.
+12. Starts the WebSocket server (`/ws` for events).
+13. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
+14. Logs startup complete via pino.
 
 Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery). Terminal sessions are also lost (clients must reconnect and recreate sessions).
 
