@@ -7,6 +7,7 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
   Issue: new Set([
     "title",
     "description",
+    "summary",
     "status",
     "chain_depth",
     "branch_name",
