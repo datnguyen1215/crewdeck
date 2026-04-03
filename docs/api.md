@@ -1722,7 +1722,7 @@ Terminates the tmux session and cleans up temporary files (system prompt, SSH ke
 
 ### Chat Threads
 
-REST endpoints for chat thread CRUD and message sending. Threads belong to projects and can be either `user` type (created manually) or `monitor` type (auto-created, one per project).
+REST endpoints for chat thread CRUD and message sending. The Chat API only exposes user-created threads. Monitor threads (auto-created, one per project) exist in the database but are hidden from this API — they are managed internally by the monitor agent.
 
 #### Create Thread
 
@@ -1734,16 +1734,11 @@ Creates a new chat thread for a project.
 
 **Request body:**
 
-| Field | Type   | Required | Description                                         |
-| ----- | ------ | -------- | --------------------------------------------------- |
-| title | string | No       | Thread title. NULL until renamed by user.           |
-| type  | string | No       | Thread type. One of: `user` (default), `monitor`.  |
+| Field | Type   | Required | Description                           |
+| ----- | ------ | -------- | ------------------------------------- |
+| title | string | No       | Thread title. NULL until renamed by user. |
 
 **Response:** `201 Created` — The created `ChatThread` object.
-
-**Errors:**
-
-- `400 VALIDATION_ERROR` — Invalid `type` value.
 
 #### List Threads
 
@@ -1751,7 +1746,7 @@ Creates a new chat thread for a project.
 GET /projects/:projectId/chat/threads
 ```
 
-Lists all chat threads for a project, enriched with message metadata.
+Lists user chat threads for a project (monitor threads are excluded), enriched with message metadata.
 
 **Response:** `200 OK` — Array of thread objects, each including:
 
@@ -1807,7 +1802,7 @@ Updates a thread. The `title` field is user-editable. The `session_id` field can
 DELETE /projects/:projectId/chat/threads/:threadId
 ```
 
-Deletes a thread and all its messages. Monitor-type threads cannot be deleted.
+Deletes a thread and all its messages.
 
 **Response:** `200 OK`
 
@@ -1818,7 +1813,6 @@ Deletes a thread and all its messages. Monitor-type threads cannot be deleted.
 **Errors:**
 
 - `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
-- `400 VALIDATION_ERROR` — Cannot delete monitor threads.
 
 #### Send Message
 

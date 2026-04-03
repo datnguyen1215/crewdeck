@@ -354,13 +354,10 @@ export interface UpdateKnowledgeInput {
 }
 
 // Chat types
-export type ChatThreadType = "monitor" | "user";
-
 export interface ChatThread {
   id: string;
   project_id: string;
   title: string | null;
-  type: ChatThreadType;
   session_id: string | null;
   created_at: string;
   updated_at: string;

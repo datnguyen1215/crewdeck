@@ -1,16 +1,15 @@
 import { db } from "../index.js";
-import type { ChatThread, ChatThreadType } from "../../types/entities.js";
+import type { ChatThread } from "../../types/entities.js";
 
 export function createThread(
   projectId: string,
-  type: ChatThreadType,
   title?: string
 ): ChatThread {
   const id = crypto.randomUUID();
   db.prepare(
     `INSERT INTO ChatThread (id, project_id, title, type)
-     VALUES (?, ?, ?, ?)`
-  ).run(id, projectId, title ?? null, type);
+     VALUES (?, ?, ?, 'user')`
+  ).run(id, projectId, title ?? null);
   return getThread(id)!;
 }
 
@@ -23,7 +22,7 @@ export function getThread(id: string): ChatThread | null {
 
 export function listThreads(projectId: string): ChatThread[] {
   return db
-    .prepare("SELECT * FROM ChatThread WHERE project_id = ? ORDER BY updated_at DESC")
+    .prepare("SELECT * FROM ChatThread WHERE project_id = ? AND type = 'user' ORDER BY updated_at DESC")
     .all(projectId) as ChatThread[];
 }
 

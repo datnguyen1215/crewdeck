@@ -121,12 +121,15 @@ claude -p <prompt via stdin> \
        --system-prompt-file <tmpfile> \
        --output-format stream-json \
        --dangerously-skip-permissions \
+       --model <model> \
        [--resume <sessionId>]
 ```
 
 - `--resume` is included only when the thread has a stored session ID.
 - The prompt is written to stdin (same pattern as `spawnClaudeStream`).
-- System prompt is built via `buildUserSystemPrompt()` for user threads or `buildCaptainPrompt()` for monitor threads.
+- `--model <model>` is included, resolved via `getDefaultModel()` from `GlobalConfig`.
+- System prompt is always built via `buildCaptainPrompt()` (captain prompt builder), giving all chat threads the same project context as agent sessions.
+- If the assistant response is empty, "Captain did not respond." is saved as a fallback.
 
 **Session lifecycle:**
 
@@ -136,7 +139,7 @@ claude -p <prompt via stdin> \
 
 **Concurrency:** Only one `claude -p` process runs per thread at a time (in-memory lock). Concurrent sends throw `ConflictError` (HTTP 409).
 
-**Environment variables:** Same pattern as agent spawns — `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, `CREWDECK_AGENT_ID`, `CREWDECK_API_KEY`, provider env vars via `buildProviderEnv()`, and `GIT_TERMINAL_PROMPT=0`.
+**Environment variables:** Same pattern as agent spawns — `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, `CREWDECK_AGENT_ID`, `CREWDECK_API_KEY`, provider env vars via `buildProviderEnv(model)`, and `GIT_TERMINAL_PROMPT=0`.
 
 ## Captain Command Execution
 
