@@ -10,7 +10,10 @@
 	import TerminalHeader from './TerminalHeader.svelte';
 	import TerminalLineItem from './TerminalLine.svelte';
 
-	let { projectId, issues = [] }: { projectId: string; issues?: Issue[] } = $props();
+	let { issues = [] }: { issues?: Issue[] } = $props();
+
+	const getProjectId = getContext<() => string>('projectId');
+	const projectId = $derived(getProjectId());
 
 	// Build a lookup map for issue titles
 	let issueTitleMap = $derived(
@@ -249,7 +252,6 @@
 							{line}
 							isNew={newEntryIds.has(line.id)}
 							issueTitle={resolveIssueTitle(line)}
-							{projectId}
 							{truncateTitle}
 						/>
 					{/each}

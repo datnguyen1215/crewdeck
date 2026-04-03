@@ -1,19 +1,22 @@
 <script lang="ts">
+	import { getContext } from 'svelte';
 	import type { TerminalLine } from '$lib/config/terminal.js';
+
+	const getProjectId = getContext<() => string>('projectId');
 
 	let {
 		line,
 		isNew,
 		issueTitle,
-		projectId,
 		truncateTitle
 	}: {
 		line: TerminalLine;
 		isNew: boolean;
 		issueTitle: string | undefined;
-		projectId: string;
 		truncateTitle: (title: string, maxLength?: number) => string;
 	} = $props();
+
+	const projectId = $derived(getProjectId());
 
 	const severityColors = {
 		info: 'text-secondary border-edge',

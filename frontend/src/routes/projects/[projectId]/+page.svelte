@@ -335,10 +335,8 @@
 			{#each filtered as issue, i (issue.id)}
 				<IssueCard
 					{issue}
-					{projectId}
 					{agentMap}
 					{visibleColumns}
-					{project}
 					isDispatching={dispatchingIssues.has(issue.id)}
 					ondispatch={handleDispatch}
 					animationDelay={i * 25}
@@ -396,11 +394,9 @@
 					{#each filtered as issue, i (issue.id)}
 						<IssueTableRow
 							{issue}
-							{projectId}
 							{agentMap}
 							{visibleColumns}
 							{gridCols}
-							{project}
 							isDispatching={dispatchingIssues.has(issue.id)}
 							ondispatch={handleDispatch}
 							index={i}
@@ -425,7 +421,7 @@
 
 	<!-- Activity Terminal -->
 	<div class="border-t border-edge">
-		<ActivityTerminal {projectId} {issues} />
+		<ActivityTerminal {issues} />
 	</div>
 </div>
 
