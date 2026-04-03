@@ -17,6 +17,7 @@ import {
   handleCreatePR,
   handleScanCodebase,
 } from "../command-handlers.js";
+import type { Issue } from "../../types/entities.js";
 import type {
   Action,
   ActionPlan,
@@ -38,6 +39,31 @@ export interface ActionResult {
   success: boolean;
   message: string;
   data?: unknown;
+}
+
+/**
+ * Shared guard for actions that operate on an existing issue.
+ * Handles issue lookup, null check, project ownership check, and error formatting.
+ */
+function withIssueGuard(
+  projectId: string,
+  issueId: string,
+  action: Action,
+  fn: (issue: Issue) => ActionResult,
+): ActionResult {
+  try {
+    const issue = issueRepo.getIssue(issueId);
+    if (!issue) {
+      return { action, success: false, message: "Issue not found" };
+    }
+    if (issue.project_id !== projectId) {
+      return { action, success: false, message: "Issue belongs to a different project" };
+    }
+    return fn(issue);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { action, success: false, message: `Failed: ${message}` };
+  }
 }
 
 /**
@@ -104,32 +130,14 @@ function executeComment(
   projectId: string,
   action: CommentAction,
 ): ActionResult {
-  try {
-    const issue = issueRepo.getIssue(action.issue_id);
-    if (!issue) {
-      return { action, success: false, message: "Issue not found" };
-    }
-    if (issue.project_id !== projectId) {
-      return {
-        action,
-        success: false,
-        message: "Issue belongs to a different project",
-      };
-    }
+  return withIssueGuard(projectId, action.issue_id, action, () => {
     const comment = commentRepo.createComment(action.issue_id, {
       author_type: "captain",
       content: action.content,
     });
     eventBus.emit("comment.added", { comment, project_id: projectId });
     return { action, success: true, message: "Comment added" };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return {
-      action,
-      success: false,
-      message: `Failed to add comment: ${message}`,
-    };
-  }
+  });
 }
 
 /**
@@ -178,18 +186,7 @@ function executeUpdateIssue(
   projectId: string,
   action: UpdateIssueAction,
 ): ActionResult {
-  try {
-    const issue = issueRepo.getIssue(action.issue_id);
-    if (!issue) {
-      return { action, success: false, message: "Issue not found" };
-    }
-    if (issue.project_id !== projectId) {
-      return {
-        action,
-        success: false,
-        message: "Issue belongs to a different project",
-      };
-    }
+  return withIssueGuard(projectId, action.issue_id, action, (issue) => {
     const updates: { status?: string; title?: string } = {};
     if (action.status !== undefined) updates.status = action.status;
     if (action.title !== undefined) updates.title = action.title;
@@ -208,14 +205,7 @@ function executeUpdateIssue(
       });
     }
     return { action, success: true, message: "Issue updated" };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return {
-      action,
-      success: false,
-      message: `Failed to update issue: ${message}`,
-    };
-  }
+  });
 }
 
 /**
@@ -255,19 +245,7 @@ function executeSetDependencies(
   projectId: string,
   action: SetDependenciesAction,
 ): ActionResult {
-  try {
-    const issue = issueRepo.getIssue(action.issue_id);
-    if (!issue) {
-      return { action, success: false, message: "Issue not found" };
-    }
-    if (issue.project_id !== projectId) {
-      return {
-        action,
-        success: false,
-        message: "Issue belongs to a different project",
-      };
-    }
-
+  return withIssueGuard(projectId, action.issue_id, action, () => {
     // Resolve truncated dependency IDs before passing to repository
     const resolvedDeps: string[] = [];
     for (const depId of action.depends_on) {
@@ -289,14 +267,7 @@ function executeSetDependencies(
       message: `Set ${added.length} dependencies`,
       data: { dependencies: added },
     };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return {
-      action,
-      success: false,
-      message: `Failed to set dependencies: ${message}`,
-    };
-  }
+  });
 }
 
 /**
