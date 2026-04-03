@@ -45,7 +45,7 @@
     lastUserText = lastUser?.content ?? '';
     // Check if captain is still processing this thread
     getChatThreadStatus(id, pid).then(({ active }) => {
-      if (active) isProcessing = true;
+      if (active && thread.id === id) isProcessing = true;
     }).catch(() => {});
   });
 
@@ -113,6 +113,7 @@
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
         isStreaming = false;
+        isThinking = false;
         streamingText = '';
         streamingToolCalls = [];
         chatError = data.error;
@@ -146,6 +147,11 @@
   async function handleRetry() {
     if (!lastUserText) return;
     chatError = null;
+    // Remove the last user message from the failed attempt before re-sending
+    const lastIdx = [...messages].reverse().findIndex(m => m.role === 'user');
+    if (lastIdx >= 0) {
+      messages = [...messages.slice(0, messages.length - 1 - lastIdx), ...messages.slice(messages.length - lastIdx)];
+    }
     await handleSend(lastUserText);
   }
 
