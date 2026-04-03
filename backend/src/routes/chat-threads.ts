@@ -6,7 +6,7 @@
  */
 import { Router, type Request, type NextFunction, type Response } from "express";
 import { verifyProject } from "../middleware/ownership.js";
-import { NotFoundError, ValidationError, ConflictError } from "../middleware/errors.js";
+import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import * as threadRepo from "../db/repositories/chat-threads.js";
 import * as messageRepo from "../db/repositories/chat-messages.js";
 import type { ChatThread, ChatMessage } from "../types/entities.js";

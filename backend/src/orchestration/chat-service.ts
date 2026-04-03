@@ -58,9 +58,10 @@ export function acquireAndCreateMessage(
   const thread = getThread(threadId);
   if (!thread) throw new Error(`Thread ${threadId} not found`);
 
-  activeThreads.set(threadId, true);
-
   const userMsg = createMessage(threadId, "user", content);
+
+  // Set lock only after message is persisted — avoids permanent lock on DB error
+  activeThreads.set(threadId, true);
   return userMsg.id;
 }
 
@@ -70,12 +71,16 @@ export function acquireAndCreateMessage(
  * Emits chat.error and chat.complete on failure; chat.complete on success.
  */
 export async function runThreadSession(threadId: string, content: string): Promise<void> {
-  const thread = getThread(threadId);
-  if (!thread) throw new Error(`Thread ${threadId} not found`);
-
+  let thread: NonNullable<ReturnType<typeof getThread>> | null = null;
   try {
+    thread = getThread(threadId);
+    if (!thread) throw new Error(`Thread ${threadId} not found`);
+
     await runClaudeSession(thread, content);
   } catch (err) {
+    // If thread wasn't fetched yet (getThread threw), try once more for event context
+    thread = thread ?? getThread(threadId);
+    if (!thread) return; // Thread gone — finally still releases the lock
     logger.error({ err, threadId }, "Chat message processing failed");
     eventBus.emit("chat.error", {
       project_id: thread.project_id,
