@@ -13,8 +13,8 @@ import { createInterface } from "node:readline";
 import { logger } from "../logger.js";
 import { eventBus } from "../events/bus.js";
 import { buildProviderEnv } from "./provider-env.js";
-import { getProject } from "../db/repositories/projects.js";
 import { buildSystemPrompt as buildCaptainPrompt } from "./captain-prompt.js";
+import * as globalConfigRepo from "../db/repositories/global-config.js";
 import {
   getThread,
   updateThread,
@@ -23,7 +23,6 @@ import {
   createMessage,
 } from "../db/repositories/chat-messages.js";
 import { listRepos } from "../db/repositories/repos.js";
-import { listByProject } from "../db/repositories/knowledge.js";
 import { getSystemApiKey } from "../app.js";
 import { ConflictError } from "../middleware/errors.js";
 
@@ -37,36 +36,6 @@ export function isThreadActive(threadId: string): boolean {
 interface ChatServiceResult {
   message_id: string;
   session_id: string | null;
-}
-
-/**
- * Build a simple system prompt for user chat threads.
- */
-function buildUserSystemPrompt(projectId: string): string {
-  const project = getProject(projectId);
-  if (!project) return "You are a helpful assistant.";
-
-  const parts: string[] = [];
-  parts.push(`You are a helpful assistant for the project "${project.name}".
-${project.description ? `Project description: ${project.description}` : ""}`);
-
-  const knowledge = listByProject(projectId);
-  const injectable = knowledge.filter(
-    (k) => k.category === "workflows" || k.category === "conventions",
-  );
-  if (injectable.length > 0) {
-    const entries = injectable
-      .map((k) => `### ${k.title} (${k.category})\n${k.content}`)
-      .join("\n\n");
-    parts.push(`## Project Knowledge\n${entries}`);
-  }
-
-  const repos = listRepos(projectId);
-  if (repos.length > 0) {
-    parts.push(`## Repository\n${repos[0].name} at ${repos[0].local_path}`);
-  }
-
-  return parts.join("\n\n");
 }
 
 /**
@@ -98,10 +67,8 @@ async function runClaudeSession(
 ): Promise<ChatServiceResult> {
   const userMsg = createMessage(thread.id, "user", content);
 
-  const systemPrompt =
-    thread.type === "monitor"
-      ? await buildCaptainPrompt(thread.project_id)
-      : buildUserSystemPrompt(thread.project_id);
+  const systemPrompt = await buildCaptainPrompt(thread.project_id);
+  const model = globalConfigRepo.getDefaultModel();
 
   // Build environment
   const baseEnv: Record<string, string> = {
@@ -118,7 +85,7 @@ async function runClaudeSession(
   const tmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
   await writeFile(tmpFile, systemPrompt, "utf-8");
 
-  const args = buildClaudeArgs(sessionId);
+  const args = buildClaudeArgs(sessionId, model);
 
   const repos = listRepos(thread.project_id);
   const workdir = repos.length > 0 ? repos[0].local_path : tmpdir();
@@ -131,7 +98,7 @@ async function runClaudeSession(
   try {
     const result = await runClaudeProcess(args, content, workdir, {
       ...baseEnv,
-      ...buildProviderEnv(),
+      ...buildProviderEnv(model),
       ANTHROPIC_API_KEY: "",
       GIT_TERMINAL_PROMPT: "0",
     }, tmpFile, thread.project_id, thread.id);
@@ -145,13 +112,13 @@ async function runClaudeSession(
       updateThread(thread.id, { session_id: null });
 
       // Retry without resume
-      const freshArgs = buildClaudeArgs(null);
+      const freshArgs = buildClaudeArgs(null, model);
       freshTmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
       await writeFile(freshTmpFile, systemPrompt, "utf-8");
 
       const freshResult = await runClaudeProcess(freshArgs, content, workdir, {
         ...baseEnv,
-        ...buildProviderEnv(),
+        ...buildProviderEnv(model),
         ANTHROPIC_API_KEY: "",
         GIT_TERMINAL_PROMPT: "0",
       }, freshTmpFile, thread.project_id, thread.id);
@@ -167,8 +134,8 @@ async function runClaudeSession(
     if (freshTmpFile) try { await unlink(freshTmpFile); } catch {}
   }
 
-  // Save assistant message
-  const assistantMsg = createMessage(thread.id, "assistant", assistantContent);
+  // Save assistant message (fallback if captain produced no output)
+  const assistantMsg = createMessage(thread.id, "assistant", assistantContent || "Captain did not respond.");
 
   // Update session_id if we got a new one
   if (capturedSessionId && capturedSessionId !== thread.session_id) {
@@ -190,13 +157,14 @@ async function runClaudeSession(
   };
 }
 
-function buildClaudeArgs(sessionId: string | null): string[] {
+function buildClaudeArgs(sessionId: string | null, model: string): string[] {
   const args = [
     "-p",
     "--verbose",
     "--system-prompt-file", "PLACEHOLDER", // replaced per-call
     "--output-format", "stream-json",
     "--dangerously-skip-permissions",
+    "--model", model,
   ];
   if (sessionId) {
     args.push("--resume", sessionId);

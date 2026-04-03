@@ -262,7 +262,6 @@ export interface ChatThread {
   id: string;
   project_id: string;
   title: string | null;
-  type: 'user';
   session_id: string | null;
   created_at: string;
   updated_at: string;

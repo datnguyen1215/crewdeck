@@ -27,15 +27,8 @@ router.post(
   "/chat/threads",
   verifyProject,
   (req: Request<ProjectParams>, res) => {
-    const { title, type } = req.body as {
-      title?: string;
-      type?: "user" | "monitor";
-    };
-    const threadType = type ?? "user";
-    if (threadType !== "user" && threadType !== "monitor") {
-      throw new ValidationError("Invalid thread type", { type });
-    }
-    const thread = threadRepo.createThread(req.params.projectId, threadType, title);
+    const { title } = req.body as { title?: string };
+    const thread = threadRepo.createThread(req.params.projectId, title);
     res.status(201).json(thread);
   },
 );
@@ -89,7 +82,7 @@ router.patch(
   },
 );
 
-// DELETE /chat/threads/:threadId — Delete thread (not monitor type)
+// DELETE /chat/threads/:threadId — Delete thread
 router.delete(
   "/chat/threads/:threadId",
   verifyProject,
@@ -97,9 +90,6 @@ router.delete(
     const thread = threadRepo.getThread(req.params.threadId);
     if (!thread || thread.project_id !== req.params.projectId) {
       throw new NotFoundError("Thread not found");
-    }
-    if (thread.type === "monitor") {
-      throw new ValidationError("Cannot delete monitor threads");
     }
     messageRepo.deleteMessagesByThread(thread.id);
     threadRepo.deleteThread(thread.id);
