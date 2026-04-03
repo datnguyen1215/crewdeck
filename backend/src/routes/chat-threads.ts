@@ -9,6 +9,7 @@ import { verifyProject } from "../middleware/ownership.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import * as threadRepo from "../db/repositories/chat-threads.js";
 import * as messageRepo from "../db/repositories/chat-messages.js";
+import * as chatEventRepo from "../db/repositories/chat-message-events.js";
 import type { ChatThread, ChatMessage } from "../types/entities.js";
 import { acquireAndCreateMessage, runThreadSession, isThreadActive } from "../orchestration/chat-service.js";
 
@@ -145,6 +146,25 @@ router.get(
       throw new NotFoundError("Thread not found");
     }
     res.json({ active: isThreadActive(req.params.threadId) });
+  },
+);
+
+// GET /chat/threads/:threadId/messages/:messageId/events — List events for a message
+router.get(
+  "/chat/threads/:threadId/messages/:messageId/events",
+  verifyProject,
+  (req: Request<ThreadParams & { messageId: string }>, res) => {
+    const thread = threadRepo.getThread(req.params.threadId);
+    if (!thread || thread.project_id !== req.params.projectId) {
+      throw new NotFoundError("Thread not found");
+    }
+    // Verify the message belongs to this thread
+    const message = messageRepo.getMessage(req.params.messageId);
+    if (!message || message.thread_id !== req.params.threadId) {
+      throw new NotFoundError("Message not found");
+    }
+    const events = chatEventRepo.listEvents(req.params.messageId);
+    res.json({ events });
   },
 );
 

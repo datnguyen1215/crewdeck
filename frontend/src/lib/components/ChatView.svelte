@@ -4,10 +4,11 @@
   import { autoscroll } from '$lib/utils/autoscroll.js';
   import { md, esc } from '$lib/utils/markdown.js';
   import { formatTimestamp } from '$lib/utils/time.js';
-  import { sendChatMessage, getChatThread, getChatThreadStatus } from '$lib/api/http.js';
+  import { sendChatMessage, getChatThread, getChatThreadStatus, getChatMessageEvents } from '$lib/api/http.js';
   import ChatInput from './ChatInput.svelte';
+  import ChatTerminalBox from './ChatTerminalBox.svelte';
   import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
-  import type { ChatThreadDetail, ChatMessage } from '$lib/api/types.js';
+  import type { ChatThreadDetail, ChatMessage, ChatMessageEvent } from '$lib/api/types.js';
 
   let {
     thread,
@@ -21,25 +22,48 @@
 
   let messages = $state<ChatMessage[]>([]);
   let streamingText = $state('');
-  let streamingToolCalls = $state<Array<{ tool_name: string; tool_input: unknown; result?: string; success: boolean }>>([]);
+  let streamingEvents = $state<ChatMessageEvent[]>([]);
+  let streamingMessageId = $state<string | null>(null);
   let isStreaming = $state(false);
   let isProcessing = $state(false);
-  let isThinking = $state(false);
   let chatError = $state<string | null>(null);
   let lastUserText = $state('');
 
+  // Events loaded from API for past assistant messages (history replay)
+  let historyEvents = $state<Record<string, ChatMessageEvent[]>>({});
+  let loadedEventIds = $state<Set<string>>(new Set());
+
+  async function loadEventsForMessage(messageId: string, threadId: string) {
+    if (loadedEventIds.has(messageId)) return;
+    loadedEventIds.add(messageId);
+    try {
+      const { events } = await getChatMessageEvents(threadId, messageId, projectId);
+      if (events.length > 0 && thread.id === threadId) {
+        historyEvents[messageId] = events;
+      }
+    } catch {
+      // ignore — events are optional
+    }
+  }
+
+  function getEventsForMessage(messageId: string): ChatMessageEvent[] {
+    if (messageId === streamingMessageId) return streamingEvents;
+    return historyEvents[messageId] ?? [];
+  }
+
   // Sync messages and reset streaming state when thread prop changes
   $effect(() => {
-    // read thread.id to track which thread we're on
     const id = thread.id;
     const pid = projectId;
     messages = thread.messages;
     streamingText = '';
-    streamingToolCalls = [];
+    streamingEvents = [];
+    streamingMessageId = null;
     isStreaming = false;
     isProcessing = false;
-    isThinking = false;
     chatError = null;
+    historyEvents = {};
+    loadedEventIds = new Set();
     // Determine last user message for retry
     const lastUser = [...thread.messages].reverse().find(m => m.role === 'user');
     lastUserText = lastUser?.content ?? '';
@@ -47,6 +71,12 @@
     getChatThreadStatus(id, pid).then(({ active }) => {
       if (active && thread.id === id) isProcessing = true;
     }).catch(() => {});
+    // Lazy-load events for past assistant messages
+    for (const msg of thread.messages) {
+      if (msg.role === 'assistant') {
+        loadEventsForMessage(msg.id, id);
+      }
+    }
   });
 
   // WebSocket subscriptions for streaming
@@ -58,48 +88,69 @@
       'chat.message': (data) => {
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
-        isThinking = false;
         isStreaming = true;
+        streamingMessageId = data.message_id;
         streamingText += data.content;
+        streamingEvents = [...streamingEvents, {
+          id: crypto.randomUUID(),
+          message_id: data.message_id,
+          type: 'text',
+          data: { content: data.content },
+          created_at: new Date().toISOString(),
+        }];
       },
       'chat.tool_call': (data) => {
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
         isStreaming = true;
-        streamingToolCalls = [...streamingToolCalls, {
-          tool_name: data.tool_name,
-          tool_input: data.tool_input,
-          success: true,
+        streamingMessageId = data.message_id;
+        streamingEvents = [...streamingEvents, {
+          id: crypto.randomUUID(),
+          message_id: data.message_id,
+          type: 'tool_call',
+          data: { tool_call_id: data.tool_call_id, tool_name: data.tool_name, tool_input: data.tool_input },
+          created_at: new Date().toISOString(),
         }];
       },
       'chat.tool_result': (data) => {
         if (data.thread_id !== thread.id) return;
-        // Match first unresolved call for this tool name (FIFO order)
-        const name = data.tool_name;
-        const result = typeof data.result === 'string' ? data.result : JSON.stringify(data.result);
-        let matched = false;
-        streamingToolCalls = streamingToolCalls.map(tc => {
-          if (!matched && tc.tool_name === name && tc.result === undefined) {
-            matched = true;
-            return { ...tc, result };
-          }
-          return tc;
-        });
+        streamingEvents = [...streamingEvents, {
+          id: crypto.randomUUID(),
+          message_id: data.message_id,
+          type: 'tool_result',
+          data: { tool_call_id: data.tool_call_id, tool_name: data.tool_name, result: data.result },
+          created_at: new Date().toISOString(),
+        }];
       },
       'chat.thinking': (data) => {
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
-        isThinking = true;
         isStreaming = true;
+        streamingMessageId = data.message_id;
+        streamingEvents = [...streamingEvents, {
+          id: crypto.randomUUID(),
+          message_id: data.message_id,
+          type: 'thinking',
+          data: { content: data.content },
+          created_at: new Date().toISOString(),
+        }];
       },
       'chat.complete': (data) => {
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
         isStreaming = false;
+        const completedMsgId = data.message_id;
         streamingText = '';
-        streamingToolCalls = [];
+        const completedEvents = [...streamingEvents];
+        streamingEvents = [];
+        streamingMessageId = null;
         getChatThread(thread.id, projectId).then((t) => {
           messages = t.messages;
+          // Move streaming events into history
+          if (completedMsgId && completedEvents.length > 0) {
+            historyEvents[completedMsgId] = completedEvents;
+            loadedEventIds.add(completedMsgId);
+          }
         }).catch(() => {});
       },
       'chat.session_expired': (data) => {
@@ -107,15 +158,16 @@
         isProcessing = false;
         isStreaming = false;
         streamingText = '';
-        streamingToolCalls = [];
+        streamingEvents = [];
+        streamingMessageId = null;
       },
       'chat.error': (data) => {
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
         isStreaming = false;
-        isThinking = false;
         streamingText = '';
-        streamingToolCalls = [];
+        streamingEvents = [];
+        streamingMessageId = null;
         chatError = data.error;
       },
     });
@@ -135,48 +187,21 @@
       };
       messages = [...messages, userMsg];
       isProcessing = true;
-      isThinking = false;
       chatError = null;
       lastUserText = text;
     } catch {
       isProcessing = false;
-      // silent — error will surface through the next thread reload
     }
   }
 
   async function handleRetry() {
     if (!lastUserText) return;
     chatError = null;
-    // Remove the last user message from the failed attempt before re-sending
     const lastIdx = [...messages].reverse().findIndex(m => m.role === 'user');
     if (lastIdx >= 0) {
       messages = [...messages.slice(0, messages.length - 1 - lastIdx), ...messages.slice(messages.length - lastIdx)];
     }
     await handleSend(lastUserText);
-  }
-
-  function parseToolMeta(metadata: string | null): { tool_name?: string; tool_input?: unknown; success?: boolean; result?: string } | null {
-    if (!metadata) return null;
-    try {
-      return JSON.parse(metadata);
-    } catch {
-      return null;
-    }
-  }
-
-  function formatToolInput(input: unknown): string {
-    if (input === undefined || input === null) return '';
-    if (typeof input === 'string') return input.length > 80 ? input.slice(0, 80) + '…' : input;
-    const s = JSON.stringify(input);
-    return s.length > 80 ? s.slice(0, 80) + '…' : s;
-  }
-
-  /** Build an escaped arrow line for @html rendering */
-  function toolLine(label: string, text: string): string {
-    return `→ ${esc(label)}(${esc(text)})`;
-  }
-  function toolResultLine(ok: boolean, text: string): string {
-    return ok ? `→ ok: ${esc(text)}` : `→ err: ${esc(text)}`;
   }
 </script>
 
@@ -191,32 +216,33 @@
           {@render messageBubble(message)}
         {/each}
 
-        <!-- Streaming tool calls -->
-        {#each streamingToolCalls as tc, i (i)}
-          {@render streamingToolBubble(tc, i)}
-        {/each}
-
-        <!-- Streaming assistant message -->
-        {#if streamingText}
-          {@render streamingBubble()}
-        {/if}
-
-        <!-- Analyzing indicator (no text yet but processing/streaming started) -->
-        {#if (isProcessing || isStreaming) && !streamingText && streamingToolCalls.length === 0}
+        <!-- Streaming terminal box -->
+        {#if streamingMessageId && streamingEvents.length > 0}
           <div class="mb-3">
-            <div class="text-xs text-muted mb-1">captain</div>
+            <ChatTerminalBox events={streamingEvents} streaming={true} />
+            {#if streamingText}
+              <div class="border-l-[3px] border-l-cyan pl-3 py-0.5 mt-1">
+                <div class="text-primary prose prose-sm prose-invert max-w-none text-sm break-words min-w-0">
+                  {@html md(streamingText)}<span class="animate-pulse">_</span>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {:else if streamingMessageId}
+          <!-- Analyzing indicator (no events yet but we have a message_id) -->
+          <div class="mb-3">
+            <ChatTerminalBox events={[]} streaming={true} />
+          </div>
+        {:else if isProcessing}
+          <div class="mb-3">
             <div class="border border-dashed border-cyan/40 rounded px-3 py-2 text-sm">
-              {#if isThinking}
-                <span class="text-cyan/70 animate-pulse">Thinking...</span>
-              {:else}
-                <span class="text-cyan/70 animate-pulse">Analyzing_</span>
-              {/if}
+              <span class="text-cyan/70 animate-pulse">Analyzing_</span>
             </div>
           </div>
         {/if}
       {/if}
 
-      <!-- Error message (always visible, even when messages list is empty) -->
+      <!-- Error message -->
       {#if chatError}
         <div class="mb-3 border-l-[3px] border-l-red pl-3 py-0.5">
           <div class="text-[10px] text-red">error</div>
@@ -242,7 +268,6 @@
   {@const ts = formatTimestamp(message.created_at)}
 
   {#if message.role === 'system'}
-    <!-- System message -->
     <div class="mb-2">
       <div class="bg-surface border border-edge rounded px-3 py-1.5 text-xs text-muted inline-block">
         {message.content}
@@ -250,7 +275,6 @@
     </div>
 
   {:else if message.role === 'event'}
-    <!-- Event message -->
     <div class="mb-2 border-l-[3px] border-l-amber pl-3 py-0.5">
       <span class="text-[10px] text-muted">{ts}</span>
       <span class="text-[10px] text-amber ml-1">event</span>
@@ -258,44 +282,36 @@
     </div>
 
   {:else if message.role === 'assistant'}
-    <!-- Assistant message -->
-    <div class="mb-3 border-l-[3px] border-l-cyan pl-3 py-0.5">
-      <div class="flex items-baseline gap-2">
-        <span class="text-[10px] text-muted">{ts}</span>
-        <span class="text-[10px] text-cyan">captain</span>
-      </div>
-      <div class="text-primary prose prose-sm prose-invert max-w-none mt-1 text-sm break-words min-w-0">
-        {@html md(message.content)}
-      </div>
+    {@const events = getEventsForMessage(message.id)}
+    <div class="mb-3">
+      <!-- Terminal box with events for this message -->
+      {#if events.length > 0}
+        <ChatTerminalBox events={events} streaming={false} />
+      {/if}
+      <!-- Final response bubble -->
+      {#if message.content}
+        <div class="border-l-[3px] border-l-cyan pl-3 py-0.5">
+          <div class="flex items-baseline gap-2">
+            <span class="text-[10px] text-muted">{ts}</span>
+            <span class="text-[10px] text-cyan">captain</span>
+          </div>
+          <div class="text-primary prose prose-sm prose-invert max-w-none mt-1 text-sm break-words min-w-0">
+            {@html md(message.content)}
+          </div>
+        </div>
+      {/if}
     </div>
 
   {:else if message.role === 'tool'}
-    {@const meta = parseToolMeta(message.metadata)}
     <div class="mb-2 border-l-[3px] border-l-purple pl-3 py-0.5">
       <div class="flex items-baseline gap-2">
         <span class="text-[10px] text-muted">{ts}</span>
         <span class="text-[10px] text-purple">tool</span>
       </div>
-      {#if meta?.tool_name}
-        <p class="text-xs font-mono text-secondary mt-0.5">
-          {@html toolLine(meta.tool_name, formatToolInput(meta.tool_input))}
-        </p>
-        {#if meta.success === true}
-          <p class="text-xs font-mono text-green mt-0.5">
-            {@html toolResultLine(true, meta.result ?? '')}
-          </p>
-        {:else if meta.success === false}
-          <p class="text-xs font-mono text-red mt-0.5">
-            {@html toolResultLine(false, meta.result ?? 'unknown error')}
-          </p>
-        {/if}
-      {:else}
-        <p class="text-xs text-secondary mt-0.5 font-mono">{message.content}</p>
-      {/if}
+      <p class="text-xs text-secondary mt-0.5 font-mono">{message.content}</p>
     </div>
 
   {:else if message.role === 'user'}
-    <!-- User message — right aligned -->
     <div class="mb-3 flex justify-end">
       <div class="max-w-[80%] md:max-w-[60%] bg-surface-hi border-r-[3px] border-r-green rounded-l px-3 py-2">
         <div class="text-xs text-primary whitespace-pre-wrap break-words">{message.content}</div>
@@ -304,39 +320,4 @@
     </div>
 
   {/if}
-{/snippet}
-
-{#snippet streamingToolBubble(tc: typeof streamingToolCalls[number], index: number)}
-  <div class="mb-2 border-l-[3px] border-l-purple pl-3 py-0.5">
-    <div class="flex items-baseline gap-2">
-      <span class="text-[10px] text-muted">--:--:--</span>
-      <span class="text-[10px] text-purple">tool</span>
-    </div>
-    <p class="text-xs font-mono text-secondary mt-0.5">
-      {@html toolLine(tc.tool_name, formatToolInput(tc.tool_input))}
-    </p>
-    {#if tc.result !== undefined}
-      {#if tc.success}
-        <p class="text-xs font-mono text-green mt-0.5">
-          {@html toolResultLine(true, tc.result)}
-        </p>
-      {:else}
-        <p class="text-xs font-mono text-red mt-0.5">
-          {@html toolResultLine(false, tc.result)}
-        </p>
-      {/if}
-    {/if}
-  </div>
-{/snippet}
-
-{#snippet streamingBubble()}
-  <div class="mb-3 border-l-[3px] border-l-cyan pl-3 py-0.5">
-    <div class="flex items-baseline gap-2">
-      <span class="text-[10px] text-muted">--:--:--</span>
-      <span class="text-[10px] text-cyan">captain</span>
-    </div>
-    <div class="text-primary prose prose-sm prose-invert max-w-none mt-1 text-sm break-words min-w-0">
-      {@html md(streamingText)}<span class="animate-pulse">_</span>
-    </div>
-  </div>
 {/snippet}

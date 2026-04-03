@@ -161,28 +161,35 @@ export interface EventMap {
   "chat.thinking": {
     project_id: string;
     thread_id: string;
+    message_id: string;
+    content?: string;
   };
   "chat.message": {
     project_id: string;
     thread_id: string;
+    message_id: string;
     content: string;
   };
   "chat.tool_call": {
     project_id: string;
     thread_id: string;
+    message_id: string;
+    tool_call_id: string;
     tool_name: string;
     tool_input: unknown;
   };
   "chat.tool_result": {
     project_id: string;
     thread_id: string;
+    message_id: string;
+    tool_call_id: string;
     tool_name: string;
     result: unknown;
   };
   "chat.complete": {
     project_id: string;
     thread_id: string;
-    message_id?: string;
+    message_id: string;
   };
   "chat.session_expired": {
     project_id: string;

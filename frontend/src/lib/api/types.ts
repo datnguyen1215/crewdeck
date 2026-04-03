@@ -285,6 +285,16 @@ export interface ChatMessage {
   created_at: string;
 }
 
+export type ChatMessageEventType = 'thinking' | 'text' | 'tool_call' | 'tool_result' | 'system' | 'result';
+
+export interface ChatMessageEvent {
+  id: string;
+  message_id: string;
+  type: ChatMessageEventType;
+  data: Record<string, unknown>;
+  created_at: string;
+}
+
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
 // but only includes events the frontend receives (excludes backend-only events)
 export interface WsEventMap {
@@ -409,11 +419,11 @@ export interface WsEventMap {
     result: unknown;
   };
   "monitor.complete": { project_id: string; response: string };
-  "chat.message": { project_id: string; thread_id: string; content: string };
-  "chat.tool_call": { project_id: string; thread_id: string; tool_name: string; tool_input: unknown };
-  "chat.tool_result": { project_id: string; thread_id: string; tool_name: string; result: unknown };
-  "chat.thinking": { project_id: string; thread_id: string };
-  "chat.complete": { project_id: string; thread_id: string };
+  "chat.message": { project_id: string; thread_id: string; message_id: string; content: string };
+  "chat.tool_call": { project_id: string; thread_id: string; message_id: string; tool_call_id: string; tool_name: string; tool_input: unknown };
+  "chat.tool_result": { project_id: string; thread_id: string; message_id: string; tool_call_id: string; tool_name: string; result: unknown };
+  "chat.thinking": { project_id: string; thread_id: string; message_id: string; content?: string };
+  "chat.complete": { project_id: string; thread_id: string; message_id: string };
   "chat.error": { project_id: string; thread_id: string; error: string };
   "chat.session_expired": { project_id: string; thread_id: string };
 }
