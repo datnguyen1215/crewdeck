@@ -80,7 +80,6 @@
         isStreaming = false;
         streamingText = '';
         streamingToolCalls = [];
-        // Reload thread to get canonical stored messages
         getChatThread(thread.id, projectId).then((t) => {
           messages = t.messages;
         }).catch(() => {});

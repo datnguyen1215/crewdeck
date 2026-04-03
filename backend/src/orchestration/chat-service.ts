@@ -38,13 +38,20 @@ interface ChatServiceResult {
   session_id: string | null;
 }
 
+interface SendMessageResult {
+  user_message_id: string;
+  message_id: string;
+  session_id: string | null;
+}
+
 /**
  * Send a message in a chat thread and get a streamed Claude response.
+ * Creates the user message after acquiring the lock to prevent duplicates.
  */
 export async function sendMessage(
   threadId: string,
   content: string,
-): Promise<ChatServiceResult> {
+): Promise<SendMessageResult> {
   if (isThreadActive(threadId)) {
     throw new ConflictError("A message is already being processed for this thread");
   }
@@ -55,7 +62,9 @@ export async function sendMessage(
   activeThreads.set(threadId, true);
 
   try {
-    return await runClaudeSession(thread, content);
+    const userMsg = createMessage(threadId, "user", content);
+    const result = await runClaudeSession(thread, content);
+    return { user_message_id: userMsg.id, ...result };
   } finally {
     activeThreads.delete(threadId);
   }

@@ -118,31 +118,30 @@ router.post(
         throw new ValidationError("Message content is required");
       }
 
-      // Reject immediately if a message is already being processed
-      if (isThreadActive(thread.id)) {
-        throw new ConflictError("A message is already being processed for this thread");
-      }
-
-      // Save the user message immediately, then let Claude run in the background
-      const userMsg = messageRepo.createMessage(thread.id, "user", content);
-
+      // Fire-and-forget: sendMessage acquires the lock, creates the user message,
+      // then runs Claude. Returns 202 with the user message ID once confirmed.
+      // sendMessage will throw ConflictError if already locked.
       sendMessage(thread.id, content)
+        .then((result) => {
+          res.status(202).json({ message_id: result.user_message_id });
+        })
         .catch((err) => {
+          if (err instanceof ConflictError) {
+            res.status(409).json({ error: err.message });
+            return;
+          }
           logger.error({ err, threadId: thread.id }, "Chat message processing failed");
           eventBus.emit("chat.error", {
             project_id: thread.project_id,
             thread_id: thread.id,
             error: err instanceof Error ? err.message : String(err),
           });
-        })
-        .finally(() => {
           eventBus.emit("chat.complete", {
             project_id: thread.project_id,
             thread_id: thread.id,
           });
+          res.status(202).json({ message_id: "" });
         });
-
-      res.status(202).json({ message_id: userMsg.id });
     } catch (err) {
       next(err);
     }
