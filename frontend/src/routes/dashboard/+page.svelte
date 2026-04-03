@@ -54,13 +54,13 @@
 
 	const globws = new GlobalWebSocket();
 
-	const STATS_EVENTS = ['run.started', 'run.completed', 'issue.status_changed', 'issue.paused', 'issue.resumed'] as const;
+	const STATS_EVENTS = ['run.started', 'run.completed', 'issue.status_changed', 'issue.paused', 'issue.resumed', 'issue.created', 'dispatch.queued', 'dispatch.dequeued'] as const;
 	const ACTIVITY_EVENTS = [
 		'issue.created', 'issue.status_changed', 'issue.paused', 'issue.resumed',
 		'comment.added', 'pr.created', 'mention.spawned', 'mention.completed',
 		'mention.error', 'dispatch.queued', 'run.started', 'run.completed',
 	] as const;
-	const AGENT_EVENTS = ['run.started', 'run.completed'] as const;
+	const AGENT_EVENTS = ['run.started', 'run.completed', 'dispatch.queued', 'dispatch.dequeued'] as const;
 	let unsubs: (() => void)[] = [];
 
 	onMount(() => {
