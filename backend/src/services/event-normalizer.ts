@@ -34,9 +34,18 @@ export function normalizeEvent(event: AgentRunEvent): AgentRunEvent {
   switch (event.type) {
     case "assistant": {
       const message = raw.message as Record<string, unknown> | undefined;
+      const subtype = raw.subtype as string | undefined;
       const contentArr = message?.content ?? raw.content;
-      if (Array.isArray(contentArr)) {
-        // Extract text blocks
+
+      // Old flat Claude CLI format: {"type":"assistant","subtype":"text","content":"Hello"}
+      if (typeof contentArr === "string" && contentArr) {
+        if (subtype === "text") normalized.text = contentArr;
+        else if (subtype === "thinking") normalized.thinking = contentArr;
+        else normalized.text = contentArr; // fallback for unknown subtypes
+      } else if (typeof raw.thinking === "string" && raw.thinking) {
+        normalized.thinking = raw.thinking;
+      } else if (Array.isArray(contentArr)) {
+        // New nested format: {"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}
         const textBlocks = contentArr
           .filter((c: any) => c.type === "text")
           .map((c: any) => c.text)
@@ -45,7 +54,6 @@ export function normalizeEvent(event: AgentRunEvent): AgentRunEvent {
           normalized.text = textBlocks.join("\n");
         }
 
-        // Extract thinking blocks
         const thinkingBlocks = contentArr
           .filter((c: any) => c.type === "thinking")
           .map((c: any) => c.thinking)
@@ -54,7 +62,6 @@ export function normalizeEvent(event: AgentRunEvent): AgentRunEvent {
           normalized.thinking = thinkingBlocks.join("\n");
         }
 
-        // Extract tool_use blocks
         const toolUseBlocks = contentArr
           .filter((c: any) => c.type === "tool_use")
           .map((c: any) => ({
@@ -66,7 +73,18 @@ export function normalizeEvent(event: AgentRunEvent): AgentRunEvent {
           normalized.tool_use = toolUseBlocks;
         }
       }
-      // If nothing extracted, return original event unchanged
+
+      // Old flat tool_use: {"type":"assistant","subtype":"tool_use","tool_name":"...","tool_input":{...}}
+      if (subtype === "tool_use" && !normalized.tool_use) {
+        normalized.tool_use = [
+          {
+            id: (raw.id ?? "") as string,
+            name: (raw.tool_name ?? "") as string,
+            input: raw.tool_input,
+          },
+        ];
+      }
+
       if (Object.keys(normalized).length === 0) {
         return event;
       }
