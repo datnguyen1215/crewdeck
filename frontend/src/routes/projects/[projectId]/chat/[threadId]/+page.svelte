@@ -1,7 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
   import { getProject, getChatThread, type Project, type ChatThreadDetail } from '$lib/api/http.js';
 
   let projectId = $derived($page.params.projectId!);
@@ -18,14 +17,17 @@
     return () => { cancelled = true; };
   });
 
-  onMount(async () => {
-    try {
-      thread = await getChatThread(threadId, projectId);
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to load thread';
-    } finally {
-      loading = false;
-    }
+  $effect(() => {
+    const id = threadId;
+    const pid = projectId;
+    let cancelled = false;
+    loading = true;
+    error = null;
+    getChatThread(id, pid)
+      .then((t) => { if (!cancelled) thread = t; })
+      .catch((err) => { if (!cancelled) error = err instanceof Error ? err.message : 'Failed to load thread'; })
+      .finally(() => { if (!cancelled) loading = false; });
+    return () => { cancelled = true; };
   });
 </script>
 

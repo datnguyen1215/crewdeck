@@ -27,12 +27,12 @@
 
 <div class="h-full flex pt-12 md:pt-0">
   <!-- Thread list: visible on desktop (md+), hidden on mobile -->
-  <div class="w-[280px] max-md:w-full flex-shrink-0 border-r border-edge hidden md:flex flex-col">
+  <div class="w-[280px] max-md:w-full flex-shrink-0 border-r border-edge flex flex-col md:border-r-edge">
     <ChatThreadList {projectId} bind:selectedThreadId />
   </div>
 
   <!-- Chat view area -->
-  <div class="flex-1 min-w-0 flex flex-col">
+  <div class="hidden md:flex flex-1 min-w-0 flex-col">
     <!-- Header (visible on desktop) -->
     <div class="p-3 md:p-4 border-b border-edge flex-shrink-0 hidden md:block">
       <Breadcrumb segments={[

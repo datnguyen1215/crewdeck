@@ -21,9 +21,9 @@
   let monitorThreads = $derived(threads.filter((t) => t.type === 'monitor'));
   let userThreads = $derived(threads.filter((t) => t.type === 'user'));
 
-  async function fetchThreads() {
+  async function fetchThreads(pid: string) {
     try {
-      threads = await listChatThreads(projectId);
+      threads = await listChatThreads(pid);
     } catch {
       // silent — will retry on next interaction
     } finally {
@@ -36,7 +36,7 @@
     creating = true;
     try {
       const thread = await createChatThread(projectId);
-      threads = [thread as ChatThreadListItem, ...threads];
+      threads = [{ ...thread, last_message: null, message_count: 0 } as ChatThreadListItem, ...threads];
       selectThread(thread.id);
     } catch {
       // silent
@@ -73,8 +73,7 @@
 
   // Load threads on mount
   $effect(() => {
-    projectId;
-    fetchThreads();
+    fetchThreads(projectId);
   });
 </script>
 
