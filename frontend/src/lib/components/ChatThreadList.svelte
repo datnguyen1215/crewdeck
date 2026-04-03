@@ -22,6 +22,7 @@
   let threads = $state<ChatThreadListItem[]>([]);
   let loading = $state(true);
   let creating = $state(false);
+  let activeThreadIds = $state(new Set<string>());
 
   async function handleNewThread() {
     if (creating) return;
@@ -79,10 +80,23 @@
     const ws = getWs();
     if (!ws) return;
     return useWsSubscriptions(ws, {
-      'chat.complete': () => {
+      'chat.message': (data) => {
+        activeThreadIds = new Set([...activeThreadIds, data.thread_id]);
+      },
+      'chat.thinking': (data) => {
+        activeThreadIds = new Set([...activeThreadIds, data.thread_id]);
+      },
+      'chat.complete': (data) => {
+        activeThreadIds = new Set([...activeThreadIds].filter(id => id !== data.thread_id));
         listChatThreads(projectId)
           .then((t) => { threads = t; })
           .catch(() => {});
+      },
+      'chat.error': (data) => {
+        activeThreadIds = new Set([...activeThreadIds].filter(id => id !== data.thread_id));
+      },
+      'chat.session_expired': (data) => {
+        activeThreadIds = new Set([...activeThreadIds].filter(id => id !== data.thread_id));
       },
     });
   });
@@ -125,6 +139,9 @@
       {selectedThreadId === thread.id ? 'bg-surface-hi' : ''}"
   >
     <div class="flex items-center gap-2 min-w-0">
+      {#if activeThreadIds.has(thread.id)}
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse flex-shrink-0"></span>
+      {/if}
       <span class="text-xs truncate flex-1 text-primary">
         {thread.title || 'Untitled'}
       </span>

@@ -4,7 +4,7 @@
   import { autoscroll } from '$lib/utils/autoscroll.js';
   import { md, esc } from '$lib/utils/markdown.js';
   import { formatTimestamp } from '$lib/utils/time.js';
-  import { sendChatMessage, getChatThread } from '$lib/api/http.js';
+  import { sendChatMessage, getChatThread, getChatThreadStatus } from '$lib/api/http.js';
   import ChatInput from './ChatInput.svelte';
   import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
   import type { ChatThreadDetail, ChatMessage } from '$lib/api/types.js';
@@ -24,18 +24,29 @@
   let streamingToolCalls = $state<Array<{ tool_name: string; tool_input: unknown; result?: string; success: boolean }>>([]);
   let isStreaming = $state(false);
   let isProcessing = $state(false);
+  let isThinking = $state(false);
   let chatError = $state<string | null>(null);
+  let lastUserText = $state('');
 
   // Sync messages and reset streaming state when thread prop changes
   $effect(() => {
     // read thread.id to track which thread we're on
-    const _ = thread.id;
+    const id = thread.id;
+    const pid = projectId;
     messages = thread.messages;
     streamingText = '';
     streamingToolCalls = [];
     isStreaming = false;
     isProcessing = false;
+    isThinking = false;
     chatError = null;
+    // Determine last user message for retry
+    const lastUser = [...thread.messages].reverse().find(m => m.role === 'user');
+    lastUserText = lastUser?.content ?? '';
+    // Check if captain is still processing this thread
+    getChatThreadStatus(id, pid).then(({ active }) => {
+      if (active && thread.id === id) isProcessing = true;
+    }).catch(() => {});
   });
 
   // WebSocket subscriptions for streaming
@@ -47,6 +58,7 @@
       'chat.message': (data) => {
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
+        isThinking = false;
         isStreaming = true;
         streamingText += data.content;
       },
@@ -74,6 +86,12 @@
           return tc;
         });
       },
+      'chat.thinking': (data) => {
+        if (data.thread_id !== thread.id) return;
+        isProcessing = false;
+        isThinking = true;
+        isStreaming = true;
+      },
       'chat.complete': (data) => {
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
@@ -95,6 +113,7 @@
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
         isStreaming = false;
+        isThinking = false;
         streamingText = '';
         streamingToolCalls = [];
         chatError = data.error;
@@ -116,11 +135,24 @@
       };
       messages = [...messages, userMsg];
       isProcessing = true;
+      isThinking = false;
       chatError = null;
+      lastUserText = text;
     } catch {
       isProcessing = false;
       // silent — error will surface through the next thread reload
     }
+  }
+
+  async function handleRetry() {
+    if (!lastUserText) return;
+    chatError = null;
+    // Remove the last user message from the failed attempt before re-sending
+    const lastIdx = [...messages].reverse().findIndex(m => m.role === 'user');
+    if (lastIdx >= 0) {
+      messages = [...messages.slice(0, messages.length - 1 - lastIdx), ...messages.slice(messages.length - lastIdx)];
+    }
+    await handleSend(lastUserText);
   }
 
   function parseToolMeta(metadata: string | null): { tool_name?: string; tool_input?: unknown; success?: boolean; result?: string } | null {
@@ -169,12 +201,16 @@
           {@render streamingBubble()}
         {/if}
 
-        <!-- Analyzing indicator (no text yet but streaming started) -->
+        <!-- Analyzing indicator (no text yet but processing/streaming started) -->
         {#if (isProcessing || isStreaming) && !streamingText && streamingToolCalls.length === 0}
           <div class="mb-3">
             <div class="text-xs text-muted mb-1">captain</div>
             <div class="border border-dashed border-cyan/40 rounded px-3 py-2 text-sm">
-              <span class="text-cyan/70 animate-pulse">Analyzing_</span>
+              {#if isThinking}
+                <span class="text-cyan/70 animate-pulse">Thinking...</span>
+              {:else}
+                <span class="text-cyan/70 animate-pulse">Analyzing_</span>
+              {/if}
             </div>
           </div>
         {/if}
@@ -185,6 +221,14 @@
         <div class="mb-3 border-l-[3px] border-l-red pl-3 py-0.5">
           <div class="text-[10px] text-red">error</div>
           <p class="text-xs text-red/80 mt-0.5">{chatError}</p>
+          {#if lastUserText}
+            <button
+              onclick={handleRetry}
+              class="mt-1.5 px-2 py-0.5 text-[10px] text-red border border-red/30 rounded hover:bg-red/10 transition-colors"
+            >
+              Retry
+            </button>
+          {/if}
         </div>
       {/if}
     </div>
