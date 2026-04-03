@@ -40,15 +40,11 @@
 	let runsLoading = $state(true);
 	let liveEvents = $state<Map<string, AgentRunEvent[]>>(new Map());
 
-	// Comment actions
-	let commentActions: ReturnType<typeof createCommentActions> | null = $state(null);
-	$effect(() => {
-		if (!issue) { commentActions = null; return; }
-		commentActions = createCommentActions(projectId, issueId, {
-			onAdded: (c) => { issue = { ...issue!, comments: [...issue!.comments, c] }; },
-			onUpdated: (c) => { issue = { ...issue!, comments: issue!.comments.map(x => x.id === c.id ? c : x) }; },
-			onDeleted: (id) => { issue = { ...issue!, comments: issue!.comments.filter(x => x.id !== id) }; },
-		});
+	// Comment actions — created once to avoid $effect dependency on `issue`
+	const commentActions = createCommentActions(projectId, issueId, {
+		onAdded: (c) => { if (!issue) return; issue = { ...issue, comments: [...issue.comments, c] }; },
+		onUpdated: (c) => { if (!issue) return; issue = { ...issue, comments: issue.comments.map(x => x.id === c.id ? c : x) }; },
+		onDeleted: (id) => { if (!issue) return; issue = { ...issue, comments: issue.comments.filter(x => x.id !== id) }; },
 	});
 
 	// Run detail modal
@@ -243,17 +239,17 @@
 							{projectId}
 							{issueId}
 							loading={activityLoading && runsLoading}
-							editingCommentId={commentActions?.editingCommentId ?? null}
-							bind:editingCommentText={commentActions!.editingCommentText}
-							commentWorking={commentActions?.commentWorking ?? false}
-							onStartEditComment={(c) => commentActions?.startEditComment(c)}
-							onSaveEditComment={() => commentActions?.saveEditComment()}
-							onCancelEditComment={() => commentActions?.cancelEditComment()}
-							onDeleteComment={(id) => commentActions?.requestDelete(id)}
+							editingCommentId={commentActions.editingCommentId}
+							bind:editingCommentText={commentActions.editingCommentText}
+							commentWorking={commentActions.commentWorking}
+							onStartEditComment={(c) => commentActions.startEditComment(c)}
+							onSaveEditComment={() => commentActions.saveEditComment()}
+							onCancelEditComment={() => commentActions.cancelEditComment()}
+							onDeleteComment={(id) => commentActions.requestDelete(id)}
 							onOpenRunModal={(run) => { modalRun = run; }}
 						/>
 
-						<DispatchInput posting={commentActions?.posting ?? false} onSubmit={(text) => commentActions?.postComment(text)} />
+						<DispatchInput posting={commentActions.posting} onSubmit={(text) => commentActions.postComment(text)} />
 					{/if}
 				</div>
 			</div>
@@ -272,12 +268,12 @@
 	</div>
 {/if}
 
-<Modal open={commentActions?.isDeleteModalOpen ?? false} onClose={() => commentActions?.cancelDelete()} label="Delete comment" maxWidth="max-w-sm">
+<Modal open={commentActions.isDeleteModalOpen} onClose={() => commentActions.cancelDelete()} label="Delete comment" maxWidth="max-w-sm">
 	<h2 class="text-lg font-semibold text-primary mb-2">Delete this comment?</h2>
 	<p class="text-sm text-secondary mb-6">This action cannot be undone.</p>
 	<div class="flex gap-3 justify-end">
-		<button onclick={() => commentActions?.cancelDelete()} class="px-4 py-2 text-sm border border-edge text-secondary rounded hover:text-primary transition-colors">Cancel</button>
-		<button onclick={() => commentActions?.confirmDeleteComment()} disabled={commentActions?.commentWorking} class="px-4 py-2 text-sm bg-red text-white rounded hover:bg-red/80 transition-colors disabled:opacity-50">Delete</button>
+		<button onclick={() => commentActions.cancelDelete()} class="px-4 py-2 text-sm border border-edge text-secondary rounded hover:text-primary transition-colors">Cancel</button>
+		<button onclick={() => commentActions.confirmDeleteComment()} disabled={commentActions.commentWorking} class="px-4 py-2 text-sm bg-red text-white rounded hover:bg-red/80 transition-colors disabled:opacity-50">Delete</button>
 	</div>
 </Modal>
 
