@@ -17,10 +17,13 @@ import { spawnClaudeStream } from "../process.js";
 import { resolveModel } from "../../db/repositories/agent-config.js";
 import { executePlan, formatResults } from "./plan-executor.js";
 import type { ActionPlan } from "./action-schema.js";
+import type { EventMap } from "../../events/types.js";
 
 import * as monitorRepo from "../../db/repositories/monitor-messages.js";
 import * as chatThreadRepo from "../../db/repositories/chat-threads.js";
 import * as chatMessageRepo from "../../db/repositories/chat-messages.js";
+import { getVCSAccount } from "../../db/repositories/vcs-accounts.js";
+import { createGitSshEnv, cleanupSshKey } from "../../utils/git-auth.js";
 import type { CaptainEvent } from "./queue.js";
 
 import { buildSystemPrompt } from "./prompt-builder.js";
@@ -34,27 +37,218 @@ import { PROCESS_GRACE_PERIOD_MS } from "../../config/orchestration.js";
 import * as globalEnvVarRepo from "../../db/repositories/global-environment-variables.js";
 import { getSystemApiKey } from "../../app.js";
 
+// --- Helpers ---
+
+type DualEventSuffix =
+  | "event_received"
+  | "thinking"
+  | "message"
+  | "tool_call"
+  | "tool_result"
+  | "complete";
+
+type MonitorKey<K extends DualEventSuffix> = `monitor.${K}`;
+type ChatKey<K extends DualEventSuffix> = `chat.${K}`;
+
 /**
- * Set up GitHub auth environment variables for Captain.
+ * Emit to both `monitor.{suffix}` and `chat.{suffix}` in one call.
+ * The chat payload is the monitor payload plus `thread_id`.
  */
-const setupGitHubAuth = async (
+function emitDual<K extends DualEventSuffix>(
+  suffix: K,
   projectId: string,
-  env: Record<string, string>,
-): Promise<string | undefined> => {
+  monitorPayload: Omit<EventMap[MonitorKey<K>], "project_id">,
+  threadId: string,
+) {
+  eventBus.emit(
+    `monitor.${suffix}` as MonitorKey<K>,
+    { project_id: projectId, ...monitorPayload } as EventMap[MonitorKey<K>],
+  );
+  eventBus.emit(
+    `chat.${suffix}` as ChatKey<K>,
+    {
+      project_id: projectId,
+      thread_id: threadId,
+      ...monitorPayload,
+    } as unknown as EventMap[ChatKey<K>],
+  );
+}
+
+/** Save events to DB and broadcast each one via event bus. */
+function persistAndBroadcastEvents(
+  projectId: string,
+  events: CaptainEvent[],
+  monitorThread: { id: string },
+  eventSection: string,
+) {
+  monitorRepo.create(projectId, "user", eventSection);
+  chatMessageRepo.createMessage(monitorThread.id, "event", eventSection);
+
+  for (const event of events) {
+    const description = formatEvents([event]).replace(
+      /^\[\d{2}:\d{2}:\d{2}\]\s*/,
+      "",
+    );
+    emitDual("event_received", projectId, { event_type: event.type, description }, monitorThread.id);
+  }
+}
+
+/** Build the full environment object for Captain's claude -p invocation. */
+async function buildAgentEnv(projectId: string): Promise<{ env: Record<string, string>; sshKeyPath: string | undefined }> {
+  const apiKey = getSystemApiKey();
+  const env: Record<string, string> = {
+    ...globalEnvVarRepo.getMap(),
+    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
+    CREWDECK_PROJECT_ID: projectId,
+    CREWDECK_AGENT_ID: "captain",
+    ...(apiKey ? { CREWDECK_API_KEY: apiKey } : {}),
+  };
+
   const project = getProject(projectId);
-  if (!project?.vcs_account_id) return undefined;
+  let sshKeyPath: string | undefined;
+  if (project?.vcs_account_id) {
+    const account = getVCSAccount(project.vcs_account_id);
+    if (account) {
+      env.GH_TOKEN = account.token;
+      const ssh = createGitSshEnv(account.ssh_private_key);
+      Object.assign(env, ssh.env);
+      sshKeyPath = ssh.keyPath;
+    }
+  }
 
-  const { getVCSAccount } =
-    await import("../../db/repositories/vcs-accounts.js");
-  const account = getVCSAccount(project.vcs_account_id);
-  if (!account) return undefined;
+  return { env, sshKeyPath };
+}
 
-  env.GH_TOKEN = account.token;
-  const { createGitSshEnv } = await import("../../utils/git-auth.js");
-  const ssh = createGitSshEnv(account.ssh_private_key);
-  Object.assign(env, ssh.env);
-  return ssh.keyPath;
-};
+/** Create the onEvent callback that relays stream events to the frontend. */
+function createStreamHandler(
+  projectId: string,
+  monitorThread: { id: string },
+): (event: { type: string; [key: string]: unknown }) => void {
+  return (event) => {
+    try {
+      if (event.type === "assistant") {
+        const content = event.message as
+          | { content?: Array<{ text?: string }> }
+          | undefined;
+        const text = content?.content?.[0]?.text;
+        if (text) {
+          emitDual("message", projectId, { content: text }, monitorThread.id);
+        }
+      } else if (event.type === "tool_use") {
+        emitDual("tool_call", projectId, {
+          tool_name: (event.name as string) ?? "unknown",
+          tool_input: event.input,
+        }, monitorThread.id);
+      } else if (event.type === "tool_result") {
+        emitDual("tool_result", projectId, {
+          tool_name: "bash",
+          result: event.content,
+        }, monitorThread.id);
+      }
+    } catch (eventErr) {
+      logger.warn(
+        { eventErr, eventType: event.type },
+        "Monitor: Failed to process stream event",
+      );
+    }
+  };
+}
+
+/** Retry action plan extraction with a minimal prompt. */
+async function retryActionExtraction(
+  resultText: string,
+  env: Record<string, string>,
+  model: string,
+  projectId: string,
+): Promise<{ actionPlan: ActionPlan | null; response: string }> {
+  try {
+    const { resultText: retryText } = await runClaudeWithTimeout({
+      prompt:
+        "Extract the actions from the following text and output them as JSON wrapped in <action> tags.\n\n" +
+        "Available action types: dispatch (issue_id, agent_id, instructions?), merge (issue_id), " +
+        "create-pr (issue_id), comment (issue_id, content), create-issue (title, description?), " +
+        "update-issue (issue_id, status?, title?), scan, skip (issue_id, reason).\n\n" +
+        'If no actions are described, output: <action>{"reasoning": "no actions", "actions": []}</action>\n\n' +
+        "Text to extract from:\n---\n" +
+        (resultText || "No response") +
+        "\n---",
+      systemPrompt:
+        "You extract structured actions from text. Output ONLY <action>{JSON}</action> tags. No other text.",
+      env,
+      model,
+      timeoutMs: 30 * 1000,
+      projectId,
+    });
+
+    if (retryText) {
+      const actionPlan = extractActionPlanFromText(retryText);
+      if (actionPlan) {
+        logger.info({ projectId, actionCount: actionPlan.actions.length }, "Monitor: Retry extraction succeeded");
+        return { actionPlan, response: await executeAndFormat(projectId, actionPlan) };
+      }
+    }
+
+    logger.warn({ projectId }, "Monitor: Retry extraction also failed");
+    return { actionPlan: null, response: resultText || "No action plan generated" };
+  } catch (retryErr) {
+    logger.error({ retryErr, projectId }, "Monitor: Retry extraction failed");
+    return { actionPlan: null, response: resultText || "No action plan generated" };
+  }
+}
+
+/** Persist final response and emit completion events. */
+function persistAndBroadcastResponse(
+  projectId: string,
+  monitorThread: { id: string },
+  finalResponse: string,
+) {
+  if (finalResponse) {
+    emitDual("message", projectId, { content: finalResponse }, monitorThread.id);
+    monitorRepo.create(projectId, "assistant", finalResponse);
+    chatMessageRepo.createMessage(monitorThread.id, "assistant", finalResponse);
+  }
+
+  emitDual("complete", projectId, { response: finalResponse }, monitorThread.id);
+}
+
+/** Build the user prompt from events and monitor history. */
+function buildUserPrompt(events: CaptainEvent[], projectId: string): string {
+  const eventText = formatEvents(events);
+  const eventSection = eventText
+    ? `## Events\n${eventText}\n\nProcess these events and output a JSON action plan.`
+    : "Check current project state and output a JSON action plan with any needed actions.";
+
+  const history = getMonitorHistory(projectId);
+  const sections: string[] = [];
+  if (history) sections.push(`## Recent Monitor History\n${history}`);
+  sections.push(eventSection);
+  return sections.join("\n\n");
+}
+
+/** Execute a valid action plan, updating captain status. */
+async function executeActionPlan(projectId: string, actionPlan: ActionPlan): Promise<string> {
+  logger.info({
+    projectId,
+    reasoning: actionPlan.reasoning,
+    actionCount: actionPlan.actions.length,
+  }, "Monitor: Executing action plan");
+
+  try {
+    updateCaptainStatus(
+      projectId,
+      "executing",
+      actionPlan.reasoning
+        ? actionPlan.reasoning.slice(0, 120)
+        : `Executing ${actionPlan.actions.length} action${actionPlan.actions.length !== 1 ? "s" : ""}`,
+    );
+  } catch (err) {
+    logger.warn({ err, projectId }, "Monitor: Failed to update captain status to executing");
+  }
+
+  return executeAndFormat(projectId, actionPlan);
+}
+
+// --- Core infrastructure ---
 
 /**
  * Spawn claude -p with a 2-minute timeout. Returns collected events and result text.
@@ -134,258 +328,55 @@ export const processWithLLM = async (
   const systemPrompt = buildSystemPrompt(projectId);
   if (!systemPrompt) return "Error: Project not found";
 
-  const eventText = formatEvents(events);
-  const eventSection = eventText
-    ? `## Events\n${eventText}\n\nProcess these events and output a JSON action plan.`
-    : "Check current project state and output a JSON action plan with any needed actions.";
-
-  const history = getMonitorHistory(projectId);
-  const sections = [];
-  if (history) sections.push(`## Recent Monitor History\n${history}`);
-  sections.push(eventSection);
-  const userPrompt = sections.join("\n\n");
-
-  // Save event message to DB (no session — monitor messages are sessionless)
-  monitorRepo.create(projectId, "user", eventSection);
-
-  // Also write to the project's monitor chat thread
+  const userPrompt = buildUserPrompt(events, projectId);
   const monitorThread = chatThreadRepo.getOrCreateMonitorThread(projectId);
-  chatMessageRepo.createMessage(monitorThread.id, "event", eventSection);
-
-  // Emit captain.event_received for each event so frontend can show them
-  for (const event of events) {
-    const description = formatEvents([event]).replace(
-      /^\[\d{2}:\d{2}:\d{2}\]\s*/,
-      "",
-    );
-    eventBus.emit("monitor.event_received", {
-      project_id: projectId,
-      event_type: event.type,
-      description,
-    });
-    eventBus.emit("chat.event_received", {
-      project_id: projectId,
-      thread_id: monitorThread.id,
-      event_type: event.type,
-      description,
-    });
-  }
-
-  eventBus.emit("monitor.thinking", { project_id: projectId });
-  eventBus.emit("chat.thinking", { project_id: projectId, thread_id: monitorThread.id });
+  persistAndBroadcastEvents(projectId, events, monitorThread, userPrompt);
+  emitDual("thinking", projectId, {}, monitorThread.id);
 
   try {
-    updateCaptainStatus(
-      projectId,
-      "thinking",
-      `Analyzing ${events.length} event${events.length !== 1 ? "s" : ""}`,
-    );
+    updateCaptainStatus(projectId, "thinking",
+      `Analyzing ${events.length} event${events.length !== 1 ? "s" : ""}`);
   } catch (err) {
-    logger.warn(
-      { err, projectId },
-      "Monitor: Failed to update captain status to thinking",
-    );
+    logger.warn({ err, projectId }, "Monitor: Failed to update captain status to thinking");
   }
 
-  const env: Record<string, string> = {
-    ...globalEnvVarRepo.getMap(),
-    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
-    CREWDECK_PROJECT_ID: projectId,
-    CREWDECK_AGENT_ID: "captain",
-    ...(getSystemApiKey() ? { CREWDECK_API_KEY: getSystemApiKey()! } : {}),
-  };
-
-  const sshKeyPath = await setupGitHubAuth(projectId, env);
+  const { env, sshKeyPath } = await buildAgentEnv(projectId);
   let finalResponse = "";
-  let actionPlan: ActionPlan | null = null;
 
   try {
     const model = resolveModel("captain");
-
-    // Emit streaming events for frontend visibility
-    const onEvent = (event: { type: string; [key: string]: unknown }) => {
-      try {
-        if (event.type === "assistant") {
-          const content = event.message as
-            | { content?: Array<{ text?: string }> }
-            | undefined;
-          const text = content?.content?.[0]?.text;
-          if (text) {
-            eventBus.emit("monitor.message", {
-              project_id: projectId,
-              content: text,
-            });
-            eventBus.emit("chat.message", {
-              project_id: projectId,
-              thread_id: monitorThread.id,
-              content: text,
-            });
-          }
-        } else if (event.type === "tool_use") {
-          eventBus.emit("monitor.tool_call", {
-            project_id: projectId,
-            tool_name: (event.name as string) ?? "unknown",
-            tool_input: event.input,
-          });
-          eventBus.emit("chat.tool_call", {
-            project_id: projectId,
-            thread_id: monitorThread.id,
-            tool_name: (event.name as string) ?? "unknown",
-            tool_input: event.input,
-          });
-        } else if (event.type === "tool_result") {
-          eventBus.emit("monitor.tool_result", {
-            project_id: projectId,
-            tool_name: "bash",
-            result: event.content,
-          });
-          eventBus.emit("chat.tool_result", {
-            project_id: projectId,
-            thread_id: monitorThread.id,
-            tool_name: "bash",
-            result: event.content,
-          });
-        }
-      } catch (eventErr) {
-        logger.warn(
-          { eventErr, eventType: event.type },
-          "Monitor: Failed to process stream event",
-        );
-      }
-    };
-
-    const {
-      events: collectedEvents,
-      resultText,
-      exitCode,
-    } = await runClaudeWithTimeout({
-      prompt: userPrompt,
-      systemPrompt,
-      env,
-      model,
-      timeoutMs: 2 * 60 * 1000,
-      projectId,
-      onEvent,
-    });
+    const { events: collectedEvents, resultText, exitCode } =
+      await runClaudeWithTimeout({
+        prompt: userPrompt, systemPrompt, env, model,
+        timeoutMs: 2 * 60 * 1000, projectId,
+        onEvent: createStreamHandler(projectId, monitorThread),
+      });
 
     if (exitCode !== 0) {
-      logger.warn(
-        { projectId, code: exitCode },
-        "Monitor claude -p exited non-zero",
-      );
+      logger.warn({ projectId, code: exitCode }, "Monitor claude -p exited non-zero");
     }
 
-    // Try to extract action plan from result text, then fall back to events
-    actionPlan =
+    const actionPlan =
       extractActionPlanFromText(resultText) ??
       extractActionPlanFromEvents(collectedEvents);
 
     if (actionPlan) {
-      logger.info(
-        {
-          projectId,
-          reasoning: actionPlan.reasoning,
-          actionCount: actionPlan.actions.length,
-        },
-        "Monitor: Executing action plan",
-      );
-
-      try {
-        updateCaptainStatus(
-          projectId,
-          "executing",
-          actionPlan.reasoning
-            ? actionPlan.reasoning.slice(0, 120)
-            : `Executing ${actionPlan.actions.length} action${actionPlan.actions.length !== 1 ? "s" : ""}`,
-        );
-      } catch (err) {
-        logger.warn(
-          { err, projectId },
-          "Monitor: Failed to update captain status to executing",
-        );
-      }
-
-      finalResponse = await executeAndFormat(projectId, actionPlan);
+      finalResponse = await executeActionPlan(projectId, actionPlan);
     } else {
-      // No valid action plan — retry with a minimal extraction prompt
       logger.warn(
         { projectId, responsePreview: (resultText || "").slice(0, 200) },
         "Monitor: Could not parse action plan, retrying extraction",
       );
-
-      try {
-        const { resultText: retryText } = await runClaudeWithTimeout({
-          prompt:
-            "Extract the actions from the following text and output them as JSON wrapped in <action> tags.\n\n" +
-            "Available action types: dispatch (issue_id, agent_id, instructions?), merge (issue_id), " +
-            "create-pr (issue_id), comment (issue_id, content), create-issue (title, description?), " +
-            "update-issue (issue_id, status?, title?), scan, skip (issue_id, reason).\n\n" +
-            'If no actions are described, output: <action>{"reasoning": "no actions", "actions": []}</action>\n\n' +
-            "Text to extract from:\n---\n" +
-            (resultText || "No response") +
-            "\n---",
-          systemPrompt:
-            "You extract structured actions from text. Output ONLY <action>{JSON}</action> tags. No other text.",
-          env,
-          model,
-          timeoutMs: 30 * 1000,
-          projectId,
-        });
-
-        if (retryText) {
-          actionPlan = extractActionPlanFromText(retryText);
-        }
-
-        if (actionPlan) {
-          logger.info(
-            { projectId, actionCount: actionPlan.actions.length },
-            "Monitor: Retry extraction succeeded",
-          );
-          finalResponse = await executeAndFormat(projectId, actionPlan);
-        } else {
-          finalResponse = resultText || "No action plan generated";
-          logger.warn({ projectId }, "Monitor: Retry extraction also failed");
-        }
-      } catch (retryErr) {
-        logger.error(
-          { retryErr, projectId },
-          "Monitor: Retry extraction failed",
-        );
-        finalResponse = resultText || "No action plan generated";
-      }
+      const retry = await retryActionExtraction(resultText, env, model, projectId);
+      finalResponse = retry.response;
     }
   } catch (err) {
     logger.error({ err }, "Monitor claude -p call failed");
     finalResponse = "Error: Failed to process events";
   } finally {
-    if (sshKeyPath) {
-      const { cleanupSshKey } = await import("../../utils/git-auth.js");
-      cleanupSshKey(sshKeyPath);
-    }
+    if (sshKeyPath) cleanupSshKey(sshKeyPath);
   }
 
-  if (finalResponse) {
-    eventBus.emit("monitor.message", {
-      project_id: projectId,
-      content: finalResponse,
-    });
-    eventBus.emit("chat.message", {
-      project_id: projectId,
-      thread_id: monitorThread.id,
-      content: finalResponse,
-    });
-    monitorRepo.create(projectId, "assistant", finalResponse);
-    chatMessageRepo.createMessage(monitorThread.id, "assistant", finalResponse);
-  }
-
-  eventBus.emit("monitor.complete", {
-    project_id: projectId,
-    response: finalResponse,
-  });
-  eventBus.emit("chat.complete", {
-    project_id: projectId,
-    thread_id: monitorThread.id,
-  });
-
+  persistAndBroadcastResponse(projectId, monitorThread, finalResponse);
   return finalResponse;
 };
