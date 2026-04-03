@@ -168,14 +168,12 @@
           >
             Rename
           </button>
-          {#if thread?.type !== 'monitor'}
-            <button
-              onclick={startDelete}
-              class="w-full text-left px-3 py-1.5 text-xs text-red hover:bg-surface-hi transition-colors"
-            >
-              Delete
-            </button>
-          {/if}
+          <button
+            onclick={startDelete}
+            class="w-full text-left px-3 py-1.5 text-xs text-red hover:bg-surface-hi transition-colors"
+          >
+            Delete
+          </button>
           <button
             onclick={startNewSession}
             class="w-full text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-surface-hi transition-colors"

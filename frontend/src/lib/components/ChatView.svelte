@@ -165,7 +165,7 @@
   </div>
 
   <!-- Input bar -->
-  <ChatInput disabled={isStreaming || thread.type === 'monitor'} onSend={handleSend} />
+  <ChatInput disabled={isStreaming} onSend={handleSend} />
 </div>
 
 {#snippet messageBubble(message: ChatMessage)}
