@@ -53,6 +53,7 @@ export const CreateIssueSchema = z.object({
 export const UpdateIssueSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
+  summary: z.string().optional(),
   status: z.enum(ISSUE_STATUSES as [string, ...string[]]).optional(),
   chain_depth: z.number().int().nonnegative().optional(),
   branch_name: z.string().nullable().optional(),

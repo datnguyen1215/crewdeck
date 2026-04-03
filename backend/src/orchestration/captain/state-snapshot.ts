@@ -76,7 +76,11 @@ export function buildStateSnapshot(projectId: string): string {
       const approvedMerge = isApprovedToMerge(i.id)
         ? " (approved-to-merge)"
         : "";
-      return `- ${i.id} | ${i.status}${paused}${approvedStart}${approvedMerge}${agent}${depsInfo}${prInfo} | ${i.title}`;
+      const summary =
+        i.summary && i.summary !== "Summarizing..."
+          ? ` | "${i.summary}"`
+          : "";
+      return `- ${i.id} | ${i.status}${paused}${approvedStart}${approvedMerge}${agent}${depsInfo}${prInfo} | ${i.title}${summary}`;
     });
     parts.push(`### Issues (non-closed)\n${rows.join("\n")}`);
   } else {

@@ -175,13 +175,14 @@ export function getIssueWithDetails(id: string): IssueWithDetails | null {
 export function createIssue(projectId: string, input: CreateIssueInput): Issue {
   const id = crypto.randomUUID();
   db.prepare(
-    `INSERT INTO Issue (id, project_id, title, description, created_by, status, agent_id, base_branch)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO Issue (id, project_id, title, description, summary, created_by, status, agent_id, base_branch)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     projectId,
     input.title,
     input.description,
+    "Summarizing...",
     input.created_by ?? "user",
     input.status ?? IssueStatus.OPEN,
     input.agent_id ?? null,
