@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getContext, onMount } from 'svelte';
+	import { getContext } from 'svelte';
 	import { listActiveRuns, getProject, type ActiveRun, type Project } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 	import type { WsEventMap } from '$lib/api/types.js';

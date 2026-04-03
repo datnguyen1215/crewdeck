@@ -385,7 +385,6 @@ export const processWithLLM = async (
   eventBus.emit("chat.complete", {
     project_id: projectId,
     thread_id: monitorThread.id,
-    message_id: "",
   });
 
   return finalResponse;

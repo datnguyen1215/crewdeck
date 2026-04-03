@@ -182,7 +182,7 @@ export interface EventMap {
   "chat.complete": {
     project_id: string;
     thread_id: string;
-    message_id: string;
+    message_id?: string;
   };
   "chat.session_expired": {
     project_id: string;
