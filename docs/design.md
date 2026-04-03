@@ -117,7 +117,7 @@ Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_
 | **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate                                                                                                                                       |
 | **CSS**                | Tailwind CSS                    | Utility-first, dark theme; shared UI primitives (`Button`, `TextInput`, `Select`) in `frontend/src/lib/components/ui/` enforce consistency without a third-party component library |
 | **Configuration**      | Environment variables (`.env`)  | Simple, standard approach                                                                                                                                                          |
-| **Agent spawning**     | `claude -p` (print mode)        | One-shot process per mention; no persistent sessions to manage                                                                                                                     |
+| **Agent spawning**     | `claude -p` (print mode)        | One-shot process per mention; no persistent sessions to manage. Chat threads use `--resume` for persistent Claude sessions.                                                      |
 
 ## Project Structure
 
@@ -380,11 +380,22 @@ Environment injection: project-defined env vars (from project settings), `CREWDE
 - Resize handling: JSON messages with `{ type: "resize", cols, rows }` → `pty.resize()`.
 - Connection cleanup: kills PTY attach process on disconnect (does not kill the tmux session itself).
 
+**Chat Service** (`backend/src/orchestration/chat-service.ts`)
+
+Handles Claude session lifecycle for the web-based chat interface. Each chat thread spawns `claude -p` with `--resume {sessionId}` for persistent multi-turn conversations.
+
+- **Session management**: Captures Claude CLI session IDs from `system` stream events and stores them on the `ChatThread` record. Subsequent messages reuse the session via `--resume`.
+- **Session expiry recovery**: If `--resume` fails (expired/invalid session), the service emits `chat.session_expired`, clears the stored session ID, and starts a fresh session transparently.
+- **Concurrency control**: An in-memory lock (Map<threadId, boolean>) ensures only one `claude -p` process runs per thread at a time. Concurrent sends return `409 CONFLICT`.
+- **Event streaming**: Emits `chat.message`, `chat.tool_call`, `chat.tool_result`, `chat.complete`, and `chat.session_expired` events on the event bus with `project_id` and `thread_id` for frontend filtering.
+- **System prompts**: Uses the captain prompt builder (`captain-prompt.ts`) for monitor threads; a simpler prompt with project context (knowledge, repo info) for user threads.
+- **Environment**: Same pattern as monitor agent — sets `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, GitHub auth, provider API keys, etc.
+
 **Event Bus**
 
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than calling each other directly.
-- Producers: REST API handlers, MentionHandler, PR Detector, PR Poller, VCS Provider clients.
+- Producers: REST API handlers, MentionHandler, Chat Service, PR Detector, PR Poller, VCS Provider clients.
 - Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger, Event Commenter, Worktree Cleanup.
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
@@ -415,8 +426,8 @@ The backend uses an in-process typed EventEmitter as the central communication b
 │  ├── REST API handlers    ──→  WebSocket broadcaster     │
 │  ├── Agent Runtime        ──→  Global WS broadcaster     │
 │  ├── MentionHandler       ──→  MentionHandler            │
-│  ├── PR Detector/Poller   ──→  Activity Logger           │
-│  │                        ──→  PR Detector               │
+│  ├── Chat Service         ──→  Activity Logger           │
+│  ├── PR Detector/Poller   ──→  PR Detector               │
 │  │                        ──→  Event Commenter            │
 │  └── Worktree Cleanup     ──→  Worktree Cleanup           │
 │                                                          │
@@ -463,6 +474,7 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
 - **PR events** — PR created, status updated.
+- **Chat events** — assistant message chunks, tool calls, tool results, completion, session expiry. Emitted by the Chat Service during `claude -p` sessions for chat threads.
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
 

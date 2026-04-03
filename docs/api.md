@@ -1718,6 +1718,143 @@ Terminates the tmux session and cleans up temporary files (system prompt, SSH ke
 
 ---
 
+### Chat Threads
+
+REST endpoints for chat thread CRUD and message sending. Threads belong to projects and can be either `user` type (created manually) or `monitor` type (auto-created, one per project).
+
+#### Create Thread
+
+```
+POST /projects/:projectId/chat/threads
+```
+
+Creates a new chat thread for a project.
+
+**Request body:**
+
+| Field | Type   | Required | Description                                         |
+| ----- | ------ | -------- | --------------------------------------------------- |
+| title | string | No       | Thread title. NULL until renamed by user.           |
+| type  | string | No       | Thread type. One of: `user` (default), `monitor`.  |
+
+**Response:** `201 Created` — The created `ChatThread` object.
+
+**Errors:**
+
+- `400 VALIDATION_ERROR` — Invalid `type` value.
+
+#### List Threads
+
+```
+GET /projects/:projectId/chat/threads
+```
+
+Lists all chat threads for a project, enriched with message metadata.
+
+**Response:** `200 OK` — Array of thread objects, each including:
+
+| Extra field     | Type                    | Description                                       |
+| --------------- | ----------------------- | ------------------------------------------------- |
+| `last_message`  | `ChatMessage \| null`   | Most recent message in the thread (or null).      |
+| `message_count` | number                  | Total number of messages in the thread.           |
+
+#### Get Thread
+
+```
+GET /projects/:projectId/chat/threads/:threadId
+```
+
+Returns a single thread with its messages (paginated).
+
+**Query Parameters:**
+
+| Parameter | Type   | Default | Constraints    | Description                   |
+| --------- | ------ | ------- | -------------- | ----------------------------- |
+| limit     | number | 50      | Min 1, max 200 | Number of messages to return. |
+| offset    | number | 0       | Min 0          | Number of messages to skip.   |
+
+**Response:** `200 OK` — Thread object with a `messages` array.
+
+**Error:** `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
+
+#### Update Thread
+
+```
+PATCH /projects/:projectId/chat/threads/:threadId
+```
+
+Updates a thread. Only the `title` field is user-editable.
+
+**Request body:**
+
+| Field | Type   | Required | Description    |
+| ----- | ------ | -------- | -------------- |
+| title | string | Yes      | New thread title. |
+
+**Response:** `200 OK` — Updated thread object.
+
+**Errors:**
+
+- `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
+- `400 VALIDATION_ERROR` — No fields provided to update.
+
+#### Delete Thread
+
+```
+DELETE /projects/:projectId/chat/threads/:threadId
+```
+
+Deletes a thread and all its messages. Monitor-type threads cannot be deleted.
+
+**Response:** `200 OK`
+
+```json
+{ "deleted": true }
+```
+
+**Errors:**
+
+- `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
+- `400 VALIDATION_ERROR` — Cannot delete monitor threads.
+
+#### Send Message
+
+```
+POST /projects/:projectId/chat/threads/:threadId/messages
+```
+
+Sends a user message and triggers a Claude response. The response is streamed in real-time via WebSocket events (see [Chat Events](#chat-events)). Only one message can be processed per thread at a time — concurrent sends return `409 CONFLICT`.
+
+**Request body:**
+
+| Field   | Type   | Required | Description                          |
+| ------- | ------ | -------- | ------------------------------------ |
+| content | string | Yes      | The user's message content.          |
+
+**Response:** `200 OK`
+
+```json
+{ "message_id": "uuid", "session_id": "uuid-or-null" }
+```
+
+The response is returned only after the Claude response is fully complete. Use WebSocket events for real-time streaming.
+
+**Errors:**
+
+- `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
+- `400 VALIDATION_ERROR` — Missing or invalid `content`.
+- `409 CONFLICT` — A message is already being processed for this thread.
+
+**Side effects:**
+
+- Saves user message to `ChatMessage` table before spawning Claude.
+- Saves assistant response to `ChatMessage` table on completion.
+- Updates thread's `updated_at` and `session_id` (captured from Claude CLI stream).
+- Emits `chat.message`, `chat.tool_call`, `chat.tool_result`, and `chat.complete` events on the event bus.
+- If `--resume` fails (session expired), emits `chat.session_expired`, resets `session_id` to null, and starts a fresh session transparently.
+
+---
+
 ### Internal API
 
 These endpoints are used by agent processes (`claude -p` subprocesses) spawned by the MentionHandler. They are not intended for frontend or external use. See [Agent Orchestration](agent-cli.md) for details on how agents are spawned and use these endpoints.
@@ -2097,6 +2234,16 @@ All events below (except `run.event` and monitor events) are broadcast to both p
 | ------------------- | ----------------------- | --------------------------------- |
 | `pr.created`        | PR recorded on an issue | `{ issue_pr, project_id }`        |
 | `pr.status_changed` | PR status updated       | `{ pr_id, project_id, from, to }` |
+
+#### Chat Events
+
+| Event                  | Description                                 | Data                                                                  |
+| ---------------------- | ------------------------------------------- | --------------------------------------------------------------------- |
+| `chat.message`         | Assistant text chunk streamed               | `{ project_id, thread_id, content }`                                 |
+| `chat.tool_call`       | Tool usage by Claude during chat            | `{ project_id, thread_id, tool_name, tool_input }`                   |
+| `chat.tool_result`     | Tool result received during chat            | `{ project_id, thread_id, tool_name, result }`                       |
+| `chat.complete`        | Chat response finished                      | `{ project_id, thread_id, message_id }`                              |
+| `chat.session_expired` | Claude session expired, new one started     | `{ project_id, thread_id }`                                          |
 
 #### Project Events
 
