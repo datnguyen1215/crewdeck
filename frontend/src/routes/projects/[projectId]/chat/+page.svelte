@@ -1,6 +1,5 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { onMount } from 'svelte';
   import { getProject, type Project } from '$lib/api/http.js';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import ChatThreadList from '$lib/components/ChatThreadList.svelte';
@@ -14,10 +13,6 @@
     let cancelled = false;
     getProject(projectId).then((p) => { if (!cancelled) project = p; }).catch(() => {});
     return () => { cancelled = true; };
-  });
-
-  onMount(() => {
-    // Preselect nothing — user must click a thread
   });
 </script>
 

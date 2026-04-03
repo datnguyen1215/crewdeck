@@ -21,16 +21,6 @@
   let monitorThreads = $derived(threads.filter((t) => t.type === 'monitor'));
   let userThreads = $derived(threads.filter((t) => t.type === 'user'));
 
-  async function fetchThreads(pid: string) {
-    try {
-      threads = await listChatThreads(pid);
-    } catch {
-      // silent — will retry on next interaction
-    } finally {
-      loading = false;
-    }
-  }
-
   async function handleNewThread() {
     if (creating) return;
     creating = true;
@@ -71,9 +61,15 @@
     return str.length > max ? str.slice(0, max) + '...' : str;
   }
 
-  // Load threads on mount
   $effect(() => {
-    fetchThreads(projectId);
+    const pid = projectId;
+    let cancelled = false;
+    loading = true;
+    listChatThreads(pid)
+      .then((t) => { if (!cancelled) threads = t; })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) loading = false; });
+    return () => { cancelled = true; };
   });
 </script>
 
