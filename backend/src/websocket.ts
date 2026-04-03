@@ -266,6 +266,9 @@ function subscribeEvents(bus: EventBus): void {
   bus.on("chat.tool_result", (data) => {
     broadcast(data.project_id, "chat.tool_result", data);
   });
+  bus.on("chat.error", (data) => {
+    broadcast(data.project_id, "chat.error", data);
+  });
   bus.on("chat.complete", (data) => {
     broadcast(data.project_id, "chat.complete", data);
   });

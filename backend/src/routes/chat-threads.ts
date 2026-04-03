@@ -126,14 +126,21 @@ router.post(
       // Save the user message immediately, then let Claude run in the background
       const userMsg = messageRepo.createMessage(thread.id, "user", content);
 
-      sendMessage(thread.id, content).catch((err) => {
-        logger.error({ err, threadId: thread.id }, "Chat message processing failed");
-        eventBus.emit("chat.error", {
-          project_id: thread.project_id,
-          thread_id: thread.id,
-          error: err instanceof Error ? err.message : String(err),
+      sendMessage(thread.id, content)
+        .catch((err) => {
+          logger.error({ err, threadId: thread.id }, "Chat message processing failed");
+          eventBus.emit("chat.error", {
+            project_id: thread.project_id,
+            thread_id: thread.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        })
+        .finally(() => {
+          eventBus.emit("chat.complete", {
+            project_id: thread.project_id,
+            thread_id: thread.id,
+          });
         });
-      });
 
       res.status(202).json({ message_id: userMsg.id });
     } catch (err) {
