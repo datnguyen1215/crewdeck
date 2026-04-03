@@ -51,7 +51,9 @@ export function updateThread(
     ).run(...values);
   }
 
-  return getThread(id)!;
+  const thread = getThread(id);
+  if (!thread) throw new Error(`ChatThread ${id} not found`);
+  return thread;
 }
 
 export function deleteThread(id: string): void {
@@ -59,10 +61,15 @@ export function deleteThread(id: string): void {
 }
 
 export function getOrCreateMonitorThread(projectId: string): ChatThread {
+  const id = crypto.randomUUID();
+  db.prepare(
+    `INSERT INTO ChatThread (id, project_id, title, type)
+     VALUES (?, ?, NULL, 'monitor')
+     ON CONFLICT(project_id) WHERE type = 'monitor' DO NOTHING`
+  ).run(id, projectId);
+
   const existing = db
     .prepare("SELECT * FROM ChatThread WHERE project_id = ? AND type = 'monitor'")
-    .get(projectId) as ChatThread | undefined;
-
-  if (existing) return existing;
-  return createThread(projectId, "monitor");
+    .get(projectId) as ChatThread;
+  return existing;
 }

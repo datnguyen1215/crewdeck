@@ -24,6 +24,7 @@ export function run(db: Database.Database): void {
 
       CREATE INDEX idx_chat_thread_project ON ChatThread(project_id);
       CREATE INDEX idx_chat_thread_project_updated ON ChatThread(project_id, updated_at DESC);
+      CREATE UNIQUE INDEX idx_chat_thread_one_monitor ON ChatThread(project_id) WHERE type = 'monitor';
       CREATE INDEX idx_chat_message_thread ON ChatMessage(thread_id);
       CREATE INDEX idx_chat_message_thread_created ON ChatMessage(thread_id, created_at ASC);
     `);
