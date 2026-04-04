@@ -2,12 +2,14 @@
 import { Router } from "express";
 import * as vcsAccounts from "../db/repositories/vcs-accounts.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import {
   CreateVCSAccountSchema,
   UpdateVCSAccountSchema,
 } from "../schemas/validation.js";
 import { NotFoundError } from "../middleware/errors.js";
 import type { VCSAccount } from "../types/entities.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router();
 
@@ -21,17 +23,17 @@ const stripSecrets = ({
   ssh_configured: !!ssh_private_key,
 });
 
-router.post("/", validate(CreateVCSAccountSchema), (req, res) => {
+router.post("/", requireScope(Scope.VCS_ACCOUNTS_WRITE), validate(CreateVCSAccountSchema), (req, res) => {
   const account = vcsAccounts.createVCSAccount(req.body);
   res.status(201).json(stripSecrets(account));
 });
 
-router.get("/", (_req, res) => {
+router.get("/", requireScope(Scope.VCS_ACCOUNTS_READ), (_req, res) => {
   const accounts = vcsAccounts.listVCSAccounts();
   res.json(accounts.map((a) => stripSecrets(a)));
 });
 
-router.patch("/:id", validate(UpdateVCSAccountSchema), (req, res) => {
+router.patch("/:id", requireScope(Scope.VCS_ACCOUNTS_WRITE), validate(UpdateVCSAccountSchema), (req, res) => {
   const existing = vcsAccounts.getVCSAccount(req.params.id);
   if (!existing) throw new NotFoundError("VCS account not found");
   const updated = vcsAccounts.updateVCSAccount(req.params.id, req.body);
@@ -39,7 +41,7 @@ router.patch("/:id", validate(UpdateVCSAccountSchema), (req, res) => {
   res.json(stripSecrets(updated));
 });
 
-router.delete("/:id", (req, res) => {
+router.delete("/:id", requireScope(Scope.VCS_ACCOUNTS_DELETE), (req, res) => {
   const account = vcsAccounts.getVCSAccount(req.params.id);
   if (!account) throw new NotFoundError("VCS account not found");
   vcsAccounts.deleteVCSAccount(req.params.id);

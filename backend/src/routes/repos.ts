@@ -2,17 +2,20 @@ import { Router, type Request } from "express";
 import { listRepos, createRepo, deleteRepo } from "../db/repositories/repos.js";
 import { getVCSAccount } from "../db/repositories/vcs-accounts.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import { verifyProject, verifyRepoOwnership } from "../middleware/ownership.js";
 import { CreateRepoSchema } from "../schemas/validation.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
+router.get("/", requireScope(Scope.REPOS_READ), verifyProject, (req: Request<{ projectId: string }>, res) => {
   res.json(listRepos(req.params.projectId));
 });
 
 router.post(
   "/",
+  requireScope(Scope.REPOS_WRITE),
   verifyProject,
   validate(CreateRepoSchema),
   (req: Request<{ projectId: string }>, res) => {
@@ -29,7 +32,7 @@ router.post(
   },
 );
 
-router.delete("/:repoId", verifyRepoOwnership, (req, res) => {
+router.delete("/:repoId", requireScope(Scope.REPOS_DELETE), verifyRepoOwnership, (req, res) => {
   deleteRepo(req.repo!.id);
   res.status(204).send();
 });

@@ -10,7 +10,9 @@ import {
   destroyTerminalSession,
 } from "../orchestration/pty-service.js";
 import { getProject } from "../db/repositories/projects.js";
+import { requireScope } from "../middleware/scope.js";
 import { NotFoundError } from "../middleware/errors.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router({ mergeParams: true });
 
@@ -18,7 +20,7 @@ const router = Router({ mergeParams: true });
  * POST /terminal
  * Create a terminal session for the project
  */
-router.post("/terminal", async (req, res, next) => {
+router.post("/terminal", requireScope(Scope.TERMINAL_WRITE), async (req, res, next) => {
   try {
     const { projectId } = req.params as { projectId: string };
 
@@ -46,7 +48,7 @@ router.post("/terminal", async (req, res, next) => {
  * GET /terminal
  * Get terminal session status
  */
-router.get("/terminal", (req, res, next) => {
+router.get("/terminal", requireScope(Scope.TERMINAL_READ), (req, res, next) => {
   try {
     const { projectId } = req.params as { projectId: string };
 
@@ -72,7 +74,7 @@ router.get("/terminal", (req, res, next) => {
  * DELETE /terminal
  * Destroy a terminal session
  */
-router.delete("/terminal", async (req, res, next) => {
+router.delete("/terminal", requireScope(Scope.TERMINAL_DELETE), async (req, res, next) => {
   try {
     const { projectId } = req.params as { projectId: string };
 

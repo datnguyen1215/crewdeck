@@ -3,12 +3,14 @@ import {
   listGlobalActivity,
   enrichActivityEntries,
 } from "../db/repositories/activity-log.js";
+import { requireScope } from "../middleware/scope.js";
 import { ValidationError } from "../middleware/errors.js";
 import type { ActivityFilters } from "../types/entities.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router();
 
-router.get("/", (req: Request, res) => {
+router.get("/", requireScope(Scope.ACTIVITY_READ), (req: Request, res) => {
   const { since, limit, offset } = req.query as Record<string, string>;
   const filters: ActivityFilters = {};
   if (since) {

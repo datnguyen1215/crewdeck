@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import { createOwnershipVerifier } from "../middleware/ownership.js";
 import { createComment } from "../db/repositories/comments.js";
 import { createIssue, getIssue } from "../db/repositories/issues.js";
+import { Scope } from "../constants/scopes.js";
 import {
   createIssuePR,
   getIssuePRByRepoAndNumber,
@@ -33,7 +35,6 @@ import {
   handleScanCodebase,
 } from "../orchestration/command-handlers.js";
 
-// Routes are intentionally unauthenticated — server is localhost-only. Add auth if deployment model changes.
 const router = Router();
 
 const verifyIssueOwner = createOwnershipVerifier(
@@ -63,7 +64,7 @@ const InternalCommentSchema = CreateCommentSchema.pick({
 });
 
 // POST /comment — agent posts a comment on an issue
-router.post("/comment", validate(InternalCommentSchema), (req, res) => {
+router.post("/comment", requireScope(Scope.INTERNAL_COMMENT), validate(InternalCommentSchema), (req, res) => {
   const { issue_id, project_id, agent_id, content } = req.body;
 
   verifyIssueOwner(issue_id, project_id);
@@ -89,6 +90,7 @@ const InternalCreateIssueSchema = BaseCreateIssueSchema.omit({
 
 router.post(
   "/issues/create",
+  requireScope(Scope.INTERNAL_CREATE_ISSUE),
   validate(InternalCreateIssueSchema),
   (req, res) => {
     const { project_id, title, description, base_branch } = req.body;
@@ -114,7 +116,7 @@ const CreatePRSchema = z.object({
   pr_url: z.string().min(1),
 });
 
-router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
+router.post("/create-pr", requireScope(Scope.INTERNAL_CREATE_PR), validate(CreatePRSchema), (req, res) => {
   const { project_id, issue_id, pr_url } = req.body;
 
   verifyIssueOwner(issue_id, project_id);
@@ -158,7 +160,7 @@ router.post("/create-pr", validate(CreatePRSchema), (req, res) => {
 });
 
 // Captain orchestration endpoints
-router.post("/captain/merge-pr", async (req, res, next) => {
+router.post("/captain/merge-pr", requireScope(Scope.INTERNAL_MERGE), async (req, res, next) => {
   try {
     const { project_id, issue_id } = req.body;
     if (!project_id || !issue_id) {
@@ -174,7 +176,7 @@ router.post("/captain/merge-pr", async (req, res, next) => {
   }
 });
 
-router.post("/captain/dispatch-agent", async (req, res, next) => {
+router.post("/captain/dispatch-agent", requireScope(Scope.INTERNAL_DISPATCH), async (req, res, next) => {
   try {
     const { project_id, issue_id, agent_id, instructions } = req.body;
     if (!project_id || !issue_id || !agent_id) {
@@ -194,7 +196,7 @@ router.post("/captain/dispatch-agent", async (req, res, next) => {
   }
 });
 
-router.post("/captain/scan-codebase", async (req, res, next) => {
+router.post("/captain/scan-codebase", requireScope(Scope.INTERNAL_SCAN), async (req, res, next) => {
   try {
     const { project_id } = req.body;
     if (!project_id) {
@@ -217,6 +219,7 @@ const InternalKnowledgeListSchema = z.object({
 
 router.get(
   "/knowledge/list",
+  requireScope(Scope.INTERNAL_KNOWLEDGE_READ),
   validate(InternalKnowledgeListSchema, "query"),
   (req, res) => {
     const { project_id } = req.query as { project_id: string };
@@ -235,6 +238,7 @@ const InternalKnowledgeCreateSchema = CreateKnowledgeSchema.omit({
 
 router.post(
   "/knowledge/create",
+  requireScope(Scope.INTERNAL_KNOWLEDGE_WRITE),
   validate(InternalKnowledgeCreateSchema),
   (req, res) => {
     const { project_id, ...input } = req.body;
@@ -257,6 +261,7 @@ const InternalKnowledgeUpdateSchema = UpdateKnowledgeSchema.omit({
 
 router.post(
   "/knowledge/update",
+  requireScope(Scope.INTERNAL_KNOWLEDGE_WRITE),
   validate(InternalKnowledgeUpdateSchema),
   (req, res) => {
     const { project_id, knowledge_id, ...updates } = req.body;
@@ -275,6 +280,7 @@ const InternalKnowledgeDeleteSchema = z.object({
 
 router.post(
   "/knowledge/delete",
+  requireScope(Scope.INTERNAL_KNOWLEDGE_WRITE),
   validate(InternalKnowledgeDeleteSchema),
   (req, res) => {
     const { project_id, knowledge_id } = req.body;
@@ -292,6 +298,7 @@ const InternalKnowledgeTitlesSchema = z.object({
 
 router.get(
   "/knowledge/titles",
+  requireScope(Scope.INTERNAL_KNOWLEDGE_READ),
   validate(InternalKnowledgeTitlesSchema, "query"),
   (req, res) => {
     const { project_id } = req.query as { project_id: string };
@@ -314,6 +321,7 @@ const InternalKnowledgeGetSchema = z.object({
 
 router.get(
   "/knowledge/get",
+  requireScope(Scope.INTERNAL_KNOWLEDGE_READ),
   validate(InternalKnowledgeGetSchema, "query"),
   (req, res) => {
     const { project_id, knowledge_id } = req.query as {

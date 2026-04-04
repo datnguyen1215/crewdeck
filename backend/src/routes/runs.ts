@@ -12,7 +12,9 @@ import {
   verifyProject,
   verifyIssueOwnership,
 } from "../middleware/ownership.js";
+import { requireScope } from "../middleware/scope.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router({ mergeParams: true });
 
@@ -22,6 +24,7 @@ const router = Router({ mergeParams: true });
  */
 router.get(
   "/issues/:issueId/runs",
+  requireScope(Scope.RUNS_READ),
   verifyIssueOwnership,
   (req: Request<{ projectId: string; issueId: string }>, res) => {
     const runs = listAgentRunsForIssue(req.params.issueId);
@@ -37,6 +40,7 @@ router.get(
  */
 router.get(
   "/active-runs",
+  requireScope(Scope.RUNS_READ),
   verifyProject,
   (req: Request<{ projectId: string }>, res) => {
     const includeEvents = req.query.include_events === "true";
@@ -73,6 +77,7 @@ router.get(
  */
 router.get(
   "/runs/:runId",
+  requireScope(Scope.RUNS_READ),
   verifyProject,
   (req: Request<{ projectId: string; runId: string }>, res) => {
     const eventsLimitParam = req.query.events_limit as string | undefined;
@@ -103,6 +108,7 @@ router.get(
  */
 router.get(
   "/runs",
+  requireScope(Scope.RUNS_READ),
   verifyProject,
   (req: Request<{ projectId: string }>, res) => {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);

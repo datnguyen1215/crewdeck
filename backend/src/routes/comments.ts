@@ -1,18 +1,20 @@
 import { Router, type Request } from "express";
 import { listComments, createComment, updateComment, deleteComment } from "../db/repositories/comments.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import { NotFoundError, ForbiddenError, ValidationError } from "../middleware/errors.js";
 import { verifyIssueOwnership, verifyCommentOwnership } from "../middleware/ownership.js";
 import { CreateCommentSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", verifyIssueOwnership, (req: Request<{ projectId: string; issueId: string }>, res) => {
+router.get("/", requireScope(Scope.COMMENTS_READ), verifyIssueOwnership, (req: Request<{ projectId: string; issueId: string }>, res) => {
   res.json(listComments(req.params.issueId, Infinity));
 });
 
-router.post("/", verifyIssueOwnership, validate(CreateCommentSchema), (req: Request<{ projectId: string; issueId: string }>, res) => {
+router.post("/", requireScope(Scope.COMMENTS_CREATE), verifyIssueOwnership, validate(CreateCommentSchema), (req: Request<{ projectId: string; issueId: string }>, res) => {
   const issue = req.issue!;
   // Force author_type = "user" for user-facing comment endpoint
   const comment = createComment(req.params.issueId, { ...req.body, author_type: "user" });
@@ -23,7 +25,7 @@ router.post("/", verifyIssueOwnership, validate(CreateCommentSchema), (req: Requ
 // Decision: no per-user ownership check on edit/delete — the app has no auth system yet,
 // so there is no "current user" to verify against. All user-facing endpoints share this
 // limitation. Add ownership checks here once authentication is implemented.
-router.patch("/:commentId", verifyIssueOwnership, verifyCommentOwnership, (req: Request<{ projectId: string; issueId: string; commentId: string }>, res) => {
+router.patch("/:commentId", requireScope(Scope.COMMENTS_EDIT), verifyIssueOwnership, verifyCommentOwnership, (req: Request<{ projectId: string; issueId: string; commentId: string }>, res) => {
   const issue = req.issue!;
   const existing = req.comment!;
   if (existing.author_type !== "user") {
@@ -41,7 +43,7 @@ router.patch("/:commentId", verifyIssueOwnership, verifyCommentOwnership, (req: 
   res.json(updated);
 });
 
-router.delete("/:commentId", verifyIssueOwnership, verifyCommentOwnership, (req: Request<{ projectId: string; issueId: string; commentId: string }>, res) => {
+router.delete("/:commentId", requireScope(Scope.COMMENTS_DELETE), verifyIssueOwnership, verifyCommentOwnership, (req: Request<{ projectId: string; issueId: string; commentId: string }>, res) => {
   const issue = req.issue!;
   const existing = req.comment!;
   if (existing.author_type !== "user") {

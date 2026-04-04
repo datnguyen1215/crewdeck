@@ -2,7 +2,9 @@ import { Router, type Request } from "express";
 import { listIssues, createIssue, listIssuesPaginated } from "../db/repositories/issues.js";
 import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import { ValidationError } from "../middleware/errors.js";
+import { Scope } from "../constants/scopes.js";
 import {
   verifyProject,
   verifyIssueOwnership,
@@ -27,7 +29,7 @@ import { summarizeIssueAsync } from "../orchestration/summarizer.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
+router.get("/", requireScope(Scope.ISSUES_READ), verifyProject, (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   const { status, created_by, sort, order, compact, limit, offset } = req.query as Record<
     string,
@@ -95,12 +97,13 @@ router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
   }
 });
 
-router.get("/:issueId", verifyIssueWithDetails, (req, res) => {
+router.get("/:issueId", requireScope(Scope.ISSUES_READ), verifyIssueWithDetails, (req, res) => {
   res.json(req.issueWithDetails);
 });
 
 router.post(
   "/",
+  requireScope(Scope.ISSUES_CREATE),
   verifyProject,
   validate(CreateIssueSchema),
   (req: Request<{ projectId: string }>, res) => {
@@ -123,6 +126,7 @@ router.post(
 
 router.patch(
   "/:issueId",
+  requireScope(Scope.ISSUES_UPDATE),
   verifyIssueOwnership,
   validate(UpdateIssueSchema),
   (req, res) => {
@@ -132,27 +136,27 @@ router.patch(
   },
 );
 
-router.delete("/:issueId", verifyIssueOwnership, async (req, res) => {
+router.delete("/:issueId", requireScope(Scope.ISSUES_DELETE), verifyIssueOwnership, async (req, res) => {
   await deleteIssue(req.issue!);
   res.status(204).send();
 });
 
-router.post("/:issueId/pause", verifyIssueOwnership, (req, res) => {
+router.post("/:issueId/pause", requireScope(Scope.ISSUES_PAUSE), verifyIssueOwnership, (req, res) => {
   pauseIssue(req.issue!);
   res.json({ success: true, issue_id: req.issue!.id, paused: true });
 });
 
-router.post("/:issueId/resume", verifyIssueOwnership, (req, res) => {
+router.post("/:issueId/resume", requireScope(Scope.ISSUES_RESUME), verifyIssueOwnership, (req, res) => {
   resumeIssue(req.issue!);
   res.json({ success: true, issue_id: req.issue!.id, paused: false });
 });
 
-router.post("/:issueId/approve-start", verifyIssueOwnership, (req, res) => {
+router.post("/:issueId/approve-start", requireScope(Scope.ISSUES_APPROVE), verifyIssueOwnership, (req, res) => {
   approveIssueForStart(req.issue!);
   res.json({ success: true, issue_id: req.issue!.id, approved_to_start: true });
 });
 
-router.post("/:issueId/approve-merge", verifyIssueOwnership, (req, res) => {
+router.post("/:issueId/approve-merge", requireScope(Scope.ISSUES_APPROVE), verifyIssueOwnership, (req, res) => {
   approveIssueForMerge(req.issue!);
   res.json({ success: true, issue_id: req.issue!.id, approved_to_merge: true });
 });
