@@ -364,10 +364,13 @@ An API key for programmatic authentication. Two tiers exist: system keys (auto-g
 | key_hash     | TEXT     | NOT NULL                            | SHA-256 hash of the full API key. The plaintext key is never stored.                                                                     |
 | key_prefix   | TEXT     | NOT NULL                            | First 11 characters of the key (e.g., `sk-a1b2c3d4`) for display identification.                                                         |
 | is_system    | INTEGER  | NOT NULL, DEFAULT 0                 | Whether this is a system key (auto-generated for agent/captain use). Stored as 0/1. System keys are hidden from user-facing key listing. |
+| scopes       | TEXT     | NULLABLE                            | JSON array of scope strings restricting what the key can access. `NULL` = unrestricted (admin-level, for user-created keys). System keys are created with a predefined set of non-destructive scopes. |
 | created_at   | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the key was created.                                                                                                                |
 | last_used_at | DATETIME | NULLABLE                            | When the key was last used for authentication. Throttled to at most one update per minute.                                               |
 
 **Key format:** `sk-` followed by 64 hex characters (32 random bytes). Only the SHA-256 hash is stored in the database. System keys are deleted and recreated on every server startup since the raw key only needs to live in memory for the current process lifetime.
+
+**Scopes:** Scope constants are defined in `backend/src/constants/scopes.ts`. The system key is granted a fixed set of read-oriented and internal scopes (e.g., `issues:read`, `comments:create`, `knowledge:write`, `internal:dispatch`). Destructive admin operations (`issues:delete`, `projects:write`, `global-config:write`, `api-keys:write`, etc.) are excluded from the system key. User-created keys default to `NULL` scopes (unrestricted access).
 
 ---
 
