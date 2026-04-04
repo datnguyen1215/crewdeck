@@ -515,7 +515,15 @@ function generateThreadTitle(
       // Claude CLI with --output-format json wraps the result
       try {
         const parsed = JSON.parse(title);
-        title = parsed.result ?? parsed.text ?? title;
+        if (Array.isArray(parsed)) {
+          // New Claude CLI format: array of stream events
+          const assistant = parsed.find((e: any) => e.type === 'assistant');
+          const textBlock = assistant?.message?.content?.find((b: any) => b.type === 'text');
+          title = textBlock?.text ?? title;
+        } else {
+          // Old format: single JSON object with result/text field
+          title = parsed.result ?? parsed.text ?? title;
+        }
       } catch {
         // If not valid JSON, use raw stdout
       }
