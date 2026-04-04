@@ -364,10 +364,13 @@ An API key for programmatic authentication. Two tiers exist: system keys (auto-g
 | key_hash     | TEXT     | NOT NULL                            | SHA-256 hash of the full API key. The plaintext key is never stored.                                                                     |
 | key_prefix   | TEXT     | NOT NULL                            | First 11 characters of the key (e.g., `sk-a1b2c3d4`) for display identification.                                                         |
 | is_system    | INTEGER  | NOT NULL, DEFAULT 0                 | Whether this is a system key (auto-generated for agent/captain use). Stored as 0/1. System keys are hidden from user-facing key listing. |
+| scopes       | TEXT     | NULLABLE                            | JSON array of scope strings restricting API access. `NULL` means unrestricted (admin-level). Stored as JSON string; parsed to array in API responses. System keys are created with a fixed set of allowed scopes. |
 | created_at   | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the key was created.                                                                                                                |
 | last_used_at | DATETIME | NULLABLE                            | When the key was last used for authentication. Throttled to at most one update per minute.                                               |
 
 **Key format:** `sk-` followed by 64 hex characters (32 random bytes). Only the SHA-256 hash is stored in the database. System keys are deleted and recreated on every server startup since the raw key only needs to live in memory for the current process lifetime.
+
+**Scopes:** Scope constants are defined in `backend/src/constants/scopes.ts`. `NULL` scopes grant unrestricted access. The system key is created with a predefined set of scopes (`SYSTEM_KEY_SCOPES`) that allow read/write access to issues, comments, knowledge, and internal operations, but exclude destructive admin actions (deleting projects, managing VCS credentials, etc.).
 
 ---
 

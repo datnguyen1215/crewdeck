@@ -593,7 +593,7 @@ On startup, the backend:
 
 1. Loads configuration from environment variables (`.env` file).
 2. Initializes SQLite database (runs all pending migrations from `backend/src/db/migrations/`).
-3. Ensures a system API key exists (deletes and recreates on every startup, storing the raw key in memory for agent/captain injection).
+3. Ensures a system API key exists (deletes and recreates on every startup with predefined scopes from `SYSTEM_KEY_SCOPES`, storing the raw key in memory for agent/captain injection).
 4. Initializes the activity logger (registers event listeners).
 5. Initializes the worktree cleanup listener (subscribes to `issue.status_changed`).
 6. Initializes the dependency cleanup listener (subscribes to `issue.status_changed`).
