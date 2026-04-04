@@ -6,6 +6,7 @@
   import { formatTimestamp } from '$lib/utils/time.js';
   import { sendChatMessage, getChatThread, getChatThreadStatus, getChatMessageEvents } from '$lib/api/http.js';
   import ChatInput from './ChatInput.svelte';
+  import ChatEmptyState from './ChatEmptyState.svelte';
   import ChatTerminalBox from './ChatTerminalBox.svelte';
   import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
   import type { ChatThreadDetail, ChatMessage, ChatMessageEvent } from '$lib/api/types.js';
@@ -209,8 +210,8 @@
   <!-- Messages area -->
   <div class="flex-1 min-h-0 overflow-y-auto" use:autoscroll>
     <div class="p-3 md:p-4">
-      {#if messages.length === 0 && !isStreaming}
-        <div class="text-muted text-sm text-center mt-8">No messages yet</div>
+      {#if messages.length === 0 && !isStreaming && !isProcessing}
+        <ChatEmptyState onSend={handleSend} />
       {:else}
         {#each messages as message (message.id)}
           {@render messageBubble(message)}

@@ -57,7 +57,7 @@
       onkeydown={handleKeydown}
       oninput={autoResize}
       rows="2"
-      placeholder="Type a message..."
+      placeholder="Ask anything about this project..."
       disabled={disabled}
       class="w-full resize-none bg-surface border border-edge rounded-lg px-3 py-2 pr-10 text-sm text-primary
         placeholder:text-muted font-mono focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/20
