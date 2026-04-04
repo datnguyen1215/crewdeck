@@ -145,6 +145,10 @@ claude -p <prompt via stdin> \
 2. On subsequent messages: spawns with `--resume {sessionId}` to continue the conversation.
 3. If `--resume` fails (session expired/not found): emits `chat.session_expired`, clears the stored session ID, retries without `--resume`, and saves the new session ID.
 
+**Auto title generation:**
+
+After the first successful reply in a thread with no title (`thread.title === null`), a fire-and-forget `generateThreadTitle()` function is called. It spawns a lightweight `claude -p` via `spawnClaude()` with a 5-7 word title system prompt, using `resolveModel('captain')`. On success, it re-reads the thread to check for a user-set title (race condition guard), updates the DB via `updateThread()`, and emits `chat.thread_updated` so the sidebar updates in real-time. If generation fails, the thread stays "Untitled" silently.
+
 **Concurrency:** Only one `claude -p` process runs per thread at a time (in-memory lock). The `acquireAndCreateMessage()` function checks and sets the lock synchronously (no `await` between check and set), which is safe from TOCTOU races in Node.js's single-threaded model. Concurrent sends throw `ConflictError` (HTTP 409).
 
 **Stream parsing:** The `processStreamLine()` function uses `normalizeEvent()` from `event-normalizer.ts` to parse assistant and user events from the `--output-format stream-json` output. This handles both the old flat Claude CLI format (`{"type":"assistant","subtype":"text","content":"Hello"}`) and the new nested format (`{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}`). The same normalizer is used by agent runs (`spawn-process.ts`) and event retrieval, ensuring consistent behavior across all Claude CLI consumers.

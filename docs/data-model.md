@@ -305,7 +305,7 @@ A persistent conversation thread for the web-based chat interface. Each thread b
 | ---------- | ----------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                                                 |
 | project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                                                    |
-| title      | TEXT        | NULLABLE                                             | User-visible title. NULL until renamed.                                                             |
+| title      | TEXT        | NULLABLE                                             | User-visible title. NULL until renamed or auto-generated (see Chat Service).                        |
 | type       | TEXT        | NOT NULL, CHECK (type IN ('monitor', 'user'))        | Thread type. `monitor` threads are auto-created (one per project); `user` threads are user-created. |
 | session_id | TEXT        | NULLABLE                                             | Claude CLI session ID for `--resume`. NULL when no active session exists or session has expired.    |
 | created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the thread was created.                                                                       |

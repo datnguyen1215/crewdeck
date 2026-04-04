@@ -396,6 +396,7 @@ Handles Claude session lifecycle for the web-based chat interface. Each chat thr
 - **System prompts**: Always uses the captain prompt builder (`captain-prompt.ts`) for all threads, giving chat the same project context (issues, API reference, available actions) as agent sessions.
 - **Model resolution**: Resolves model via `getDefaultModel()` (from `GlobalConfig`) and passes `--model <model>` to the Claude CLI, matching how agent spawns resolve models.
 - **Error handling**: If the Claude process exits with a non-zero code and no content, `runThreadSession` emits `chat.error` (user-friendly message) and `chat.complete`. No ghost assistant message is saved. Errors are logged server-side.
+- **Auto title generation**: After the first successful reply in an untitled thread (`thread.title === null`), a fire-and-forget `spawnClaude()` call generates a concise 5-7 word title from the user message and assistant reply. Uses `resolveModel('captain')` for the model. On success, updates the DB and emits `chat.thread_updated` so the sidebar updates in real-time. Re-reads the thread before writing to avoid overwriting a user-set title (race condition guard). If generation fails, the thread stays "Untitled" silently.
 - **Environment**: Same pattern as monitor agent — sets `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, GitHub auth, provider API keys (via `buildProviderEnv(model)`), etc.
 
 **Event Bus**
@@ -481,7 +482,7 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
 - **PR events** — PR created, status updated.
-- **Chat events** — assistant message chunks, tool calls, tool results, completion, errors, session expiry, event_received, thinking. Emitted by the Chat Service during `claude -p` sessions for chat threads, and dual-emitted by the monitor agent (as `chat.*` equivalents of `monitor.*` events) so the Chat UI receives real-time monitor activity.
+- **Chat events** — assistant message chunks, tool calls, tool results, completion, errors, session expiry, event_received, thinking, thread title updates. Emitted by the Chat Service during `claude -p` sessions for chat threads, and dual-emitted by the monitor agent (as `chat.*` equivalents of `monitor.*` events) so the Chat UI receives real-time monitor activity.
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
 
