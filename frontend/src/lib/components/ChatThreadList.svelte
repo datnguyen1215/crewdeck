@@ -98,6 +98,11 @@
       'chat.session_expired': (data) => {
         activeThreadIds = new Set([...activeThreadIds].filter(id => id !== data.thread_id));
       },
+      'chat.thread_updated': (data) => {
+        threads = threads.map(t =>
+          t.id === data.thread_id ? { ...t, title: data.title } : t
+        );
+      },
     });
   });
 </script>

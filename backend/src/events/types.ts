@@ -200,4 +200,9 @@ export interface EventMap {
     thread_id: string;
     error: string;
   };
+  "chat.thread_updated": {
+    project_id: string;
+    thread_id: string;
+    title: string;
+  };
 }

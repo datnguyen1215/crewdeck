@@ -13,6 +13,7 @@ import { logger } from "../logger.js";
 import { eventBus } from "../events/bus.js";
 import { buildProviderEnv } from "./provider-env.js";
 import { buildSystemPrompt as buildCaptainPrompt } from "./captain-prompt.js";
+import { spawnClaude } from "./process.js";
 import { resolveModel } from "../db/repositories/agent-config.js";
 import {
   getThread,
@@ -228,6 +229,11 @@ async function runClaudeSession(
       thread_id: thread.id,
       message_id: assistantMsgId,
     });
+
+    // Fire-and-forget: auto-generate title if thread has none
+    if (!thread.title) {
+      generateThreadTitle(thread.id, thread.project_id, content, assistantContent);
+    }
 
     return {
       message_id: assistantMsgId,
@@ -473,4 +479,61 @@ async function runClaudeProcess(
   }
 
   return { content, sessionId, sessionExpired, failed: false };
+}
+
+const TITLE_SYSTEM_PROMPT =
+  "Generate a concise 5-7 word title for this conversation. Output only the title, nothing else.";
+
+/**
+ * Fire-and-forget: generate a thread title from the first exchange.
+ * On success, updates the DB and notifies the frontend. On failure, silently keeps "Untitled".
+ */
+function generateThreadTitle(
+  threadId: string,
+  projectId: string,
+  userMessage: string,
+  assistantReply: string,
+): void {
+  const model = resolveModel("captain");
+  const prompt = `User: ${userMessage.slice(0, 500)}\nAssistant: ${assistantReply.slice(0, 500)}`;
+
+  spawnClaude({
+    prompt,
+    systemPrompt: TITLE_SYSTEM_PROMPT,
+    workdir: process.cwd(),
+    model,
+  })
+    .then(async ({ exitPromise }) => {
+      const { code, stdout } = await exitPromise;
+
+      if (code !== 0) {
+        logger.warn({ threadId, code }, "Title generation exited non-zero");
+        return;
+      }
+
+      let title = stdout.trim();
+      // Claude CLI with --output-format json wraps the result
+      try {
+        const parsed = JSON.parse(title);
+        title = parsed.result ?? parsed.text ?? title;
+      } catch {
+        // If not valid JSON, use raw stdout
+      }
+
+      title = title.trim().replace(/^["']|["']$/g, "");
+      if (!title || title.length < 2) return;
+
+      updateThread(threadId, { title });
+
+      eventBus.emit("chat.thread_updated", {
+        project_id: projectId,
+        thread_id: threadId,
+        title,
+      });
+
+      logger.info({ threadId, title }, "Thread title auto-generated");
+    })
+    .catch((err) => {
+      logger.error({ threadId, err }, "Title generation failed");
+    });
 }

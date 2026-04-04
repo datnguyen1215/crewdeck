@@ -278,6 +278,9 @@ function subscribeEvents(bus: EventBus): void {
   bus.on("chat.error", (data) => {
     broadcast(data.project_id, "chat.error", data);
   });
+  bus.on("chat.thread_updated", (data) => {
+    broadcast(data.project_id, "chat.thread_updated", data);
+  });
 }
 
 interface ExtendedWebSocket extends WebSocket {
