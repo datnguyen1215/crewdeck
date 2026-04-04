@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "crypto";
 import { db } from "../index.js";
+import { SYSTEM_KEY_SCOPES } from "../../constants/scopes.js";
 
 export interface ApiKey {
   id: string;
@@ -9,6 +10,7 @@ export interface ApiKey {
   is_system: number;
   created_at: string;
   last_used_at: string | null;
+  scopes: string | null;
 }
 
 export interface ApiKeyPublic {
@@ -17,6 +19,17 @@ export interface ApiKeyPublic {
   key_prefix: string;
   created_at: string;
   last_used_at: string | null;
+  scopes: string[] | null;
+}
+
+function parseScopes(raw: string | null): string[] | null {
+  if (raw === null) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function toPublic(key: ApiKey): ApiKeyPublic {
@@ -26,6 +39,7 @@ function toPublic(key: ApiKey): ApiKeyPublic {
     key_prefix: key.key_prefix,
     created_at: key.created_at,
     last_used_at: key.last_used_at,
+    scopes: parseScopes(key.scopes),
   };
 }
 
@@ -69,6 +83,7 @@ function hashKey(key: string): string {
 export function createApiKey(
   name: string,
   isSystem = false,
+  scopes?: string[],
 ): {
   apiKey: ApiKeyPublic;
   plaintext: string;
@@ -77,10 +92,11 @@ export function createApiKey(
   const raw = `sk-${randomBytes(32).toString("hex")}`;
   const keyHash = hashKey(raw);
   const keyPrefix = raw.slice(0, 11); // sk- + 8 hex chars
+  const scopesJson = scopes ? JSON.stringify(scopes) : null;
 
   db.prepare(
-    "INSERT INTO ApiKey (id, name, key_hash, key_prefix, is_system) VALUES (?, ?, ?, ?, ?)",
-  ).run(id, name, keyHash, keyPrefix, isSystem ? 1 : 0);
+    "INSERT INTO ApiKey (id, name, key_hash, key_prefix, is_system, scopes) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(id, name, keyHash, keyPrefix, isSystem ? 1 : 0, scopesJson);
 
   return {
     apiKey: {
@@ -89,6 +105,7 @@ export function createApiKey(
       key_prefix: keyPrefix,
       created_at: new Date().toISOString(),
       last_used_at: null,
+      scopes: scopes ?? null,
     },
     plaintext: raw,
   };
@@ -120,6 +137,6 @@ export function ensureSystemKey(): string {
     db.prepare("DELETE FROM ApiKey WHERE id = ?").run(existing.id);
   }
 
-  const { plaintext } = createApiKey("system", true);
+  const { plaintext } = createApiKey("system", true, [...SYSTEM_KEY_SCOPES]);
   return plaintext;
 }
