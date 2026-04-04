@@ -11,6 +11,7 @@
   let selectedThreadId = $state('');
   let selectedThread = $state<ChatThreadDetail | null>(null);
   let loadingThread = $state(false);
+  let activeThreadIdOverride = $state<string | null>(null);
 
   $effect(() => {
     let cancelled = false;
@@ -34,6 +35,10 @@
       .finally(() => { if (!cancelled) loadingThread = false; });
     return () => { cancelled = true; };
   });
+
+  function handleProcessingChange(processing: boolean) {
+    activeThreadIdOverride = processing ? selectedThreadId : null;
+  }
 </script>
 
 <svelte:head>
@@ -43,7 +48,7 @@
 <div class="h-full flex pt-12 md:pt-0">
   <!-- Thread list: visible on desktop (md+), full-width on mobile -->
   <div class="w-[280px] max-md:w-full flex-shrink-0 border-r border-edge flex flex-col md:border-r-edge">
-    <ChatThreadList {projectId} bind:selectedThreadId />
+    <ChatThreadList {projectId} {activeThreadIdOverride} bind:selectedThreadId />
   </div>
 
   <!-- Chat view area (desktop only — mobile navigates to [threadId] route) -->
@@ -77,7 +82,7 @@
           <div class="text-muted text-sm">Loading thread...</div>
         </div>
       {:else if selectedThread}
-        <ChatView thread={selectedThread} {projectId} />
+        <ChatView thread={selectedThread} {projectId} onProcessingChange={handleProcessingChange} />
       {:else}
         <div class="flex-1 flex items-center justify-center h-full">
           <div class="text-center">
