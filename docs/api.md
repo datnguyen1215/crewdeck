@@ -1850,6 +1850,7 @@ The HTTP response is returned immediately after saving the user message and acqu
 - Updates thread's `updated_at` and `session_id` (captured from Claude CLI stream).
 - Emits `chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, and `chat.complete` events on the event bus.
 - Emits `chat.error` and `chat.complete` on failure.
+- After the first successful reply in an untitled thread, fire-and-forget auto-generates a title via a lightweight Claude call. Emits `chat.thread_updated` on success.
 - If `--resume` fails (session expired), emits `chat.session_expired`, resets `session_id` to null, and starts a fresh session transparently.
 - If the Claude process fails (exit code 1, no content), emits `chat.error` with a user-friendly message, then `chat.complete`. No assistant message is saved.
 
@@ -2265,6 +2266,7 @@ All events below (except `run.event` and monitor events) are broadcast to both p
 | `chat.complete`          | Chat response finished                      | `{ project_id, thread_id, message_id? }`                             |
 | `chat.error`             | Claude process failed                       | `{ project_id, thread_id, error }`                                   |
 | `chat.session_expired`   | Claude session expired, new one started     | `{ project_id, thread_id }`                                          |
+| `chat.thread_updated`    | Thread title updated                        | `{ project_id, thread_id, title }`                                   |
 
 #### Project Events
 
