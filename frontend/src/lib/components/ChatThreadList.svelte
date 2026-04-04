@@ -5,8 +5,10 @@
   import {
     listChatThreads,
     createChatThread,
+    deleteChatThread,
     type ChatThreadListItem,
   } from '$lib/api/http.js';
+  import { toastStore } from '$lib/stores/toasts.svelte.js';
   import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 
   let {
@@ -25,6 +27,8 @@
   let loading = $state(true);
   let creating = $state(false);
   let activeThreadIds = $state(new Set<string>());
+  let confirmingDeleteId = $state<string | null>(null);
+  let deletingId = $state<string | null>(null);
 
   async function handleNewThread() {
     if (creating) return;
@@ -64,6 +68,30 @@
   function truncate(str: string | null, max: number): string {
     if (!str) return '';
     return str.length > max ? str.slice(0, max) + '...' : str;
+  }
+
+  function handleDelete(threadId: string, event: MouseEvent) {
+    event.stopPropagation();
+    if (event.shiftKey) {
+      confirmDelete(threadId);
+    } else {
+      confirmingDeleteId = threadId;
+    }
+  }
+
+  async function confirmDelete(threadId: string) {
+    deletingId = threadId;
+    try {
+      await deleteChatThread(threadId, projectId);
+      threads = threads.filter(t => t.id !== threadId);
+      if (selectedThreadId === threadId) selectedThreadId = '';
+      toastStore.add('Thread deleted', 'success');
+    } catch {
+      toastStore.add('Failed to delete thread', 'error');
+    } finally {
+      confirmingDeleteId = null;
+      deletingId = null;
+    }
   }
 
   $effect(() => {
@@ -140,9 +168,13 @@
 </div>
 
 {#snippet threadItem(thread: ChatThreadListItem)}
-  <button
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    role="button"
+    tabindex="0"
     onclick={() => selectThread(thread.id)}
-    class="w-full text-left px-3 py-2.5 border-l-[3px] border-l-edge transition-colors hover:bg-surface-hi
+    onkeydown={(e) => { if (e.key === 'Enter') selectThread(thread.id); }}
+    class="w-full text-left px-3 py-2.5 border-l-[3px] border-l-edge transition-colors hover:bg-surface-hi cursor-pointer group
       {selectedThreadId === thread.id ? 'bg-surface-hi' : ''}"
   >
     <div class="flex items-center gap-2 min-w-0">
@@ -153,10 +185,37 @@
         {thread.title || 'Untitled'}
       </span>
       <span class="text-[10px] text-muted flex-shrink-0">{formatTime(thread.updated_at)}</span>
+      {#if confirmingDeleteId === thread.id}
+        <button
+          onclick={(e) => { e.stopPropagation(); confirmDelete(thread.id); }}
+          disabled={deletingId === thread.id}
+          class="px-1.5 py-0.5 text-xs text-red-400 hover:text-red-300 transition-all disabled:opacity-50"
+        >
+          {deletingId === thread.id ? '...' : 'Confirm'}
+        </button>
+        <button
+          onclick={(e) => { e.stopPropagation(); confirmingDeleteId = null; }}
+          class="px-1.5 py-0.5 text-xs text-muted hover:text-secondary transition-all"
+        >
+          Cancel
+        </button>
+      {:else}
+        <button
+          onclick={(e) => handleDelete(thread.id, e)}
+          class="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-all flex-shrink-0"
+          title="Delete thread"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"/>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+          </svg>
+        </button>
+      {/if}
     </div>
     {#if thread.last_message}
       <p class="text-[11px] text-muted truncate mt-0.5">{truncate(thread.last_message, 60)}</p>
     {/if}
     <p class="text-[10px] text-muted mt-0.5">{thread.message_count} {thread.message_count === 1 ? 'message' : 'messages'}</p>
-  </button>
+  </div>
 {/snippet}
