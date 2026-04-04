@@ -7,6 +7,26 @@ export async function handle({ event, resolve }) {
     return resolve(event);
   }
 
+  // Setup page — requires a valid session
+  if (pathname.startsWith("/setup")) {
+    const backendUrl = process.env.VITE_BACKEND_URL || "http://localhost:9381";
+    try {
+      const cookieHeader = event.request.headers.get("cookie") || "";
+      const res = await fetch(`${backendUrl}/api/v1/auth/me`, {
+        headers: { cookie: cookieHeader },
+      });
+      if (res.status === 401) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: "/login" },
+        });
+      }
+    } catch {
+      // Backend unreachable — allow through
+    }
+    return resolve(event);
+  }
+
   // Login page — redirect to /register if no admin exists yet
   if (pathname.startsWith("/login")) {
     const backendUrl = process.env.VITE_BACKEND_URL || "http://localhost:9381";

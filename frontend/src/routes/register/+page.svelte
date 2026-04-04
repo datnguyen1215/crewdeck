@@ -28,7 +28,7 @@
 		loading = true;
 		try {
 			await setupAccount(username, password);
-			goto('/login');
+			goto('/setup/preflight');
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Setup failed', 'error');
 		} finally {

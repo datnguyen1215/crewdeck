@@ -74,10 +74,8 @@
 		try {
 			const { setupCompleted } = await getAuthMe();
 			if (!setupCompleted) {
-				const loaded = await listProjectsWithStats();
-				projects = loaded;
-				loading = false;
-				if (loaded.length === 0) openCreateModal();
+				goto('/setup/preflight');
+				return;
 			}
 		} catch {}
 	});
