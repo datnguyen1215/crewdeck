@@ -126,7 +126,25 @@ Returns the current authenticated user info.
 { "id": "uuid", "username": "admin", "setupCompleted": false }
 ```
 
-`setupCompleted` is `false` until the user creates their first project, then becomes `true`.
+`setupCompleted` is `false` until the user completes setup (either by creating a project or by calling `POST /auth/complete-setup`), then becomes `true`.
+
+#### Complete Setup
+
+```
+POST /auth/complete-setup
+```
+
+Marks the current user's setup as completed. Decouples setup completion from project creation so a setup wizard can finish setup before the user creates their first project.
+
+**Response:** `200 OK`
+
+```json
+{ "ok": true }
+```
+
+**Errors:**
+
+- `403 FORBIDDEN` — Not authenticated.
 
 ### Projects
 
@@ -1551,6 +1569,92 @@ Returns which model providers are available based on configured API keys.
 | ------ | ------ | ------------------------------------------------------------------ |
 | claude | object | Claude availability (always `true` if `ANTHROPIC_API_KEY` is set). |
 | glm    | object | GLM (Z.AI) availability (`true` if `ZAI_API_KEY` is set).          |
+
+#### Preflight Checks
+
+Preflight endpoints detect whether the system is ready to run agents. Used by setup wizards to guide users through configuration.
+
+##### Check Claude CLI Installation
+
+```
+GET /global-config/preflight/claude-cli
+```
+
+Checks whether the `claude` CLI is installed and available on PATH. If found, also retrieves the version string.
+
+**Response:** `200 OK`
+
+When installed:
+
+```json
+{ "installed": true, "version": "claude-code/1.0.0", "path": "/usr/local/bin/claude" }
+```
+
+When not installed:
+
+```json
+{ "installed": false }
+```
+
+| Field     | Type    | Description                                      |
+| --------- | ------- | ------------------------------------------------ |
+| installed | boolean | Whether `claude` is on PATH.                     |
+| version   | string  | Version string from `claude --version` (if found). |
+| path      | string  | Absolute path to the `claude` binary (if found).   |
+
+##### Check Claude CLI Authentication
+
+```
+GET /global-config/preflight/claude-auth
+```
+
+Spawns `claude -p "ping" --output-format json --max-turns 1` with a 15-second timeout to verify that Claude CLI credentials are working. This endpoint is slow (~5–10s) by design.
+
+**Response:** `200 OK`
+
+When authenticated:
+
+```json
+{ "authenticated": true }
+```
+
+When not authenticated:
+
+```json
+{ "authenticated": false, "error": "No API key provided. Run `claude` to authenticate." }
+```
+
+| Field         | Type    | Description                                                      |
+| ------------- | ------- | ---------------------------------------------------------------- |
+| authenticated | boolean | Whether Claude CLI successfully authenticated.                   |
+| error         | string  | Error message from stderr/stdout when authentication fails (max 500 chars). |
+
+##### Check Z.AI API Key
+
+```
+GET /global-config/preflight/zai
+```
+
+Checks whether a `ZAI_API_KEY` is configured, either via environment variable or the global environment variables database table. Indicates where the key was found so the UI can guide the user.
+
+**Response:** `200 OK`
+
+When configured:
+
+```json
+{ "configured": true, "source": "env" }
+```
+
+When not configured:
+
+```json
+{ "configured": false }
+```
+
+| Field      | Type    | Description                                                          |
+| ---------- | ------- | -------------------------------------------------------------------- |
+| configured | boolean | Whether a Z.AI API key is available.                                 |
+| source     | string  | Where the key was found: `"env"` (environment variable) or `"database"` (GlobalEnvironmentVariable table). Omitted when not configured. |
 
 ---
 
