@@ -3,6 +3,7 @@
 	import {
 		getProject,
 		updateProject,
+		deleteProject,
 		listEnvironmentVariables,
 		createEnvironmentVariable,
 		updateEnvironmentVariable,
@@ -10,9 +11,11 @@
 		type Project,
 		type EnvironmentVariable
 	} from '$lib/api/http.js';
+	import { goto } from '$app/navigation';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 
 	let projectId = $derived($page.params.projectId!);
 	let project = $state<Project | null>(null);
@@ -38,6 +41,11 @@
 	let savingEnv = $state(false);
 	let deletingEnvId = $state<string | null>(null);
 	let confirmingDeleteEnvId = $state<string | null>(null);
+
+	// Delete project state
+	let deletingProject = $state(false);
+	let deleteConfirmName = $state('');
+	let deleteInProgress = $state(false);
 
 	fetchEffect(
 		() => getProject(projectId),
@@ -134,6 +142,27 @@
 		}
 	}
 
+
+	function startDeleteProject() {
+		deleteConfirmName = '';
+		deletingProject = true;
+	}
+
+	async function confirmDeleteProject() {
+		if (!project || deleteConfirmName.trim() !== project.name) return;
+		deleteInProgress = true;
+		try {
+			await deleteProject(project.id);
+			toastStore.add('Project deleted', 'success');
+			goto('/dashboard');
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to delete project', 'error');
+		} finally {
+			deleteInProgress = false;
+			deletingProject = false;
+			deleteConfirmName = '';
+		}
+	}
 
 	let hasChanges = $derived(
 		project != null && (
@@ -289,6 +318,45 @@
 					</form>
 				{/if}
 			</div>
+
+			<!-- Danger Zone -->
+			<div class="mt-12 fade-up">
+				<h2 class="text-sm font-bold tracking-[0.3em] uppercase mb-6" style="color: var(--color-red); text-shadow: var(--glow-red)">Danger Zone</h2>
+				<div class="border border-red/30 rounded p-4 flex items-start justify-between gap-4">
+					<div>
+						<p class="text-sm text-primary">Delete this project</p>
+						<p class="text-xs text-muted mt-1">
+							Permanently removes all issues, threads, repos, environment variables, and activity logs. This cannot be undone.
+						</p>
+					</div>
+					<button onclick={startDeleteProject}
+						class="px-4 py-2 border border-red text-red hover:bg-red/10 rounded text-sm transition-colors flex-shrink-0">
+						Delete Project
+					</button>
+				</div>
+			</div>
+
+			<Modal open={deletingProject} onClose={() => deletingProject = false} label="Delete project">
+				<h2 class="text-base font-bold text-primary mb-2">Delete project?</h2>
+				<p class="text-sm text-secondary mb-4">
+					This action cannot be undone. All project data will be permanently deleted.
+					Type <strong class="text-primary">{project.name}</strong> to confirm.
+				</p>
+				<input type="text" bind:value={deleteConfirmName}
+					placeholder={project.name}
+					class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary font-mono placeholder-muted focus:outline-none focus:border-red transition-colors mb-4" />
+				<div class="flex gap-3 justify-end">
+					<button onclick={() => deletingProject = false}
+						class="px-3 py-1.5 text-xs border border-edge text-secondary hover:text-primary rounded transition-colors">
+						Cancel
+					</button>
+					<button onclick={confirmDeleteProject}
+						disabled={deleteConfirmName.trim() !== project.name || deleteInProgress}
+						class="px-3 py-1.5 text-xs bg-red text-white hover:bg-red/80 rounded transition-colors disabled:opacity-50">
+						{deleteInProgress ? 'Deleting...' : 'Delete Project'}
+					</button>
+				</div>
+			</Modal>
 		{/if}
 	</div>
 </div>
