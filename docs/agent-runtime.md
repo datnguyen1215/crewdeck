@@ -158,7 +158,7 @@ After the first successful reply in a thread with no title (`thread.title === nu
 - Legacy flat `tool_result` events (standalone `type: "tool_result"` in old CLI format) continue to be handled directly.
 - `system` and `result` events are handled as-is (not normalized).
 
-**Environment variables:** Same pattern as agent spawns — `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, `CREWDECK_AGENT_ID`, `CREWDECK_API_KEY`, provider env vars via `buildProviderEnv(model)`, and `GIT_TERMINAL_PROMPT=0`.
+**Environment variables:** Same pattern as agent spawns — `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, `CREWDECK_AGENT_ID`, `CREWDECK_API_KEY`, provider env vars via `buildProviderEnv(model)`, and `GIT_TERMINAL_PROMPT=0`. Additionally, SSH credentials are configured from the project's VCS account via `setupGitHubAuth()` (same function used by PTY sessions): `GH_TOKEN` is set for GitHub CLI access, and `GIT_SSH_COMMAND` is configured with a temporary SSH key file. The SSH key temp file is cleaned up in an outer `finally` block that wraps the entire session lifecycle.
 
 ## Captain Command Execution
 

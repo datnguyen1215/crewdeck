@@ -1956,6 +1956,7 @@ The HTTP response is returned immediately after saving the user message and acqu
 - Emits `chat.error` and `chat.complete` on failure.
 - After the first successful reply in an untitled thread, fire-and-forget auto-generates a title via a lightweight Claude call. Emits `chat.thread_updated` on success. If auto-title generation fails, a fallback title is derived from the first 40 characters of the user's message and emitted via `chat.thread_updated`.
 - If `--resume` fails (session expired), emits `chat.session_expired`, resets `session_id` to null, and starts a fresh session transparently.
+- Configures SSH credentials from the project's VCS account (`GH_TOKEN`, `GIT_SSH_COMMAND`) so the captain can access private Git remotes and use the GitHub CLI. SSH key temp files are cleaned up when the session ends.
 - If the Claude process fails (exit code 1, no content), emits `chat.error` with a user-friendly message, then `chat.complete`. No assistant message is saved.
 
 #### Get Thread Status
