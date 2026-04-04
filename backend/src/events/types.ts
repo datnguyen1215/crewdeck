@@ -132,6 +132,7 @@ export interface EventMap {
   };
   "monitor.thinking": {
     project_id: string;
+    content?: string;
   };
   "monitor.message": {
     project_id: string;
@@ -150,6 +151,16 @@ export interface EventMap {
   "monitor.complete": {
     project_id: string;
     response: string;
+  };
+  "monitor.rate_limit": {
+    project_id: string;
+    message: string;
+  };
+  "monitor.result": {
+    project_id: string;
+    cost_usd?: number;
+    duration_ms?: number;
+    stop_reason?: string;
   };
   // Chat thread events
   "chat.event_received": {

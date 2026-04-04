@@ -218,12 +218,14 @@ export interface AgentConfig {
 
 export interface MonitorEntry {
   id: string;
-  type: "event" | "thinking" | "message" | "tool_call" | "tool_result";
+  type: "event" | "thinking" | "message" | "tool_call" | "tool_result" | "rate_limit" | "result";
   content: string;
   timestamp: Date;
   toolName?: string;
   toolInput?: unknown;
   success?: boolean;
+  costUsd?: number;
+  durationMs?: number;
 }
 
 export interface CaptainStatus {
@@ -406,7 +408,7 @@ export interface WsEventMap {
     event_type: string;
     description: string;
   };
-  "monitor.thinking": { project_id: string };
+  "monitor.thinking": { project_id: string; content?: string };
   "monitor.message": { project_id: string; content: string };
   "monitor.tool_call": {
     project_id: string;
@@ -419,6 +421,13 @@ export interface WsEventMap {
     result: unknown;
   };
   "monitor.complete": { project_id: string; response: string };
+  "monitor.rate_limit": { project_id: string; message: string };
+  "monitor.result": {
+    project_id: string;
+    cost_usd?: number;
+    duration_ms?: number;
+    stop_reason?: string;
+  };
   "chat.message": { project_id: string; thread_id: string; message_id: string; content: string };
   "chat.tool_call": { project_id: string; thread_id: string; message_id: string; tool_call_id: string; tool_name: string; tool_input: unknown };
   "chat.tool_result": { project_id: string; thread_id: string; message_id: string; tool_call_id: string; tool_name: string; result: unknown };
@@ -430,7 +439,7 @@ export interface WsEventMap {
 }
 
 // Subset of events broadcast to global (dashboard) WebSocket subscribers.
-// Excludes high-frequency events (run.event) and monitor events.
+// Excludes high-frequency events (run.event) and monitor/chat events.
 export interface GlobalWsEventMap {
   "issue.created": { issue: Issue };
   "issue.updated": {
