@@ -8,7 +8,9 @@
 	let { children } = $props();
 
 	const isAuthPage = $derived(
-		$page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/register')
+		$page.url.pathname.startsWith('/login') ||
+		$page.url.pathname.startsWith('/register') ||
+		$page.url.pathname.startsWith('/setup/')
 	);
 
 	// Page transitions via View Transitions API

@@ -127,6 +127,29 @@ export function getAuthMe() {
 export function logout() {
   return request<void>("POST", "/auth/logout");
 }
+export function completeSetup() {
+  return request<{ ok: boolean }>("POST", "/auth/complete-setup");
+}
+
+// Preflight checks
+export function getPreflightClaudeCli() {
+  return request<{ installed: boolean; version?: string; path?: string }>(
+    "GET",
+    "/global-config/preflight/claude-cli",
+  );
+}
+export function getPreflightClaudeAuth() {
+  return request<{ authenticated: boolean; error?: string }>(
+    "GET",
+    "/global-config/preflight/claude-auth",
+  );
+}
+export function getPreflightZai() {
+  return request<{ configured: boolean; source?: string }>(
+    "GET",
+    "/global-config/preflight/zai",
+  );
+}
 
 // Projects
 export function listProjects() {
