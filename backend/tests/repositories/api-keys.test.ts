@@ -7,7 +7,7 @@ import {
   ensureSystemKey,
   deleteApiKey,
 } from "../../src/db/repositories/api-keys.js";
-import { SYSTEM_KEY_SCOPES, ApiKeyScope } from "../../src/constants/scopes.js";
+import { SYSTEM_KEY_SCOPES, Scope } from "../../src/constants/scopes.js";
 
 function clearAll() {
   db.exec("DELETE FROM ApiKey");
@@ -24,7 +24,7 @@ describe("createApiKey", () => {
   });
 
   it("creates key with provided scopes", () => {
-    const scopes = [ApiKeyScope.ISSUES_READ, ApiKeyScope.COMMENTS_WRITE];
+    const scopes = [Scope.ISSUES_READ, Scope.COMMENTS_CREATE];
     const { apiKey } = createApiKey("scoped", false, scopes);
     expect(apiKey.scopes).toEqual(scopes);
   });
@@ -38,7 +38,7 @@ describe("createApiKey", () => {
 describe("listApiKeys", () => {
   it("includes scopes in listing", () => {
     createApiKey("unscoped");
-    createApiKey("scoped", false, [ApiKeyScope.ISSUES_READ]);
+    createApiKey("scoped", false, [Scope.ISSUES_READ]);
 
     const keys = listApiKeys();
     expect(keys).toHaveLength(2);
@@ -46,7 +46,7 @@ describe("listApiKeys", () => {
     const unscoped = keys.find((k) => k.name === "unscoped");
     const scoped = keys.find((k) => k.name === "scoped");
     expect(unscoped!.scopes).toBeNull();
-    expect(scoped!.scopes).toEqual([ApiKeyScope.ISSUES_READ]);
+    expect(scoped!.scopes).toEqual([Scope.ISSUES_READ]);
   });
 
   it("excludes system keys from listing", () => {

@@ -6,7 +6,7 @@ import { ForbiddenError, NotFoundError } from "../middleware/errors.js";
 
 const router = Router();
 
-const knownScopes = new Set(Object.values(Scope));
+const knownScopes: Set<string> = new Set(Object.values(Scope));
 
 // API keys cannot manage other API keys — require session auth
 function requireSessionAuth(
