@@ -482,6 +482,7 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
+- **Monitor events** — captain monitor streaming events (`monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.rate_limit`, `monitor.result`, `monitor.complete`). Broadcast to project-scoped subscribers only; excluded from the global WebSocket to avoid flooding the dashboard.
 - **PR events** — PR created, status updated.
 - **Chat events** — assistant message chunks, tool calls, tool results, completion, errors, session expiry, event_received, thinking, thread title updates. Emitted by the Chat Service during `claude -p` sessions for chat threads, and dual-emitted by the monitor agent (as `chat.*` equivalents of `monitor.*` events) so the Chat UI receives real-time monitor activity.
 
