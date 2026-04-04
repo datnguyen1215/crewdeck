@@ -51,7 +51,7 @@ claude -p <prompt> \
        --settings '{"attribution":{"commit":"","pr":""}}'
 ```
 
-- `--output-format json` causes Claude to return a JSON object with a `result` field containing the response text, plus cost and duration metadata.
+- `--output-format json` causes Claude to return a JSON array of stream events (e.g., `init`, `assistant`, `result`). Consumers extract the response text from the `assistant` event's `message.content[].text` field.
 - The system prompt is written to a temp file and cleaned up after the process exits.
 - `--dangerously-skip-permissions` allows the agent to operate autonomously.
 - `--model <model>` is included when a model is specified (resolved via AgentConfig override → global default model → `"sonnet"`).
@@ -147,7 +147,7 @@ claude -p <prompt via stdin> \
 
 **Auto title generation:**
 
-After the first successful reply in a thread with no title (`thread.title === null`), a fire-and-forget `generateThreadTitle()` function is called. It spawns a lightweight `claude -p` via `spawnClaude()` with a 5-7 word title system prompt, using `resolveModel('captain')`. On success, it re-reads the thread to check for a user-set title (race condition guard), updates the DB via `updateThread()`, and emits `chat.thread_updated` so the sidebar updates in real-time. If generation fails, the thread stays "Untitled" silently.
+After the first successful reply in a thread with no title (`thread.title === null`), a fire-and-forget `generateThreadTitle()` function is called. It spawns a lightweight `claude -p` via `spawnClaude()` with a 5-7 word title system prompt, using `resolveModel('captain')`. The `--output-format json` response is parsed to extract the assistant's text — handling both the new array-of-stream-events format (extracting text from `assistant.message.content[].text`) and the legacy single-object format (`result`/`text` fields). On success, it re-reads the thread to check for a user-set title (race condition guard), updates the DB via `updateThread()`, and emits `chat.thread_updated` so the sidebar updates in real-time. If generation fails, the thread stays "Untitled" silently.
 
 **Concurrency:** Only one `claude -p` process runs per thread at a time (in-memory lock). The `acquireAndCreateMessage()` function checks and sets the lock synchronously (no `await` between check and set), which is safe from TOCTOU races in Node.js's single-threaded model. Concurrent sends throw `ConflictError` (HTTP 409).
 
