@@ -1954,7 +1954,7 @@ The HTTP response is returned immediately after saving the user message and acqu
 - Updates thread's `updated_at` and `session_id` (captured from Claude CLI stream).
 - Emits `chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, and `chat.complete` events on the event bus.
 - Emits `chat.error` and `chat.complete` on failure.
-- After the first successful reply in an untitled thread, fire-and-forget auto-generates a title via a lightweight Claude call. Emits `chat.thread_updated` on success. If auto-title generation fails, a fallback title is derived from the first 40 characters of the user's message and emitted via `chat.thread_updated`.
+- After the first successful reply in an untitled thread, fire-and-forget auto-generates a title via a lightweight Claude call (single-turn, deterministic prompt). Post-processing strips prefixes, truncates to 80 characters, and extracts only the first line. Emits `chat.thread_updated` on success. If auto-title generation fails, a fallback title is derived from the first 40 characters of the user's message and emitted via `chat.thread_updated`.
 - If `--resume` fails (session expired), emits `chat.session_expired`, resets `session_id` to null, and starts a fresh session transparently.
 - If the Claude process fails (exit code 1, no content), emits `chat.error` with a user-friendly message, then `chat.complete`. No assistant message is saved.
 

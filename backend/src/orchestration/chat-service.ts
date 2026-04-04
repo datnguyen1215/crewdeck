@@ -482,7 +482,11 @@ async function runClaudeProcess(
 }
 
 const TITLE_SYSTEM_PROMPT =
-  "Generate a concise 5-7 word title for this conversation. Output only the title, nothing else.";
+  "You generate titles for conversations. Rules:\n" +
+  "- Output exactly 3-7 words\n" +
+  "- Plain text only — no quotes, no markdown, no punctuation at the end\n" +
+  "- No preamble, no explanation, no thinking, no prefixes like \"Title:\"\n" +
+  "- Just the title, nothing else";
 
 /**
  * Fire-and-forget: generate a thread title from the first exchange.
@@ -502,6 +506,7 @@ function generateThreadTitle(
     systemPrompt: TITLE_SYSTEM_PROMPT,
     workdir: process.cwd(),
     model,
+    maxTurns: 1,
   })
     .then(async ({ exitPromise }) => {
       const { code, stdout } = await exitPromise;
@@ -530,6 +535,17 @@ function generateThreadTitle(
       }
 
       title = title.trim().replace(/^["']|["']$/g, "");
+
+      // Safety: take only the first line
+      const newlineIdx = title.indexOf("\n");
+      if (newlineIdx !== -1) title = title.slice(0, newlineIdx);
+
+      // Strip common prefixes the model might still produce
+      title = title.replace(/^(title|here('?s| is a)?)[:\s-]+/i, "").trim();
+
+      // Truncate to a reasonable length
+      if (title.length > 80) title = title.slice(0, 80).replace(/\s+\S*$/, "");
+
       if (!title || title.length < 2) {
         setFallbackTitle(threadId, projectId, userMessage);
         return;

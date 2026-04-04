@@ -13,6 +13,7 @@ export interface SpawnOpts {
   workdir: string;
   env?: Record<string, string>;
   model?: string;
+  maxTurns?: number;
 }
 
 export interface SpawnResult {
@@ -34,6 +35,7 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
     "--dangerously-skip-permissions",
   ];
   if (opts.model) args.push("--model", opts.model);
+  if (opts.maxTurns != null) args.push("--max-turns", String(opts.maxTurns));
 
   const child = spawn("claude", args, {
     cwd: opts.workdir,
