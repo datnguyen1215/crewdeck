@@ -1,13 +1,19 @@
 import { createHash } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { getSession, type Session } from "../db/repositories/auth.js";
-import { getByKeyHash, updateLastUsed } from "../db/repositories/api-keys.js";
+import { getByKeyHash, updateLastUsed, parseScopes } from "../db/repositories/api-keys.js";
 import { ForbiddenError } from "./errors.js";
 
 declare global {
   namespace Express {
     interface Request {
       session?: { token: string; userId: string; username: string; setupCompleted: number };
+      apiKey?: {
+        id: string;
+        name: string;
+        isSystem: boolean;
+        scopes: string[] | null; // null = unrestricted
+      };
     }
   }
 }
@@ -27,7 +33,7 @@ export function validateSessionFromCookie(
 
 function authenticateViaApiKey(
   req: Request,
-): { id: string; username: string } | null {
+): { id: string; username: string; apiKey: NonNullable<Request["apiKey"]> } | null {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) return null;
 
@@ -35,18 +41,27 @@ function authenticateViaApiKey(
   if (!key.startsWith("sk-")) return null;
 
   const hash = createHash("sha256").update(key).digest("hex");
-  const apiKey = getByKeyHash(hash);
-  if (!apiKey) return null;
+  const apiKeyRow = getByKeyHash(hash);
+  if (!apiKeyRow) return null;
 
   // Throttle last_used_at updates to at most once per minute
   if (
-    !apiKey.last_used_at ||
-    Date.now() - new Date(apiKey.last_used_at).getTime() > 60_000
+    !apiKeyRow.last_used_at ||
+    Date.now() - new Date(apiKeyRow.last_used_at).getTime() > 60_000
   ) {
-    updateLastUsed(apiKey.id);
+    updateLastUsed(apiKeyRow.id);
   }
 
-  return { id: apiKey.id, username: `api-key:${apiKey.name}` };
+  return {
+    id: apiKeyRow.id,
+    username: `api-key:${apiKeyRow.name}`,
+    apiKey: {
+      id: apiKeyRow.id,
+      name: apiKeyRow.name,
+      isSystem: !!apiKeyRow.is_system,
+      scopes: parseScopes(apiKeyRow.scopes),
+    },
+  };
 }
 
 export function requireAuth(
@@ -55,14 +70,15 @@ export function requireAuth(
   next: NextFunction,
 ): void {
   // Try Bearer token first
-  const apiKey = authenticateViaApiKey(req);
-  if (apiKey) {
+  const apiKeyAuth = authenticateViaApiKey(req);
+  if (apiKeyAuth) {
     req.session = {
-      token: apiKey.id,
-      userId: apiKey.id,
-      username: apiKey.username,
+      token: apiKeyAuth.id,
+      userId: apiKeyAuth.id,
+      username: apiKeyAuth.username,
       setupCompleted: 1,
     };
+    req.apiKey = apiKeyAuth.apiKey;
     next();
     return;
   }

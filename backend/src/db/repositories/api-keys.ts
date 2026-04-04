@@ -8,9 +8,25 @@ export interface ApiKey {
   key_hash: string;
   key_prefix: string;
   is_system: number;
+  scopes: string | null; // JSON array string or null (unrestricted)
   created_at: string;
   last_used_at: string | null;
   scopes: string | null;
+}
+
+/**
+ * Parse the scopes column from the database.
+ * `null` means unrestricted. A JSON array string like '["read","write"]' is parsed
+ * into an array. An empty array means the key has no permissions.
+ */
+export function parseScopes(raw: string | null): string[] | null {
+  if (raw === null) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
 }
 
 export interface ApiKeyPublic {
