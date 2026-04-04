@@ -248,7 +248,7 @@ POST /projects
 
 **Error:** `400 VALIDATION_ERROR` — If `repo_url` is invalid or the repository cannot be cloned.
 
-**Side effects:** The backend fetches repo metadata (name, description, default branch) from the VCS provider API and clones the repository. If `vcs_account_id` is provided, the token is used for the API call and git operations; otherwise metadata is fetched unauthenticated with a fallback to URL-derived values on failure.
+**Side effects:** The backend fetches repo metadata (name, description, default branch) from the VCS provider API and clones the repository. The captain monitor is started immediately for the new project. If `vcs_account_id` is provided, the token is used for the API call and git operations; otherwise metadata is fetched unauthenticated with a fallback to URL-derived values on failure.
 
 #### Update Project
 
