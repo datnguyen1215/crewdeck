@@ -21,7 +21,7 @@
 		if (!from || !to) return false;
 		const fromMatch = from.url.pathname.match(/^\/projects\/([^/]+)/);
 		const toMatch = to.url.pathname.match(/^\/projects\/([^/]+)/);
-		return fromMatch?.[1] === toMatch?.[1];
+		return !!fromMatch && !!toMatch && fromMatch[1] === toMatch[1];
 	}
 
 	// Page transitions via View Transitions API
