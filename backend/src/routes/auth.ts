@@ -9,6 +9,7 @@ import {
   createAdmin,
   createSession,
   deleteSession,
+  markSetupComplete,
 } from "../db/repositories/auth.js";
 import { validate } from "../middleware/validate.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -129,6 +130,13 @@ router.get("/me", requireAuth, (req, res) => {
     username: req.session!.username,
     setupCompleted: req.session!.setupCompleted === 1,
   });
+});
+
+// POST /complete-setup — mark setup as completed
+router.post("/complete-setup", requireAuth, (req, res) => {
+  markSetupComplete(req.session!.userId);
+  req.session!.setupCompleted = 1;
+  res.json({ ok: true });
 });
 
 export default router;
