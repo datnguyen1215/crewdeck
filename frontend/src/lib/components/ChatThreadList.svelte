@@ -12,9 +12,11 @@
   let {
     projectId,
     selectedThreadId = $bindable(''),
+    activeThreadIdOverride = null,
   }: {
     projectId: string;
     selectedThreadId?: string;
+    activeThreadIdOverride?: string | null;
   } = $props();
 
   const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
@@ -144,7 +146,7 @@
       {selectedThreadId === thread.id ? 'bg-surface-hi' : ''}"
   >
     <div class="flex items-center gap-2 min-w-0">
-      {#if activeThreadIds.has(thread.id)}
+      {#if activeThreadIds.has(thread.id) || thread.id === activeThreadIdOverride}
         <span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse flex-shrink-0"></span>
       {/if}
       <span class="text-xs truncate flex-1 text-primary">

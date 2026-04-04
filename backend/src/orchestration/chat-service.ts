@@ -486,7 +486,7 @@ const TITLE_SYSTEM_PROMPT =
 
 /**
  * Fire-and-forget: generate a thread title from the first exchange.
- * On success, updates the DB and notifies the frontend. On failure, silently keeps "Untitled".
+ * On success, updates the DB and notifies the frontend. On failure, sets a fallback title.
  */
 function generateThreadTitle(
   threadId: string,
@@ -508,6 +508,7 @@ function generateThreadTitle(
 
       if (code !== 0) {
         logger.warn({ threadId, code }, "Title generation exited non-zero");
+        setFallbackTitle(threadId, projectId, userMessage);
         return;
       }
 
@@ -529,7 +530,10 @@ function generateThreadTitle(
       }
 
       title = title.trim().replace(/^["']|["']$/g, "");
-      if (!title || title.length < 2) return;
+      if (!title || title.length < 2) {
+        setFallbackTitle(threadId, projectId, userMessage);
+        return;
+      }
 
       // Re-read thread to avoid overwriting a user-set title (race condition)
       const current = getThread(threadId);
@@ -547,5 +551,26 @@ function generateThreadTitle(
     })
     .catch((err) => {
       logger.error({ threadId, err }, "Title generation failed");
+      setFallbackTitle(threadId, projectId, userMessage);
     });
+}
+
+/**
+ * Set a fallback title derived from the user's first message when auto-generation fails.
+ */
+function setFallbackTitle(threadId: string, projectId: string, userMessage: string): void {
+  const current = getThread(threadId);
+  if (current?.title) return;
+
+  const fallback = userMessage.slice(0, 40).replace(/\n/g, " ").trim() || "New conversation";
+
+  updateThread(threadId, { title: fallback });
+
+  eventBus.emit("chat.thread_updated", {
+    project_id: projectId,
+    thread_id: threadId,
+    title: fallback,
+  });
+
+  logger.info({ threadId, title: fallback }, "Thread fallback title set");
 }

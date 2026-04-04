@@ -14,9 +14,11 @@
   let {
     thread,
     projectId,
+    onProcessingChange,
   }: {
     thread: ChatThreadDetail;
     projectId: string;
+    onProcessingChange?: (processing: boolean) => void;
   } = $props();
 
   const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
@@ -63,6 +65,7 @@
     isStreaming = false;
     isProcessing = false;
     chatError = null;
+    onProcessingChange?.(false);
     historyEvents = {};
     loadedEventIds = new Set();
     // Determine last user message for retry
@@ -140,6 +143,7 @@
         if (data.thread_id !== thread.id) return;
         isProcessing = false;
         isStreaming = false;
+        onProcessingChange?.(false);
         const completedMsgId = data.message_id;
         streamingText = '';
         const completedEvents = [...streamingEvents];
@@ -161,6 +165,7 @@
         streamingText = '';
         streamingEvents = [];
         streamingMessageId = null;
+        onProcessingChange?.(false);
       },
       'chat.error': (data) => {
         if (data.thread_id !== thread.id) return;
@@ -170,6 +175,7 @@
         streamingEvents = [];
         streamingMessageId = null;
         chatError = data.error;
+        onProcessingChange?.(false);
       },
     });
   });
@@ -190,6 +196,7 @@
       isProcessing = true;
       chatError = null;
       lastUserText = text;
+      onProcessingChange?.(true);
     } catch {
       isProcessing = false;
     }
