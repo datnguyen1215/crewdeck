@@ -157,6 +157,30 @@ curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&c
 # Full knowledge entry
 curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>" \\
   -H "Authorization: Bearer $CREWDECK_API_KEY"
+
+# Dispatch agent to work on an issue
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/dispatch-agent" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id": "'$CREWDECK_PROJECT_ID'", "issue_id": "<ISSUE_ID>", "agent_id": "<AGENT_ID>"}'
+
+# Dispatch agent with custom instructions
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/dispatch-agent" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id": "'$CREWDECK_PROJECT_ID'", "issue_id": "<ISSUE_ID>", "agent_id": "<AGENT_ID>", "instructions": "Focus on the database layer"}'
+
+# Merge a ready PR
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/merge-pr" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id": "'$CREWDECK_PROJECT_ID'", "issue_id": "<ISSUE_ID>"}'
+
+# Trigger codebase scan (updates project knowledge)
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/scan-codebase" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id": "'$CREWDECK_PROJECT_ID'"}'
 \`\`\`
 
 ## Available Actions
