@@ -82,9 +82,13 @@
 
   function cancelRename() { renaming = false; }
 
-  function startDelete() {
-    deleting = true;
+  function startDelete(e?: MouseEvent) {
     menuOpen = false;
+    if (e?.shiftKey) {
+      confirmDelete();
+    } else {
+      deleting = true;
+    }
   }
 
   function confirmDelete() {
@@ -169,7 +173,7 @@
             Rename
           </button>
           <button
-            onclick={startDelete}
+            onclick={(e) => startDelete(e)}
             class="w-full text-left px-3 py-1.5 text-xs text-red hover:bg-surface-hi transition-colors"
           >
             Delete

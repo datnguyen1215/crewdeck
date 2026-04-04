@@ -5,8 +5,10 @@
   import {
     listChatThreads,
     createChatThread,
+    deleteChatThread,
     type ChatThreadListItem,
   } from '$lib/api/http.js';
+  import Modal from '$lib/components/Modal.svelte';
   import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 
   let {
@@ -25,6 +27,7 @@
   let loading = $state(true);
   let creating = $state(false);
   let activeThreadIds = $state(new Set<string>());
+  let deleteConfirmId = $state<string | null>(null);
 
   async function handleNewThread() {
     if (creating) return;
@@ -42,10 +45,28 @@
 
   function selectThread(id: string) {
     selectedThreadId = id;
-    // On mobile, navigate to the thread detail route
     if (window.innerWidth < 768) {
       goto(`/projects/${projectId}/chat/${id}`);
     }
+  }
+
+  function handleDeleteClick(threadId: string, e: MouseEvent) {
+    e.stopPropagation();
+    if (e.shiftKey) {
+      performDelete(threadId);
+    } else {
+      deleteConfirmId = threadId;
+    }
+  }
+
+  function performDelete(threadId: string) {
+    deleteChatThread(threadId, projectId)
+      .then(() => {
+        threads = threads.filter(t => t.id !== threadId);
+        if (selectedThreadId === threadId) selectedThreadId = '';
+      })
+      .catch(() => {});
+    deleteConfirmId = null;
   }
 
   function formatTime(dateStr: string): string {
@@ -140,9 +161,13 @@
 </div>
 
 {#snippet threadItem(thread: ChatThreadListItem)}
-  <button
+  <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+  <div
     onclick={() => selectThread(thread.id)}
-    class="w-full text-left px-3 py-2.5 border-l-[3px] border-l-edge transition-colors hover:bg-surface-hi
+    role="button"
+    tabindex="0"
+    onkeydown={(e) => { if (e.key === 'Enter') selectThread(thread.id); }}
+    class="group w-full text-left px-3 py-2.5 border-l-[3px] border-l-edge transition-colors hover:bg-surface-hi cursor-pointer
       {selectedThreadId === thread.id ? 'bg-surface-hi' : ''}"
   >
     <div class="flex items-center gap-2 min-w-0">
@@ -153,10 +178,38 @@
         {thread.title || 'Untitled'}
       </span>
       <span class="text-[10px] text-muted flex-shrink-0">{formatTime(thread.updated_at)}</span>
+      <button
+        onclick={(e) => handleDeleteClick(thread.id, e)}
+        class="flex-shrink-0 p-0.5 rounded text-muted hover:text-red transition-colors md:hidden"
+        aria-label="Delete thread"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+        </svg>
+      </button>
+      <button
+        onclick={(e) => handleDeleteClick(thread.id, e)}
+        class="hidden group-hover:flex flex-shrink-0 p-0.5 rounded text-muted hover:text-red transition-colors max-md:hidden"
+        aria-label="Delete thread"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+        </svg>
+      </button>
     </div>
     {#if thread.last_message}
       <p class="text-[11px] text-muted truncate mt-0.5">{truncate(thread.last_message, 60)}</p>
     {/if}
     <p class="text-[10px] text-muted mt-0.5">{thread.message_count} {thread.message_count === 1 ? 'message' : 'messages'}</p>
-  </button>
+  </div>
 {/snippet}
+
+<Modal open={deleteConfirmId !== null} onClose={() => deleteConfirmId = null} label="Delete thread">
+  <h2 class="text-base font-bold text-primary mb-2">Delete thread?</h2>
+  <p class="text-sm text-secondary mb-4">This action cannot be undone. All messages will be permanently deleted.</p>
+  <p class="text-xs text-muted mb-4">Hold Shift while clicking to skip this confirmation.</p>
+  <div class="flex gap-3 justify-end">
+    <button onclick={() => deleteConfirmId = null} class="px-3 py-1.5 text-xs border border-edge text-secondary hover:text-primary rounded transition-colors">Cancel</button>
+    <button onclick={() => { if (deleteConfirmId) performDelete(deleteConfirmId); }} class="px-3 py-1.5 text-xs bg-red text-white hover:bg-red/80 rounded transition-colors">Delete</button>
+  </div>
+</Modal>
