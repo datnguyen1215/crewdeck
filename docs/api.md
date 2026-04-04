@@ -2227,6 +2227,109 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 
 **Side effects:** Emits `pr.created` on the event bus.
 
+#### Dispatch Agent (Captain)
+
+```
+POST /internal/captain/dispatch-agent
+```
+
+Dispatches an agent to work on an issue. Used by the Captain chat to spawn agents via curl. Validates the same gates as `/dispatch` commands (auto_start approval, paused-issue gate, chain depth, concurrency limit).
+
+**Request Body:**
+
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid",
+  "agent_id": "engineer",
+  "instructions": "Focus on the database layer"
+}
+```
+
+| Field        | Required | Description                                         |
+| ------------ | -------- | --------------------------------------------------- |
+| project_id   | Yes      | The project the issue belongs to.                   |
+| issue_id     | Yes      | The issue to dispatch the agent on.                 |
+| agent_id     | Yes      | The agent to spawn (e.g., `engineer`, `lead`, `docs`). |
+| instructions | No       | Optional custom instructions appended to the prompt. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Agent engineer dispatched to issue <ISSUE_ID>"
+}
+```
+
+**Error:** `400 VALIDATION_ERROR` — Missing required fields, issue is paused, auto_start disabled without approval, chain depth limit reached, or concurrency limit reached.
+
+#### Merge PR (Captain)
+
+```
+POST /internal/captain/merge-pr
+```
+
+Merges a ready PR for an issue. Used by the Captain chat to merge PRs via curl. Enforces the same gates as the `/merge` command (auto_merge approval, paused-issue gate, CI gate — issue must be in `pr_ready_to_merge` status).
+
+**Request Body:**
+
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid"
+}
+```
+
+| Field      | Required | Description                       |
+| ---------- | -------- | --------------------------------- |
+| project_id | Yes      | The project the issue belongs to. |
+| issue_id   | Yes      | The issue whose PR should be merged. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "message": "PR merged for issue <ISSUE_ID>"
+}
+```
+
+**Error:** `400 VALIDATION_ERROR` — Missing required fields, issue is paused, auto_merge disabled without approval, or issue not in `pr_ready_to_merge` status.
+
+#### Scan Codebase (Captain)
+
+```
+POST /internal/captain/scan-codebase
+```
+
+Triggers a codebase scan that spawns the librarian agent to update project knowledge. Used by the Captain chat via curl. Equivalent to `POST /projects/:projectId/knowledge/scan` but accessed via the internal API with `project_id` in the request body.
+
+**Request Body:**
+
+```json
+{
+  "project_id": "uuid"
+}
+```
+
+| Field      | Required | Description                       |
+| ---------- | -------- | --------------------------------- |
+| project_id | Yes      | The project to scan.              |
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Codebase scan started"
+}
+```
+
+**Error:** `400 VALIDATION_ERROR` — Missing `project_id`.
+
+**Side effects:** Creates an `AgentRun` record and spawns the librarian agent. Emits `run.started` event.
+
 ---
 
 ## Status Transition Rules
