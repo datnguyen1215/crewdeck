@@ -19,7 +19,7 @@ The backend exposes a REST API for CRUD operations and a WebSocket server for re
 1. **Session cookie** (`session_token`) — used by browser clients after login.
 2. **API key** via `Authorization: Bearer <key>` header — used by agent/captain processes and external tools.
 
-The auth middleware checks for a Bearer token first, then falls back to the session cookie. API key-authenticated requests set a synthetic session with `username` prefixed by `api-key:`. Unauthenticated requests return `403 FORBIDDEN`. See [Authentication](#authentication) for the auth endpoints and [API Keys](#api-keys) for key management.
+The auth middleware checks for a Bearer token first, then falls back to the session cookie. API key-authenticated requests set a synthetic session with `username` prefixed by `api-key:` and attach the key's metadata (including parsed scopes) to `req.apiKey`. Scope-based authorization is enforced via the `requireScope(...scopes)` middleware factory — session-authenticated requests (admin users) always bypass scope checks, and API keys with `null` scopes are unrestricted. Unauthenticated requests return `403 FORBIDDEN`. See [Authentication](#authentication) for the auth endpoints and [API Keys](#api-keys) for key management.
 
 **Configuration:** Port and other settings are configured via environment variables (`.env` file).
 
