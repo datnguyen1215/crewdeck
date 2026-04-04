@@ -1679,18 +1679,20 @@ Returns all user-created API keys (system keys excluded). The full key is never 
     "name": "Claude CI Process",
     "key_prefix": "sk-a1b2c3d4",
     "created_at": "ISO 8601",
-    "last_used_at": "ISO 8601"
+    "last_used_at": "ISO 8601",
+    "scopes": null
   }
 ]
 ```
 
-| Field        | Type         | Description                                           |
-| ------------ | ------------ | ----------------------------------------------------- |
-| id           | TEXT (UUID)  | Unique identifier.                                    |
-| name         | TEXT         | Human-readable label assigned at creation.            |
-| key_prefix   | TEXT         | First 11 characters of the key (e.g., `sk-a1b2c3d4`). |
-| created_at   | TEXT         | When the key was created.                             |
-| last_used_at | TEXT \| null | When the key was last used for authentication.        |
+| Field        | Type                | Description                                           |
+| ------------ | ------------------- | ----------------------------------------------------- |
+| id           | TEXT (UUID)         | Unique identifier.                                    |
+| name         | TEXT                | Human-readable label assigned at creation.            |
+| key_prefix   | TEXT                | First 11 characters of the key (e.g., `sk-a1b2c3d4`). |
+| created_at   | TEXT                | When the key was created.                             |
+| last_used_at | TEXT \| null        | When the key was last used for authentication.        |
+| scopes       | string[] \| null    | Array of scope strings granted to this key, or `null` for unrestricted (admin-level) access. |
 
 #### Create API Key
 
@@ -1721,11 +1723,12 @@ Creates a new API key. The full plaintext key is returned **only once** in the r
   "key_prefix": "sk-a1b2c3d4",
   "created_at": "ISO 8601",
   "last_used_at": null,
+  "scopes": null,
   "key": "sk-a1b2c3d4e5f6..."
 }
 ```
 
-The `key` field contains the full plaintext key. It is not stored server-side (only the SHA-256 hash is stored) and will never be shown again.
+The `key` field contains the full plaintext key. It is not stored server-side (only the SHA-256 hash is stored) and will never be shown again. User-created keys default to `scopes: null` (unrestricted access).
 
 **Error:** `400 VALIDATION_ERROR` — `name` is empty or not a string.
 
