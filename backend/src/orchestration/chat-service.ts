@@ -523,6 +523,10 @@ function generateThreadTitle(
       title = title.trim().replace(/^["']|["']$/g, "");
       if (!title || title.length < 2) return;
 
+      // Re-read thread to avoid overwriting a user-set title (race condition)
+      const current = getThread(threadId);
+      if (current?.title) return;
+
       updateThread(threadId, { title });
 
       eventBus.emit("chat.thread_updated", {
