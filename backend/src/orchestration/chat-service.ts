@@ -13,6 +13,8 @@ import { logger } from "../logger.js";
 import { eventBus } from "../events/bus.js";
 import { buildProviderEnv } from "./provider-env.js";
 import { buildSystemPrompt as buildCaptainPrompt } from "./captain-prompt.js";
+import { setupGitHubAuth } from "./captain-worktree.js";
+import { cleanupSshKey } from "../utils/git-auth.js";
 import { spawnClaude } from "./process.js";
 import { resolveModel } from "../db/repositories/agent-config.js";
 import {
@@ -115,130 +117,141 @@ async function runClaudeSession(
   // Build environment: global env vars < project env vars < platform-specific vars
   const globalEnvVars = globalEnvVarRepo.getMap();
   const projectEnvVars = getEnvironmentVariablesMap(thread.project_id);
-  const baseEnv: Record<string, string> = {
-    ...globalEnvVars,
-    ...projectEnvVars,
-    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
-    CREWDECK_PROJECT_ID: thread.project_id,
-    CREWDECK_AGENT_ID: "captain",
-    ...(getSystemApiKey() ? { CREWDECK_API_KEY: getSystemApiKey()! } : {}),
-  };
 
-  // Try with --resume first if we have a session_id, fall back to fresh session
-  const sessionId = thread.session_id;
-  const needsResume = !!sessionId;
-
-  const tmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
-  await writeFile(tmpFile, systemPrompt, "utf-8");
-
-  const args = buildClaudeArgs(sessionId, model);
-
-  const repos = listRepos(thread.project_id);
-  const workdir = repos.length > 0 ? repos[0].local_path : tmpdir();
-
-  // Create the assistant message row early so we can attach events to it
-  const assistantMsg = createMessage(thread.id, "assistant", "");
-  const assistantMsgId = assistantMsg.id;
-
-  let capturedSessionId: string | null = sessionId;
-  let assistantContent = "";
-  let processFailed = false;
-
-  let freshTmpFile: string | null = null;
-
+  // Set up SSH credentials — always clean up the temp key file
+  const sshEnv: Record<string, string> = {};
+  let sshKeyPath: string | null = null;
   try {
-    const result = await runClaudeProcess(args, content, workdir, {
-      ...baseEnv,
-      ...buildProviderEnv(model),
-      ANTHROPIC_API_KEY: "",
-      GIT_TERMINAL_PROMPT: "0",
-    }, tmpFile, thread.project_id, thread.id, assistantMsgId);
+    sshKeyPath = await setupGitHubAuth(thread.project_id, sshEnv) ?? null;
 
-    if (result.sessionExpired && needsResume) {
-      // Session expired — clear it and retry fresh
-      eventBus.emit("chat.session_expired", {
-        project_id: thread.project_id,
-        thread_id: thread.id,
-      });
-      updateThread(thread.id, { session_id: null });
+    const baseEnv: Record<string, string> = {
+      ...globalEnvVars,
+      ...projectEnvVars,
+      CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
+      CREWDECK_PROJECT_ID: thread.project_id,
+      CREWDECK_AGENT_ID: "captain",
+      ...(getSystemApiKey() ? { CREWDECK_API_KEY: getSystemApiKey()! } : {}),
+      ...sshEnv,
+    };
 
-      // Retry without resume
-      const freshArgs = buildClaudeArgs(null, model);
-      freshTmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
-      await writeFile(freshTmpFile, systemPrompt, "utf-8");
+    // Try with --resume first if we have a session_id, fall back to fresh session
+    const sessionId = thread.session_id;
+    const needsResume = !!sessionId;
 
-      const freshResult = await runClaudeProcess(freshArgs, content, workdir, {
+    const tmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
+    await writeFile(tmpFile, systemPrompt, "utf-8");
+
+    const args = buildClaudeArgs(sessionId, model);
+
+    const repos = listRepos(thread.project_id);
+    const workdir = repos.length > 0 ? repos[0].local_path : tmpdir();
+
+    // Create the assistant message row early so we can attach events to it
+    const assistantMsg = createMessage(thread.id, "assistant", "");
+    const assistantMsgId = assistantMsg.id;
+
+    let capturedSessionId: string | null = sessionId;
+    let assistantContent = "";
+    let processFailed = false;
+
+    let freshTmpFile: string | null = null;
+
+    try {
+      const result = await runClaudeProcess(args, content, workdir, {
         ...baseEnv,
         ...buildProviderEnv(model),
         ANTHROPIC_API_KEY: "",
         GIT_TERMINAL_PROMPT: "0",
-      }, freshTmpFile, thread.project_id, thread.id, assistantMsgId);
+      }, tmpFile, thread.project_id, thread.id, assistantMsgId);
 
-      capturedSessionId = freshResult.sessionId;
-      assistantContent = freshResult.content;
-      processFailed = freshResult.failed;
+      if (result.sessionExpired && needsResume) {
+        // Session expired — clear it and retry fresh
+        eventBus.emit("chat.session_expired", {
+          project_id: thread.project_id,
+          thread_id: thread.id,
+        });
+        updateThread(thread.id, { session_id: null });
+
+        // Retry without resume
+        const freshArgs = buildClaudeArgs(null, model);
+        freshTmpFile = join(tmpdir(), `crewdeck-chat-${randomUUID()}.txt`);
+        await writeFile(freshTmpFile, systemPrompt, "utf-8");
+
+        const freshResult = await runClaudeProcess(freshArgs, content, workdir, {
+          ...baseEnv,
+          ...buildProviderEnv(model),
+          ANTHROPIC_API_KEY: "",
+          GIT_TERMINAL_PROMPT: "0",
+        }, freshTmpFile, thread.project_id, thread.id, assistantMsgId);
+
+        capturedSessionId = freshResult.sessionId;
+        assistantContent = freshResult.content;
+        processFailed = freshResult.failed;
+      } else {
+        capturedSessionId = result.sessionId;
+        assistantContent = result.content;
+        processFailed = result.failed;
+      }
+    } finally {
+      try { await unlink(tmpFile); } catch {}
+      if (freshTmpFile) try { await unlink(freshTmpFile); } catch {}
+    }
+
+    if (processFailed) {
+      // Don't save a ghost message — emit error so frontend can show it
+      eventBus.emit("chat.error", {
+        project_id: thread.project_id,
+        thread_id: thread.id,
+        error: "Captain process failed. Try sending the message again.",
+      });
+
+      // Update session_id if we got one from the attempt
+      if (capturedSessionId && capturedSessionId !== thread.session_id) {
+        updateThread(thread.id, { session_id: capturedSessionId });
+      }
+      updateThread(thread.id, {});
+
+      // Still fire chat.complete so frontend resets streaming state
+      eventBus.emit("chat.complete", {
+        project_id: thread.project_id,
+        thread_id: thread.id,
+        message_id: assistantMsgId,
+      });
+
+      // Delete the ghost assistant message so the thread isn't left with empty content
+      deleteMessage(assistantMsgId);
+
+      throw new Error("Captain process failed. Try sending the message again.");
     } else {
-      capturedSessionId = result.sessionId;
-      assistantContent = result.content;
-      processFailed = result.failed;
+      // Update assistant message with final content
+      updateMessage(assistantMsgId, assistantContent);
+
+      // Update session_id if we got a new one
+      if (capturedSessionId && capturedSessionId !== thread.session_id) {
+        updateThread(thread.id, { session_id: capturedSessionId });
+      }
+
+      // Touch updated_at
+      updateThread(thread.id, {});
+
+      eventBus.emit("chat.complete", {
+        project_id: thread.project_id,
+        thread_id: thread.id,
+        message_id: assistantMsgId,
+      });
+
+      // Fire-and-forget: auto-generate title if thread has none
+      if (!thread.title) {
+        generateThreadTitle(thread.id, thread.project_id, content, assistantContent);
+      }
+
+      return {
+        message_id: assistantMsgId,
+        session_id: capturedSessionId,
+      };
     }
   } finally {
-    try { await unlink(tmpFile); } catch {}
-    if (freshTmpFile) try { await unlink(freshTmpFile); } catch {}
-  }
-
-  if (processFailed) {
-    // Don't save a ghost message — emit error so frontend can show it
-    eventBus.emit("chat.error", {
-      project_id: thread.project_id,
-      thread_id: thread.id,
-      error: "Captain process failed. Try sending the message again.",
-    });
-
-    // Update session_id if we got one from the attempt
-    if (capturedSessionId && capturedSessionId !== thread.session_id) {
-      updateThread(thread.id, { session_id: capturedSessionId });
-    }
-    updateThread(thread.id, {});
-
-    // Still fire chat.complete so frontend resets streaming state
-    eventBus.emit("chat.complete", {
-      project_id: thread.project_id,
-      thread_id: thread.id,
-      message_id: assistantMsgId,
-    });
-
-    // Delete the ghost assistant message so the thread isn't left with empty content
-    deleteMessage(assistantMsgId);
-
-    throw new Error("Captain process failed. Try sending the message again.");
-  } else {
-    // Update assistant message with final content
-    updateMessage(assistantMsgId, assistantContent);
-
-    // Update session_id if we got a new one
-    if (capturedSessionId && capturedSessionId !== thread.session_id) {
-      updateThread(thread.id, { session_id: capturedSessionId });
-    }
-
-    // Touch updated_at
-    updateThread(thread.id, {});
-
-    eventBus.emit("chat.complete", {
-      project_id: thread.project_id,
-      thread_id: thread.id,
-      message_id: assistantMsgId,
-    });
-
-    // Fire-and-forget: auto-generate title if thread has none
-    if (!thread.title) {
-      generateThreadTitle(thread.id, thread.project_id, content, assistantContent);
-    }
-
-    return {
-      message_id: assistantMsgId,
-      session_id: capturedSessionId,
-    };
+    if (sshKeyPath) cleanupSshKey(sshKeyPath);
   }
 }
 
