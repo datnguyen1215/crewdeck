@@ -349,9 +349,16 @@ Approval flags are cleared after successful dispatch/merge and are stored in-mem
 
 **Captain Monitor Event Response Rules**
 
-When the captain monitor handles a `run.completed` event: if the completed issue has an open PR (visible in the snapshot or event context), the captain sets the issue status back to `pr_created`. This ensures the PR poller re-evaluates CI and mergeability from GitHub, since the poller skips `in_progress` issues.
+When the captain monitor handles a `run.completed` event, it routes based on **which agent** completed:
 
-The captain continues the workflow up to PR creation (engineer → lead → docs → PR). After a PR is created or updated, the captain sets status to `pr_created` and **waits** — it does NOT issue a merge action immediately. The PR poller transitions the issue to `pr_ready_to_merge` once CI passes. The captain only merges after receiving a `status_changed → pr_ready_to_merge` event.
+- **Engineer completed**: Always dispatches lead for code review, regardless of whether a PR already exists for the issue. The engineer's full report is passed as context in the dispatch instructions.
+- **Lead completed**: If the lead reported issues/findings, dispatches engineer with those findings as instructions (starting a fix cycle). If the lead reported no issues ("looks good"), dispatches docs.
+- **Docs completed**: Creates the PR, then sets the issue status to `pr_created`.
+- **Librarian completed**: Checks for newly unblocked issues and dispatches if ready.
+
+Lead review is mandatory — the monitor never skips it, even when a PR already exists. The fix cycle (engineer → lead → engineer → lead) can repeat until the lead approves. Only after lead approval does docs get dispatched, followed by PR creation.
+
+After a PR is created or updated, the captain sets status to `pr_created` and **waits** — it does NOT issue a merge action immediately. The PR poller transitions the issue to `pr_ready_to_merge` once CI passes. The captain only merges after receiving a `status_changed → pr_ready_to_merge` event.
 
 **Command Execution** (`backend/src/orchestration/command-handlers.ts`)
 
