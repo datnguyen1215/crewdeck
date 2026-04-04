@@ -212,7 +212,7 @@
 
 </script>
 
-<div class="activity-terminal bg-base border border-edge rounded overflow-hidden flex flex-col">
+<div class="activity-terminal bg-base border border-edge rounded overflow-hidden flex flex-col" style="view-transition-name: none">
 	<!-- Drag handle -->
 	{#if !collapsed}
 		<div

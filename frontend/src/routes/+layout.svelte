@@ -13,9 +13,21 @@
 		$page.url.pathname.startsWith('/setup/')
 	);
 
+	// Check if navigation stays within the same /projects/[id] prefix
+	function isSameProject(
+		from: { url: URL } | null,
+		to: { url: URL } | null
+	): boolean {
+		if (!from || !to) return false;
+		const fromMatch = from.url.pathname.match(/^\/projects\/([^/]+)/);
+		const toMatch = to.url.pathname.match(/^\/projects\/([^/]+)/);
+		return fromMatch?.[1] === toMatch?.[1];
+	}
+
 	// Page transitions via View Transitions API
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return;
+		if (isSameProject(navigation.from, navigation.to)) return;
 
 		return new Promise((resolve) => {
 			const transition = document.startViewTransition(async () => {
