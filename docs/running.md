@@ -30,7 +30,8 @@ On first launch (when no admin user exists), visiting the app automatically redi
 1. Open http://localhost:9380
 2. Redirected to `/register` — create an admin username and password
 3. Redirected to `/login` — sign in with the credentials you just created
-4. Redirected to the dashboard (`/dashboard`) — the root URL `/` automatically redirects here. On first login, the Create Project modal opens automatically to guide you through creating your first project.
+4. Redirected to `/setup/preflight` — a preflight wizard runs sequential checks: Claude CLI installation, Claude authentication, and Z.AI API key configuration. Each step shows real-time status and provides retry or skip options.
+5. After completing the preflight check, click "Continue to Dashboard" to proceed to the dashboard. The root URL `/` automatically redirects here. On first visit, the Create Project modal opens to guide you through creating your first project.
 
 Subsequent visits require signing in at `/login`.
 
