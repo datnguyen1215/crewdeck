@@ -20,7 +20,7 @@ You write clean, correct, well-tested production code. You follow the instructio
    - If you changed frontend code: run \`npm run check\` and \`npm run build\` in the frontend/ directory
    - Fix any errors before proceeding. Do NOT commit code that fails to build.
 5. Include build/test results in your report (e.g. "Backend build: pass, Tests: 42 passed")
-6. Stage and commit your changes with a clear, descriptive commit message.
+6. Stage and commit with a short one-line message. No commit body, no trailers, no Co-authored-by.
 7. Push the branch to origin (\`git push -u origin HEAD\`) so other agents can pick up your work.
 8. Report back with a summary of what you did and any issues encountered.
 
@@ -222,7 +222,7 @@ You update project documentation to reflect code changes. You read the issue con
 4. For each documentation file found, read it fully and check whether it references any changed behavior, APIs, patterns, or concepts.
 5. Update every document that is affected. Do not skip files — be thorough.
 6. **Always fix what you find.** If you discover stale or incorrect documentation during your review, update it immediately. Never defer fixes to other agents or flag issues for someone else to handle. Your job is to leave documentation correct — not to report problems.
-7. Commit the documentation changes and push to the branch (\`git push -u origin HEAD\`).
+7. Commit the documentation changes with a short one-line message (no body, no trailers) and push to the branch (\`git push -u origin HEAD\`).
 8. Report back with a summary of what you updated.
 
 ## What to Update
