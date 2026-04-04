@@ -5,8 +5,10 @@ import { z } from "zod";
 import * as globalConfigRepo from "../db/repositories/global-config.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import { getZaiApiKey } from "../orchestration/provider-env.js";
 import * as globalEnvVarRepo from "../db/repositories/global-environment-variables.js";
+import { Scope } from "../constants/scopes.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,7 +40,7 @@ const SetAgentTimeoutSchema = z.object({
   agentTimeoutMinutes: z.number().int().min(1).max(60),
 });
 
-router.get("/", (_req, res) => {
+router.get("/", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
   res.json({
     defaultModel: globalConfigRepo.getDefaultModel(),
     maxConcurrency: globalConfigRepo.getMaxConcurrency(),
@@ -47,39 +49,40 @@ router.get("/", (_req, res) => {
   });
 });
 
-router.get("/default-model", (_req, res) => {
+router.get("/default-model", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
   res.json({ model: globalConfigRepo.getDefaultModel() });
 });
 
-router.put("/default-model", validate(SetDefaultModelSchema), (req, res) => {
+router.put("/default-model", requireScope(Scope.GLOBAL_CONFIG_WRITE), validate(SetDefaultModelSchema), (req, res) => {
   globalConfigRepo.setDefaultModel(req.body.model);
   res.json({ model: globalConfigRepo.getDefaultModel() });
 });
 
-router.get("/max-concurrency", (_req, res) => {
+router.get("/max-concurrency", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
   res.json({ maxConcurrency: globalConfigRepo.getMaxConcurrency() });
 });
 
-router.put("/max-concurrency", validate(SetMaxConcurrencySchema), (req, res) => {
+router.put("/max-concurrency", requireScope(Scope.GLOBAL_CONFIG_WRITE), validate(SetMaxConcurrencySchema), (req, res) => {
   globalConfigRepo.setMaxConcurrency(req.body.maxConcurrency);
   res.json({ maxConcurrency: globalConfigRepo.getMaxConcurrency() });
 });
 
-router.get("/max-chain-depth", (_req, res) => {
+router.get("/max-chain-depth", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
   res.json({ maxChainDepth: globalConfigRepo.getMaxChainDepth() });
 });
 
-router.put("/max-chain-depth", validate(SetMaxChainDepthSchema), (req, res) => {
+router.put("/max-chain-depth", requireScope(Scope.GLOBAL_CONFIG_WRITE), validate(SetMaxChainDepthSchema), (req, res) => {
   globalConfigRepo.setMaxChainDepth(req.body.maxChainDepth);
   res.json({ maxChainDepth: globalConfigRepo.getMaxChainDepth() });
 });
 
-router.get("/agent-timeout-minutes", (_req, res) => {
+router.get("/agent-timeout-minutes", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
   res.json({ agentTimeoutMinutes: globalConfigRepo.getAgentTimeoutMinutes() });
 });
 
 router.put(
   "/agent-timeout-minutes",
+  requireScope(Scope.GLOBAL_CONFIG_WRITE),
   validate(SetAgentTimeoutSchema),
   (req, res) => {
     globalConfigRepo.setAgentTimeoutMinutes(req.body.agentTimeoutMinutes);
@@ -87,14 +90,14 @@ router.put(
   },
 );
 
-router.get("/active-agents", (_req, res) => {
+router.get("/active-agents", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
   res.json({
     activeAgents: agentRunRepo.countRunningGlobal(),
     maxConcurrency: globalConfigRepo.getMaxConcurrency(),
   });
 });
 
-router.get("/model-availability", (_req, res) => {
+router.get("/model-availability", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
   const zaiAvailable = !!getZaiApiKey();
   res.json({
     claude: { available: true },
@@ -105,7 +108,7 @@ router.get("/model-availability", (_req, res) => {
 // --- Preflight check endpoints ---
 
 // GET /preflight/claude-cli — check if claude CLI is installed
-router.get("/preflight/claude-cli", async (_req, res) => {
+router.get("/preflight/claude-cli", requireScope(Scope.GLOBAL_CONFIG_READ), async (_req, res) => {
   try {
     const { stdout: path } = await execFileAsync("which", ["claude"]);
     const trimmedPath = path.trim();
@@ -131,7 +134,7 @@ router.get("/preflight/claude-cli", async (_req, res) => {
 });
 
 // GET /preflight/claude-auth — check if claude CLI is authenticated
-router.get("/preflight/claude-auth", async (_req, res) => {
+router.get("/preflight/claude-auth", requireScope(Scope.GLOBAL_CONFIG_READ), async (_req, res) => {
   try {
     await execFileAsync(
       "claude",
@@ -156,7 +159,7 @@ router.get("/preflight/claude-auth", async (_req, res) => {
 });
 
 // GET /preflight/zai — check if Z.AI API key is configured
-router.get("/preflight/zai", (_req, res) => {
+router.get("/preflight/zai", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
   if (process.env.ZAI_API_KEY) {
     res.json({ configured: true, source: "env" as const });
     return;

@@ -11,6 +11,7 @@ import { markSetupComplete } from "../db/repositories/auth.js";
 import { getLatestLibrarianRun } from "../db/repositories/agent-runs.js";
 import { resolveRepoMetadata } from "../vcs/resolve-repo-metadata.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import { NotFoundError } from "../middleware/errors.js";
 import {
   CreateProjectSchema,
@@ -18,10 +19,11 @@ import {
 } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
 import { startMonitorForProject } from "../orchestration/captain/monitor-service.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router();
 
-router.get("/", (req, res) => {
+router.get("/", requireScope(Scope.PROJECTS_READ), (req, res) => {
   if (req.query.stats !== undefined) {
     res.json(listProjectsWithStats());
   } else {
@@ -29,13 +31,13 @@ router.get("/", (req, res) => {
   }
 });
 
-router.get("/:id", (req, res) => {
+router.get("/:id", requireScope(Scope.PROJECTS_READ), (req, res) => {
   const project = getProject(req.params.id);
   if (!project) throw new NotFoundError("Project not found");
   res.json(project);
 });
 
-router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
+router.post("/", requireScope(Scope.PROJECTS_WRITE), validate(CreateProjectSchema), async (req, res, next) => {
   try {
     const body = req.body;
     const metadata = await resolveRepoMetadata(
@@ -64,7 +66,7 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
   }
 });
 
-router.patch("/:id", validate(UpdateProjectSchema), (req, res) => {
+router.patch("/:id", requireScope(Scope.PROJECTS_WRITE), validate(UpdateProjectSchema), (req, res) => {
   const existing = getProject(req.params.id);
   if (!existing) throw new NotFoundError("Project not found");
   const updated = updateProject(req.params.id, req.body);
@@ -77,14 +79,14 @@ router.patch("/:id", validate(UpdateProjectSchema), (req, res) => {
   res.json(updated);
 });
 
-router.delete("/:id", (req, res) => {
+router.delete("/:id", requireScope(Scope.PROJECTS_DELETE), (req, res) => {
   const existing = getProject(req.params.id);
   if (!existing) throw new NotFoundError("Project not found");
   deleteProject(req.params.id);
   res.status(204).send();
 });
 
-router.get("/:id/librarian-status", (req, res) => {
+router.get("/:id/librarian-status", requireScope(Scope.PROJECTS_READ), (req, res) => {
   const existing = getProject(req.params.id);
   if (!existing) throw new NotFoundError("Project not found");
   const run = getLatestLibrarianRun(req.params.id);
@@ -99,7 +101,7 @@ router.get("/:id/librarian-status", (req, res) => {
   });
 });
 
-router.get("/:id/captain/status", (req, res) => {
+router.get("/:id/captain/status", requireScope(Scope.PROJECTS_READ), (req, res) => {
   const project = getProject(req.params.id);
   if (!project) throw new NotFoundError("Project not found");
 

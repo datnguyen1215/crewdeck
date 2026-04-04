@@ -7,7 +7,9 @@ import {
   remove,
 } from "../db/repositories/knowledge.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import { verifyProject, createOwnershipVerifier } from "../middleware/ownership.js";
+import { Scope } from "../constants/scopes.js";
 import {
   CreateKnowledgeSchema,
   UpdateKnowledgeSchema,
@@ -18,13 +20,14 @@ const router = Router({ mergeParams: true });
 
 const verifyKnowledgeOwner = createOwnershipVerifier(getById, "Knowledge entry", "project_id");
 
-router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
+router.get("/", requireScope(Scope.KNOWLEDGE_READ), verifyProject, (req: Request<{ projectId: string }>, res) => {
   const entries = listByProject(req.params.projectId);
   res.json(entries);
 });
 
 router.get(
   "/:knowledgeId",
+  requireScope(Scope.KNOWLEDGE_READ),
   verifyProject,
   (req: Request<{ projectId: string; knowledgeId: string }>, res) => {
     const entry = verifyKnowledgeOwner(req.params.knowledgeId, req.params.projectId);
@@ -34,6 +37,7 @@ router.get(
 
 router.post(
   "/",
+  requireScope(Scope.KNOWLEDGE_WRITE),
   verifyProject,
   validate(CreateKnowledgeSchema),
   (req: Request<{ projectId: string }>, res) => {
@@ -44,6 +48,7 @@ router.post(
 
 router.patch(
   "/:knowledgeId",
+  requireScope(Scope.KNOWLEDGE_WRITE),
   verifyProject,
   validate(UpdateKnowledgeSchema),
   (req: Request<{ projectId: string; knowledgeId: string }>, res) => {
@@ -55,6 +60,7 @@ router.patch(
 
 router.delete(
   "/:knowledgeId",
+  requireScope(Scope.KNOWLEDGE_DELETE),
   verifyProject,
   (req: Request<{ projectId: string; knowledgeId: string }>, res) => {
     const existing = verifyKnowledgeOwner(req.params.knowledgeId, req.params.projectId);
@@ -65,6 +71,7 @@ router.delete(
 
 router.post(
   "/scan",
+  requireScope(Scope.KNOWLEDGE_SCAN),
   verifyProject,
   async (req: Request<{ projectId: string }>, res, next) => {
     try {

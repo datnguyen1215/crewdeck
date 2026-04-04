@@ -6,12 +6,14 @@
  */
 import { Router, type Request, type NextFunction, type Response } from "express";
 import { verifyProject } from "../middleware/ownership.js";
+import { requireScope } from "../middleware/scope.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import * as threadRepo from "../db/repositories/chat-threads.js";
 import * as messageRepo from "../db/repositories/chat-messages.js";
 import * as chatEventRepo from "../db/repositories/chat-message-events.js";
 import type { ChatThread, ChatMessage } from "../types/entities.js";
 import { acquireAndCreateMessage, runThreadSession, isThreadActive } from "../orchestration/chat-service.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router({ mergeParams: true });
 
@@ -26,6 +28,7 @@ interface ThreadWithMeta extends ChatThread {
 // POST /chat/threads — Create thread
 router.post(
   "/chat/threads",
+  requireScope(Scope.CHAT_WRITE),
   verifyProject,
   (req: Request<ProjectParams>, res) => {
     const { title } = req.body as { title?: string };
@@ -37,6 +40,7 @@ router.post(
 // GET /chat/threads — List threads with message_count and last_message
 router.get(
   "/chat/threads",
+  requireScope(Scope.CHAT_READ),
   verifyProject,
   (req: Request<ProjectParams>, res) => {
     const threads = threadRepo.listThreads(req.params.projectId);
@@ -55,6 +59,7 @@ router.get(
 // GET /chat/threads/:threadId — Get thread + paginated messages
 router.get(
   "/chat/threads/:threadId",
+  requireScope(Scope.CHAT_READ),
   verifyProject,
   (req: Request<ThreadParams>, res) => {
     const thread = threadRepo.getThread(req.params.threadId);
@@ -71,6 +76,7 @@ router.get(
 // PATCH /chat/threads/:threadId — Update thread title
 router.patch(
   "/chat/threads/:threadId",
+  requireScope(Scope.CHAT_WRITE),
   verifyProject,
   (req: Request<ThreadParams>, res) => {
     const thread = threadRepo.getThread(req.params.threadId);
@@ -92,6 +98,7 @@ router.patch(
 // DELETE /chat/threads/:threadId — Delete thread
 router.delete(
   "/chat/threads/:threadId",
+  requireScope(Scope.CHAT_DELETE),
   verifyProject,
   (req: Request<ThreadParams>, res) => {
     const thread = threadRepo.getThread(req.params.threadId);
@@ -107,6 +114,7 @@ router.delete(
 // POST /chat/threads/:threadId/messages — Send message (fire-and-forget, 202)
 router.post(
   "/chat/threads/:threadId/messages",
+  requireScope(Scope.CHAT_WRITE),
   verifyProject,
   (req: Request<ThreadParams>, res: Response, next: NextFunction) => {
     try {
@@ -139,6 +147,7 @@ router.post(
 // GET /chat/threads/:threadId/status — Check if thread is currently processing
 router.get(
   "/chat/threads/:threadId/status",
+  requireScope(Scope.CHAT_READ),
   verifyProject,
   (req: Request<ThreadParams>, res) => {
     const thread = threadRepo.getThread(req.params.threadId);
@@ -152,6 +161,7 @@ router.get(
 // GET /chat/threads/:threadId/messages/:messageId/events — List events for a message
 router.get(
   "/chat/threads/:threadId/messages/:messageId/events",
+  requireScope(Scope.CHAT_READ),
   verifyProject,
   (req: Request<ThreadParams & { messageId: string }>, res) => {
     const thread = threadRepo.getThread(req.params.threadId);

@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import * as apiKeys from "../db/repositories/api-keys.js";
 import { Scope } from "../constants/scopes.js";
+import { requireScope } from "../middleware/scope.js";
 import { ForbiddenError, NotFoundError } from "../middleware/errors.js";
 
 const router = Router();
@@ -27,11 +28,11 @@ function requireSessionAuth(
 
 router.use(requireSessionAuth);
 
-router.get("/", (_req, res) => {
+router.get("/", requireScope(Scope.API_KEYS_READ), (_req, res) => {
   res.json(apiKeys.listApiKeys());
 });
 
-router.post("/", (req, res) => {
+router.post("/", requireScope(Scope.API_KEYS_WRITE), (req, res) => {
   const { name, scopes } = req.body;
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(400).json({
@@ -68,7 +69,7 @@ router.post("/", (req, res) => {
   res.status(201).json({ ...apiKey, key: plaintext });
 });
 
-router.delete("/:id", (req, res) => {
+router.delete("/:id", requireScope(Scope.API_KEYS_DELETE), (req, res) => {
   const key = apiKeys.getApiKeyById(req.params.id);
   if (!key) throw new NotFoundError("API key not found");
   if (key.is_system) {

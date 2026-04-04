@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import * as agentConfigRepo from "../db/repositories/agent-config.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router();
 
@@ -20,16 +22,16 @@ const UpsertAgentConfigSchema = z.object({
   model: z.enum(ALL_MODELS).nullable(),
 });
 
-router.get("/", (_req, res) => {
+router.get("/", requireScope(Scope.AGENT_CONFIG_READ), (_req, res) => {
   res.json(agentConfigRepo.list());
 });
 
-router.put("/:agentId", validate(UpsertAgentConfigSchema), (req, res) => {
+router.put("/:agentId", requireScope(Scope.AGENT_CONFIG_WRITE), validate(UpsertAgentConfigSchema), (req, res) => {
   const config = agentConfigRepo.upsert(req.params.agentId, req.body.model);
   res.json(config);
 });
 
-router.delete("/:agentId", (req, res) => {
+router.delete("/:agentId", requireScope(Scope.AGENT_CONFIG_DELETE), (req, res) => {
   agentConfigRepo.remove(req.params.agentId);
   res.status(204).send();
 });

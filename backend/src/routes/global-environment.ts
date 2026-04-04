@@ -1,7 +1,9 @@
 import { Router } from "express";
 import * as globalEnvRepo from "../db/repositories/global-environment-variables.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import { NotFoundError, ConflictError } from "../middleware/errors.js";
+import { Scope } from "../constants/scopes.js";
 import {
   CreateGlobalEnvironmentVariableSchema,
   UpdateGlobalEnvironmentVariableSchema,
@@ -32,13 +34,14 @@ function rethrowUniqueConflict(err: unknown): never {
   throw err;
 }
 
-router.get("/", (_req, res) => {
+router.get("/", requireScope(Scope.ENVIRONMENT_READ), (_req, res) => {
   const vars = globalEnvRepo.list();
   res.json(vars.map(maskSecrets));
 });
 
 router.post(
   "/",
+  requireScope(Scope.ENVIRONMENT_WRITE),
   validate(CreateGlobalEnvironmentVariableSchema),
   (req, res) => {
     try {
@@ -52,6 +55,7 @@ router.post(
 
 router.patch(
   "/:envVarId",
+  requireScope(Scope.ENVIRONMENT_WRITE),
   validate(UpdateGlobalEnvironmentVariableSchema),
   (req, res) => {
     const existing = globalEnvRepo.get(req.params.envVarId);
@@ -67,7 +71,7 @@ router.patch(
   },
 );
 
-router.delete("/:envVarId", (req, res) => {
+router.delete("/:envVarId", requireScope(Scope.ENVIRONMENT_DELETE), (req, res) => {
   const existing = globalEnvRepo.get(req.params.envVarId);
   if (!existing) {
     throw new NotFoundError("Global environment variable not found");

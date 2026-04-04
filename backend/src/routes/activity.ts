@@ -4,12 +4,14 @@ import {
   enrichActivityEntries,
 } from "../db/repositories/activity-log.js";
 import { getProject } from "../db/repositories/projects.js";
+import { requireScope } from "../middleware/scope.js";
 import { NotFoundError, ValidationError } from "../middleware/errors.js";
 import type { ActivityFilters } from "../types/entities.js";
+import { Scope } from "../constants/scopes.js";
 
 const router = Router({ mergeParams: true });
 
-router.get("/", (req: Request<{ projectId: string }>, res) => {
+router.get("/", requireScope(Scope.ACTIVITY_READ), (req: Request<{ projectId: string }>, res) => {
   const { projectId } = req.params;
   if (!getProject(projectId)) throw new NotFoundError("Project not found");
 

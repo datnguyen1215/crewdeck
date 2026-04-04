@@ -7,11 +7,13 @@ import {
   deleteEnvironmentVariable,
 } from "../db/repositories/environment-variables.js";
 import { validate } from "../middleware/validate.js";
+import { requireScope } from "../middleware/scope.js";
 import {
   verifyProject,
   createOwnershipVerifier,
 } from "../middleware/ownership.js";
 import { ConflictError } from "../middleware/errors.js";
+import { Scope } from "../constants/scopes.js";
 import {
   CreateEnvironmentVariableSchema,
   UpdateEnvironmentVariableSchema,
@@ -34,7 +36,7 @@ function maskSecrets(envVar: EnvironmentVariable): EnvironmentVariable {
   return envVar;
 }
 
-router.get("/", verifyProject, (req: Request<{ projectId: string }>, res) => {
+router.get("/", requireScope(Scope.ENVIRONMENT_READ), verifyProject, (req: Request<{ projectId: string }>, res) => {
   const vars = listEnvironmentVariables(req.params.projectId);
   res.json(vars.map(maskSecrets));
 });
@@ -53,6 +55,7 @@ function rethrowUniqueConflict(err: unknown): never {
 
 router.post(
   "/",
+  requireScope(Scope.ENVIRONMENT_WRITE),
   verifyProject,
   validate(CreateEnvironmentVariableSchema),
   (req: Request<{ projectId: string }>, res) => {
@@ -67,6 +70,7 @@ router.post(
 
 router.patch(
   "/:envVarId",
+  requireScope(Scope.ENVIRONMENT_WRITE),
   verifyProject,
   validate(UpdateEnvironmentVariableSchema),
   (req: Request<{ projectId: string; envVarId: string }>, res) => {
@@ -85,6 +89,7 @@ router.patch(
 
 router.delete(
   "/:envVarId",
+  requireScope(Scope.ENVIRONMENT_DELETE),
   verifyProject,
   (req: Request<{ projectId: string; envVarId: string }>, res) => {
     const existing = verifyEnvVarOwner(
