@@ -17,6 +17,7 @@ import {
   UpdateProjectSchema,
 } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
+import { startMonitorForProject } from "../orchestration/captain/monitor-service.js";
 
 const router = Router();
 
@@ -54,6 +55,8 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
       markSetupComplete(req.session!.userId);
       req.session!.setupCompleted = 1;
     }
+
+    startMonitorForProject(project.id);
 
     res.status(201).json(project);
   } catch (err) {
