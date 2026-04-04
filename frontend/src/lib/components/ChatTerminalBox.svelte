@@ -101,7 +101,10 @@
     </button>
 
   {:else if event.type === 'text'}
-    <!-- text events are shown in the main response bubble, skip here -->
+    <div class="event-row">
+      <span class="event-dot text-dot"></span>
+      <span class="event-text text-text">{truncate(typeof event.data.content === 'string' ? event.data.content : '', 200)}</span>
+    </div>
 
   {:else if event.type === 'result'}
     <div class="event-row result-row">
@@ -201,6 +204,16 @@
   .thinking-dot {
     background: #06b6d4;
     animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+
+  .text-dot {
+    background: rgba(255, 255, 255, 0.35);
+  }
+
+  .text-text {
+    color: rgba(255, 255, 255, 0.6);
+    white-space: pre-wrap;
+    word-break: break-words;
   }
 
   .tool-dot {
