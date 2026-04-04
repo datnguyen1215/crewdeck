@@ -1,9 +1,12 @@
 import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import * as apiKeys from "../db/repositories/api-keys.js";
+import { Scope } from "../constants/scopes.js";
 import { ForbiddenError, NotFoundError } from "../middleware/errors.js";
 
 const router = Router();
+
+const knownScopes = new Set(Object.values(Scope));
 
 // API keys cannot manage other API keys — require session auth
 function requireSessionAuth(
@@ -29,14 +32,39 @@ router.get("/", (_req, res) => {
 });
 
 router.post("/", (req, res) => {
-  const { name } = req.body;
+  const { name, scopes } = req.body;
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(400).json({
       error: { code: "VALIDATION_ERROR", message: "name is required" },
     });
     return;
   }
-  const { apiKey, plaintext } = apiKeys.createApiKey(name.trim());
+
+  if (scopes !== undefined && scopes !== null) {
+    if (!Array.isArray(scopes)) {
+      res.status(400).json({
+        error: { code: "VALIDATION_ERROR", message: "scopes must be an array" },
+      });
+      return;
+    }
+    for (const scope of scopes) {
+      if (typeof scope !== "string" || !knownScopes.has(scope)) {
+        res.status(400).json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: `invalid scope: ${scope}`,
+          },
+        });
+        return;
+      }
+    }
+  }
+
+  const { apiKey, plaintext } = apiKeys.createApiKey(
+    name.trim(),
+    false,
+    scopes ?? null,
+  );
   res.status(201).json({ ...apiKey, key: plaintext });
 });
 
