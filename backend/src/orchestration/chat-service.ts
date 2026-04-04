@@ -13,6 +13,8 @@ import { logger } from "../logger.js";
 import { eventBus } from "../events/bus.js";
 import { buildProviderEnv } from "./provider-env.js";
 import { buildSystemPrompt as buildCaptainPrompt } from "./captain-prompt.js";
+import { setupGitHubAuth } from "./captain-worktree.js";
+import { cleanupSshKey } from "../utils/git-auth.js";
 import { spawnClaude } from "./process.js";
 import { resolveModel } from "../db/repositories/agent-config.js";
 import {
@@ -115,6 +117,8 @@ async function runClaudeSession(
   // Build environment: global env vars < project env vars < platform-specific vars
   const globalEnvVars = globalEnvVarRepo.getMap();
   const projectEnvVars = getEnvironmentVariablesMap(thread.project_id);
+  const sshEnv: Record<string, string> = {};
+  const sshKeyPath = await setupGitHubAuth(thread.project_id, sshEnv);
   const baseEnv: Record<string, string> = {
     ...globalEnvVars,
     ...projectEnvVars,
@@ -122,6 +126,7 @@ async function runClaudeSession(
     CREWDECK_PROJECT_ID: thread.project_id,
     CREWDECK_AGENT_ID: "captain",
     ...(getSystemApiKey() ? { CREWDECK_API_KEY: getSystemApiKey()! } : {}),
+    ...sshEnv,
   };
 
   // Try with --resume first if we have a session_id, fall back to fresh session
@@ -185,6 +190,7 @@ async function runClaudeSession(
   } finally {
     try { await unlink(tmpFile); } catch {}
     if (freshTmpFile) try { await unlink(freshTmpFile); } catch {}
+    if (sshKeyPath) cleanupSshKey(sshKeyPath);
   }
 
   if (processFailed) {
