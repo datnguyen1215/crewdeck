@@ -1716,7 +1716,65 @@ Creates a new API key. The full plaintext key is returned **only once** in the r
 | name   | Yes      | Human-readable label for the key.                                                                                                     |
 | scopes | No       | Array of scope strings to restrict the key's access. If omitted or `null`, the key is unrestricted (admin-level). Each scope must be a known scope constant. |
 
-**Available scopes:** See `backend/src/constants/scopes.ts` for the full list. Common scopes include `issues:read`, `issues:create`, `comments:read`, `comments:create`, `knowledge:read`, `knowledge:write`, `projects:read`, `runs:read`, `activity:read`.
+**Available scopes:** See `backend/src/constants/scopes.ts` for the full list. All scopes are enforced via `requireScope()` middleware on every route. Common scopes include:
+
+| Scope | Description |
+|-------|-------------|
+| `issues:read` | Read issues and issue details |
+| `issues:create` | Create new issues |
+| `issues:update` | Update issue fields (title, description, status) |
+| `issues:delete` | Delete issues |
+| `issues:pause` | Pause issues |
+| `issues:resume` | Resume paused issues |
+| `issues:approve` | Approve issues for start or merge |
+| `comments:read` | Read comments |
+| `comments:create` | Create comments |
+| `comments:edit` | Edit comments |
+| `comments:delete` | Delete comments |
+| `knowledge:read` | Read knowledge entries |
+| `knowledge:write` | Create or update knowledge entries |
+| `knowledge:delete` | Delete knowledge entries |
+| `knowledge:scan` | Trigger knowledge scans |
+| `projects:read` | Read projects |
+| `projects:write` | Create or update projects |
+| `projects:delete` | Delete projects |
+| `repos:read` | Read repos |
+| `repos:write` | Add repos |
+| `repos:delete` | Remove repos |
+| `runs:read` | Read agent runs |
+| `activity:read` | Read activity log |
+| `monitor:read` | Read monitor history |
+| `agents:read` | List crew/agents |
+| `global-config:read` | Read global config (admin only) |
+| `global-config:write` | Update global config (admin only) |
+| `vcs-accounts:read` | Read VCS accounts (admin only) |
+| `vcs-accounts:write` | Create/update VCS accounts (admin only) |
+| `vcs-accounts:delete` | Delete VCS accounts (admin only) |
+| `api-keys:read` | List API keys (admin only) |
+| `api-keys:write` | Create API keys (admin only) |
+| `api-keys:delete` | Delete API keys (admin only) |
+| `environment:read` | Read environment variables (admin only) |
+| `environment:write` | Create/update environment variables (admin only) |
+| `environment:delete` | Delete environment variables (admin only) |
+| `chat:read` | Read chat threads (admin only) |
+| `chat:write` | Create/update chat threads and messages (admin only) |
+| `chat:delete` | Delete chat threads (admin only) |
+| `terminal:read` | Read terminal session status (admin only) |
+| `terminal:write` | Create terminal sessions (admin only) |
+| `terminal:delete` | Destroy terminal sessions (admin only) |
+| `agent-config:read` | Read agent config (admin only) |
+| `agent-config:write` | Update agent config (admin only) |
+| `agent-config:delete` | Delete agent config (admin only) |
+| `internal:comment` | Post comments via internal API |
+| `internal:create-issue` | Create issues via internal API |
+| `internal:create-pr` | Register PRs via internal API |
+| `internal:dispatch` | Dispatch agents via internal API |
+| `internal:merge` | Merge PRs via internal API |
+| `internal:scan` | Scan codebase via internal API |
+| `internal:knowledge-read` | Read knowledge via internal API |
+| `internal:knowledge-write` | Write knowledge via internal API |
+
+Scopes marked "admin only" are excluded from the system API key. Session-authenticated requests (admin users) always bypass scope checks.
 
 **Response:** `201 Created`
 
@@ -1992,13 +2050,15 @@ Returns whether a thread is currently being processed by Claude. Use this to res
 
 ### Internal API
 
-These endpoints are used by agent processes (`claude -p` subprocesses) spawned by the MentionHandler. They are not intended for frontend or external use. See [Agent Orchestration](agent-cli.md) for details on how agents are spawned and use these endpoints.
+These endpoints are used by agent processes (`claude -p` subprocesses) spawned by the MentionHandler. They are not intended for frontend or external use. All internal endpoints require authentication (session cookie or API key) and enforce scope-based authorization. See [Agent Orchestration](agent-cli.md) for details on how agents are spawned and use these endpoints.
 
 #### Post Comment (Internal)
 
 ```
 POST /internal/comment
 ```
+
+**Scope:** `internal:comment`
 
 Agent posts a comment on an issue.
 
@@ -2030,6 +2090,8 @@ Agent posts a comment on an issue.
 POST /internal/issues/create
 ```
 
+**Scope:** `internal:create-issue`
+
 Agent creates a new issue. The issue is created with `created_by: "agent"`.
 
 **Request Body:**
@@ -2057,6 +2119,8 @@ Agent creates a new issue. The issue is created with `created_by: "agent"`.
 ```
 GET /internal/knowledge/titles?project_id=<uuid>
 ```
+
+**Scope:** `internal:knowledge-read`
 
 Agent lists knowledge entry titles for discovery. Available to all agents.
 
@@ -2086,6 +2150,8 @@ Agent lists knowledge entry titles for discovery. Available to all agents.
 GET /internal/knowledge/get?project_id=<uuid>&knowledge_id=<uuid>
 ```
 
+**Scope:** `internal:knowledge-read`
+
 Agent retrieves full content of a knowledge entry. Available to all agents.
 
 **Query Parameters:**
@@ -2104,6 +2170,8 @@ Agent retrieves full content of a knowledge entry. Available to all agents.
 ```
 POST /internal/knowledge/create
 ```
+
+**Scope:** `internal:knowledge-write`
 
 Agent creates a knowledge entry. The `source` field is automatically set to `librarian`.
 
@@ -2134,6 +2202,8 @@ Agent creates a knowledge entry. The `source` field is automatically set to `lib
 ```
 POST /internal/knowledge/update
 ```
+
+**Scope:** `internal:knowledge-write`
 
 Agent updates a knowledge entry.
 
@@ -2168,6 +2238,8 @@ Agent updates a knowledge entry.
 POST /internal/knowledge/delete
 ```
 
+**Scope:** `internal:knowledge-write`
+
 Agent deletes a knowledge entry.
 
 **Request Body:**
@@ -2195,6 +2267,8 @@ Agent deletes a knowledge entry.
 ```
 POST /internal/create-pr
 ```
+
+**Scope:** `internal:create-pr`
 
 Agent registers a PR for tracking. This creates an `IssuePR` record linking the PR to the issue, enabling the PR poller to auto-transition the issue to `done` when the PR is merged.
 
@@ -2245,6 +2319,8 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 POST /internal/captain/dispatch-agent
 ```
 
+**Scope:** `internal:dispatch`
+
 Dispatches an agent to work on an issue. Used by the Captain chat to spawn agents via curl. Validates the same gates as `/dispatch` commands (auto_start approval, paused-issue gate, chain depth, concurrency limit).
 
 **Request Body:**
@@ -2282,6 +2358,8 @@ Dispatches an agent to work on an issue. Used by the Captain chat to spawn agent
 POST /internal/captain/merge-pr
 ```
 
+**Scope:** `internal:merge`
+
 Merges a ready PR for an issue. Used by the Captain chat to merge PRs via curl. Enforces the same gates as the `/merge` command (auto_merge approval, paused-issue gate, CI gate — issue must be in `pr_ready_to_merge` status).
 
 **Request Body:**
@@ -2314,6 +2392,8 @@ Merges a ready PR for an issue. Used by the Captain chat to merge PRs via curl. 
 ```
 POST /internal/captain/scan-codebase
 ```
+
+**Scope:** `internal:scan`
 
 Triggers a codebase scan that spawns the librarian agent to update project knowledge. Used by the Captain chat via curl. Equivalent to `POST /projects/:projectId/knowledge/scan` but accessed via the internal API with `project_id` in the request body.
 
