@@ -80,9 +80,10 @@ export async function createCaptainWorktree(
     if (ssh) cleanupSshKey(ssh.keyPath);
   }
 
+  const baseBranch = project?.default_base_branch || repo.default_branch;
   const startPoint = fetchSucceeded
-    ? `origin/${repo.default_branch}`
-    : repo.default_branch;
+    ? `origin/${baseBranch}`
+    : baseBranch;
 
   // Prune stale worktree entries
   await execAsync(`git -C ${shellQuote(repoPath)} worktree prune`);
