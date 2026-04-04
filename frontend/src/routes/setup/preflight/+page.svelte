@@ -4,6 +4,7 @@
 
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import {
 		getPreflightClaudeCli,
 		getPreflightClaudeAuth,
@@ -129,14 +130,13 @@
 		navigating = true;
 		try {
 			await completeSetup();
-			goto('/dashboard');
+			await goto('/dashboard');
 		} catch {
 			navigating = false;
 		}
 	}
 
-	$effect(() => {
-		// Run checks on mount (using onDestroy cleanup isn't needed for one-shot)
+	onMount(() => {
 		runChecks();
 	});
 </script>
@@ -185,8 +185,6 @@
 					>
 						{#if step.state === 'waiting'}
 							waiting
-						{:else if step.state === 'checking'}
-							{step.detail}
 						{:else}
 							{step.detail}
 						{/if}
@@ -224,7 +222,6 @@
 								Retry
 							</button>
 						{:else if i === 2}
-							{#if step.state === 'failed'}
 								<div class="flex gap-2 items-center mt-2">
 									<input
 										type="password"
@@ -247,7 +244,6 @@
 								>
 									Skip
 								</button>
-							{/if}
 						{/if}
 					</div>
 				{/if}
