@@ -2,9 +2,6 @@ export interface Project {
   id: string;
   name: string;
   description: string | null;
-  max_concurrency: number;
-  max_chain_depth: number;
-  agent_timeout_minutes: number;
   auto_start: boolean;
   auto_merge: boolean;
   model: string;
@@ -114,8 +111,14 @@ export interface ActivityLog {
   actor_id: string | null;
   actor_name?: string;
   issue_title?: string;
+  project_name?: string;
   action: string;
   details: Record<string, unknown>;
+  // Promoted from details in compact API responses
+  from?: string;
+  to?: string;
+  pr_number?: number;
+  exit_code?: number | null;
   created_at: string;
 }
 
@@ -197,33 +200,32 @@ export interface LibrarianStatus {
   completed_at: string | null;
 }
 
-export type ChatMessageRole = "user" | "assistant";
+export type MonitorMessageRole = "user" | "assistant";
 
-export interface ChatMessage {
+export interface MonitorMessage {
   id: string;
   project_id: string;
-  session_id: string | null;
-  role: ChatMessageRole;
+  role: MonitorMessageRole;
   content: string;
-  images: string[] | null;
   created_at: string;
 }
 
 export interface AgentConfig {
   id: string;
   agent_id: string;
-  provider: string;
   model: string | null;
 }
 
 export interface MonitorEntry {
   id: string;
-  type: "event" | "thinking" | "message" | "tool_call" | "tool_result";
+  type: "event" | "thinking" | "message" | "tool_call" | "tool_result" | "rate_limit" | "result";
   content: string;
   timestamp: Date;
   toolName?: string;
   toolInput?: unknown;
   success?: boolean;
+  costUsd?: number;
+  durationMs?: number;
 }
 
 export interface CaptainStatus {
@@ -234,10 +236,11 @@ export interface CaptainStatus {
   processing_duration_ms: number | null;
 }
 
-export type Provider = "claude" | "glm";
-
 export interface GlobalConfig {
-  provider: Provider;
+  defaultModel: string;
+  maxConcurrency: number;
+  maxChainDepth: number;
+  agentTimeoutMinutes: number;
 }
 
 export interface GlobalEnvironmentVariable {
@@ -247,6 +250,51 @@ export interface GlobalEnvironmentVariable {
   is_secret: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export interface ChatThread {
+  id: string;
+  project_id: string;
+  title: string | null;
+  session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatThreadListItem extends ChatThread {
+  last_message: string | null;
+  message_count: number;
+}
+
+export interface ChatThreadDetail extends ChatThread {
+  messages: ChatMessage[];
+}
+
+export interface ChatMessage {
+  id: string;
+  thread_id: string;
+  role: 'user' | 'assistant' | 'system' | 'event' | 'tool';
+  content: string;
+  metadata: string | null;
+  created_at: string;
+}
+
+export type ChatMessageEventType = 'thinking' | 'text' | 'tool_call' | 'tool_result' | 'system' | 'result';
+
+export interface ChatMessageEvent {
+  id: string;
+  message_id: string;
+  type: ChatMessageEventType;
+  data: Record<string, unknown>;
+  created_at: string;
 }
 
 // WebSocket event payload map — mirrors backend EventMap (events/types.ts)
@@ -360,7 +408,7 @@ export interface WsEventMap {
     event_type: string;
     description: string;
   };
-  "monitor.thinking": { project_id: string };
+  "monitor.thinking": { project_id: string; content?: string };
   "monitor.message": { project_id: string; content: string };
   "monitor.tool_call": {
     project_id: string;
@@ -373,4 +421,112 @@ export interface WsEventMap {
     result: unknown;
   };
   "monitor.complete": { project_id: string; response: string };
+  "monitor.rate_limit": { project_id: string; message: string };
+  "monitor.result": {
+    project_id: string;
+    cost_usd?: number;
+    duration_ms?: number;
+    stop_reason?: string;
+  };
+  "chat.message": { project_id: string; thread_id: string; message_id: string; content: string };
+  "chat.tool_call": { project_id: string; thread_id: string; message_id: string; tool_call_id: string; tool_name: string; tool_input: unknown };
+  "chat.tool_result": { project_id: string; thread_id: string; message_id: string; tool_call_id: string; tool_name: string; result: unknown };
+  "chat.thinking": { project_id: string; thread_id: string; message_id: string; content?: string };
+  "chat.complete": { project_id: string; thread_id: string; message_id: string };
+  "chat.error": { project_id: string; thread_id: string; error: string };
+  "chat.session_expired": { project_id: string; thread_id: string };
+  "chat.thread_updated": { project_id: string; thread_id: string; title: string };
+}
+
+// Subset of events broadcast to global (dashboard) WebSocket subscribers.
+// Excludes high-frequency events (run.event) and monitor/chat events.
+export interface GlobalWsEventMap {
+  "issue.created": { issue: Issue };
+  "issue.updated": {
+    issue_id: string;
+    project_id: string;
+    changes: Partial<Issue>;
+  };
+  "issue.status_changed": {
+    issue_id: string;
+    project_id: string;
+    from: string;
+    to: string;
+  };
+  "issue.paused": { issue_id: string; project_id: string };
+  "issue.resumed": { issue_id: string; project_id: string };
+  "comment.added": { comment: Comment; project_id: string };
+  "comment.updated": { comment: Comment; project_id: string };
+  "comment.deleted": {
+    comment_id: string;
+    issue_id: string;
+    project_id: string;
+  };
+  "pr.created": { issue_pr: IssuePR; project_id: string };
+  "pr.status_changed": {
+    pr_id: string;
+    project_id: string;
+    from: string;
+    to: string;
+  };
+  "mention.spawned": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+    agent_name?: string;
+    issue_title?: string;
+    pid: number;
+  };
+  "mention.completed": {
+    project_id: string;
+    issue_id: string | null;
+    agent_id: string;
+    agent_name?: string;
+    issue_title?: string;
+    exit_code: number;
+  };
+  "mention.error": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+    agent_name?: string;
+    issue_title?: string;
+    message: string;
+  };
+  "mention.chain_depth_reached": {
+    project_id: string;
+    issue_id: string;
+    issue_title?: string;
+  };
+  "dispatch.queued": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+    position: number;
+  };
+  "dispatch.dequeued": {
+    project_id: string;
+    issue_id: string;
+    agent_id: string;
+  };
+  "run.started": {
+    agent_run_id: string;
+    project_id: string;
+    issue_id: string | null;
+    agent_id: string;
+    status: AgentRunStatus;
+    started_at: string | null;
+  };
+  "run.completed": {
+    agent_run_id: string;
+    project_id: string;
+    issue_id: string | null;
+    agent_id: string;
+    status: AgentRunStatus;
+    exit_code: number | null;
+    cost_usd: number | null;
+    duration_ms: number | null;
+    completed_at: string;
+  };
+  "project.settings_changed": { project_id: string; changes: Partial<Project> };
 }

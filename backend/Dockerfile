@@ -26,12 +26,6 @@ RUN groupadd -r app && useradd -r -g app -m -s /bin/bash app
 
 WORKDIR /app
 
-# Build the CrewDeck CLI first (from project root context)
-COPY cli/package.json cli/package-lock.json* cli/
-RUN cd cli && npm ci
-COPY cli/ cli/
-RUN cd cli && npm run build && npm link
-
 # Install backend dependencies
 COPY backend/package.json backend/package-lock.json* backend/
 RUN cd backend && npm ci
@@ -40,8 +34,26 @@ RUN cd backend && npm ci
 COPY backend/ backend/
 RUN cd backend && npm run build
 
-# Ensure data directory exists
-RUN mkdir -p /app/data && chown -R app:app /app
+# Ensure data directories exist and app user can write to them
+# /app/data — DB and repos (Docker volume mount point)
+# /app/backend/data — log files (default LOG_FILE_PATH is ./data/server.log)
+RUN mkdir -p /app/data /app/backend/data \
+    && chown app:app /app/data /app/backend/data
+
+# Copy host ~/.claude so the container has a writable, independent copy.
+# Why build-time COPY instead of a volume mount?
+#   - Read-only mount won't work: Claude Code writes to ~/.claude at runtime.
+#   - Read-write mount modifies the host's ~/.claude, which is undesirable.
+#   - COPY gives each container its own isolated copy that it can freely modify.
+# Note: This bakes credentials into the image layers. Never push built images
+# to a public registry.
+COPY --from=claude-config --chown=app:app / /home/app/.claude/
+
+# Restore .claude.json from backup if the host didn't provide it directly.
+# Claude CLI expects ~/.claude.json at the home root; the backup lives inside
+# ~/.claude/backups/ which is already copied above.
+RUN latest=$(ls -t /home/app/.claude/backups/.claude.json.backup.* 2>/dev/null | head -1) \
+    && if [ -n "$latest" ]; then cp "$latest" /home/app/.claude.json && chown app:app /home/app/.claude.json; fi
 
 USER app
 

@@ -1,6 +1,6 @@
-import type { ChatMessage, MonitorEntry } from "$lib/api/types.js";
+import type { MonitorMessage, MonitorEntry } from "$lib/api/types.js";
 
-export function mapMessageToEntry(msg: ChatMessage): MonitorEntry {
+export function mapMessageToEntry(msg: MonitorMessage): MonitorEntry {
   return {
     id: msg.id,
     type: msg.role === "user" ? "event" : "message",

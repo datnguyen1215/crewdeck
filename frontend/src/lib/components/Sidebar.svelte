@@ -1,12 +1,17 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, type ProjectWithStats } from '$lib/api/http.js';
+	import { listProjectsWithStats, logout, type ProjectWithStats } from '$lib/api/http.js';
 	import { onMount } from 'svelte';
 	import ProjectNavItem from './ProjectNavItem.svelte';
 	import { icons } from './icons.js';
 
-	const STORAGE_KEY = 'sidebar-collapsed';
+	const STORAGE_KEY = 'crewdeck:sidebar:collapsed';
+	const LEGACY_STORAGE_KEY = 'sidebar-collapsed';
+	const SYSTEM_STORAGE_KEY = 'crewdeck:sidebar:systemCollapsed';
+	const LEGACY_SYSTEM_STORAGE_KEY = 'sidebar-system-collapsed';
+	const PROJECTS_COLLAPSED_KEY = 'crewdeck:sidebar:projectsCollapsed';
+	const LEGACY_PROJECTS_COLLAPSED_KEY = 'sidebar-projects-collapsed';
 	const MOBILE_BREAKPOINT = 768;
 
 	let projects = $state<ProjectWithStats[]>([]);
@@ -14,13 +19,22 @@
 	let collapsed = $state(false);
 	let mobileOpen = $state(false);
 	let isMobile = $state(false);
+	let systemSectionCollapsed = $state(false);
+	let projectsSectionCollapsed = $state(false);
 	let projectId = $derived($page.params.projectId);
 	let pathname = $derived($page.url.pathname);
 
 	// Auto-expand current project when route changes
 	$effect(() => {
-		if (projectId && !expandedProjects.has(projectId)) {
-			expandedProjects = new Set([projectId]);
+		if (projectId) {
+			if (!expandedProjects.has(projectId)) {
+				expandedProjects = new Set([projectId]);
+			}
+			// Auto-expand projects section if navigating to a project
+			if (projectsSectionCollapsed) {
+				projectsSectionCollapsed = false;
+				localStorage.setItem(PROJECTS_COLLAPSED_KEY, 'false');
+			}
 		}
 	});
 
@@ -41,11 +55,26 @@
 		checkMobile();
 		window.addEventListener('resize', checkMobile);
 
-		// Load collapsed state from localStorage (desktop only)
-		const stored = localStorage.getItem(STORAGE_KEY);
-		if (stored !== null) {
-			collapsed = stored === 'true';
+		// Load collapsed state from localStorage (desktop only), migrating from legacy keys
+		function migrateKey(newKey: string, legacyKey: string): string | null {
+			const value = localStorage.getItem(newKey);
+			if (value !== null) return value;
+			const legacy = localStorage.getItem(legacyKey);
+			if (legacy !== null) {
+				localStorage.setItem(newKey, legacy);
+				localStorage.removeItem(legacyKey);
+			}
+			return legacy;
 		}
+
+		const stored = migrateKey(STORAGE_KEY, LEGACY_STORAGE_KEY);
+		if (stored !== null) collapsed = stored === 'true';
+
+		const systemStored = migrateKey(SYSTEM_STORAGE_KEY, LEGACY_SYSTEM_STORAGE_KEY);
+		if (systemStored !== null) systemSectionCollapsed = systemStored === 'true';
+
+		const projectsStored = migrateKey(PROJECTS_COLLAPSED_KEY, LEGACY_PROJECTS_COLLAPSED_KEY);
+		if (projectsStored !== null) projectsSectionCollapsed = projectsStored === 'true';
 
 		// Load projects (async, but don't block)
 		const fetchProjects = () => {
@@ -78,6 +107,25 @@
 		if (isMobile) mobileOpen = false;
 	}
 
+	function toggleSystemSection() {
+		systemSectionCollapsed = !systemSectionCollapsed;
+		localStorage.setItem(SYSTEM_STORAGE_KEY, String(systemSectionCollapsed));
+	}
+
+	function toggleProjectsSection() {
+		projectsSectionCollapsed = !projectsSectionCollapsed;
+		localStorage.setItem(PROJECTS_COLLAPSED_KEY, String(projectsSectionCollapsed));
+	}
+
+	async function handleLogout() {
+		try {
+			await logout();
+		} catch {
+			// Proceed to login regardless
+		}
+		goto('/login');
+	}
+
 	function isActive(href: string) {
 		return pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
 	}
@@ -106,7 +154,16 @@
 	}
 </script>
 
-<!-- Mobile hamburger button (fixed position) -->
+<!-- Mobile overlay backdrop (rendered before hamburger so z-index stacking is correct) -->
+{#if isMobile && mobileOpen}
+	<button
+		class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+		onclick={closeMobileSidebar}
+		aria-label="Close menu"
+	></button>
+{/if}
+
+<!-- Mobile hamburger button (fixed position, z-[60] above backdrop z-[40]) -->
 {#if isMobile}
 	<button
 		onclick={toggleSidebar}
@@ -129,15 +186,6 @@
 	</button>
 {/if}
 
-<!-- Mobile overlay backdrop -->
-{#if isMobile && mobileOpen}
-	<button
-		class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
-		onclick={closeMobileSidebar}
-		aria-label="Close menu"
-	></button>
-{/if}
-
 <nav
 	class="flex flex-col overflow-hidden transition-all duration-200 ease-in-out bg-base-hi border-r border-edge flex-shrink-0 h-full
 		{isMobile ? 'fixed z-50 top-0 left-0' : ''}
@@ -146,7 +194,7 @@
 >
 	<div class="flex items-center border-b border-edge flex-shrink-0">
 		<a
-			href="/"
+			href="/dashboard"
 			onclick={closeMobileSidebar}
 			class="flex items-center gap-3 px-4 py-5 hover:bg-surface transition-colors flex-1 min-w-0 {isMobile ? 'pl-14' : ''}"
 			title={collapsed && !isMobile ? 'CrewDeck' : undefined}
@@ -183,21 +231,51 @@
 	</div>
 
 	<div class="flex flex-col gap-1 p-2 flex-1 overflow-y-auto overflow-x-hidden">
-		<!-- Projects list -->
-		{#each projects as project (project.id)}
-			<ProjectNavItem
-				{project}
-				{collapsed}
-				{isMobile}
-				isExpanded={expandedProjects.has(project.id)}
-				isCurrent={isProjectActive(project.id)}
-				{pathname}
-				{isActive}
-				{getActiveIssueCount}
-				onToggleProject={toggleProject}
-				onCloseMobileSidebar={closeMobileSidebar}
-			/>
-		{/each}
+		<!-- Dashboard link -->
+		{@render navItem('/dashboard', 'Dashboard', 'dashboard', isActive('/dashboard'))}
+		<div class="border-t border-edge my-1"></div>
+
+		<!-- Projects section header (hidden when sidebar is collapsed/narrow) -->
+		{#if !collapsed || isMobile}
+			<button
+				onclick={toggleProjectsSection}
+				class="flex items-center gap-1 px-3 py-1.5 text-[10px] uppercase tracking-widest text-secondary hover:text-primary transition-colors cursor-pointer"
+			>
+				<span class="flex-1 text-left">Projects ({projects.length})</span>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="12"
+					height="12"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="transition-transform duration-150 {projectsSectionCollapsed ? '-rotate-90' : ''}"
+				>
+					{@html icons.chevronDown}
+				</svg>
+			</button>
+		{/if}
+
+		<!-- Projects list (hidden when section is collapsed, unless sidebar itself is collapsed/narrow) -->
+		{#if !projectsSectionCollapsed || (collapsed && !isMobile)}
+			{#each projects as project (project.id)}
+				<ProjectNavItem
+					{project}
+					{collapsed}
+					{isMobile}
+					isExpanded={expandedProjects.has(project.id)}
+					isCurrent={isProjectActive(project.id)}
+					{pathname}
+					{isActive}
+					{getActiveIssueCount}
+					onToggleProject={toggleProject}
+					onCloseMobileSidebar={closeMobileSidebar}
+				/>
+			{/each}
+		{/if}
 
 		<!-- Global Crew link -->
 		<div class="border-t border-edge my-1"></div>
@@ -205,8 +283,60 @@
 
 		<div class="mt-auto">
 			<div class="border-t border-edge my-1"></div>
-			{@render navItem('/accounts', 'Accounts', 'accounts', isActive('/accounts'))}
-			{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
+			{#if collapsed && !isMobile}
+				{@render navItem('/accounts', 'Accounts', 'accounts', isActive('/accounts'))}
+				{@render navItem('/api-keys', 'API Keys', 'key', isActive('/api-keys'))}
+				{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
+			{:else}
+				<button
+					onclick={toggleSystemSection}
+					class="flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-widest text-tertiary hover:text-secondary transition-colors w-full"
+				>
+					<span class="flex-1 text-left">System</span>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="14"
+						height="14"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						class="transition-transform duration-200 {systemSectionCollapsed ? '' : 'rotate-180'}"
+					>
+						{@html icons.chevronDown}
+					</svg>
+				</button>
+				{#if !systemSectionCollapsed}
+					{@render navItem('/accounts', 'Accounts', 'accounts', isActive('/accounts'))}
+					{@render navItem('/api-keys', 'API Keys', 'key', isActive('/api-keys'))}
+					{@render navItem('/settings', 'Settings', 'settings', isActive('/settings'))}
+				{/if}
+			{/if}
+			<button
+				onclick={handleLogout}
+				class="flex items-center gap-3 px-3 py-2.5 rounded text-secondary hover:text-red hover:bg-surface transition-colors whitespace-nowrap min-h-[44px] w-full {collapsed && !isMobile ? 'justify-center' : ''}"
+				title={collapsed && !isMobile ? 'Log out' : undefined}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="flex-shrink-0"
+				>
+					{@html icons.logout}
+				</svg>
+				{#if !collapsed || isMobile}
+					<span class="text-sm">Log out</span>
+				{/if}
+			</button>
 		</div>
 	</div>
 </nav>

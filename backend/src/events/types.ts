@@ -132,6 +132,7 @@ export interface EventMap {
   };
   "monitor.thinking": {
     project_id: string;
+    content?: string;
   };
   "monitor.message": {
     project_id: string;
@@ -150,5 +151,69 @@ export interface EventMap {
   "monitor.complete": {
     project_id: string;
     response: string;
+  };
+  "monitor.rate_limit": {
+    project_id: string;
+    message: string;
+  };
+  "monitor.result": {
+    project_id: string;
+    cost_usd?: number;
+    duration_ms?: number;
+    stop_reason?: string;
+  };
+  // Chat thread events
+  "chat.event_received": {
+    project_id: string;
+    thread_id: string;
+    event_type: string;
+    description: string;
+  };
+  "chat.thinking": {
+    project_id: string;
+    thread_id: string;
+    message_id: string;
+    content?: string;
+  };
+  "chat.message": {
+    project_id: string;
+    thread_id: string;
+    message_id: string;
+    content: string;
+  };
+  "chat.tool_call": {
+    project_id: string;
+    thread_id: string;
+    message_id: string;
+    tool_call_id: string;
+    tool_name: string;
+    tool_input: unknown;
+  };
+  "chat.tool_result": {
+    project_id: string;
+    thread_id: string;
+    message_id: string;
+    tool_call_id: string;
+    tool_name: string;
+    result: unknown;
+  };
+  "chat.complete": {
+    project_id: string;
+    thread_id: string;
+    message_id: string;
+  };
+  "chat.session_expired": {
+    project_id: string;
+    thread_id: string;
+  };
+  "chat.error": {
+    project_id: string;
+    thread_id: string;
+    error: string;
+  };
+  "chat.thread_updated": {
+    project_id: string;
+    thread_id: string;
+    title: string;
   };
 }

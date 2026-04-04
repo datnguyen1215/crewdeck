@@ -1,0 +1,17 @@
+:9380 {
+	handle /api/* {
+		reverse_proxy backend:9381
+	}
+
+	handle /ws* {
+		reverse_proxy backend:9381
+	}
+
+	handle /terminal-ws* {
+		reverse_proxy backend:9381
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

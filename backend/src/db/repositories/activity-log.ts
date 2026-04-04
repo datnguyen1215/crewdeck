@@ -10,6 +10,15 @@ import { getCrewMember } from "../../orchestration/crew.js";
 
 type ActivityRow = Omit<ActivityLog, "details"> & { details: string | null };
 
+function getProjectNamesByIds(ids: string[]): Map<string, string> {
+  if (ids.length === 0) return new Map();
+  const placeholders = ids.map(() => "?").join(",");
+  const rows = db
+    .prepare(`SELECT id, name FROM Project WHERE id IN (${placeholders})`)
+    .all(...ids) as { id: string; name: string }[];
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
 function fromRow(row: ActivityRow): ActivityLog {
   return {
     ...row,
@@ -60,6 +69,7 @@ export function listActivity(
 export function enrichActivityEntries(
   entries: ActivityLog[],
   compact: boolean,
+  options?: { projectNames?: boolean },
 ): Record<string, unknown>[] {
   const agentCache = new Map<string, string | null>();
 
@@ -70,9 +80,30 @@ export function enrichActivityEntries(
   );
   const issueTitleCache = getTitlesByIds(issueIds);
 
+  const projectIds = options?.projectNames
+    ? Array.from(new Set(entries.map((e) => e.project_id)))
+    : [];
+  const projectNameCache = getProjectNamesByIds(projectIds);
+
   return entries.map((entry: ActivityLog) => {
     const { details, ...rest } = entry;
-    const base = compact ? rest : entry;
+    const base: Record<string, unknown> = compact ? rest : entry;
+
+    // Promote display-critical fields to top-level when compact mode strips details
+    if (compact && details && typeof details === "object") {
+      const d = details as Record<string, unknown>;
+      if (entry.action === "issue.status_changed") {
+        if (d.from !== undefined) base.from = d.from;
+        if (d.to !== undefined) base.to = d.to;
+      }
+      if (entry.action === "pr.created" && d.pr_number !== undefined) {
+        base.pr_number = d.pr_number;
+      }
+      if (entry.action === "mention.completed" && d.exit_code !== undefined) {
+        base.exit_code = d.exit_code;
+      }
+    }
+
     const enrichments: Record<string, unknown> = {};
 
     const agentIdForName =
@@ -101,10 +132,33 @@ export function enrichActivityEntries(
       if (title) enrichments.issue_title = title;
     }
 
+    if (projectNameCache.size > 0) {
+      const name = projectNameCache.get(entry.project_id);
+      if (name) enrichments.project_name = name;
+    }
+
     return Object.keys(enrichments).length > 0
       ? { ...base, ...enrichments }
       : base;
   });
+}
+
+export function listGlobalActivity(filters: ActivityFilters = {}): ActivityLog[] {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (filters.since !== undefined) {
+    conditions.push("created_at >= ?");
+    values.push(filters.since);
+  }
+
+  const limit = Math.min(filters.limit ?? 10, 50);
+  const offset = filters.offset ?? 0;
+
+  const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
+  const sql = `SELECT * FROM ActivityLog${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`;
+  const rows = db.prepare(sql).all(...values, limit, offset) as ActivityRow[];
+  return rows.map(fromRow);
 }
 
 export function createActivity(input: CreateActivityInput): ActivityLog {

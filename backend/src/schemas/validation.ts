@@ -20,7 +20,6 @@ const githubUrl = z
 const CreateProjectBase = z.object({
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
-  max_concurrency: z.number().int().positive().optional(),
   repo_url: githubUrl,
   default_branch: z.string().optional(),
   vcs_account_id: z.string().nullable().optional(),
@@ -34,8 +33,6 @@ export const UpdateProjectSchema = CreateProjectBase.omit({
 })
   .partial()
   .extend({
-    max_chain_depth: z.number().int().positive().optional(),
-    agent_timeout_minutes: z.number().int().min(1).max(60).optional(),
     auto_start: z.boolean().optional(),
     auto_merge: z.boolean().optional(),
     default_base_branch: z.string().min(1).optional(),
@@ -56,6 +53,7 @@ export const CreateIssueSchema = z.object({
 export const UpdateIssueSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
+  summary: z.string().optional(),
   status: z.enum(ISSUE_STATUSES as [string, ...string[]]).optional(),
   chain_depth: z.number().int().nonnegative().optional(),
   branch_name: z.string().nullable().optional(),

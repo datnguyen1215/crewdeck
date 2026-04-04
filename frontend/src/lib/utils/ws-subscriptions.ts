@@ -14,7 +14,7 @@ export function useWsSubscriptions(
   subscriptions: SubscriptionMap,
 ): () => void {
   const unsubs = (
-    Object.entries(subscriptions) as [WsEvent, (data: any) => void][]
+    Object.entries(subscriptions) as [WsEvent, (data: WsEventMap[WsEvent]) => void][]
   ).map(([event, handler]) => ws.on(event, handler));
   return () => unsubs.forEach((fn) => fn());
 }

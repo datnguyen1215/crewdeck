@@ -63,12 +63,12 @@
 			}];
 		};
 
-		const handleThinking = () => {
+		const handleThinking = (data: WsEventMap['monitor.thinking']) => {
 			isAnalyzing = true;
 			monitorEntries = [...monitorEntries, {
 				id: crypto.randomUUID(),
 				type: 'thinking',
-				content: 'Analyzing...',
+				content: data.content ?? 'Analyzing...',
 				timestamp: new Date(),
 			}];
 		};
@@ -105,6 +105,33 @@
 			}];
 		};
 
+		const handleRateLimit = (data: WsEventMap['monitor.rate_limit']) => {
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'rate_limit',
+				content: data.message,
+				timestamp: new Date(),
+			}];
+		};
+
+		const handleResult = (data: WsEventMap['monitor.result']) => {
+			const parts: string[] = [];
+			if (data.stop_reason) parts.push(data.stop_reason);
+			if (data.cost_usd != null) parts.push(`$${data.cost_usd.toFixed(2)}`);
+			if (data.duration_ms != null) {
+				const secs = Math.floor(data.duration_ms / 1000);
+				parts.push(secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`);
+			}
+			monitorEntries = [...monitorEntries, {
+				id: crypto.randomUUID(),
+				type: 'result',
+				content: parts.length > 0 ? parts.join(' · ') : 'Done',
+				costUsd: data.cost_usd,
+				durationMs: data.duration_ms,
+				timestamp: new Date(),
+			}];
+		};
+
 		const handleComplete = () => {
 			isAnalyzing = false;
 			monitorEntries = monitorEntries.filter(e => e.type !== 'thinking');
@@ -116,6 +143,8 @@
 			'monitor.message': handleMessage,
 			'monitor.tool_call': handleToolCall,
 			'monitor.tool_result': handleToolResult,
+			'monitor.rate_limit': handleRateLimit,
+			'monitor.result': handleResult,
 			'monitor.complete': handleComplete,
 		});
 	});
@@ -141,6 +170,8 @@
 			case 'message': return 'monitor';
 			case 'tool_call': return 'tool';
 			case 'tool_result': return 'tool';
+			case 'rate_limit': return 'limit';
+			case 'result': return 'done';
 		}
 	}
 
@@ -151,6 +182,8 @@
 			case 'message': return 'text-cyan';
 			case 'tool_call': return 'text-purple';
 			case 'tool_result': return 'text-purple';
+			case 'rate_limit': return 'text-amber';
+			case 'result': return 'text-green';
 		}
 	}
 
@@ -386,6 +419,10 @@
 										{entry.success ? 'ok' : 'err'}:
 									</span>
 									<span class="text-muted break-words min-w-0">{entry.content}</span>
+								{:else if entry.type === 'rate_limit'}
+									<span class="text-amber break-words min-w-0">⏳ {entry.content}</span>
+								{:else if entry.type === 'result'}
+									<span class="text-green break-words min-w-0">✓ {entry.content}</span>
 								{/if}
 							</div>
 						{/each}

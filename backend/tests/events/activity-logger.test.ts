@@ -178,7 +178,7 @@ describe("ActivityLogger", () => {
     expect(logs[0]).toMatchObject({
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
-      actor_type: "user",
+      actor_type: "system",
       action: "pr.created",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({
@@ -199,8 +199,7 @@ describe("ActivityLogger", () => {
     expect(logs[0]).toMatchObject({
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
-      actor_type: "agent",
-      actor_id: "a1",
+      actor_type: "system",
       action: "mention.spawned",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "a1", pid: 1234 });
@@ -218,8 +217,7 @@ describe("ActivityLogger", () => {
     expect(logs[0]).toMatchObject({
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
-      actor_type: "agent",
-      actor_id: "a1",
+      actor_type: "system",
       action: "mention.completed",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({
@@ -251,8 +249,7 @@ describe("ActivityLogger", () => {
     expect(logs[0]).toMatchObject({
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
-      actor_type: "agent",
-      actor_id: "engineer",
+      actor_type: "system",
       action: "agent.queued",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({
@@ -272,8 +269,7 @@ describe("ActivityLogger", () => {
     expect(logs[0]).toMatchObject({
       project_id: PROJECT_ID,
       issue_id: ISSUE_ID,
-      actor_type: "agent",
-      actor_id: "captain",
+      actor_type: "system",
       action: "agent.dequeued",
     });
     expect(JSON.parse(logs[0].details!)).toEqual({ agent_id: "captain" });

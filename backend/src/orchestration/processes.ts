@@ -31,18 +31,6 @@ const getPendingKey = (agentId: string, issueId: string): string => {
 };
 
 /**
- * Count active processes for a project.
- * @param {string} projectId - Project to count for
- * @returns {number} Number of active processes
- */
-export const getActiveProcessCount = (projectId: string): number => {
-  let count = 0;
-  for (const p of activeProcesses.values())
-    if (p.projectId === projectId) count++;
-  return count;
-};
-
-/**
  * Check if an issue has any active processes.
  * @param {string} issueId - Issue to check
  * @param {string} [excludeAgentId] - Agent ID to exclude from the check

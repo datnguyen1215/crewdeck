@@ -4,10 +4,10 @@
  * Constructs the system prompt for captain terminal sessions.
  */
 import { getProject } from "../db/repositories/projects.js";
+import * as globalConfigRepo from "../db/repositories/global-config.js";
 import { listIssues } from "../db/repositories/issues.js";
-import { listActiveRunsForProject } from "../db/repositories/agent-runs.js";
+import { listActiveRunsForProject, countRunningGlobal } from "../db/repositories/agent-runs.js";
 import { getCrewMember } from "./crew.js";
-import { getActiveProcessCount } from "./processes.js";
 import { listByProject } from "../db/repositories/knowledge.js";
 import { listRepos } from "../db/repositories/repos.js";
 
@@ -21,7 +21,8 @@ export const buildSystemPrompt = async (
   const project = getProject(projectId);
   if (!project) return "";
 
-  const runningAgents = getActiveProcessCount(projectId);
+  const runningAgents = countRunningGlobal();
+  const maxConcurrency = globalConfigRepo.getMaxConcurrency();
 
   // Get project knowledge
   const projectKnowledge = listByProject(projectId);
@@ -43,8 +44,8 @@ ${project.description || "No description"}
 
 ## Current Capacity
 - Running agents: ${runningAgents}
-- Max concurrency: ${project.max_concurrency}
-- Available slots: ${Math.max(0, project.max_concurrency - runningAgents)}`);
+- Max concurrency: ${maxConcurrency}
+- Available slots: ${Math.max(0, maxConcurrency - runningAgents)}`);
 
   // Inject project knowledge (full content for workflows/conventions)
   const INJECT_CATEGORIES = new Set(["workflows", "conventions"]);
@@ -117,35 +118,69 @@ ${project.description || "No description"}
 
   // API Reference — only detail endpoints, since snapshot covers listing
   parts.push(`## API Reference
-Environment variables: CREWDECK_API_URL, CREWDECK_PROJECT_ID, CREWDECK_AGENT_ID
+Environment variables: CREWDECK_API_URL, CREWDECK_PROJECT_ID, CREWDECK_AGENT_ID, CREWDECK_API_KEY
+
+All API calls require authentication. Include this header:
+-H "Authorization: Bearer $CREWDECK_API_KEY"
 
 \`\`\`bash
 # Full issue details
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>"
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY"
 
 # Create issue
 curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"title": "Issue title", "description": "Description"}'
 
 # Update issue
 curl -X PUT "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"status": "done"}'
 
 # Add comment
 curl -X POST "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/issues/<ISSUE_ID>/comments" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"content": "Comment text", "author_type": "captain"}'
 
 # Run details
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>"
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/runs/<RUN_ID>" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY"
 
 # Activity log
-curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true"
+curl "$CREWDECK_API_URL/api/v1/projects/$CREWDECK_PROJECT_ID/activity?limit=20&compact=true" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY"
 
 # Full knowledge entry
-curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>"
+curl "$CREWDECK_API_URL/api/v1/internal/knowledge/get?project_id=$CREWDECK_PROJECT_ID&knowledge_id=<ID>" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY"
+
+# Dispatch agent to work on an issue
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/dispatch-agent" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id": "'$CREWDECK_PROJECT_ID'", "issue_id": "<ISSUE_ID>", "agent_id": "<AGENT_ID>"}'
+
+# Dispatch agent with custom instructions
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/dispatch-agent" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id": "'$CREWDECK_PROJECT_ID'", "issue_id": "<ISSUE_ID>", "agent_id": "<AGENT_ID>", "instructions": "Focus on the database layer"}'
+
+# Merge a ready PR
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/merge-pr" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id": "'$CREWDECK_PROJECT_ID'", "issue_id": "<ISSUE_ID>"}'
+
+# Trigger codebase scan (updates project knowledge)
+curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/scan-codebase" \\
+  -H "Authorization: Bearer $CREWDECK_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"project_id": "'$CREWDECK_PROJECT_ID'"}'
 \`\`\`
 
 ## Available Actions

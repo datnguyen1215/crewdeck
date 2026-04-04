@@ -6,12 +6,16 @@ import { setupWebSocket, shutdownWebSocket } from "./websocket.js";
 import { setupTerminalWs, shutdownTerminalWs } from "./terminal-ws.js";
 import { initActivityLogger } from "./events/activity-logger.js";
 import { initWorktreeCleanup } from "./events/worktree-cleanup.js";
+import { initDependencyCleanup } from "./events/dependency-cleanup.js";
 import { initEventCommenter } from "./events/event-commenter.js";
 import {
   initMentionHandler,
   shutdownMentionHandler,
 } from "./orchestration/handler.js";
-import { initCaptain, shutdownCaptain } from "./orchestration/captain.js";
+import {
+  initMonitorService as initCaptain,
+  shutdownMonitorService as shutdownCaptain,
+} from "./orchestration/captain/monitor-service.js";
 import { recoverOnStartup } from "./orchestration/recovery.js";
 import { createApp } from "./app.js";
 import { initPRDetector } from "./pr/detector.js";
@@ -27,6 +31,7 @@ const app = createApp();
 async function main(): Promise<void> {
   initActivityLogger();
   initWorktreeCleanup();
+  initDependencyCleanup();
   initEventCommenter();
   initMentionHandler();
   initCaptain();

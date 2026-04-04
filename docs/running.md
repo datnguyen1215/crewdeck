@@ -23,14 +23,29 @@ docker compose up --build
 - Frontend: http://localhost:9380
 - Backend API: http://localhost:9381
 
+## First-Time Setup
+
+On first launch (when no admin user exists), visiting the app automatically redirects to `/register` to create an admin account. The flow is:
+
+1. Open http://localhost:9380
+2. Redirected to `/register` — create an admin username and password
+3. Redirected to `/login` — sign in with the credentials you just created
+4. Redirected to `/setup/preflight` — a preflight wizard runs sequential checks: Claude CLI installation, Claude authentication, and Z.AI API key configuration. Each step shows real-time status and provides retry or skip options.
+5. After completing the preflight check, click "Continue to Dashboard" to proceed to the dashboard. The root URL `/` automatically redirects here. On first visit, the Create Project modal opens to guide you through creating your first project.
+
+Subsequent visits require signing in at `/login`.
+
 ## How It Works
 
-Docker Compose runs two services using `network_mode: host`, so ports are bound directly on the host (no port mapping):
+Docker Compose runs three core services on a bridge network. Only the Caddy reverse proxy exposes a port to the host:
 
-| Service    | Port | Description                               |
-| ---------- | ---: | ----------------------------------------- |
-| `frontend` | 9380 | SvelteKit production build (adapter-node) |
-| `backend`  | 9381 | Express API + SQLite + agent runtime      |
+| Service    | Internal Port | Description                               |
+| ---------- | ------------: | ----------------------------------------- |
+| `caddy`    |          9380 | Reverse proxy (exposed to host)           |
+| `frontend` |          3000 | SvelteKit production build (adapter-node) |
+| `backend`  |          9381 | Express API + SQLite + agent runtime      |
+
+Caddy routes `/ws` and `/terminal-ws` (WebSocket) requests to the backend, and everything else to the frontend. Only port 9380 is published to the host — the frontend and backend are not directly accessible.
 
 Both services are self-contained — no host source code is mounted. The frontend is built during `docker build` and served by Node.
 
@@ -54,13 +69,13 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 
 **Backend** (set in `docker-compose.yml`):
 
-| Variable             | Value                   | Purpose                                                                                         |
-| -------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `DB_PATH`            | `/app/data/crewdeck.db` | SQLite database location                                                                        |
-| `CREWDECK_REPOS_DIR` | `/app/data/repos`       | Where repos are cloned                                                                          |
-| `MAX_AGENTS`         | `10`                    | Global concurrency limit (all projects)                                                         |
-| `ANTHROPIC_API_KEY`  | _(your API key)_        | Anthropic API key (required for Captain LLM agent and default Claude provider)                  |
-| `ZAI_API_KEY`        | _(optional)_            | Z.AI API key (required if using GLM provider). Enables GLM option in Crew page provider toggle. |
+| Variable               | Value                   | Purpose                                                                                         |
+| ---------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `DB_PATH`              | `/app/data/crewdeck.db` | SQLite database location                                                                        |
+| `CREWDECK_REPOS_DIR`   | `/app/data/repos`       | Where repos are cloned                                                                          |
+| `SESSION_EXPIRY_HOURS` | `168` (7 days)          | _(No longer used)_ Sessions persist indefinitely; cookie `maxAge` is set to 10 years.           |
+| `ANTHROPIC_API_KEY`    | _(your API key)_        | Anthropic API key (required for Captain LLM agent and default Claude provider)                  |
+| `ZAI_API_KEY`          | _(optional)_            | Z.AI API key (required if using GLM provider). Enables GLM option in Crew page provider toggle. |
 
 **Orchestration tuning** (optional, override defaults):
 
@@ -79,9 +94,24 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 
 **Frontend**:
 
-| Variable           | Value                   | Purpose         |
-| ------------------ | ----------------------- | --------------- |
-| `VITE_BACKEND_URL` | `http://localhost:9381` | Backend API URL |
+| Variable           | Value                 | Purpose                                   |
+| ------------------ | --------------------- | ----------------------------------------- |
+| `VITE_BACKEND_URL` | `http://backend:9381` | Backend API URL (internal Docker network) |
+
+## Exposing to the Internet (Optional)
+
+CrewDeck includes an optional [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) service for public access without port forwarding.
+
+1. Create a Cloudflare Tunnel and get your tunnel token
+2. Copy `.env.example` to `.env` and set `TUNNEL_TOKEN`
+3. Configure a public hostname in the Cloudflare dashboard pointing to `localhost:9380`
+4. Run with the `tunnel` profile:
+
+```bash
+docker compose --profile tunnel up --build
+```
+
+The `cloudflared` service runs with `network_mode: host` so it can reach the published Caddy port.
 
 ## Rebuilding
 

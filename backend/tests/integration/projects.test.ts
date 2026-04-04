@@ -94,13 +94,6 @@ describe("Projects CRUD", () => {
       expect(res.body.error.message).not.toMatch(/https?:\/\/[^\s]+github/);
     });
 
-    it("applies default value for max_concurrency", async () => {
-      const res = await request(app)
-        .post(BASE)
-        .send({ name: name("defaults"), repo_url: "https://github.com/test/repo" });
-      expect(res.status).toBe(201);
-      expect(typeof res.body.max_concurrency).toBe("number");
-    });
   });
 
   describe("GET /api/v1/projects/:id", () => {
@@ -151,7 +144,7 @@ describe("Projects CRUD", () => {
       expect(created.status).toBe(201);
       const res = await request(app)
         .patch(`${BASE}/${created.body.id}`)
-        .send({ max_concurrency: "not-a-number" });
+        .send({ name: "" });
       expect(res.status).toBe(400);
     });
   });

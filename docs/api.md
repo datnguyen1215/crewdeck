@@ -12,13 +12,139 @@ The backend exposes a REST API for CRUD operations and a WebSocket server for re
 
 **Base URL:** `http://localhost:<port>/api/v1`
 
-**Health check:** `GET /health` returns `{ "status": "ok" }` (outside the `/api/v1` prefix).
+**Health check:** `GET /health` returns `{ "status": "ok" }` (outside the `/api/v1` prefix). This endpoint is exempt from authentication.
+
+**Authentication:** All endpoints except `GET /health`, `GET /api/v1/auth/setup-status`, and `POST /api/v1/auth/setup` require authentication. Two methods are supported:
+
+1. **Session cookie** (`session_token`) — used by browser clients after login.
+2. **API key** via `Authorization: Bearer <key>` header — used by agent/captain processes and external tools.
+
+The auth middleware checks for a Bearer token first, then falls back to the session cookie. API key-authenticated requests set a synthetic session with `username` prefixed by `api-key:`. Unauthenticated requests return `403 FORBIDDEN`. See [Authentication](#authentication) for the auth endpoints and [API Keys](#api-keys) for key management.
 
 **Configuration:** Port and other settings are configured via environment variables (`.env` file).
 
 **Validation:** All request bodies are validated with Zod schemas. Issue and PR status fields are validated as enums against the centralized status constants defined in `backend/src/constants/statuses.ts`. Invalid requests return a `VALIDATION_ERROR` response.
 
 ## REST API
+
+### Authentication
+
+All endpoints except `GET /health`, `GET /api/v1/auth/setup-status`, and `POST /api/v1/auth/setup` require authentication via either a session cookie (`session_token`) or an API key (`Authorization: Bearer <key>` header). Sessions are managed via HTTP-only cookies; API keys are managed via the [API Keys](#api-keys) endpoints.
+
+#### Check Setup Status
+
+```
+GET /auth/setup-status
+```
+
+Returns whether an admin account has been created.
+
+**Response:** `200 OK`
+
+```json
+{ "needsSetup": true }
+```
+
+#### Create Admin Account
+
+```
+POST /auth/setup
+```
+
+Creates the initial admin account. Only works when no admin exists.
+
+**Request body:**
+
+| Field    | Type   | Constraints      |
+| -------- | ------ | ---------------- |
+| username | string | 1–100 characters |
+| password | string | Min 8 characters |
+
+**Response:** `201 Created`
+
+```json
+{ "id": "uuid", "username": "admin" }
+```
+
+**Errors:**
+
+- `409 CONFLICT` — Admin account already exists.
+- `400 VALIDATION_ERROR` — Invalid request body.
+
+#### Login
+
+```
+POST /auth/login
+```
+
+Validates credentials and creates a session. Rate limited to 5 attempts per minute per IP.
+
+**Request body:**
+
+| Field    | Type   | Constraints |
+| -------- | ------ | ----------- |
+| username | string | Non-empty   |
+| password | string | Non-empty   |
+
+**Response:** `200 OK`
+
+```json
+{ "id": "uuid", "username": "admin" }
+```
+
+Sets `session_token` cookie (HttpOnly, Secure in production, SameSite=Strict).
+
+**Errors:**
+
+- `403 FORBIDDEN` — Invalid credentials or rate limit exceeded.
+
+#### Logout
+
+```
+POST /auth/logout
+```
+
+Deletes the session and clears the cookie.
+
+**Response:** `200 OK`
+
+```json
+{ "ok": true }
+```
+
+#### Get Current User
+
+```
+GET /auth/me
+```
+
+Returns the current authenticated user info.
+
+**Response:** `200 OK`
+
+```json
+{ "id": "uuid", "username": "admin", "setupCompleted": false }
+```
+
+`setupCompleted` is `false` until the user completes setup (either by creating a project or by calling `POST /auth/complete-setup`), then becomes `true`.
+
+#### Complete Setup
+
+```
+POST /auth/complete-setup
+```
+
+Marks the current user's setup as completed. Decouples setup completion from project creation so a setup wizard can finish setup before the user creates their first project.
+
+**Response:** `200 OK`
+
+```json
+{ "ok": true }
+```
+
+**Errors:**
+
+- `403 FORBIDDEN` — Not authenticated.
 
 ### Projects
 
@@ -45,8 +171,6 @@ Without `?stats`:
     "id": "uuid",
     "name": "My Project",
     "description": "...",
-    "max_concurrency": 3,
-    "max_chain_depth": 20,
     "model": "sonnet",
     "auto_start": false,
     "auto_merge": false,
@@ -65,8 +189,6 @@ With `?stats`:
     "id": "uuid",
     "name": "My Project",
     "description": "...",
-    "max_concurrency": 3,
-    "max_chain_depth": 20,
     "model": "sonnet",
     "auto_start": false,
     "auto_merge": false,
@@ -82,7 +204,8 @@ With `?stats`:
       "pr_failed_actions": 0,
       "pr_ready_to_merge": 0,
       "done": 12
-    }
+    },
+    "active_runs": 1
   }
 ]
 ```
@@ -114,13 +237,12 @@ POST /projects
 }
 ```
 
-| Field           | Required | Default                       | Description                                                             |
-| --------------- | -------- | ----------------------------- | ----------------------------------------------------------------------- |
-| repo_url        | Yes      | —                             | Repository URL (GitHub, GitLab, etc.) to link to this project.          |
-| name            | No       | Repo name from VCS API        | Project name.                                                           |
-| description     | No       | Repo description from VCS API | Project description.                                                    |
-| max_concurrency | No       | —                             | Max concurrent agent processes.                                         |
-| vcs_account_id  | No       | null                          | ID of a connected VCSAccount to use for git operations in this project. |
+| Field          | Required | Default                       | Description                                                             |
+| -------------- | -------- | ----------------------------- | ----------------------------------------------------------------------- |
+| repo_url       | Yes      | —                             | Repository URL (GitHub, GitLab, etc.) to link to this project.          |
+| name           | No       | Repo name from VCS API        | Project name.                                                           |
+| description    | No       | Repo description from VCS API | Project description.                                                    |
+| vcs_account_id | No       | null                          | ID of a connected VCSAccount to use for git operations in this project. |
 
 **Response:** `201 Created` — The created project object.
 
@@ -134,13 +256,13 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, max_concurrency, max_chain_depth, model, auto_start, auto_merge, vcs_account_id).
+**Request Body:** Any subset of project fields (name, description, model, auto_start, auto_merge, vcs_account_id).
 
-| Field      | Type    | Description                                                                                         |
-| ---------- | ------- | --------------------------------------------------------------------------------------------------- |
-| model      | TEXT    | Default Claude model for agent spawning. One of: `sonnet`, `opus`.                                  |
-| auto_start | BOOLEAN | Whether Captain automatically starts work on new issues. Default: false.                            |
-| auto_merge | BOOLEAN | Whether Captain automatically merges ready PRs. Default: false.                                     |
+| Field      | Type    | Description                                                              |
+| ---------- | ------- | ------------------------------------------------------------------------ |
+| model      | TEXT    | Default Claude model for agent spawning. One of: `sonnet`, `opus`.       |
+| auto_start | BOOLEAN | Whether Captain automatically starts work on new issues. Default: false. |
+| auto_merge | BOOLEAN | Whether Captain automatically merges ready PRs. Default: false.          |
 
 **Response:** `200 OK` — The updated project object.
 
@@ -189,7 +311,7 @@ Returns the current captain monitor phase for the project. Use this on page load
 - `thinking` → `executing` — the LLM produced an action plan and the backend is executing it
 - `executing` → `idle` — all actions complete (or the cycle errors out)
 
-**Note:** When a new event arrives while the captain is already `thinking` or `executing`, the status is **not** regressed to `receiving` — the more-advanced phase is preserved. WebSocket events (`monitor.thinking`, `monitor.tool_call`, `monitor.tool_result`, `monitor.complete`) continue to provide real-time granularity; this REST endpoint is for hydration on page load only.
+**Note:** When a new event arrives while the captain is already `thinking` or `executing`, the status is **not** regressed to `receiving` — the more-advanced phase is preserved. WebSocket events (`monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.rate_limit`, `monitor.result`, `monitor.complete`) continue to provide real-time granularity; this REST endpoint is for hydration on page load only.
 
 **Error:** `404 Not Found` — Project does not exist.
 
@@ -410,37 +532,60 @@ GET /projects/:projectId/issues
 
 **Query Parameters:**
 
-| Parameter  | Type | Description                                                                |
-| ---------- | ---- | -------------------------------------------------------------------------- |
-| status     | TEXT | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). |
-| created_by | TEXT | Filter by creator (`user`, `agent`, or `system`).                          |
-| sort       | TEXT | Sort field. One of: `created_at`, `updated_at`. Default: `created_at`.     |
-| order      | TEXT | Sort order. `asc` or `desc`. Default: `desc`.                              |
+| Parameter  | Type    | Description                                                                                       |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------- |
+| status     | TEXT     | Filter by status. Comma-separated for multiple (e.g., `open,in_progress`). Default excludes `done`. |
+| created_by | TEXT     | Filter by creator (`user`, `agent`, or `system`).                                                 |
+| sort       | TEXT     | Sort field. One of: `created_at`, `updated_at`. Default: `created_at`.                            |
+| order      | TEXT     | Sort order. `asc` or `desc`. Default: `desc`.                                                      |
+| limit      | INTEGER | Max issues to return. Default: 50. Max: 100.                                                      |
+| offset     | INTEGER | Pagination offset. Default: 0. Must be ≥ 0.                                                       |
+| compact    | TEXT     | When `true`, excludes `description` from each issue.                                               |
 
-**Response:** `200 OK` — Array of issue objects (without full comment thread). Each issue includes `running_agent_id`, `running_agent_status`, `dependencies`, and `dependents` fields.
+When no `status` filter is provided, `done` issues are excluded by default. Include them explicitly via `?status=open,in_progress,done`.
+
+**Response:** `200 OK` — Paginated result object containing the issue array and pagination metadata.
 
 ```json
-[
-  {
-    "id": "uuid",
-    "project_id": "uuid",
-    "title": "Fix authentication bug",
-    "status": "in_progress",
-    "running_agent_id": "engineer",
-    "running_agent_status": "running",
-    "dependencies": [
-      { "id": "uuid", "title": "Set up database", "status": "done" }
-    ],
-    "dependents": [],
-    "...": "..."
-  }
-]
+{
+  "issues": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "title": "Fix authentication bug",
+      "status": "in_progress",
+      "running_agent_id": "engineer",
+      "running_agent_status": "running",
+      "dependencies": [
+        { "id": "uuid", "title": "Set up database", "status": "done" }
+      ],
+      "dependents": [],
+      "...": "..."
+    }
+  ],
+  "total": 42,
+  "limit": 50,
+  "offset": 0
+}
 ```
+
+| Field  | Type    | Description                                                |
+| ------ | ------- | ---------------------------------------------------------- |
+| issues | array   | Array of issue objects (without full comment thread).       |
+| total  | integer | Total count of matching issues (respecting status filter). |
+| limit  | integer | The applied limit (capped at 100).                         |
+| offset | integer | The applied offset.                                        |
+
+Each issue in the array includes `running_agent_id`, `running_agent_status`, `dependencies`, and `dependents` fields:
 
 - `running_agent_id`: The ID of the agent currently running or queued on this issue. NULL if no agent is active.
 - `running_agent_status`: Either `"running"` or `"queued"`. NULL if no agent is active.
 - `dependencies`: Issues this issue is blocked by. Each entry is `{ id, title, status }`. Empty array if none.
 - `dependents`: Issues blocked by this issue. Each entry is `{ id, title, status }`. Empty array if none.
+
+**Errors:**
+
+- `400 VALIDATION_ERROR` — `limit` or `offset` is not a valid non-negative integer.
 
 #### Get Issue
 
@@ -459,7 +604,7 @@ GET /projects/:projectId/issues/:issueId
   "status": "in_progress",
   "created_by": "user",
   "chain_depth": 2,
-  "branch_name": "crewdeck/issue-uuid-short",
+  "branch_name": "fix/login-bug-abc1",
   "worktree_path": "/path/to/worktree",
   "base_branch": "main",
   "repo_id": "uuid",
@@ -524,7 +669,7 @@ PATCH /projects/:projectId/issues/:issueId
 
 - WebSocket event emitted: `issue.status_changed` (when status changes).
 
-**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue (excluding the agent specified in `X-Agent-ID`). Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the project's `max_chain_depth` limit is reached.
+**Note:** Status changes are validated against the transition rules (see Status Transitions below). Transitioning to `done` is rejected if active agent processes are running on the issue (excluding the agent specified in `X-Agent-ID`). Set `chain_depth: 0` to reset the `/dispatch` chain depth counter after the global `max_chain_depth` limit is reached.
 
 #### Delete Issue
 
@@ -552,7 +697,7 @@ Permanently deletes an issue and cleans up associated resources.
 POST /projects/:projectId/issues/:issueId/pause
 ```
 
-Pauses an issue, preventing new agent dispatches until resumed.
+Pauses an issue, preventing new agent dispatches, PR creation, and PR merging until resumed.
 
 **Response:** `200 OK`
 
@@ -779,7 +924,7 @@ GET /projects/:projectId/runs/:runId?events_limit=50
 }
 ```
 
-Event `type` values are strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`, `system`, `error`). Events are **normalized** on retrieval — the nested Claude CLI format (`message.content[]` arrays) is flattened into a simpler structure:
+Event `type` values are strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `rate_limit_event`, `result`, `system`, `error`). Events are **normalized** on retrieval — the normalizer (`event-normalizer.ts`) handles both the old flat Claude CLI format (`subtype`/`content` fields) and the new nested format (`message.content[]` arrays), flattening them into a simpler structure:
 
 | Type          | Normalized `data` fields                                                        |
 | ------------- | ------------------------------------------------------------------------------- |
@@ -866,6 +1011,26 @@ Only runs with status `running` or `queued` are returned.
 
 ### Activity Log
 
+#### List Global Activity
+
+```
+GET /activity
+```
+
+Returns recent activity entries across all projects. Entries are enriched with `actor_name` (agent display name), `issue_title`, and `project_name` (the owning project's name). Entries are returned in compact form — the `details` field is omitted, but display-critical fields are promoted to top-level properties: `from`/`to` for `issue.status_changed`, `pr_number` for `pr.created`, and `exit_code` for `mention.completed`.
+
+**Query Parameters:**
+
+| Parameter | Type     | Description                                                                                                                                               |
+| --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| since     | DATETIME | Only entries after this timestamp. Must be a valid date (ISO 8601 or any format parseable by `new Date()`). Invalid values return `400 VALIDATION_ERROR`. |
+| limit     | INTEGER  | Max entries to return. Default: 10. Max: 50.                                                                                                              |
+| offset    | INTEGER  | Pagination offset. Default: 0. Must be ≥ 0.                                                                                                               |
+
+**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Each entry includes `actor_name` (for agent and system-with-agent-id entries), `issue_title` (when an associated issue exists), and `project_name` (the owning project's name).
+
+**Error:** `400 VALIDATION_ERROR` — `since` is not a valid date, `limit` is negative, or `offset` is negative.
+
 #### List Activity for a Project
 
 ```
@@ -882,8 +1047,9 @@ GET /projects/:projectId/activity
 | since      | DATETIME | Only entries after this timestamp. Must be a valid date (ISO 8601 or any format parseable by `new Date()`). Invalid values return `400 VALIDATION_ERROR`. |
 | limit      | INTEGER  | Max entries to return. Default: 50. Max: 500.                                                                                                             |
 | offset     | INTEGER  | Pagination offset. Default: 0.                                                                                                                            |
+| compact    | TEXT     | When `true`, omits the `details` field and promotes display-critical fields to top-level (`from`/`to` for `issue.status_changed`, `pr_number` for `pr.created`, `exit_code` for `mention.completed`). Default: `false` (full details included). |
 
-**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Entries where `actor_type` is `agent` include an additional `actor_name` field (string) with the agent's display name. Historical entries where `actor_type` is `system` but `details.agent_id` is present are also enriched with `actor_name`. Entries with an associated issue include an additional `issue_title` field (string) with the issue's title, resolved via batch lookup at query time.
+**Response:** `200 OK` — Array of activity log entries, ordered by created_at descending. Entries where `actor_type` is `agent` include an additional `actor_name` field (string) with the agent's display name. Historical entries where `actor_type` is `system` but `details.agent_id` is present are also enriched with `actor_name`. Entries with an associated issue include an additional `issue_title` field (string) with the issue's title, resolved via batch lookup at query time. When `compact=true`, the `details` field is omitted and action-specific fields are promoted to top-level properties on the entry.
 
 ---
 
@@ -1080,19 +1246,19 @@ Triggers a codebase scan by spawning the librarian agent directly. The agent run
 | ------------ | ----------- | -------------------------------- |
 | agent_run_id | TEXT (UUID) | The ID of the spawned agent run. |
 
-**Error:** `500 Internal Server Error` — If the project's concurrency limit is reached (scans cannot be queued).
+**Error:** `500 Internal Server Error` — If the global concurrency limit is reached (scans cannot be queued).
 
 **Side effects:**
 
 - Creates an `AgentRun` record with `issue_id: null`.
-- Spawns the librarian agent process.
+- Spawns the librarian agent process with the standard agent environment (including `CREWDECK_API_KEY` for API authentication).
 - Emits `run.started` event.
 
 ---
 
 ### Agent Config
 
-Global per-agent, per-provider model configuration. Applies machine-wide regardless of project. Each agent can have different model settings for each AI provider (Claude, GLM).
+Global per-agent model configuration. Applies machine-wide regardless of project. Each agent can be assigned any model from any provider — the model name determines which provider is used.
 
 #### List Agent Configs
 
@@ -1107,13 +1273,11 @@ GET /agent-config
   {
     "id": "uuid",
     "agent_id": "engineer",
-    "provider": "claude",
     "model": "opus"
   },
   {
     "id": "uuid",
-    "agent_id": "engineer",
-    "provider": "glm",
+    "agent_id": "lead",
     "model": "glm-5.1"
   }
 ]
@@ -1125,33 +1289,30 @@ GET /agent-config
 PUT /agent-config/:agentId
 ```
 
-Creates or updates the model for a specific agent for the specified provider.
+Creates or updates the model for a specific agent.
 
 **Request Body:**
 
 ```json
 {
-  "provider": "claude",
   "model": "opus"
 }
 ```
 
-| Field    | Required | Description                                                                                                                                                                              |
-| -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| provider | Yes      | AI provider. One of: `claude`, `glm`.                                                                                                                                                    |
+| Field    | Required | Description                                                                                                                                                                         |
+| -------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| provider | Yes      | AI provider. One of: `claude`, `glm`.                                                                                                                                               |
 | model    | Yes      | Model to use. For `claude`: `sonnet`, `opus`, `haiku`, or `null`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, or `null`. `null` clears the override for that provider. |
 
 **Response:** `200 OK` — The created or updated agent config object.
 
-**Validation:** The model must be valid for the specified provider. Mixing providers and models (e.g., `provider: "claude"` with `model: "glm-5-turbo"`) returns `400 VALIDATION_ERROR`.
-
 #### Remove Agent Model Override
 
 ```
-DELETE /agent-config/:agentId/:provider
+DELETE /agent-config/:agentId
 ```
 
-Removes the model override for the agent and provider, falling back to the provider's default (`sonnet` for Claude, `glm-5-turbo` for GLM).
+Removes the model override for the agent, falling back to the global default model.
 
 **Response:** `204 No Content`
 
@@ -1159,7 +1320,7 @@ Removes the model override for the agent and provider, falling back to the provi
 
 ### Global Config
 
-Global system-wide configuration settings. Allows switching the AI provider for all agent spawns.
+Global system-wide configuration settings.
 
 #### Get Global Config
 
@@ -1171,66 +1332,416 @@ GET /global-config
 
 ```json
 {
-  "provider": "claude"
+  "defaultModel": "sonnet",
+  "maxConcurrency": 5,
+  "maxChainDepth": 20,
+  "agentTimeoutMinutes": 10
 }
 ```
 
-| Field    | Type | Description                                          |
-| -------- | ---- | ---------------------------------------------------- |
-| provider | TEXT | Current AI provider. One of: `claude`, `glm` (Z.AI). |
+| Field               | Type    | Description                                 |
+| ------------------- | ------- | ------------------------------------------- |
+| defaultModel        | TEXT    | Default model for agent spawns.             |
+| maxConcurrency      | INTEGER | Max concurrent agent processes globally (across all projects). |
+| maxChainDepth       | INTEGER | Max agent dispatches per issue.             |
+| agentTimeoutMinutes | INTEGER | Agent process timeout in minutes.           |
 
-#### Set Provider
-
-```
-PUT /global-config/provider
-```
-
-Switches the global AI provider. When changed, all active Captain terminal sessions are terminated and restarted with the new provider.
-
-**Request Body:**
-
-```json
-{
-  "provider": "glm"
-}
-```
-
-| Field    | Required | Description                               |
-| -------- | -------- | ----------------------------------------- |
-| provider | Yes      | Provider to use. One of: `claude`, `glm`. |
-
-**Response:** `200 OK` — Updated global configuration.
-
-**Error:** `409 Conflict` — Provider switch already in progress.
-
-**Side effects:**
-
-- All active Captain terminal sessions are terminated (existing tmux sessions killed)
-- New agent spawns will use the new provider
-- When `glm` is selected, agent processes receive `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`
-- Existing agent runs continue with their original provider until completion
-
-#### Check GLM Availability
+#### Get Default Model
 
 ```
-GET /global-config/glm-available
+GET /global-config/default-model
 ```
 
-Checks whether the GLM (Z.AI) provider is available by verifying the `ZAI_API_KEY` environment variable is set.
+Returns the default model used when no per-agent override is set.
 
 **Response:** `200 OK`
 
 ```json
 {
-  "available": true
+  "model": "sonnet"
 }
 ```
 
-| Field     | Type    | Description                                            |
-| --------- | ------- | ------------------------------------------------------ |
-| available | BOOLEAN | Whether GLM provider is available (ZAI_API_KEY is set) |
+| Field | Type | Description    |
+| ----- | ---- | -------------- |
+| model | TEXT | Default model. |
+
+#### Set Default Model
+
+```
+PUT /global-config/default-model
+```
+
+Sets the default model for all agent spawns when no per-agent override is configured.
+
+**Request Body:**
+
+```json
+{
+  "model": "opus"
+}
+```
+
+| Field | Required | Description                                                                                     |
+| ----- | -------- | ----------------------------------------------------------------------------------------------- |
+| model | Yes      | Default model. One of: `sonnet`, `opus`, `haiku`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "model": "opus"
+}
+```
+
+#### Get Max Concurrency
+
+```
+GET /global-config/max-concurrency
+```
+
+Returns the maximum concurrent agent processes globally (across all projects).
+
+**Response:** `200 OK`
+
+```json
+{
+  "maxConcurrency": 5
+}
+```
+
+#### Set Max Concurrency
+
+```
+PUT /global-config/max-concurrency
+```
+
+Sets the maximum concurrent agent processes globally (across all projects).
+
+**Request Body:**
+
+```json
+{
+  "maxConcurrency": 10
+}
+```
+
+| Field          | Required | Description               |
+| -------------- | -------- | ------------------------- |
+| maxConcurrency | Yes      | Max concurrent agents. 1–50. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "maxConcurrency": 10
+}
+```
+
+#### Get Max Chain Depth
+
+```
+GET /global-config/max-chain-depth
+```
+
+Returns the maximum agent dispatches per issue before requiring manual reset.
+
+**Response:** `200 OK`
+
+```json
+{
+  "maxChainDepth": 20
+}
+```
+
+#### Set Max Chain Depth
+
+```
+PUT /global-config/max-chain-depth
+```
+
+Sets the maximum agent dispatches per issue.
+
+**Request Body:**
+
+```json
+{
+  "maxChainDepth": 30
+}
+```
+
+| Field        | Required | Description                    |
+| ------------ | -------- | ------------------------------ |
+| maxChainDepth | Yes      | Max chain depth. 1–100.        |
+
+**Response:** `200 OK`
+
+```json
+{
+  "maxChainDepth": 30
+}
+```
+
+#### Get Agent Timeout
+
+```
+GET /global-config/agent-timeout-minutes
+```
+
+Returns the agent process timeout in minutes.
+
+**Response:** `200 OK`
+
+```json
+{
+  "agentTimeoutMinutes": 10
+}
+```
+
+#### Set Agent Timeout
+
+```
+PUT /global-config/agent-timeout-minutes
+```
+
+Sets the agent process timeout in minutes.
+
+**Request Body:**
+
+```json
+{
+  "agentTimeoutMinutes": 15
+}
+```
+
+| Field              | Required | Description                  |
+| ------------------ | -------- | ---------------------------- |
+| agentTimeoutMinutes | Yes      | Timeout in minutes. 1–60.   |
+
+**Response:** `200 OK`
+
+```json
+{
+  "agentTimeoutMinutes": 15
+}
+```
+
+#### Get Active Agents
+
+```
+GET /global-config/active-agents
+```
+
+Returns the current global agent activity count and the concurrency limit. Used by the dashboard to display the "Active Agents" metric.
+
+**Response:** `200 OK`
+
+```json
+{
+  "activeAgents": 3,
+  "maxConcurrency": 5
+}
+```
+
+| Field          | Type    | Description                                            |
+| -------------- | ------- | ------------------------------------------------------ |
+| activeAgents   | INTEGER | Number of currently running agent processes globally.   |
+| maxConcurrency | INTEGER | Maximum concurrent agents allowed (global limit).      |
+
+#### Check Model Availability
+
+```
+GET /global-config/model-availability
+```
+
+Returns which model providers are available based on configured API keys.
+
+**Response:** `200 OK`
+
+```json
+{
+  "claude": { "available": true },
+  "glm": { "available": true }
+}
+```
+
+| Field  | Type   | Description                                                        |
+| ------ | ------ | ------------------------------------------------------------------ |
+| claude | object | Claude availability (always `true` if `ANTHROPIC_API_KEY` is set). |
+| glm    | object | GLM (Z.AI) availability (`true` if `ZAI_API_KEY` is set).          |
+
+#### Preflight Checks
+
+Preflight endpoints detect whether the system is ready to run agents. Used by setup wizards to guide users through configuration.
+
+##### Check Claude CLI Installation
+
+```
+GET /global-config/preflight/claude-cli
+```
+
+Checks whether the `claude` CLI is installed and available on PATH. If found, also retrieves the version string.
+
+**Response:** `200 OK`
+
+When installed:
+
+```json
+{ "installed": true, "version": "claude-code/1.0.0", "path": "/usr/local/bin/claude" }
+```
+
+When not installed:
+
+```json
+{ "installed": false }
+```
+
+| Field     | Type    | Description                                      |
+| --------- | ------- | ------------------------------------------------ |
+| installed | boolean | Whether `claude` is on PATH.                     |
+| version   | string  | Version string from `claude --version` (if found). |
+| path      | string  | Absolute path to the `claude` binary (if found).   |
+
+##### Check Claude CLI Authentication
+
+```
+GET /global-config/preflight/claude-auth
+```
+
+Spawns `claude -p "ping" --output-format json --max-turns 1` with a 15-second timeout to verify that Claude CLI credentials are working. This endpoint is slow (~5–10s) by design.
+
+**Response:** `200 OK`
+
+When authenticated:
+
+```json
+{ "authenticated": true }
+```
+
+When not authenticated:
+
+```json
+{ "authenticated": false, "error": "No API key provided. Run `claude` to authenticate." }
+```
+
+| Field         | Type    | Description                                                      |
+| ------------- | ------- | ---------------------------------------------------------------- |
+| authenticated | boolean | Whether Claude CLI successfully authenticated.                   |
+| error         | string  | Error message from stderr/stdout when authentication fails (max 500 chars). |
+
+##### Check Z.AI API Key
+
+```
+GET /global-config/preflight/zai
+```
+
+Checks whether a `ZAI_API_KEY` is configured, either via environment variable or the global environment variables database table. Indicates where the key was found so the UI can guide the user.
+
+**Response:** `200 OK`
+
+When configured:
+
+```json
+{ "configured": true, "source": "env" }
+```
+
+When not configured:
+
+```json
+{ "configured": false }
+```
+
+| Field      | Type    | Description                                                          |
+| ---------- | ------- | -------------------------------------------------------------------- |
+| configured | boolean | Whether a Z.AI API key is available.                                 |
+| source     | string  | Where the key was found: `"env"` (environment variable) or `"database"` (GlobalEnvironmentVariable table). Omitted when not configured. |
 
 ---
+
+### API Keys
+
+Manage user API keys for programmatic access. Key management endpoints require session authentication — API key-authenticated requests are rejected to prevent keys from managing other keys. System keys (auto-generated for agent/captain use) are hidden from this interface.
+
+#### List API Keys
+
+```
+GET /api-keys
+```
+
+Returns all user-created API keys (system keys excluded). The full key is never returned — only a prefix for identification.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "id": "uuid",
+    "name": "Claude CI Process",
+    "key_prefix": "sk-a1b2c3d4",
+    "created_at": "ISO 8601",
+    "last_used_at": "ISO 8601"
+  }
+]
+```
+
+| Field        | Type         | Description                                           |
+| ------------ | ------------ | ----------------------------------------------------- |
+| id           | TEXT (UUID)  | Unique identifier.                                    |
+| name         | TEXT         | Human-readable label assigned at creation.            |
+| key_prefix   | TEXT         | First 11 characters of the key (e.g., `sk-a1b2c3d4`). |
+| created_at   | TEXT         | When the key was created.                             |
+| last_used_at | TEXT \| null | When the key was last used for authentication.        |
+
+#### Create API Key
+
+```
+POST /api-keys
+```
+
+Creates a new API key. The full plaintext key is returned **only once** in the response.
+
+**Request Body:**
+
+```json
+{
+  "name": "Claude CI Process"
+}
+```
+
+| Field | Required | Description                       |
+| ----- | -------- | --------------------------------- |
+| name  | Yes      | Human-readable label for the key. |
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "uuid",
+  "name": "Claude CI Process",
+  "key_prefix": "sk-a1b2c3d4",
+  "created_at": "ISO 8601",
+  "last_used_at": null,
+  "key": "sk-a1b2c3d4e5f6..."
+}
+```
+
+The `key` field contains the full plaintext key. It is not stored server-side (only the SHA-256 hash is stored) and will never be shown again.
+
+**Error:** `400 VALIDATION_ERROR` — `name` is empty or not a string.
+
+#### Delete API Key
+
+```
+DELETE /api-keys/:id
+```
+
+Revokes an API key. System keys cannot be deleted.
+
+**Response:** `204 No Content`
+
+**Error:** `404 Not Found` — Key does not exist.
+
+**Error:** `403 Forbidden` — Attempting to delete a system key.
 
 ---
 
@@ -1310,6 +1821,161 @@ Terminates the tmux session and cleans up temporary files (system prompt, SSH ke
   "destroyed": true
 }
 ```
+
+---
+
+### Chat Threads
+
+REST endpoints for chat thread CRUD and message sending. The Chat API only exposes user-created threads. Monitor threads (auto-created, one per project) exist in the database but are hidden from this API — they are managed internally by the monitor agent.
+
+#### Create Thread
+
+```
+POST /projects/:projectId/chat/threads
+```
+
+Creates a new chat thread for a project.
+
+**Request body:**
+
+| Field | Type   | Required | Description                           |
+| ----- | ------ | -------- | ------------------------------------- |
+| title | string | No       | Thread title. NULL until renamed by user. |
+
+**Response:** `201 Created` — The created `ChatThread` object.
+
+#### List Threads
+
+```
+GET /projects/:projectId/chat/threads
+```
+
+Lists user chat threads for a project (monitor threads are excluded), enriched with message metadata.
+
+**Response:** `200 OK` — Array of thread objects, each including:
+
+| Extra field     | Type                    | Description                                       |
+| --------------- | ----------------------- | ------------------------------------------------- |
+| `last_message`  | `string \| null`        | Content text of the most recent message in the thread (or null). |
+| `message_count` | number                  | Total number of messages in the thread.           |
+
+#### Get Thread
+
+```
+GET /projects/:projectId/chat/threads/:threadId
+```
+
+Returns a single thread with its messages (paginated).
+
+**Query Parameters:**
+
+| Parameter | Type   | Default | Constraints    | Description                   |
+| --------- | ------ | ------- | -------------- | ----------------------------- |
+| limit     | number | 50      | Min 1, max 200 | Number of messages to return. |
+| offset    | number | 0       | Min 0          | Number of messages to skip.   |
+
+**Response:** `200 OK` — Thread object with a `messages` array.
+
+**Error:** `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
+
+#### Update Thread
+
+```
+PATCH /projects/:projectId/chat/threads/:threadId
+```
+
+Updates a thread. The `title` field is user-editable. The `session_id` field can be set to `null` to start a fresh Claude session (preserving chat history).
+
+**Request body:**
+
+| Field      | Type            | Required | Description                                                         |
+| ---------- | --------------- | -------- | ------------------------------------------------------------------- |
+| title      | string          | No       | New thread title.                                                   |
+| session_id | string or null  | No       | Set to `null` to clear the session and start a fresh Claude session. |
+
+**Response:** `200 OK` — Updated thread object.
+
+**Errors:**
+
+- `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
+- `400 VALIDATION_ERROR` — No fields provided to update.
+
+#### Delete Thread
+
+```
+DELETE /projects/:projectId/chat/threads/:threadId
+```
+
+Deletes a thread and all its messages.
+
+**Response:** `200 OK`
+
+```json
+{ "deleted": true }
+```
+
+**Errors:**
+
+- `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
+
+#### Send Message
+
+```
+POST /projects/:projectId/chat/threads/:threadId/messages
+```
+
+Sends a user message and triggers a Claude response. The endpoint returns immediately (fire-and-forget); the response is streamed in real-time via WebSocket events (see [Chat Events](#chat-events)). Only one message can be processed per thread at a time — concurrent sends return `409 CONFLICT`.
+
+**Request body:**
+
+| Field   | Type   | Required | Description                          |
+| ------- | ------ | -------- | ------------------------------------ |
+| content | string | Yes      | The user's message content.          |
+
+**Response:** `202 Accepted`
+
+```json
+{ "message_id": "uuid" }
+```
+
+The HTTP response is returned immediately after saving the user message and acquiring the processing lock. The Claude session runs in the background. Use WebSocket events for real-time streaming and completion notification.
+
+**Errors:**
+
+- `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
+- `400 VALIDATION_ERROR` — Missing or invalid `content`.
+- `409 CONFLICT` — A message is already being processed for this thread.
+- `500` — Claude process failed (exit code 1, no content produced). `chat.error` WebSocket event is emitted with details.
+
+**Side effects:**
+
+- Saves user message to `ChatMessage` table before spawning Claude.
+- Saves assistant response to `ChatMessage` table on completion.
+- Updates thread's `updated_at` and `session_id` (captured from Claude CLI stream).
+- Emits `chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, and `chat.complete` events on the event bus.
+- Emits `chat.error` and `chat.complete` on failure.
+- After the first successful reply in an untitled thread, fire-and-forget auto-generates a title via a lightweight Claude call (single-turn, deterministic prompt). Post-processing strips prefixes, truncates to 80 characters, and extracts only the first line. Emits `chat.thread_updated` on success. If auto-title generation fails, a fallback title is derived from the first 40 characters of the user's message and emitted via `chat.thread_updated`.
+- If `--resume` fails (session expired), emits `chat.session_expired`, resets `session_id` to null, and starts a fresh session transparently.
+- Configures SSH credentials from the project's VCS account (`GH_TOKEN`, `GIT_SSH_COMMAND`) so the captain can access private Git remotes and use the GitHub CLI. SSH key temp files are cleaned up when the session ends.
+- If the Claude process fails (exit code 1, no content), emits `chat.error` with a user-friendly message, then `chat.complete`. No assistant message is saved.
+
+#### Get Thread Status
+
+```
+GET /projects/:projectId/chat/threads/:threadId/status
+```
+
+Returns whether a thread is currently being processed by Claude. Use this to restore streaming state after page navigation.
+
+**Response:** `200 OK`
+
+```json
+{ "active": true }
+```
+
+**Errors:**
+
+- `404 NOT_FOUND` — Thread does not exist or belongs to a different project.
 
 ---
 
@@ -1562,6 +2228,109 @@ Agent registers a PR for tracking. This creates an `IssuePR` record linking the 
 
 **Side effects:** Emits `pr.created` on the event bus.
 
+#### Dispatch Agent (Captain)
+
+```
+POST /internal/captain/dispatch-agent
+```
+
+Dispatches an agent to work on an issue. Used by the Captain chat to spawn agents via curl. Validates the same gates as `/dispatch` commands (auto_start approval, paused-issue gate, chain depth, concurrency limit).
+
+**Request Body:**
+
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid",
+  "agent_id": "engineer",
+  "instructions": "Focus on the database layer"
+}
+```
+
+| Field        | Required | Description                                         |
+| ------------ | -------- | --------------------------------------------------- |
+| project_id   | Yes      | The project the issue belongs to.                   |
+| issue_id     | Yes      | The issue to dispatch the agent on.                 |
+| agent_id     | Yes      | The agent to spawn (e.g., `engineer`, `lead`, `docs`). |
+| instructions | No       | Optional custom instructions appended to the prompt. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Agent engineer dispatched to issue <ISSUE_ID>"
+}
+```
+
+**Error:** `400 VALIDATION_ERROR` — Missing required fields, issue is paused, auto_start disabled without approval, chain depth limit reached, or concurrency limit reached.
+
+#### Merge PR (Captain)
+
+```
+POST /internal/captain/merge-pr
+```
+
+Merges a ready PR for an issue. Used by the Captain chat to merge PRs via curl. Enforces the same gates as the `/merge` command (auto_merge approval, paused-issue gate, CI gate — issue must be in `pr_ready_to_merge` status).
+
+**Request Body:**
+
+```json
+{
+  "project_id": "uuid",
+  "issue_id": "uuid"
+}
+```
+
+| Field      | Required | Description                       |
+| ---------- | -------- | --------------------------------- |
+| project_id | Yes      | The project the issue belongs to. |
+| issue_id   | Yes      | The issue whose PR should be merged. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "message": "PR merged for issue <ISSUE_ID>"
+}
+```
+
+**Error:** `400 VALIDATION_ERROR` — Missing required fields, issue is paused, auto_merge disabled without approval, or issue not in `pr_ready_to_merge` status.
+
+#### Scan Codebase (Captain)
+
+```
+POST /internal/captain/scan-codebase
+```
+
+Triggers a codebase scan that spawns the librarian agent to update project knowledge. Used by the Captain chat via curl. Equivalent to `POST /projects/:projectId/knowledge/scan` but accessed via the internal API with `project_id` in the request body.
+
+**Request Body:**
+
+```json
+{
+  "project_id": "uuid"
+}
+```
+
+| Field      | Required | Description                       |
+| ---------- | -------- | --------------------------------- |
+| project_id | Yes      | The project to scan.              |
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Codebase scan started"
+}
+```
+
+**Error:** `400 VALIDATION_ERROR` — Missing `project_id`.
+
+**Side effects:** Creates an `AgentRun` record and spawns the librarian agent. Emits `run.started` event.
+
 ---
 
 ## Status Transition Rules
@@ -1592,7 +2361,15 @@ Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_
 ws://localhost:<port>/ws?projectId=<uuid>
 ```
 
-Clients connect with a project ID to receive events scoped to that project. The server validates that the project exists on connection.
+Clients connect with a project ID to receive events scoped to that project. **Requires a valid session cookie** (`session_token`). The server validates the session before checking the project. Unauthenticated or invalid sessions receive `ws.close(4001, 'Unauthorized')`.
+
+### Global Connection
+
+```
+ws://localhost:<port>/ws?global=true
+```
+
+Clients connect without a project ID to receive events from all projects. Used by the dashboard for real-time project stats and activity feed updates. **Requires a valid session cookie** (`session_token`). Broadcasts all events except high-frequency `run.event` and monitor events. Unauthenticated or invalid sessions receive `ws.close(4001, 'Unauthorized')`.
 
 ### Terminal WebSocket Connection
 
@@ -1600,7 +2377,9 @@ Clients connect with a project ID to receive events scoped to that project. The 
 ws://localhost:<port>/terminal-ws?projectId=<uuid>
 ```
 
-Establishes a WebSocket connection for PTY streaming. Connects to the project's tmux session and provides bidirectional I/O:
+Establishes a WebSocket connection for PTY streaming. **Requires a valid session cookie** (`session_token`). This is the most sensitive endpoint (direct shell access) — unauthenticated or invalid sessions receive `ws.close(4001, 'Unauthorized')`.
+
+Connects to the project's tmux session and provides bidirectional I/O:
 
 - **Server → Client**: Raw PTY output bytes (terminal escape sequences, text)
 - **Client → Server**: Raw keyboard input or resize messages
@@ -1621,6 +2400,8 @@ Non-resize messages are treated as terminal input and written directly to the PT
 
 The frontend defines a `WsEventMap` interface in `frontend/src/lib/api/types.ts` that maps every event name to its typed payload. `ProjectWebSocket.on()` uses generic overloads so handlers receive fully typed `data` parameters with IDE autocomplete — no manual casting required.
 
+Global WebSocket subscribers use a `GlobalWsEventMap` interface — a subset of `WsEventMap` that excludes `run.event` and monitor events (to avoid flooding the dashboard with high-frequency data). The `GlobalWebSocket` class (`frontend/src/lib/api/global-ws.svelte.ts`) uses the same typed `on()` pattern as `ProjectWebSocket`.
+
 ### Event Format
 
 All events follow this structure:
@@ -1635,13 +2416,15 @@ All events follow this structure:
 
 ### Events
 
+All events below (except `run.event` and monitor events) are broadcast to both per-project subscribers and global subscribers. The `run.event` stream is only sent to per-project subscribers.
+
 #### Issue Events
 
 | Event                  | Description                                                                                                              | Data                                                         |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `issue.created`        | New issue created                                                                                                        | `{ issue }` — full Issue object                              |
+| `issue.created`        | New issue created                                                                                                        | Full Issue object (bare, not wrapped in `{ issue }`)         |
 | `issue.updated`        | Issue fields changed                                                                                                     | `{ issue_id, project_id, changes }`                          |
-| `issue.status_changed` | Status transition (triggers automatic worktree cleanup when `to === "done"` — DB fields always cleared in finally block) | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
+| `issue.status_changed` | Status transition (triggers automatic worktree cleanup and dependency removal when `to === "done"` — DB fields always cleared in finally block) | `{ issue_id, project_id, from, to, actor_type?, actor_id? }` |
 | `issue.paused`         | Issue paused                                                                                                             | `{ issue_id, project_id }`                                   |
 | `issue.resumed`        | Issue resumed                                                                                                            | `{ issue_id, project_id }`                                   |
 
@@ -1660,7 +2443,7 @@ All events follow this structure:
 | `mention.spawned`             | Agent process started for a /dispatch command                             | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, pid }`       |
 | `mention.completed`           | Agent process finished                                                    | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, exit_code }` |
 | `mention.error`               | Agent process failed                                                      | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, message }`   |
-| `mention.chain_depth_reached` | Issue chain depth limit reached (per project's `max_chain_depth` setting) | `{ project_id, issue_id, issue_title? }`                                   |
+| `mention.chain_depth_reached` | Issue chain depth limit reached (global `max_chain_depth` setting) | `{ project_id, issue_id, issue_title? }`                                   |
 | `dispatch.queued`             | Agent dispatch queued (concurrency limit reached)                         | `{ project_id, issue_id, agent_id, agent_name?, issue_title?, position }`  |
 | `dispatch.dequeued`           | Agent dispatch dequeued and starting                                      | `{ project_id, issue_id, agent_id, agent_name?, issue_title? }`            |
 
@@ -1669,7 +2452,7 @@ All events follow this structure:
 | Event           | Description                             | Data                                                                                                                    |
 | --------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `run.started`   | Agent run started (process spawned)     | `{ agent_run_id, project_id, issue_id, agent_id, agent_name?, status, started_at }`                                     |
-| `run.event`     | Streamed event received from Claude CLI | `{ agent_run_id, project_id, event_id, type, data, created_at }` — `data` is normalized (see Agent Runs)                |
+| `run.event`     | Streamed event received from Claude CLI (per-project only, not broadcast to global subscribers) | `{ agent_run_id, project_id, event_id, type, data, created_at }` — `data` is normalized (see Agent Runs)                |
 | `run.completed` | Agent run finished                      | `{ agent_run_id, project_id, issue_id, agent_id, agent_name?, status, exit_code, cost_usd, duration_ms, completed_at }` |
 
 #### PR Events
@@ -1679,11 +2462,25 @@ All events follow this structure:
 | `pr.created`        | PR recorded on an issue | `{ issue_pr, project_id }`        |
 | `pr.status_changed` | PR status updated       | `{ pr_id, project_id, from, to }` |
 
+#### Chat Events
+
+| Event                    | Description                                 | Data                                                                  |
+| ------------------------ | ------------------------------------------- | --------------------------------------------------------------------- |
+| `chat.event_received`    | Monitor event received (dual-emitted)       | `{ project_id, thread_id, event_type, description }`                 |
+| `chat.thinking`          | Captain is analyzing (dual-emitted)         | `{ project_id, thread_id }`                                          |
+| `chat.message`           | Assistant text chunk streamed               | `{ project_id, thread_id, content }`                                 |
+| `chat.tool_call`         | Tool usage by Claude during chat            | `{ project_id, thread_id, tool_name, tool_input }`                   |
+| `chat.tool_result`       | Tool result received during chat            | `{ project_id, thread_id, tool_name, result, success }`              |
+| `chat.complete`          | Chat response finished                      | `{ project_id, thread_id, message_id? }`                             |
+| `chat.error`             | Claude process failed                       | `{ project_id, thread_id, error }`                                   |
+| `chat.session_expired`   | Claude session expired, new one started     | `{ project_id, thread_id }`                                          |
+| `chat.thread_updated`    | Thread title updated                        | `{ project_id, thread_id, title }`                                   |
+
 #### Project Events
 
 | Event                      | Description               | Data          |
 | -------------------------- | ------------------------- | ------------- |
-| `project.settings_changed` | Project settings modified | `{ changes }` |
+| `project.settings_changed` | Project settings modified | `{ project_id, changes }` |
 
 ---
 
@@ -1708,8 +2505,6 @@ All error responses follow this structure:
 | NOT_FOUND          | 404         | Resource does not exist.                                                              |
 | VALIDATION_ERROR   | 400         | Request body fails validation.                                                        |
 | INVALID_TRANSITION | 400         | Invalid status transition.                                                            |
-| SESSION_ARCHIVED   | 400         | Cannot add messages to an archived chat session.                                      |
-| SESSION_BUSY       | 409         | Session already has an in-flight message. Wait for completion or abort.               |
 | CONFLICT           | 409         | Operation conflicts with current state (e.g., marking done while agents are running). |
-| FORBIDDEN          | 403         | Action not allowed (e.g., editing agent comments).                                    |
+| FORBIDDEN          | 403         | Action not allowed — insufficient permissions.                                        |
 | INTERNAL_ERROR     | 500         | Unexpected server error.                                                              |

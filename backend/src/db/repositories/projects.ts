@@ -103,13 +103,12 @@ export function createProject(input: CreateProjectInput): Project {
 
   db.transaction(() => {
     db.prepare(
-      `INSERT INTO Project (id, name, description, max_concurrency, vcs_account_id)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO Project (id, name, description, vcs_account_id)
+       VALUES (?, ?, ?, ?)`,
     ).run(
       id,
       input.name,
       input.description ?? null,
-      input.max_concurrency ?? 1,
       input.vcs_account_id ?? null,
     );
 

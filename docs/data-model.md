@@ -35,9 +35,21 @@ All persistent state is stored in a local SQLite database. This document defines
 │  Issue   │1────N│ AgentRun │1────N│ AgentRunEvent  │
 └──────────┘       └──────────┘       └────────────────┘
 
-┌──────────┐       ┌─────────────┐
-│ Project  │1────N│ ChatMessage │
-└──────────┘       └─────────────┘
+┌──────────┐       ┌────────────────┐
+│ Project  │1────N│ MonitorMessage │
+└──────────┘       └────────────────┘
+
+┌──────────┐       ┌─────────────┐       ┌─────────────┐
+│ Project  │1────N│ ChatThread  │1────N│ ChatMessage │
+└──────────┘       └─────────────┘       └─────────────┘
+
+┌───────────┐1────N┌─────────┐
+│ AdminUser │      │ Session │
+└───────────┘      └─────────┘
+
+┌─────────┐
+│ ApiKey  │
+└─────────┘
 ```
 
 ## Worktree Management
@@ -45,7 +57,7 @@ All persistent state is stored in a local SQLite database. This document defines
 CrewDeck uses git worktrees to isolate concurrent work:
 
 - **Issue worktrees**: Each issue gets its own worktree (path stored in `Issue.worktree_path`, branch in `Issue.branch_name`). Cleaned up when status reaches `done`.
-- **Captain worktrees**: Each project's Captain Chat terminal runs in a long-lived worktree (named `crewdeck/captain-{projectId}`). Worktree path is stored on the `TerminalSession` object (in-memory, not persisted to DB). These worktrees persist across terminal reconnects.
+- **Captain worktrees**: Each project's Captain Chat terminal runs in a long-lived worktree (named `captain/<project-slug>`). Worktree path is stored on the `TerminalSession` object (in-memory, not persisted to DB). These worktrees persist across terminal reconnects.
 
 ## Entities
 
@@ -58,8 +70,6 @@ Represents a body of work tied to one or more GitHub repositories.
 | id                       | TEXT (UUID) | PRIMARY KEY                                               | Unique identifier.                                                                                                                          |
 | name                     | TEXT        | NOT NULL                                                  | Human-readable project name.                                                                                                                |
 | description              | TEXT        |                                                           | Optional project description.                                                                                                               |
-| max_concurrency          | INTEGER     | NOT NULL, DEFAULT 1                                       | Maximum number of agent processes running simultaneously.                                                                                   |
-| max_chain_depth          | INTEGER     | NOT NULL, DEFAULT 20                                      | Maximum agent dispatches per issue before requiring manual reset.                                                                           |
 | vcs_account_id           | TEXT        | FOREIGN KEY → VCSAccount.id, NULLABLE, ON DELETE SET NULL | VCS account used for cloning repos and agent git operations.                                                                                |
 | auto_start               | INTEGER     | NOT NULL, DEFAULT 0                                       | Whether Captain automatically starts work on new issues. Stored as 0/1; exposed as boolean in API.                                          |
 | auto_merge               | INTEGER     | NOT NULL, DEFAULT 0                                       | Whether Captain automatically merges ready PRs. Stored as 0/1; exposed as boolean in API.                                                   |
@@ -67,7 +77,7 @@ Represents a body of work tied to one or more GitHub repositories.
 | captain_status_detail    | TEXT        | NULLABLE                                                  | Human-readable detail for the current phase (e.g. "Analyzing 3 events", "Dispatching agent for issue X"). NULL when idle.                   |
 | captain_pending_count    | INTEGER     | NOT NULL, DEFAULT 0                                       | Number of events queued for the captain monitor to process.                                                                                 |
 | captain_processing_since | DATETIME    | NULLABLE                                                  | UTC timestamp when the current processing cycle started. NULL when idle.                                                                    |
-| default_base_branch      | TEXT        | NOT NULL, DEFAULT 'main'                                  | Default base branch for new issues in this project. Auto-populates `Issue.base_branch` at creation time. Configurable via Project Settings. |
+| default_base_branch      | TEXT        | NOT NULL, DEFAULT 'main'                                  | Default base branch for this project. Used to populate `Issue.base_branch` at creation time and as the start point for captain worktrees. Falls back to `repo.default_branch` if unset. Configurable via Project Settings. |
 | created_at               | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                                             |
 | memory                   | TEXT        |                                                           | Legacy field for project memory/notes. Superseded by ProjectKnowledge.                                                                      |
 | updated_at               | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                       |                                                                                                                                             |
@@ -122,7 +132,7 @@ The fundamental unit of work.
 | status        | TEXT        | NOT NULL, DEFAULT 'open'            | Current status. One of: `open`, `in_progress`, `pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`, `done`.                                                                                                                                      |
 | paused        | INTEGER     | NOT NULL, DEFAULT 0                 | Whether the issue is paused. Stored as 0/1; exposed as boolean in API.                                                                                                                                                                                             |
 | created_by    | TEXT        | NOT NULL, DEFAULT 'user'            | Who created the issue. One of: `user`, `system`.                                                                                                                                                                                                                   |
-| chain_depth   | INTEGER     | NOT NULL, DEFAULT 0                 | Number of agent spawns on this issue. Capped at `project.max_chain_depth`.                                                                                                                                                                                         |
+| chain_depth   | INTEGER     | NOT NULL, DEFAULT 0                 | Number of agent spawns on this issue. Capped at the global `max_chain_depth` setting.                                                                                                                                                                                         |
 | branch_name   | TEXT        | NULLABLE                            | Git branch where work is being done.                                                                                                                                                                                                                               |
 | worktree_path | TEXT        | NULLABLE                            | Absolute path to the git worktree.                                                                                                                                                                                                                                 |
 | base_branch   | TEXT        | NULLABLE                            | The branch this issue's PR targets. Resolved once at creation time: explicit value → `project.default_base_branch` → `"main"`. Backfilled to `"main"` for pre-existing issues. Editable while status is `open`; locked once work starts (`in_progress` or beyond). |
@@ -131,7 +141,7 @@ The fundamental unit of work.
 | created_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                                                                                                                                                    |
 | updated_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                                                                                                                                                    |
 
-**Note:** When listing issues via the API (`GET /projects/:projectId/issues`), each issue is returned with additional computed fields: `running_agent_id` and `running_agent_status` (derived from a LEFT JOIN on `AgentRun`), and `dependencies` and `dependents` arrays (each containing `{ id, title, status }` summaries, batch-fetched from `IssueDependency`). The detail endpoint (`GET /projects/:projectId/issues/:issueId`) also includes these arrays.
+**Note:** When listing issues via the API (`GET /projects/:projectId/issues`), the response is paginated and includes `issues`, `total`, `limit`, and `offset` fields. Results are paginated with a default limit of 50 and max of 100. When no `status` filter is provided, `done` issues are excluded by default. Each issue is returned with additional computed fields: `running_agent_id` and `running_agent_status` (derived from a LEFT JOIN on `AgentRun`), and `dependencies` and `dependents` arrays (each containing `{ id, title, status }` summaries, batch-fetched from `IssueDependency`). The detail endpoint (`GET /projects/:projectId/issues/:issueId`) also includes these arrays.
 
 ### Comment
 
@@ -176,6 +186,13 @@ Tracks dependencies between issues (issue A depends on issue B).
 - UNIQUE(issue_id, depends_on_issue_id) — a dependency can only be recorded once.
 - Circular dependencies are prevented at the repository level.
 
+**Automatic cleanup:**
+
+Dependency rows are removed automatically in two cases:
+
+1. **Issue reaches `done` status** — An event listener (`initDependencyCleanup()`) removes all rows where other issues depend on the resolved issue. This unblocks dependent issues so the captain can dispatch them.
+2. **Issue is deleted** — `ON DELETE CASCADE` on both foreign keys removes all associated dependency rows.
+
 ### AgentRun
 
 Records a single execution of an agent. Can be associated with an issue (for `/dispatch` spawns) or run standalone (for scans).
@@ -203,7 +220,7 @@ A single streamed event from the Claude CLI (`--output-format stream-json`) capt
 | ------------ | ----------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | id           | TEXT (UUID) | PRIMARY KEY                                           | Unique identifier.                                                                                                                                |
 | agent_run_id | TEXT        | NOT NULL, FOREIGN KEY → AgentRun.id ON DELETE CASCADE | The run this event belongs to.                                                                                                                    |
-| type         | TEXT        | NOT NULL                                              | Raw event type from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`). Stored as-is without mapping. |
+| type         | TEXT        | NOT NULL                                              | Raw event type from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `rate_limit_event`, `result`). Stored as-is without mapping. |
 | data         | TEXT        | NOT NULL                                              | JSON-encoded event payload from the Claude CLI. Stored raw; normalized on retrieval (see [API docs](api.md#get-run-with-events)).                 |
 | created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                   | When the event was recorded.                                                                                                                      |
 
@@ -257,8 +274,7 @@ Immutable audit trail of every action in the system.
 | id         | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                                        |
 | project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                                           |
 | issue_id   | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | Related issue, if applicable.                                                                                                             |
-| actor_type | TEXT        | NOT NULL                            | Who performed the action. One of: `user`, `agent`, `system`.                                                                              |
-| actor_id   | TEXT        | NULLABLE                            | Agent.id if actor_type is `agent`.                                                                                                        |
+| actor_type | TEXT        | NOT NULL                            | Who initiated the action. One of: `user`, `agent`, `system`. `agent` = the agent performed an action (posted a comment, wrote code). `system` = the system observed/recorded a lifecycle event (PR created, agent spawned/finished, status changed automatically). | `agent_id` | TEXT        | NULLABLE                            | Agent ID if actor_type is `agent`. NULL for `user` and `system` (system events include agent ID in `details` instead).                                      |
 | action     | TEXT        | NOT NULL                            | Action identifier (e.g., `issue.created`, `issue.status_changed`, `comment.added`, `mention.spawned`, `mention.completed`, `pr.created`). |
 | details    | TEXT        |                                     | JSON blob with action-specific data (e.g., `{"from": "open", "to": "in_progress"}`).                                                      |
 | created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                           |
@@ -267,38 +283,111 @@ Immutable audit trail of every action in the system.
 
 ---
 
-### ChatMessage
+### MonitorMessage
 
-Legacy table originally designed for chat sessions. No longer actively used after the captain refactor to comment-based orchestration.
+Stores Captain Monitor event/response history. The monitor agent writes event batches and LLM responses here. Messages are dual-written to the project's monitor chat thread (`ChatThread` with `type='monitor'`) as `ChatMessage` rows with role mapping (`user` → `event`, `assistant` → `assistant`). Migration `040_migrate_monitor_to_chat` copies existing rows into chat threads. The `MonitorMessage` table is retained for backward compatibility but is being deprecated in favor of `ChatMessage`.
 
-| Field      | Type        | Constraints                                          | Description                                  |
-| ---------- | ----------- | ---------------------------------------------------- | -------------------------------------------- |
-| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                           |
-| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                              |
-| session_id | TEXT        | NULLABLE                                             | Session identifier (legacy, no longer used). |
-| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role.                                |
-| content    | TEXT        | NOT NULL                                             | Message content.                             |
-| images     | TEXT        | NULLABLE                                             | Image attachments (legacy, no longer used).  |
-| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created.                |
+| Field      | Type        | Constraints                                          | Description                   |
+| ---------- | ----------- | ---------------------------------------------------- | ----------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.            |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.               |
+| role       | TEXT        | NOT NULL, CHECK (IN 'user', 'assistant')             | Message role.                 |
+| content    | TEXT        | NOT NULL                                             | Message content.              |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the message was created. |
 
-**Note:** This table is retained for compatibility with existing migrations but is no longer populated. Captain now operates via comment-based orchestration instead of maintaining conversation history.
+---
 
-### AgentConfig
+### ChatThread
 
-Global per-agent, per-provider model configuration. Applies machine-wide regardless of project. Each agent can have separate model settings for each AI provider.
+A persistent conversation thread for the web-based chat interface. Each thread belongs to a project and can be a monitor thread (auto-created, one per project) or a user thread (created manually). Threads can optionally hold a Claude CLI session ID for resuming conversations.
 
-| Field    | Type        | Constraints                  | Description                                                                                                                                                            |
-| -------- | ----------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id       | TEXT (UUID) | PRIMARY KEY                  | Unique identifier.                                                                                                                                                     |
-| agent_id | TEXT        | NOT NULL                     | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                                                |
-| provider | TEXT        | NOT NULL, DEFAULT 'claude'   | AI provider for this config. One of: `claude`, `glm` (Z.AI).                                                                                                           |
-| model    | TEXT        | NULLABLE                     | Model override. For `claude`: `sonnet`, `opus`, `haiku`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. NULL means use provider default. |
+| Field      | Type        | Constraints                                          | Description                                                                                        |
+| ---------- | ----------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                          | Unique identifier.                                                                                 |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE | Owning project.                                                                                    |
+| title      | TEXT        | NULLABLE                                             | User-visible title. NULL until renamed or auto-generated (see Chat Service).                        |
+| type       | TEXT        | NOT NULL, CHECK (type IN ('monitor', 'user'))        | Thread type. `monitor` threads are auto-created (one per project); `user` threads are user-created. |
+| session_id | TEXT        | NULLABLE                                             | Claude CLI session ID for `--resume`. NULL when no active session exists or session has expired.    |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the thread was created.                                                                       |
+| updated_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                  | When the thread was last updated (auto-set on field changes).                                       |
 
 **Constraints:**
 
-- UNIQUE(agent_id, provider) — one config entry per agent per provider.
+- UNIQUE index on (project_id) WHERE type = 'monitor' — enforces at most one monitor thread per project. Uses a partial unique index (`idx_chat_thread_one_monitor`).
+
+---
+
+### ChatMessage
+
+A message within a chat thread. Messages are ordered chronologically (ASC) for display. Supports multiple roles including user, assistant, system, event, and tool.
+
+| Field      | Type        | Constraints                                           | Description                                                                       |
+| ---------- | ----------- | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
+| id         | TEXT (UUID) | PRIMARY KEY                                           | Unique identifier.                                                                |
+| thread_id  | TEXT        | NOT NULL, FOREIGN KEY → ChatThread.id ON DELETE CASCADE | The thread this message belongs to. Deleting a thread cascades to its messages.  |
+| role       | TEXT        | NOT NULL, CHECK (role IN ('user', 'assistant', 'system', 'event', 'tool')) | Message sender role.                                                             |
+| content    | TEXT        | NOT NULL                                              | Message content.                                                                  |
+| metadata   | TEXT        | NULLABLE                                              | JSON string for extra data (e.g., `tool_name`, `tool_input`, `success`). Parsed with `JSON.parse()` in the repository layer. |
+| created_at | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                   | When the message was created.                                                     |
+
+### AdminUser
+
+Represents the single admin account for backend authentication. Only one row exists at a time.
+
+| Field         | Type        | Constraints                         | Description                                      |
+| ------------- | ----------- | ----------------------------------- | ------------------------------------------------ |
+| id               | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                               |
+| username         | TEXT        | NOT NULL, UNIQUE                    | Admin username.                                  |
+| password_hash    | TEXT        | NOT NULL                            | Bcrypt hash of the admin password (≥ 12 rounds). |
+| setup_completed  | INTEGER     | NOT NULL, DEFAULT 0                 | Whether the user has completed first-time setup (created a project). Stored as 0/1. |
+| created_at       | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the account was created.                    |
+
+### Session
+
+Represents an active login session. Multiple sessions can exist simultaneously for the same user (multi-device login). Logging in from a new device does not invalidate existing sessions. Logout only deletes the session of the calling device. Sessions persist indefinitely (no server-side expiry check; cookie `maxAge` is set to 10 years).
+
+| Field      | Type     | Constraints                                            | Description                                                          |
+| ---------- | -------- | ------------------------------------------------------ | -------------------------------------------------------------------- |
+| id         | TEXT     | PRIMARY KEY                                            | Session token (64-char hex, `crypto.randomBytes(32)`).               |
+| user_id    | TEXT     | NOT NULL, FOREIGN KEY → AdminUser.id ON DELETE CASCADE | The admin user this session belongs to.                              |
+| expires_at | DATETIME | NULLABLE                                               | Far-future sentinel (`9999-12-31T23:59:59Z`); not checked by server. |
+| created_at | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP                    | When the session was created.                                        |
+
+### ApiKey
+
+An API key for programmatic authentication. Two tiers exist: system keys (auto-generated on startup for agent/captain use) and user keys (created via the UI for external access).
+
+| Field        | Type     | Constraints                         | Description                                                                                                                              |
+| ------------ | -------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| id           | TEXT     | PRIMARY KEY                         | Unique identifier.                                                                                                                       |
+| name         | TEXT     | NOT NULL                            | Human-readable label (e.g., "Claude CI Process", "system").                                                                              |
+| key_hash     | TEXT     | NOT NULL                            | SHA-256 hash of the full API key. The plaintext key is never stored.                                                                     |
+| key_prefix   | TEXT     | NOT NULL                            | First 11 characters of the key (e.g., `sk-a1b2c3d4`) for display identification.                                                         |
+| is_system    | INTEGER  | NOT NULL, DEFAULT 0                 | Whether this is a system key (auto-generated for agent/captain use). Stored as 0/1. System keys are hidden from user-facing key listing. |
+| created_at   | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When the key was created.                                                                                                                |
+| last_used_at | DATETIME | NULLABLE                            | When the key was last used for authentication. Throttled to at most one update per minute.                                               |
+
+**Key format:** `sk-` followed by 64 hex characters (32 random bytes). Only the SHA-256 hash is stored in the database. System keys are deleted and recreated on every server startup since the raw key only needs to live in memory for the current process lifetime.
+
+---
+
+### AgentConfig
+
+Global per-agent model configuration. Applies machine-wide regardless of project. Each agent can have a model override from any provider — the model name determines which provider is used.
+
+| Field    | Type        | Constraints                | Description                                                                                                                                        |
+| -------- | ----------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id       | TEXT (UUID) | PRIMARY KEY                | Unique identifier.                                                                                                                                 |
+| agent_id | TEXT        | NOT NULL                   | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                            |
+| provider | TEXT        | NOT NULL, DEFAULT 'claude' | AI provider for this config. One of: `claude`, `glm` (Z.AI).                                                                                       |
+| model    | TEXT        | NULLABLE                   | Model override. For `claude`: `sonnet`, `opus`, `haiku`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. NULL means use provider default. |
+
+**Constraints:**
+
+- UNIQUE(agent_id) — one config entry per agent.
 
 **Model resolution order:**
+
 1. Query `AgentConfig` by (agent_id, current_provider)
 2. If not found, use provider default: `sonnet` for Claude, `glm-5-turbo` for GLM
 
@@ -315,14 +404,17 @@ Global system-wide configuration settings. Stores key-value pairs for machine-wi
 
 **Current keys:**
 
-- `provider` — AI provider for all agent spawns. One of: `claude` (default), `glm` (Z.AI).
+- `default_model` — Default model for all agent spawns when no per-agent override is set. One of: `sonnet` (default), `opus`, `haiku`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`.
+- `max_concurrency` — Maximum number of agents that can run concurrently globally (across all projects). This is the sole concurrency limit. Range: 1–50. Default: `5`.
+- `max_chain_depth` — Maximum depth of the agent dispatch chain (how many agents can be spawned in sequence). Range: 1–100. Default: `20`.
+- `agent_timeout_minutes` — Maximum execution time for a single agent process before it is terminated. Range: 1–60. Default: `10`.
 
-**Provider behavior:**
+**Provider inference:**
 
-- When `provider=claude`: Agent processes use default `ANTHROPIC_API_KEY` from environment.
-- When `provider=glm`: Agent processes receive `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`.
-- Switching providers terminates all active Captain terminal sessions (new sessions use the new provider).
-- GLM provider requires `ZAI_API_KEY` environment variable to be set on the backend.
+The provider is determined by the model name itself:
+
+- Models starting with `glm-` use Z.AI (requires `ZAI_API_KEY` environment variable). Agent processes receive `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`.
+- All other models use Claude/Anthropic (default `ANTHROPIC_API_KEY`).
 
 ---
 
@@ -374,7 +466,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Project → ActivityLog         | One-to-Many | A project has many activity log entries.                                    |
 | Project → EnvironmentVariable | One-to-Many | A project has many environment variables injected into agent processes.     |
 | Project → ProjectKnowledge    | One-to-Many | A project has many knowledge entries for agent context.                     |
-| AgentConfig                   | Global      | One global model config per agent (no project scope).                       |
+| AgentConfig                   | Global      | One global model config per agent (no project scope, no provider scope).    |
 | Issue → Comment               | One-to-Many | An issue has many comments.                                                 |
 | Issue → IssuePR               | One-to-Many | An issue can have multiple PRs (across repos).                              |
 | Issue → IssueDependency       | One-to-Many | An issue can depend on multiple other issues.                               |
@@ -382,7 +474,11 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
-| Project → ChatMessage         | One-to-Many | A project has many chat messages (captain and human conversations).         |
+| Project → MonitorMessage      | One-to-Many | A project has many monitor messages (captain event/response history).       |
+| Project → ChatThread          | One-to-Many | A project has many chat threads (web chat interface).                       |
+| ChatThread → ChatMessage      | One-to-Many | A thread has many messages (ordered chronologically).                       |
+| AdminUser → Session           | One-to-Many | An admin user has many sessions (only one admin exists).                    |
+| ApiKey                        | Standalone  | Standalone table. One system key (auto-generated) plus user-created keys.   |
 
 ## Indexes
 
@@ -406,5 +502,11 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 - `idx_agent_run_created` on AgentRun(project_id, created_at)
 - `idx_agent_run_event_run` on AgentRunEvent(agent_run_id)
 - `idx_agent_run_event_created` on AgentRunEvent(agent_run_id, created_at)
-- `idx_chat_message_project` on ChatMessage(project_id)
-- `idx_chat_message_created` on ChatMessage(project_id, created_at DESC)
+- `idx_monitor_message_project` on MonitorMessage(project_id)
+- `idx_monitor_message_created` on MonitorMessage(project_id, created_at DESC)
+- `idx_chat_thread_project` on ChatThread(project_id)
+- `idx_chat_thread_project_updated` on ChatThread(project_id, updated_at DESC)
+- `idx_chat_thread_one_monitor` UNIQUE on ChatThread(project_id) WHERE type = 'monitor'
+- `idx_chat_message_thread` on ChatMessage(thread_id)
+- `idx_chat_message_thread_created` on ChatMessage(thread_id, created_at ASC)
+- `idx_api_key_hash` on ApiKey(key_hash)

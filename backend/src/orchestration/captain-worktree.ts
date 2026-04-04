@@ -6,7 +6,6 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { logger } from "../logger.js";
 import { getProject } from "../db/repositories/projects.js";
@@ -14,7 +13,9 @@ import { listRepos } from "../db/repositories/repos.js";
 import { getVCSAccount } from "../db/repositories/vcs-accounts.js";
 import { toContainerPath } from "../utils/paths.js";
 import { shellQuote } from "./shell.js";
+import { slugify } from "./worktree.js";
 import { createGitSshEnv, cleanupSshKey } from "../utils/git-auth.js";
+import { config } from "../config.js";
 
 const execAsync = promisify(exec);
 
@@ -55,9 +56,11 @@ export async function createCaptainWorktree(
   }
 
   const repo = repos[0];
-  const branchName = `crewdeck/captain-${projectId.slice(0, 8)}`;
+  const project = getProject(projectId);
+  const projectSlug = project ? slugify(project.name) : projectId;
+  const branchName = `captain/${projectSlug}`;
   const repoPath = toContainerPath(repo.local_path);
-  const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
+  const worktreePath = join(config.worktreesDir, projectSlug, "captain");
 
   // Try to fetch latest from origin
   let fetchSucceeded = false;
@@ -77,9 +80,10 @@ export async function createCaptainWorktree(
     if (ssh) cleanupSshKey(ssh.keyPath);
   }
 
+  const baseBranch = project?.default_base_branch || repo.default_branch;
   const startPoint = fetchSucceeded
-    ? `origin/${repo.default_branch}`
-    : repo.default_branch;
+    ? `origin/${baseBranch}`
+    : baseBranch;
 
   // Prune stale worktree entries
   await execAsync(`git -C ${shellQuote(repoPath)} worktree prune`);

@@ -30,7 +30,6 @@ describe("Event Commenter", () => {
     // Create test project
     const project = createProject({
       name: "Test Project",
-      max_concurrency: 1,
     });
     projectId = project.id;
 

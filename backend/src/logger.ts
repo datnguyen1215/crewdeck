@@ -28,7 +28,7 @@ if (config.nodeEnv === "development") {
   // Pretty output in development
   targets.push({
     target: "pino-pretty",
-    options: { colorize: true },
+    options: { colorize: true, singleLine: true },
     level: config.logLevel,
   });
 } else {

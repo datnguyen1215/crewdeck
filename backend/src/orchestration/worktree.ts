@@ -2,22 +2,55 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { updateIssue } from "../db/repositories/issues.js";
+import { getProject } from "../db/repositories/projects.js";
 import { shellQuote } from "./shell.js";
 import { toContainerPath } from "../utils/paths.js";
 import { createGitSshEnv, cleanupSshKey } from "../utils/git-auth.js";
 import type { Repo, Issue } from "../types/entities.js";
 import { logger } from "../logger.js";
+import { config } from "../config.js";
 
 const execAsync = promisify(exec);
 
-function slugify(title: string): string {
+export function slugify(title: string): string {
   return title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
+    .slice(0, 40)
+    .replace(/^-+|-+$/g, "");
+}
+
+type PrefixMatch = { prefix: string; leadingKeyword: string | null };
+
+const PREFIX_PATTERNS: Array<[RegExp, string]> = [
+  [/\b(?:fix(?:e[sd])?|bug(?:gy|s)?|error[s]?|crash(?:e[sd])?|broken)\b/, "fix"],
+  [/\b(?:refactor(?:s|ed|ing)?|cleanup|reorganize(?:s|d)?|reorganise(?:s|d)?)\b/, "refactor"],
+  [/\b(?:update[sd]?|change[sd]?|modif(?:y|ied|ies|ications?))\b/, "update"],
+  [/\b(?:remove[sd]?|delete[sd]?|drop(?:s|ped|ping)?)\b/, "chore"],
+];
+
+function inferPrefix(title: string): PrefixMatch {
+  for (const [pattern, prefix] of PREFIX_PATTERNS) {
+    const match = pattern.exec(title.toLowerCase());
+    if (match) {
+      const wordStart = title.toLowerCase().indexOf(match[0]);
+      const leadingKeyword = wordStart === 0 ? match[0] : null;
+      return { prefix, leadingKeyword };
+    }
+  }
+  return { prefix: "feature", leadingKeyword: null };
+}
+
+export function generateBranchName(title: string, issueId: string): string {
+  const { prefix, leadingKeyword } = inferPrefix(title);
+  // Strip the actual matched leading keyword from the slug
+  const stripped = leadingKeyword
+    ? title.slice(leadingKeyword.length).replace(/^\s+/, "")
+    : title;
+  const slug = slugify(stripped || title);
+  const shortHash = issueId.slice(0, 4);
+  return `${prefix}/${slug}-${shortHash}`;
 }
 
 export async function createWorktree(
@@ -26,9 +59,11 @@ export async function createWorktree(
   baseBranch: string,
   sshPrivateKey?: string,
 ): Promise<{ path: string; branchName: string }> {
-  const branchName = `crewdeck/${issue.id.slice(0, 8)}-${slugify(issue.title)}`;
+  const branchName = generateBranchName(issue.title, issue.id);
+  const project = getProject(issue.project_id);
+  const projectSlug = project ? slugify(project.name) : issue.project_id;
   const repoPath = toContainerPath(repo.local_path);
-  const worktreePath = join(tmpdir(), "crewdeck-worktrees", branchName);
+  const worktreePath = join(config.worktreesDir, projectSlug, branchName);
 
   // Try to fetch latest from origin (with SSH credentials if available)
   let fetchSucceeded = false;

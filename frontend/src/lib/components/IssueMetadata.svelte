@@ -6,6 +6,7 @@
 	let {
 		issue,
 		project,
+		globalConfig,
 		copied,
 		baseBranchEdit = $bindable(''),
 		savingBaseBranch,
@@ -15,6 +16,7 @@
 	}: {
 		issue: IssueWithDetails;
 		project: Project | null;
+		globalConfig: { maxChainDepth: number } | undefined;
 		copied: boolean;
 		baseBranchEdit: string;
 		savingBaseBranch: boolean;
@@ -46,7 +48,7 @@
 			Chain
 			<span class="cursor-help" title="Chain depth tracks how many times an agent has been automatically re-dispatched on this issue. The limit prevents infinite loops.">ℹ</span>
 		</span>
-		<span class="text-secondary">{issue.chain_depth} / {project?.max_chain_depth ?? 20}</span>
+		<span class="text-secondary">{issue.chain_depth} / {globalConfig?.maxChainDepth ?? 20}</span>
 	</div>
 
 	<!-- Branch -->

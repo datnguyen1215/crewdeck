@@ -1,28 +1,31 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { getContext } from 'svelte';
 	import { STATUS_CFG } from '$lib/config/status.js';
 	import { smartTimeDiff, fullTime } from '$lib/utils/time.js';
 	import type { IssueWithRunningAgent, Project } from '$lib/api/http.js';
 
+	const getProjectId = getContext<() => string>('projectId');
+	const getProject = getContext<() => Project | null>('project');
+
 	let {
 		issue,
-		projectId,
 		agentMap,
 		visibleColumns,
-		project,
 		isDispatching,
 		ondispatch,
 		animationDelay = 0,
 	}: {
 		issue: IssueWithRunningAgent;
-		projectId: string;
 		agentMap: Record<string, string>;
 		visibleColumns: string[];
-		project: Project | null;
 		isDispatching: boolean;
 		ondispatch: (e: MouseEvent, issue: IssueWithRunningAgent) => void;
 		animationDelay?: number;
 	} = $props();
+
+	const projectId = $derived(getProjectId());
+	const project = $derived(getProject());
 
 	const cfg = $derived(STATUS_CFG[issue.status] ?? STATUS_CFG.open);
 	const runningAgentName = $derived(issue.running_agent_id ? agentMap[issue.running_agent_id] : null);

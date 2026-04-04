@@ -16,7 +16,7 @@ The Agent Runtime spawns AI agents as `claude -p` subprocesses. There are no tmu
 
 ### spawnClaude
 
-Spawns `claude -p` with the given prompt and system prompt. Provider-specific environment variables are injected automatically based on the global provider setting.
+Spawns `claude -p` with the given prompt and system prompt. Provider-specific environment variables are injected automatically based on the model name.
 
 ```
 spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
@@ -24,13 +24,14 @@ spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 
 **SpawnOpts:**
 
-| Field        | Type                   | Required | Description                                                                              |
-| ------------ | ---------------------- | -------- | ---------------------------------------------------------------------------------------- |
-| prompt       | string                 | Yes      | The task prompt (issue context + comments).                                              |
-| systemPrompt | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`. |
-| workdir      | string                 | Yes      | Absolute path to the git worktree.                                                       |
-| env          | Record<string, string> | No       | Additional environment variables.                                                        |
-| model        | string                 | No       | Claude model to use (`sonnet` or `opus`). Passed as `--model <model>` to the CLI.        |
+| Field        | Type                   | Required | Description                                                                                                          |
+| ------------ | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| prompt       | string                 | Yes      | The task prompt (issue context + comments).                                                                          |
+| systemPrompt | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`.                             |
+| workdir      | string                 | Yes      | Absolute path to the git worktree.                                                                                   |
+| env          | Record<string, string> | No       | Additional environment variables.                                                                                    |
+| model        | string                 | No       | Model to use. Resolved via AgentConfig override → global default (`sonnet`). Passed as `--model <model>` to the CLI. |
+| maxTurns     | number                 | No       | Max number of Claude turns. Passed as `--max-turns <n>` to the CLI. Used to prevent multi-turn/tool-use behavior.  |
 
 **SpawnResult:**
 
@@ -48,23 +49,25 @@ claude -p <prompt> \
        --output-format json \
        --model <model> \
        --dangerously-skip-permissions \
-       --settings '{"attribution":{"commit":"","pr":""}}'
+       --settings '{"attribution":{"commit":"","pr":""}}' \
+       [--max-turns <n>]
 ```
 
-- `--output-format json` causes Claude to return a JSON object with a `result` field containing the response text, plus cost and duration metadata.
+- `--output-format json` causes Claude to return a JSON array of stream events (e.g., `init`, `assistant`, `result`). Consumers extract the response text from the `assistant` event's `message.content[].text` field.
 - The system prompt is written to a temp file and cleaned up after the process exits.
 - `--dangerously-skip-permissions` allows the agent to operate autonomously.
-- `--model <model>` is included when a model is specified (resolved via AgentConfig override → project default → `"sonnet"`).
+- `--model <model>` is included when a model is specified (resolved via AgentConfig override → global default model → `"sonnet"`).
+- `--max-turns <n>` is included when `maxTurns` is set in `SpawnOpts`, limiting the number of Claude turns (used for title generation to prevent tool use or multi-turn behavior).
 - `--settings '{"attribution":{"commit":"","pr":""}}'` disables AI attribution in commits and PRs (no Co-Authored-By trailers or signatures).
 
 **Provider environment variables:**
 
-The global provider setting (configurable via Crew page) determines which environment variables are injected:
+The provider is inferred from the model name:
 
-- **Claude (default)**: Uses `ANTHROPIC_API_KEY` from environment (no additional variables).
-- **GLM (Z.AI)**: Injects `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`. Requires `ZAI_API_KEY` environment variable to be set on the backend.
+- **Claude (default)**: Models not starting with `glm-` use `ANTHROPIC_API_KEY` from environment (no additional variables).
+- **GLM (Z.AI)**: Models starting with `glm-` inject `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`, and explicitly clear `ANTHROPIC_API_KEY` to an empty string. This prevents a host `ANTHROPIC_API_KEY` from conflicting with Z.AI authentication. Requires `ZAI_API_KEY` environment variable to be set on the backend.
 
-Provider variables are injected via `buildProviderEnv()` in `backend/src/orchestration/provider-env.ts` and apply to all `claude -p` spawns (including Captain terminal sessions).
+Provider variables are injected via `buildProviderEnv(model)` in `backend/src/orchestration/provider-env.ts` and apply to all `claude -p` spawns (including Captain terminal sessions). The `ANTHROPIC_API_KEY: ""` clearing is applied after `buildProviderEnv()` in both `process.ts` (agent spawns) and `pty-service.ts` (Captain PTY sessions).
 
 ### spawnClaudeStream
 
@@ -98,6 +101,67 @@ claude -p <prompt via stdin> \
 - `--output-format stream-json` causes Claude to emit newline-delimited JSON events as they occur (content deltas, tool calls, result).
 - The prompt is written to stdin to avoid exceeding `ARG_MAX` for large prompts.
 - `--settings '{"attribution":{"commit":"","pr":""}}'` disables AI attribution in commits and PRs.
+
+## Chat Service
+
+`backend/src/orchestration/chat-service.ts`
+
+The Chat Service spawns `claude -p` processes for the web-based chat interface. Unlike one-shot agent spawns, chat sessions use `--resume` for persistent multi-turn conversations.
+
+### acquireAndCreateMessage
+
+```
+acquireAndCreateMessage(threadId: string, content: string) → string
+```
+
+Synchronously acquires the per-thread lock and creates the user message. Returns the user message ID for the immediate HTTP 202 response. Throws `ConflictError` if the thread is already locked. The lock is acquired only after the message is persisted to avoid permanent lock on DB error.
+
+### runThreadSession
+
+```
+runThreadSession(threadId: string, content: string) → Promise<void>
+```
+
+Runs the Claude session for a thread that already has a lock acquired. Call this after `acquireAndCreateMessage` in a detached (fire-and-forget) promise. Emits `chat.error` and `chat.complete` on failure; `chat.complete` on success. Always releases the lock in a `finally` block.
+
+**Command constructed:**
+
+```
+claude -p <prompt via stdin> \
+       --verbose \
+       --system-prompt-file <tmpfile> \
+       --output-format stream-json \
+       --dangerously-skip-permissions \
+       --model <model> \
+       [--resume <sessionId>]
+```
+
+- `--resume` is included only when the thread has a stored session ID.
+- The prompt is written to stdin (same pattern as `spawnClaudeStream`).
+- `--model <model>` is included, resolved via `getDefaultModel()` from `GlobalConfig`.
+- System prompt is always built via `buildCaptainPrompt()` (captain prompt builder), giving all chat threads the same project context as agent sessions.
+**Error handling:** If the Claude process exits with a non-zero code and no content, `sendMessage` throws an error (HTTP 500). Before throwing, it emits `chat.error` with a user-friendly message and `chat.complete` so the frontend can reset streaming state. No ghost assistant message is saved.
+
+**Session lifecycle:**
+
+1. On first message (no session ID): spawns without `--resume`, captures session ID from `system` init events and `result` events in the stream, stores it on the thread.
+2. On subsequent messages: spawns with `--resume {sessionId}` to continue the conversation.
+3. If `--resume` fails (session expired/not found): emits `chat.session_expired`, clears the stored session ID, retries without `--resume`, and saves the new session ID.
+
+**Auto title generation:**
+
+After the first successful reply in a thread with no title (`thread.title === null`), a fire-and-forget `generateThreadTitle()` function is called. It spawns a lightweight `claude -p` via `spawnClaude()` with a deterministic title system prompt (3-7 words, plain text only, no quotes/markdown/preamble/thinking), using `resolveModel('captain')` and `maxTurns: 1` to prevent multi-turn or tool-use behavior. The `--output-format json` response is parsed to extract the assistant's text — handling both the new array-of-stream-events format (extracting text from `assistant.message.content[].text`) and the legacy single-object format (`result`/`text` fields). After JSON parsing, post-processing is applied: first-line extraction (handles multi-line output), prefix stripping for common prefixes like "Title:" or "Here's a title:", and 80-character truncation as a final guard. On success, it re-reads the thread to check for a user-set title (race condition guard), updates the DB via `updateThread()`, and emits `chat.thread_updated` so the sidebar updates in real-time. If generation fails (spawn error, non-zero exit, or empty/short result), a fallback title is set from the first 40 characters of the user's message (with newlines replaced by spaces). The fallback is also emitted via `chat.thread_updated` so the sidebar updates reactively. If the user message is empty, the fallback is "New conversation".
+
+**Concurrency:** Only one `claude -p` process runs per thread at a time (in-memory lock). The `acquireAndCreateMessage()` function checks and sets the lock synchronously (no `await` between check and set), which is safe from TOCTOU races in Node.js's single-threaded model. Concurrent sends throw `ConflictError` (HTTP 409).
+
+**Stream parsing:** The `processStreamLine()` function uses `normalizeEvent()` from `event-normalizer.ts` to parse assistant and user events from the `--output-format stream-json` output. This handles both the old flat Claude CLI format (`{"type":"assistant","subtype":"text","content":"Hello"}`) and the new nested format (`{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}`). The same normalizer is used by agent runs (`spawn-process.ts`) and event retrieval, ensuring consistent behavior across all Claude CLI consumers.
+
+- For `type: "assistant"` events, normalized `text`, `thinking`, and `tool_use` fields are emitted as `chat.message`, `chat.thinking`, and `chat.tool_call` events respectively.
+- For `type: "user"` events containing `tool_results` (new nested format), each result is emitted as a `chat.tool_result` event. Tool names are resolved via an in-memory map of `tool_use_id → tool_name` populated from prior `tool_use` events.
+- Legacy flat `tool_result` events (standalone `type: "tool_result"` in old CLI format) continue to be handled directly.
+- `system` and `result` events are handled as-is (not normalized).
+
+**Environment variables:** Same pattern as agent spawns — `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, `CREWDECK_AGENT_ID`, `CREWDECK_API_KEY`, provider env vars via `buildProviderEnv(model)`, and `GIT_TERMINAL_PROMPT=0`. Additionally, SSH credentials are configured from the project's VCS account via `setupGitHubAuth()` (same function used by PTY sessions): `GH_TOKEN` is set for GitHub CLI access, and `GIT_SSH_COMMAND` is configured with a temporary SSH key file. The SSH key temp file is cleaned up in an outer `finally` block that wraps the entire session lifecycle.
 
 ## Captain Command Execution
 
@@ -142,7 +206,7 @@ This resolution is applied to all commands that take an `issue_id` (dispatch, me
 | ------------- | --------------------- | ------------------------------- |
 | /dispatch     | `/dispatch agent_id`  | Dispatch agent to work on issue |
 | /merge        | `/merge issue_id`     | Merge PR for issue              |
-| /create-pr    | `/create-pr issue_id` | Create GitHub PR for issue      |
+| /create-pr    | `/create-pr issue_id` | Create GitHub PR for issue (supports optional `body` for custom description) |
 | /create-issue | `/create-issue title` | Create new issue                |
 
 Commands are parsed from captain's comment output and executed sequentially. Only captain can execute these orchestration commands (restricted by `author_type` check).
@@ -161,7 +225,9 @@ The approval flags are checked in `handleDispatchAgent()` and `handleMergePR()`:
 
 Flags are cleared after successful dispatch/merge and stored in-memory (reset on server restart).
 
-`handleMergePR()` also enforces a hard CI gate: it rejects the merge with an error if `issue.status !== 'pr_ready_to_merge'`, regardless of approval or auto_merge settings. The issue only reaches `pr_ready_to_merge` once the PR poller confirms CI has passed and the PR is mergeable.
+`handleMergePR()` also enforces a hard paused-issue gate and a hard CI gate: it rejects the merge with an error if the issue is paused or `issue.status !== 'pr_ready_to_merge'`, regardless of approval or auto_merge settings. The issue only reaches `pr_ready_to_merge` once the PR poller confirms CI has passed and the PR is mergeable.
+
+`handleCreatePR()` enforces a hard paused-issue gate: it rejects PR creation with an error if the issue is paused.
 
 ## MentionHandler
 
@@ -183,7 +249,7 @@ comment.added event
     ├── for each dispatched agent:
     │       ├── skip if agent is the batch originator (will be auto-spawned later)
     │       ├── skip if agent already has an active process for this issue (deduplication)
-    │       ├── check chain_depth < project.max_chain_depth (atomic DB increment)
+    │       ├── check chain_depth < global max_chain_depth (atomic DB increment)
     │       ├── check active process count < max_concurrency
     │       │       └── if limit reached: enqueue dispatch, post "Agent X queued (N ahead)"
     │       │               system comment, emit dispatch.queued — skip remaining steps
@@ -216,16 +282,15 @@ When a single comment dispatches multiple agents (e.g., `/dispatch engineer lead
 
 ### Chain Depth
 
-Each spawn atomically increments `Issue.chain_depth`. If `chain_depth` is already at the project's `max_chain_depth` limit (default 20), the increment fails and a system comment is posted instead. Chain depth can be reset via `PATCH /api/v1/projects/:projectId/issues/:issueId` with `{ "chain_depth": 0 }`.
+Each spawn atomically increments `Issue.chain_depth`. If `chain_depth` is already at the global `max_chain_depth` limit (default 20), the increment fails and a system comment is posted instead. Chain depth can be reset via `PATCH /api/v1/projects/:projectId/issues/:issueId` with `{ "chain_depth": 0 }`.
 
 ### Concurrency
 
-Active processes are tracked in an in-memory map keyed by PID. Before spawning, the handler checks two concurrency limits:
+Active processes are tracked in an in-memory map keyed by PID. Before spawning, the handler checks a single global concurrency limit:
 
-1. **Global limit** — `MAX_AGENTS` env var (default 10). Counts all running agents across all projects via `AgentRun.status='running'`.
-2. **Per-project limit** — `project.max_concurrency`. Counts running agents for the specific project.
+- **Global limit** — `max_concurrency` setting (default 5). Counts all running agents across all projects via `AgentRun.status='running'` (`countRunningGlobal()`).
 
-If either limit is reached, the dispatch is placed in a DB-backed FIFO queue (using `AgentRun` table with `status='queued'`) instead of being dropped. A system comment is posted with the agent's queue position. When any active process exits, the handler dequeues the next pending dispatch for that project and spawns it. Queue state persists across server restarts — on startup, queued runs are restored from the database.
+If the limit is reached, the dispatch is placed in a DB-backed FIFO queue (using `AgentRun` table with `status='queued'`) instead of being dropped. A system comment is posted with the agent's queue position. When any active process exits, the handler dequeues the next pending dispatch for that project and spawns it. Queue state persists across server restarts — on startup, queued runs are restored from the database.
 
 ### Timeouts
 
@@ -254,11 +319,24 @@ Parses `/dispatch` commands from comment text.
 When an agent starts work on an issue that has no worktree, the backend creates one:
 
 ```
-branchName = "crewdeck/" + issue.id-short + "-" + slugify(issue.title)
-worktreePath = tmpdir() + "/crewdeck-worktrees/" + branchName
+branchName = generateBranchName(issue.title, issue.id)
+worktreePath = tmpdir() + "/crewdeck/<project-slug>/" + branchName
 git -C <repoPath> fetch origin                          # updates origin/<defaultBranch>
 git -C <repoPath> worktree add -b <branchName> <worktreePath> origin/<defaultBranch>
 ```
+
+`generateBranchName(title, issueId)` produces human-like branch names with type prefix inference:
+
+1. **`inferPrefix(title)`** — detects issue type from keywords in the title:
+   - `fix`: title contains fix(e[sd])?, bug(s|gy)?, error(s)?, crash(e[sd])?, broken
+   - `refactor`: title contains refactor(s|ed|ing)?, cleanup, reorganize(s|d)?
+   - `update`: title contains update(s|d)?, change(s|d)?, modif(y|ied|ies|ications?)
+   - `chore`: title contains remove(s|d)?, delete(s|d)?, drop(s|ped|ping)?
+   - `feature`: default for everything else (add, implement, create, etc.)
+2. **Prefix stripping**: if the matched keyword starts the title (e.g., "Fix login bug"), it is stripped from the slug to avoid "fix/fix-login-bug"
+3. **Collision safety**: a 4-char short hash from `issueId` is appended (e.g., `fix/login-bug-abc1`) to prevent collisions between issues with the same title
+
+Example: "Fix login redirect loop" → `fix/login-redirect-loop-<hash>`
 
 If the fetch fails (e.g. network error), the worktree is created from the local branch instead and a warning is logged.
 
@@ -275,8 +353,8 @@ When a worktree branch already exists (subsequent agent runs on the same issue),
 
 CrewDeck uses two types of git worktrees:
 
-1. **Issue worktrees** — ephemeral worktrees created per issue (named `crewdeck/issue-<issueId>-<title-slug>`). Cleaned up when the issue reaches `done` status or is deleted.
-2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `crewdeck/captain-{projectId}`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck-worktrees/` and auto-rebase onto the latest default branch on creation.
+1. **Issue worktrees** — ephemeral worktrees created per issue (named `<prefix>/<slug>-<hash>`). Cleaned up when the issue reaches `done` status or is deleted.
+2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `captain/<project-slug>`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck/<project-slug>/captain` from the project's `default_base_branch` (falling back to `repo.default_branch`) and auto-rebase onto that branch on creation.
 
 ### Worktree Cleanup
 
@@ -330,7 +408,7 @@ function buildPrompt(opts: BuildPromptOptions): string
 
 The function accepts a single options object containing all required and optional fields.
 
-**Role-specific API access:** The prompt's API section varies by `agentId`. All agents receive read-only access to the knowledge API (list titles, get full entries). Only the librarian receives write access (create, update, delete knowledge entries). All non-librarian agents receive a notice that their stdout is automatically posted as a comment.
+**Role-specific API access:** The prompt's API section varies by `agentId`. All agents (including librarian scans) receive the `CREWDECK_API_KEY` environment variable and instructions to include `Authorization: Bearer $CREWDECK_API_KEY` in all curl calls. All agents receive read-only access to the knowledge API (list titles, get full entries). Only the librarian receives write access (create, update, delete knowledge entries). All non-librarian agents receive a notice that their stdout is automatically posted as a comment.
 
 **Project knowledge:** Knowledge entries are injected as a `## Project Knowledge` section. Each entry is rendered as a level-3 heading with its title and category, followed by the content:
 

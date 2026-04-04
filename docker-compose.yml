@@ -1,9 +1,19 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "9380:9380"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
   frontend:
     build: ./frontend
-    network_mode: host
     environment:
-      - VITE_BACKEND_URL=http://localhost:9381
+      - VITE_BACKEND_URL=http://backend:9381
     depends_on:
       - backend
 
@@ -11,16 +21,27 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    network_mode: host
+      # Feed host ~/.claude into the build so the container gets its own
+      # writable copy of Claude credentials and config (see backend/Dockerfile).
+      additional_contexts:
+        claude-config: ~/.claude
     volumes:
       - crewdeck-data:/app/data
-      - ~/.claude:/home/app/.claude:ro
     environment:
       - PORT=9381
-      - HOST=127.0.0.1
-      - CORS_ORIGIN=http://localhost:9380
+      - HOST=0.0.0.0
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:9380}
       - DB_PATH=/app/data/crewdeck.db
       - CREWDECK_REPOS_DIR=/app/data/repos
+      - CREWDECK_WORKTREES_DIR=/app/data/worktrees
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    network_mode: host
+    restart: unless-stopped
+    profiles:
+      - tunnel
 
 volumes:
   crewdeck-data:

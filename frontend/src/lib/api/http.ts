@@ -15,13 +15,17 @@ import type {
   ActiveRun,
   ProjectKnowledge,
   LibrarianStatus,
-  ChatMessage,
+  MonitorMessage,
   AgentConfig,
   MonitorEntry,
   CaptainStatus,
   GlobalConfig,
-  Provider,
   GlobalEnvironmentVariable,
+  ApiKey,
+  ChatThread,
+  ChatThreadListItem,
+  ChatThreadDetail,
+  ChatMessageEvent,
 } from "./types.js";
 
 export type {
@@ -45,13 +49,18 @@ export type {
   AgentRunEventType,
   ProjectKnowledge,
   LibrarianStatus,
-  ChatMessage,
+  MonitorMessage,
   AgentConfig,
   MonitorEntry,
   CaptainStatus,
   GlobalConfig,
-  Provider,
   GlobalEnvironmentVariable,
+  ApiKey,
+  ChatThread,
+  ChatThreadListItem,
+  ChatThreadDetail,
+  ChatMessage,
+  ChatMessageEventType,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -101,6 +110,46 @@ async function request<T>(
 }
 
 const e = encodeURIComponent;
+
+// Auth (unauthenticated endpoints)
+export function checkSetupStatus() {
+  return request<{ needsSetup: boolean }>("GET", "/auth/setup-status");
+}
+export function setupAccount(username: string, password: string) {
+  return request<{ id: string; username: string }>("POST", "/auth/setup", { username, password });
+}
+export function login(username: string, password: string) {
+  return request<{ id: string; username: string }>("POST", "/auth/login", { username, password });
+}
+export function getAuthMe() {
+  return request<{ setupCompleted: boolean }>("GET", "/auth/me");
+}
+export function logout() {
+  return request<void>("POST", "/auth/logout");
+}
+export function completeSetup() {
+  return request<{ ok: boolean }>("POST", "/auth/complete-setup");
+}
+
+// Preflight checks
+export function getPreflightClaudeCli() {
+  return request<{ installed: boolean; version?: string; path?: string }>(
+    "GET",
+    "/global-config/preflight/claude-cli",
+  );
+}
+export function getPreflightClaudeAuth() {
+  return request<{ authenticated: boolean; error?: string }>(
+    "GET",
+    "/global-config/preflight/claude-auth",
+  );
+}
+export function getPreflightZai() {
+  return request<{ configured: boolean; source?: string }>(
+    "GET",
+    "/global-config/preflight/zai",
+  );
+}
 
 // Projects
 export function listProjects() {
@@ -155,14 +204,21 @@ export function listAllAgents() {
 export function listAgentConfig() {
   return request<AgentConfig[]>("GET", `/agent-config`);
 }
-export function setAgentModel(agentId: string, provider: Provider, model: string) {
-  return request<AgentConfig>("PUT", `/agent-config/${e(agentId)}`, { provider, model });
+export function setAgentModel(agentId: string, model: string) {
+  return request<AgentConfig>("PUT", `/agent-config/${e(agentId)}`, { model });
 }
-export function deleteAgentConfig(agentId: string, provider: Provider) {
-  return request<void>("DELETE", `/agent-config/${e(agentId)}/${e(provider)}`);
+export function deleteAgentConfig(agentId: string) {
+  return request<void>("DELETE", `/agent-config/${e(agentId)}`);
 }
 
 // Issues
+export interface ListIssuesResult {
+  issues: IssueWithRunningAgent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export function listIssues(
   projectId: string,
   filters?: {
@@ -170,9 +226,11 @@ export function listIssues(
     created_by?: string;
     sort?: string;
     order?: string;
+    limit?: number;
+    offset?: number;
   },
 ) {
-  return request<IssueWithRunningAgent[]>(
+  return request<ListIssuesResult>(
     "GET",
     `/projects/${e(projectId)}/issues${qs(filters)}`,
   );
@@ -219,16 +277,18 @@ export function resumeIssue(projectId: string, issueId: string) {
   );
 }
 export function approveIssueStart(projectId: string, issueId: string) {
-  return request<{ success: boolean; issue_id: string; approved_to_start: boolean }>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/approve-start`,
-  );
+  return request<{
+    success: boolean;
+    issue_id: string;
+    approved_to_start: boolean;
+  }>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/approve-start`);
 }
 export function approveIssueMerge(projectId: string, issueId: string) {
-  return request<{ success: boolean; issue_id: string; approved_to_merge: boolean }>(
-    "POST",
-    `/projects/${e(projectId)}/issues/${e(issueId)}/approve-merge`,
-  );
+  return request<{
+    success: boolean;
+    issue_id: string;
+    approved_to_merge: boolean;
+  }>("POST", `/projects/${e(projectId)}/issues/${e(issueId)}/approve-merge`);
 }
 
 // Comments
@@ -297,6 +357,16 @@ export function listActivity(
   return request<ActivityLog[]>(
     "GET",
     `/projects/${e(projectId)}/activity${qs(filters)}`,
+  );
+}
+
+export function listGlobalActivity(filters?: {
+  limit?: number;
+  since?: string;
+}) {
+  return request<ActivityLog[]>(
+    "GET",
+    `/activity${qs(filters)}`,
   );
 }
 
@@ -473,7 +543,7 @@ export function dispatchAgent(
 export function getMonitorHistory(
   projectId: string,
   limit?: number,
-): Promise<ChatMessage[]> {
+): Promise<MonitorMessage[]> {
   const params = limit ? `?limit=${limit}` : "";
   return request("GET", `/projects/${e(projectId)}/monitor/history${params}`);
 }
@@ -487,11 +557,40 @@ export function getCaptainStatus(projectId: string): Promise<CaptainStatus> {
 export function getGlobalConfig(): Promise<GlobalConfig> {
   return request("GET", "/global-config");
 }
-export function setProvider(provider: Provider): Promise<GlobalConfig> {
-  return request("PUT", "/global-config/provider", { provider });
+export function getDefaultModel(): Promise<{ model: string }> {
+  return request("GET", "/global-config/default-model");
 }
-export function isGlmAvailable(): Promise<{ available: boolean }> {
-  return request("GET", "/global-config/glm-available");
+export function setDefaultModel(model: string): Promise<{ model: string }> {
+  return request("PUT", "/global-config/default-model", { model });
+}
+export function getModelAvailability(): Promise<{
+  claude: { available: boolean };
+  glm: { available: boolean };
+}> {
+  return request("GET", "/global-config/model-availability");
+}
+
+// Orchestration settings
+export function getMaxConcurrency(): Promise<{ maxConcurrency: number }> {
+  return request("GET", "/global-config/max-concurrency");
+}
+export function getActiveAgents(): Promise<{ activeAgents: number; maxConcurrency: number }> {
+  return request("GET", "/global-config/active-agents");
+}
+export function setMaxConcurrency(maxConcurrency: number): Promise<{ maxConcurrency: number }> {
+  return request("PUT", "/global-config/max-concurrency", { maxConcurrency });
+}
+export function getMaxChainDepth(): Promise<{ maxChainDepth: number }> {
+  return request("GET", "/global-config/max-chain-depth");
+}
+export function setMaxChainDepth(maxChainDepth: number): Promise<{ maxChainDepth: number }> {
+  return request("PUT", "/global-config/max-chain-depth", { maxChainDepth });
+}
+export function getAgentTimeoutMinutes(): Promise<{ agentTimeoutMinutes: number }> {
+  return request("GET", "/global-config/agent-timeout-minutes");
+}
+export function setAgentTimeoutMinutes(agentTimeoutMinutes: number): Promise<{ agentTimeoutMinutes: number }> {
+  return request("PUT", "/global-config/agent-timeout-minutes", { agentTimeoutMinutes });
 }
 
 // Global Environment Variables
@@ -524,4 +623,41 @@ export function updateGlobalEnvironmentVariable(
 }
 export function deleteGlobalEnvironmentVariable(envVarId: string) {
   return request<void>("DELETE", `/global-config/environment/${e(envVarId)}`);
+}
+
+// API Keys
+export function listApiKeys() {
+  return request<ApiKey[]>("GET", "/api-keys");
+}
+export function createApiKey(name: string) {
+  return request<ApiKey & { key: string }>("POST", "/api-keys", { name });
+}
+export function deleteApiKey(id: string) {
+  return request<void>("DELETE", `/api-keys/${e(id)}`);
+}
+
+// Chat Threads
+export function listChatThreads(projectId: string) {
+  return request<ChatThreadListItem[]>("GET", `/projects/${e(projectId)}/chat/threads`);
+}
+export function createChatThread(projectId: string, data?: { title?: string }) {
+  return request<ChatThread>("POST", `/projects/${e(projectId)}/chat/threads`, data);
+}
+export function getChatThread(threadId: string, projectId: string, limit?: number, offset?: number) {
+  return request<ChatThreadDetail>("GET", `/projects/${e(projectId)}/chat/threads/${e(threadId)}${qs({ limit, offset })}`);
+}
+export function updateChatThread(threadId: string, projectId: string, data: { title?: string; session_id?: string | null }) {
+  return request<ChatThread>("PATCH", `/projects/${e(projectId)}/chat/threads/${e(threadId)}`, data);
+}
+export function deleteChatThread(threadId: string, projectId: string) {
+  return request<void>("DELETE", `/projects/${e(projectId)}/chat/threads/${e(threadId)}`);
+}
+export function sendChatMessage(threadId: string, projectId: string, content: string) {
+  return request<{ message_id: string }>("POST", `/projects/${e(projectId)}/chat/threads/${e(threadId)}/messages`, { content });
+}
+export function getChatThreadStatus(threadId: string, projectId: string) {
+  return request<{ active: boolean }>("GET", `/projects/${e(projectId)}/chat/threads/${e(threadId)}/status`);
+}
+export function getChatMessageEvents(threadId: string, messageId: string, projectId: string) {
+  return request<{ events: ChatMessageEvent[] }>("GET", `/projects/${e(projectId)}/chat/threads/${e(threadId)}/messages/${e(messageId)}/events`);
 }

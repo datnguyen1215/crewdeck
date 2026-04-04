@@ -31,13 +31,13 @@ Agents are triggered by **`/dispatch` commands** in issue comments. When a user 
 
 ## Limits
 
-| Limit           | Value                        | Behavior when exceeded                                                 |
-| --------------- | ---------------------------- | ---------------------------------------------------------------------- |
-| Chain depth     | Project setting (default 20) | System comment posted; "Reset chain depth" button appears on the issue |
-| Max concurrency | Project setting              | System comment posted; dispatch is dropped                             |
-| Process timeout | 10 minutes                   | Process killed; system comment posted                                  |
+| Limit           | Value                   | Behavior when exceeded                                                 |
+| --------------- | ----------------------- | ---------------------------------------------------------------------- |
+| Chain depth     | Global setting (default 20) | System comment posted; "Reset chain depth" button appears on the issue |
+| Max concurrency | Global setting          | System comment posted; dispatch is queued                              |
+| Process timeout | Global setting (default 10 min) | Process killed; system comment posted                                  |
 
-Chain depth is tracked per-issue and increments each time an agent is spawned on that issue. The limit is configurable via `max_chain_depth` in project settings. It can be reset via the "Reset chain depth" button on the issue detail page.
+Chain depth is tracked per-issue and increments each time an agent is spawned on that issue. The limit is configurable via `max_chain_depth` in global settings (`/settings`). It can be reset via the "Reset chain depth" button on the issue detail page. Concurrency (global across all projects) and timeout are also configured in global settings.
 
 ## Issue Status
 
@@ -53,12 +53,13 @@ Dispatching an agent on an issue automatically regresses its status to `in_progr
 
 The following variables are passed to each agent process:
 
-| Variable              | Description                  |
-| --------------------- | ---------------------------- |
-| `CREWDECK_API_URL`    | Backend API base URL         |
-| `CREWDECK_PROJECT_ID` | The project ID               |
-| `CREWDECK_AGENT_ID`   | The agent's ID               |
-| `CREWDECK_ISSUE_ID`   | The issue ID being worked on |
+| Variable              | Description                                                |
+| --------------------- | ---------------------------------------------------------- |
+| `CREWDECK_API_URL`    | Backend API base URL                                       |
+| `CREWDECK_PROJECT_ID` | The project ID                                             |
+| `CREWDECK_AGENT_ID`   | The agent's ID                                             |
+| `CREWDECK_ISSUE_ID`   | The issue ID being worked on (only set for issue-based spawns; omitted for scans and other standalone runs) |
+| `CREWDECK_API_KEY`    | System API key for authentication (passed as Bearer token) |
 
 In addition, any project-level environment variables configured via the [Environment Variables API](api.md#environment-variables) are injected.
 

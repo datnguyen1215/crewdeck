@@ -8,20 +8,17 @@ import * as issueRepo from "../db/repositories/issues.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as knowledgeRepo from "../db/repositories/knowledge.js";
-import * as envVarRepo from "../db/repositories/environment-variables.js";
-import * as globalEnvVarRepo from "../db/repositories/global-environment-variables.js";
 import * as repoRepo from "../db/repositories/repos.js";
 import * as agentPrompt from "./prompt.js";
 import * as database from "../db/index.js";
 import * as log from "../logger.js";
 import { toContainerPath } from "../utils/paths.js";
-import { getActiveProcessCount, clearPendingSpawn } from "./processes.js";
-import { config } from "../config.js";
+import { clearPendingSpawn } from "./processes.js";
 import { cleanupSshKey } from "../utils/git-auth.js";
 import * as agentConfigRepo from "../db/repositories/agent-config.js";
+import * as globalConfigRepo from "../db/repositories/global-config.js";
 import { isIssuePaused } from "../services/issue-service.js";
 import type { Agent, AgentRun } from "../types/entities.js";
-import { DEFAULT_AGENT_TIMEOUT_MINUTES } from "../config/orchestration.js";
 import { postSystemComment, spawnAndTrack } from "./spawn-process.js";
 import {
   validateCanSpawn,
@@ -36,8 +33,6 @@ import {
 } from "./spawn-environment.js";
 
 export { postSystemComment } from "./spawn-process.js";
-
-const DEFAULT_MAX_CHAIN_DEPTH = 20;
 
 /**
  * Spawn an agent process for a mentioned agent on an issue.
@@ -55,7 +50,7 @@ export const spawnAgent = async (
   const project = projectRepo.getProject(projectId)!;
   const issue = issueRepo.getIssue(issueId)!;
 
-  const maxChainDepth = project.max_chain_depth ?? DEFAULT_MAX_CHAIN_DEPTH;
+  const maxChainDepth = globalConfigRepo.getMaxChainDepth();
 
   // Atomic check-and-increment to prevent concurrent mentions from exceeding the limit.
   // If chain_depth is already at MAX, the UPDATE matches zero rows and we reject.
@@ -85,21 +80,8 @@ export const spawnAgent = async (
       agent,
       issueId,
       projectId,
-      agentRunRepo.countRunningGlobal() >= config.maxAgents,
+      agentRunRepo.countRunningGlobal() >= globalConfigRepo.getMaxConcurrency(),
       "global limit reached",
-    )
-  ) {
-    return;
-  }
-
-  // Check project concurrency limit
-  if (
-    handleConcurrencyQueuing(
-      agent,
-      issueId,
-      projectId,
-      getActiveProcessCount(projectId) >= project.max_concurrency,
-      "",
     )
   ) {
     return;
@@ -131,8 +113,7 @@ export const spawnAgent = async (
 
   const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
 
-  const timeoutMinutes =
-    project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  const timeoutMinutes = globalConfigRepo.getAgentTimeoutMinutes();
   const model = agentConfigRepo.resolveModel(agent.id);
 
   await spawnAndTrack({
@@ -230,8 +211,7 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
   );
 
   const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
-  const timeoutMinutes =
-    project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  const timeoutMinutes = globalConfigRepo.getAgentTimeoutMinutes();
   const model = agentConfigRepo.resolveModel(agent.id);
 
   await spawnAndTrack({
@@ -260,11 +240,12 @@ export const spawnScan = async (projectId: string): Promise<string> => {
   const agent = crew.getCrewMember("librarian");
   if (!agent) throw new Error("Librarian agent not found");
 
-  // Check concurrency limit (scans can't be queued since they have no issue)
-  const activeCount = getActiveProcessCount(projectId);
-  if (activeCount >= project.max_concurrency) {
+  // Check global concurrency limit (scans can't be queued since they have no issue)
+  const activeCount = agentRunRepo.countRunningGlobal();
+  const maxConcurrency = globalConfigRepo.getMaxConcurrency();
+  if (activeCount >= maxConcurrency) {
     throw new Error(
-      `Concurrency limit reached (${project.max_concurrency} agents running). Try again later.`,
+      `Global concurrency limit reached (${maxConcurrency} agents running). Try again later.`,
     );
   }
 
@@ -279,17 +260,9 @@ export const spawnScan = async (projectId: string): Promise<string> => {
     projectKnowledge,
   });
 
-  const envVars = envVarRepo.getEnvironmentVariablesMap(projectId);
-  const env: Record<string, string> = {
-    ...globalEnvVarRepo.getMap(),
-    ...envVars,
-    CREWDECK_API_URL: `http://localhost:${process.env.PORT || "9381"}`,
-    CREWDECK_PROJECT_ID: projectId,
-    CREWDECK_AGENT_ID: agent.id,
-  };
+  const { env } = buildAgentEnvironment(projectId, agent.id);
 
-  const timeoutMinutes =
-    project.agent_timeout_minutes ?? DEFAULT_AGENT_TIMEOUT_MINUTES;
+  const timeoutMinutes = globalConfigRepo.getAgentTimeoutMinutes();
 
   const model = agentConfigRepo.resolveModel(agent.id);
 

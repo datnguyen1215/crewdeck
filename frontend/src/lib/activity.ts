@@ -47,30 +47,25 @@ export const ACTION_LABELS: Record<
     `Status: ${String(d.from).replace(/_/g, " ")} → ${String(d.to).replace(/_/g, " ")}`,
   "comment.added": (d) => {
     const name = d._actor_name || d.agent_id;
-    return name ? `${cap(String(name))} posted a comment` : "Posted a comment";
+    const label = name ? cap(String(name)) : d._actor_type ? cap(String(d._actor_type)) : "Agent";
+    return `${label} posted a comment`;
   },
   "pr.created": (d) => `Created PR #${d.pr_number}`,
   "mention.spawned": (d) => {
     const name = d._actor_name || d.agent_id;
-    return `${name ? cap(String(name)) : "Agent"} spawned`;
+    const label = name ? cap(String(name)) : d._actor_type ? cap(String(d._actor_type)) : "Agent";
+    return `${label} spawned`;
   },
   "mention.completed": (d) => {
     const name = d._actor_name || d.agent_id;
-    return `${name ? cap(String(name)) : "Agent"} finished — ${humanExit(d.exit_code)}`;
+    const label = name ? cap(String(name)) : d._actor_type ? cap(String(d._actor_type)) : "Agent";
+    return `${label} finished — ${humanExit(d.exit_code)}`;
   },
   "run.started": (d) => {
     const name = d._actor_name || d.agent_id;
-    return `${name ? cap(String(name)) : "Agent"} run started`;
+    const label = name ? cap(String(name)) : d._actor_type ? cap(String(d._actor_type)) : "Agent";
+    return `${label} run started`;
   },
-};
-
-export const ACTION_DISPLAY: Record<string, string> = {
-  "issue.created": "Issue Created",
-  "issue.status_changed": "Status Changed",
-  "comment.added": "Comment Added",
-  "pr.created": "PR Created",
-  "mention.spawned": "Agent Spawned",
-  "mention.completed": "Agent Completed",
 };
 
 export function actorName(entry: ActivityLog): string {
@@ -85,11 +80,21 @@ export function actorName(entry: ActivityLog): string {
 export function actionLabel(entry: ActivityLog): string {
   const fn = ACTION_LABELS[entry.action];
   if (!fn) return entry.action;
-  // Inject actor_name as _actor_name so label functions can use it
+  // Inject actor_name as _actor_name so label functions can use it.
+  // Also merge promoted top-level fields (from, to, pr_number, exit_code)
+  // which are present in compact API responses where details is stripped.
   const details = (entry.details as Record<string, unknown>) ?? {};
-  const enriched = entry.actor_name
-    ? { ...details, _actor_name: entry.actor_name }
-    : details;
+  const promoted: Record<string, unknown> = {};
+  if (entry.from !== undefined) promoted.from = entry.from;
+  if (entry.to !== undefined) promoted.to = entry.to;
+  if (entry.pr_number !== undefined) promoted.pr_number = entry.pr_number;
+  if (entry.exit_code !== undefined) promoted.exit_code = entry.exit_code;
+  const enriched = {
+    ...details,
+    ...promoted,
+    ...(entry.actor_name ? { _actor_name: entry.actor_name } : {}),
+    ...(entry.actor_type ? { _actor_type: entry.actor_type } : {}),
+  };
   return fn(enriched);
 }
 
@@ -106,8 +111,3 @@ export function hasExpandableDetails(entry: ActivityLog): boolean {
     d.verdict
   );
 }
-
-export const HANDOFF_ACTIONS = new Set([
-  "mention.spawned",
-  "mention.completed",
-]);

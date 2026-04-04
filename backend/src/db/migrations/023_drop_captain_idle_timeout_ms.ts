@@ -9,6 +9,8 @@ export function run(db: Database.Database): void {
   // Skip if column already dropped
   if (!hasCaptainIdleTimeout) return;
 
+  const hasVcsAccountId = cols.some((c) => c.name === "vcs_account_id");
+
   db.pragma("foreign_keys = OFF");
   try {
     db.transaction(() => {
@@ -26,13 +28,31 @@ export function run(db: Database.Database): void {
           created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
-        INSERT INTO Project_new (id, name, description, max_concurrency, max_chain_depth,
-          agent_timeout_minutes, memory, model,
-          vcs_account_id, created_at, updated_at)
-        SELECT id, name, description, max_concurrency, max_chain_depth,
-          agent_timeout_minutes, memory, model,
-          vcs_account_id, created_at, updated_at
-        FROM Project;
+      `);
+
+      if (hasVcsAccountId) {
+        db.exec(`
+          INSERT INTO Project_new (id, name, description, max_concurrency, max_chain_depth,
+            agent_timeout_minutes, memory, model,
+            vcs_account_id, created_at, updated_at)
+          SELECT id, name, description, max_concurrency, max_chain_depth,
+            agent_timeout_minutes, memory, model,
+            vcs_account_id, created_at, updated_at
+          FROM Project;
+        `);
+      } else {
+        db.exec(`
+          INSERT INTO Project_new (id, name, description, max_concurrency, max_chain_depth,
+            agent_timeout_minutes, memory, model,
+            created_at, updated_at)
+          SELECT id, name, description, max_concurrency, max_chain_depth,
+            agent_timeout_minutes, memory, model,
+            created_at, updated_at
+          FROM Project;
+        `);
+      }
+
+      db.exec(`
         DROP TABLE Project;
         ALTER TABLE Project_new RENAME TO Project;
       `);

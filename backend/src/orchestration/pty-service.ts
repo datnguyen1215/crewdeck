@@ -19,6 +19,8 @@ import { buildProviderEnv } from "./provider-env.js";
 import { PTY_IDLE_TIMEOUT_MS } from "../config/orchestration.js";
 import { buildSystemPrompt } from "./captain-prompt.js";
 import { createCaptainWorktree, setupGitHubAuth } from "./captain-worktree.js";
+import { resolveModel } from "../db/repositories/agent-config.js";
+import { getSystemApiKey } from "../app.js";
 
 export interface TerminalSession {
   projectId: string;
@@ -109,10 +111,12 @@ export async function createTerminalSession(
   // Precedence: global env vars < project env vars < platform-specific vars
   const globalEnvVars = globalEnvVarRepo.getMap();
   const projectEnvVars = getEnvironmentVariablesMap(projectId);
+  const captainModel = resolveModel("captain");
   const captainEnvVars: Record<string, string> = {
     ...globalEnvVars,
     ...projectEnvVars,
-    ...buildProviderEnv(),
+    ...buildProviderEnv(captainModel),
+    ANTHROPIC_API_KEY: "",
     CREWDECK_API_URL: `http://${config.host}:${config.port}`,
     CREWDECK_PROJECT_ID: projectId,
     CREWDECK_AGENT_ID: "captain",
@@ -121,6 +125,7 @@ export async function createTerminalSession(
     // Include GitHub auth vars added by setupGitHubAuth
     ...(env.GH_TOKEN ? { GH_TOKEN: env.GH_TOKEN } : {}),
     ...(env.GIT_SSH_COMMAND ? { GIT_SSH_COMMAND: env.GIT_SSH_COMMAND } : {}),
+    ...(getSystemApiKey() ? { CREWDECK_API_KEY: getSystemApiKey()! } : {}),
   };
   // Merge captainEnvVars back into env for the spawn call
   Object.assign(env, captainEnvVars);
@@ -145,14 +150,15 @@ export async function createTerminalSession(
     ...(worktreePath ? ["-c", worktreePath] : []),
     "env",
     ...Object.entries(captainEnvVars).map(
-      ([k, v]) => `${shellQuote(k)}=${shellQuote(String(v))}`,
+      ([k, v]) => `${k}=${String(v)}`,
     ),
     "claude",
+    "--model",
+    captainModel,
     "--system-prompt-file",
     systemPromptPath,
     "--dangerously-skip-permissions",
   ];
-
   return new Promise((resolve) => {
     const proc = spawn("tmux", tmuxCmd, { env });
     let resolved = false;

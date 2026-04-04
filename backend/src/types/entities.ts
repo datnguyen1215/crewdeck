@@ -20,9 +20,6 @@ export interface Project {
   id: string;
   name: string;
   description: string | null;
-  max_concurrency: number;
-  max_chain_depth: number;
-  agent_timeout_minutes: number;
   auto_start: boolean;
   auto_merge: boolean;
   model: string;
@@ -62,6 +59,7 @@ export interface Issue {
   project_id: string;
   title: string;
   description: string;
+  summary: string | null;
   status: string;
   created_by: string;
   chain_depth: number;
@@ -232,7 +230,6 @@ export interface IssueWithDetails extends Issue {
 export interface CreateProjectInput {
   name: string;
   description?: string;
-  max_concurrency?: number;
   repo_url?: string;
   default_branch?: string;
   vcs_account_id?: string;
@@ -241,9 +238,6 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
-  max_concurrency?: number;
-  max_chain_depth?: number;
-  agent_timeout_minutes?: number;
   auto_start?: boolean;
   auto_merge?: boolean;
   vcs_account_id?: string | null;
@@ -253,7 +247,6 @@ export interface UpdateProjectInput {
 export interface AgentConfig {
   id: string;
   agent_id: string;
-  provider: string;
   model: string | null;
 }
 
@@ -274,6 +267,7 @@ export interface CreateIssueInput {
 export interface UpdateIssueInput {
   title?: string;
   description?: string;
+  summary?: string;
   status?: string;
   chain_depth?: number;
   branch_name?: string | null;
@@ -289,6 +283,15 @@ export interface IssueFilters {
   created_by?: string;
   sort?: "created_at" | "updated_at";
   order?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedIssues {
+  issues: IssueWithRunningAgent[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface CreateCommentInput {
@@ -352,15 +355,48 @@ export interface UpdateKnowledgeInput {
   source?: string | null;
 }
 
-// Chat message types
-export type ChatMessageRole = "user" | "assistant";
+// Chat types
+export interface ChatThread {
+  id: string;
+  project_id: string;
+  title: string | null;
+  session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ChatMessageRole = "user" | "assistant" | "system" | "event" | "tool";
 
 export interface ChatMessage {
   id: string;
-  project_id: string;
-  session_id: string | null;
+  thread_id: string;
   role: ChatMessageRole;
   content: string;
-  images: string[] | null;
+  metadata: string | null;
+  created_at: string;
+}
+
+export type ChatMessageEventType = "thinking" | "text" | "tool_call" | "tool_result" | "system" | "result";
+
+export interface ChatMessageEvent {
+  id: string;
+  message_id: string;
+  type: ChatMessageEventType;
+  data: unknown;
+  created_at: string;
+}
+
+export interface ChatMessageWithEvents extends ChatMessage {
+  events: ChatMessageEvent[];
+}
+
+// Monitor message types
+export type MonitorMessageRole = "user" | "assistant";
+
+export interface MonitorMessage {
+  id: string;
+  project_id: string;
+  role: MonitorMessageRole;
+  content: string;
   created_at: string;
 }

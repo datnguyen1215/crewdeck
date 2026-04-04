@@ -54,7 +54,7 @@ For every changed file in the diff, read the FULL current file — not just the 
 
 - **SQL injection**: verify ALL queries use parameterized placeholders (`?`), not string concatenation or template literals to build SQL. Check dynamic table/column names are validated against an allowlist.
 - **Command injection**: any user-controlled input reaching `node-pty` spawn, shell exec, or written to a terminal session is critical severity. Trace the data flow from request → handler → pty.
-- **WebSocket auth**: verify upgrade requests are authenticated and per-message authorization is enforced. Check that messages aren't processed after connection close.
+- **WebSocket auth**: verify upgrade requests are authenticated via `validateSessionFromCookie()` (shared helper in `middleware/auth.ts`). Both `/ws` and `/terminal-ws` validate sessions before processing any other logic. Check that messages aren't processed after connection close.
 - **Path traversal**: if file paths or repo paths are derived from user input, verify they're sanitized (no `../` escapes, validated against expected base directories).
 - **Secrets in code**: hardcoded tokens, API keys, credentials, or `.env` values in the diff.
 - **Missing input validation**: user input that reaches the database or shell without Zod validation or equivalent.

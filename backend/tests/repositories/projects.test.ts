@@ -25,17 +25,14 @@ describe("createProject", () => {
     expect(p.id).toBeTruthy();
     expect(p.name).toBe("Test");
     expect(p.description).toBeNull();
-    expect(p.max_concurrency).toBe(1);
   });
 
   it("creates a project with all fields", () => {
     const p = createProject({
       name: "Full",
       description: "desc",
-      max_concurrency: 4,
     });
     expect(p.description).toBe("desc");
-    expect(p.max_concurrency).toBe(4);
   });
 });
 
@@ -66,11 +63,10 @@ describe("updateProject", () => {
   });
 
   it("updates only specified fields", () => {
-    const p = createProject({ name: "Orig", max_concurrency: 2 });
+    const p = createProject({ name: "Orig" });
     const updated = updateProject(p.id, { description: "hi" });
     expect(updated.name).toBe("Orig");
     expect(updated.description).toBe("hi");
-    expect(updated.max_concurrency).toBe(2);
   });
 });
 

@@ -16,6 +16,7 @@ import { spawnAgent, spawnScan, postSystemComment } from "./spawner.js";
 import { IssueStatus, PRStatus } from "../constants/statuses.js";
 import { getProvider } from "../vcs/registry.js";
 import { isApprovedToMerge } from "./approval-store.js";
+import { isIssuePaused } from "../services/issue-service.js";
 import { resolveIssueId } from "./issue-resolver.js";
 
 interface ToolResult {
@@ -48,6 +49,9 @@ export const handleMergePR = async (
 
   const resolvedId = resolveIssueId(input.issue_id, projectId);
   if (!resolvedId) return { success: false, message: "Issue not found" };
+
+  if (isIssuePaused(resolvedId))
+    return { success: false, message: "Issue is paused" };
 
   if (!project.auto_merge && !isApprovedToMerge(resolvedId))
     return {
@@ -116,8 +120,7 @@ export const handleMergePR = async (
       project_id: projectId,
       from: oldStatus,
       to: IssueStatus.DONE,
-      actor_type: "agent",
-      actor_id: "captain",
+      actor_type: "system",
     });
 
     return {
@@ -139,7 +142,7 @@ export const handleMergePR = async (
  */
 export const handleCreatePR = async (
   projectId: string,
-  input: { issue_id: string },
+  input: { issue_id: string; body?: string },
 ): Promise<ToolResult> => {
   const project = getProject(projectId);
   if (!project) return { success: false, message: "Project not found" };
@@ -152,6 +155,9 @@ export const handleCreatePR = async (
 
   const resolvedId = resolveIssueId(input.issue_id, projectId);
   if (!resolvedId) return { success: false, message: "Issue not found" };
+
+  if (isIssuePaused(resolvedId))
+    return { success: false, message: "Issue is paused" };
 
   const issue = issueRepo.getIssue(resolvedId)!;
 
@@ -178,10 +184,15 @@ export const handleCreatePR = async (
       message: `Issue already has an open PR (#${openPR.pr_number})`,
     };
 
-  // Build PR body with structured format
-  let prBody = `## Summary\n${issue.title}`;
-  if (issue.description) {
-    prBody += `\n\n## Description\n${issue.description}`;
+  // Build PR body — use provided body or fall back to default template
+  let prBody: string;
+  if (input.body) {
+    prBody = input.body;
+  } else {
+    prBody = `## Summary\n${issue.title}`;
+    if (issue.description) {
+      prBody += `\n\n## Description\n${issue.description}`;
+    }
   }
 
   // Create PR via VCS provider
@@ -228,8 +239,7 @@ export const handleCreatePR = async (
         project_id: projectId,
         from: oldStatus,
         to: IssueStatus.PR_CREATED,
-        actor_type: "agent",
-        actor_id: "captain",
+        actor_type: "system",
       });
     }
 

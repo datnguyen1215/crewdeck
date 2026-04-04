@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { getContext } from 'svelte';
-	import { listIssues, createIssue, approveIssueStart, getProject, updateProject, type IssueWithRunningAgent, type Agent, type Project } from '$lib/api/http.js';
+	import { listIssues, createIssue, approveIssueStart, getProject, updateProject, type IssueWithRunningAgent, type Agent, type Project, type ListIssuesResult } from '$lib/api/http.js';
 	import type { ProjectWebSocket } from '$lib/api/ws.svelte.js';
+	import type { WsEventMap } from '$lib/api/types.js';
 	import Modal from '$lib/components/Modal.svelte';
 	import ActivityTerminal from '$lib/components/ActivityTerminal.svelte';
 	import IssueFilters from '$lib/components/IssueFilters.svelte';
@@ -22,12 +23,17 @@
 	let agents = $derived(getAgents());
 	let project = $state<Project | null>(null);
 	let loading = $state(true);
+	let totalIssues = $state(0);
+	let skipNextCreatedId: string | null = null;
+	let hasMore = $derived(issues.length < totalIssues);
 
 	let projectId = $derived($page.params.projectId!);
 	let pageTitle = $derived(project?.name ? `${project.name} - CrewDeck` : 'CrewDeck');
 
 	// Filter state
 	let searchQuery = $state('');
+	let showCompleted = $state(false);
+	const ALL_STATUSES = 'open,in_progress,pr_created,pr_conflict,pr_failed_actions,pr_ready_to_merge,done';
 
 	function parseSearchQuery(query: string): { statuses: string[]; paused: boolean | null; text: string } {
 		let statuses: string[] = [];
@@ -107,9 +113,9 @@
 	const form = createFormState({ title: '', description: '' });
 
 	fetchEffect(
-		() => Promise.all([listIssues(projectId), getProject(projectId)]),
+		() => Promise.all([listIssues(projectId, showCompleted ? { status: ALL_STATUSES } : {}), getProject(projectId)]),
 		{
-			onData: ([i, p]) => { issues = i; project = p; },
+			onData: ([i, p]) => { issues = i.issues; totalIssues = i.total; project = p; },
 			onError: 'Failed to load issues',
 			onLoading: (v) => { loading = v; },
 		}
@@ -119,12 +125,20 @@
 		const ws = getWs();
 		if (!ws) return;
 		const reload = () => {
-			listIssues(projectId)
-				.then((i) => { issues = i; })
+			const opts: Record<string, unknown> = issues.length ? { limit: issues.length } : {};
+			if (showCompleted) opts.status = ALL_STATUSES;
+			listIssues(projectId, opts)
+				.then((i) => { issues = i.issues; totalIssues = i.total; })
 				.catch(() => toastStore.add('Failed to refresh issues', 'error'));
 		};
 		return useWsSubscriptions(ws, {
-			'issue.created': reload,
+			'issue.created': (data: WsEventMap['issue.created']) => {
+				if (skipNextCreatedId && data.issue.id === skipNextCreatedId) {
+					skipNextCreatedId = null;
+					return;
+				}
+				reload();
+			},
 			'issue.updated': reload,
 			'issue.status_changed': reload,
 			'issue.paused': reload,
@@ -149,9 +163,6 @@
 		}
 		if (statuses.length > 0) {
 			result = result.filter((i) => statuses.includes(i.status));
-		} else if (searchQuery.trim() === '') {
-			// Default: hide done unless explicitly queried
-			result = result.filter((i) => i.status !== 'done');
 		}
 		if (paused !== null) {
 			result = result.filter((i) => (i.paused ? true : false) === paused);
@@ -176,6 +187,19 @@
 
 	// Track dispatching state per issue
 	let dispatchingIssues = $state<Set<string>>(new Set());
+
+	async function loadMore() {
+		if (!hasMore) return;
+		try {
+			const opts: { offset: number; status?: string } = { offset: issues.length };
+			if (showCompleted) opts.status = ALL_STATUSES;
+			const result = await listIssues(projectId, opts);
+			issues = [...issues, ...result.issues];
+			totalIssues = result.total;
+		} catch {
+			toastStore.add('Failed to load more issues', 'error');
+		}
+	}
 
 	function hasActiveAgent(issue: IssueWithRunningAgent): boolean {
 		return issue.running_agent_status === 'running' || issue.running_agent_status === 'queued';
@@ -206,6 +230,8 @@
 				description: f.description.trim()
 			});
 			issues = [...issues, { ...issue, running_agent_id: null, running_agent_status: null, dependencies: [], dependents: [] }];
+			totalIssues += 1;
+			skipNextCreatedId = issue.id;
 		});
 	}
 
@@ -220,20 +246,9 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between mb-5 gap-3">
 		<div class="min-w-0">
-			<div class="flex items-center gap-3 flex-wrap">
-				<h1 class="text-lg md:text-xl font-bold text-primary uppercase tracking-wide">Issues</h1>
-				{#if project}
-					<a
-						href="/projects/{projectId}/settings"
-						class="text-muted text-xs uppercase tracking-wide hover:text-secondary transition-colors"
-						title="Captain automation settings"
-					>
-						Auto: start {project.auto_start ? '✓' : '✗'} merge {project.auto_merge ? '✓' : '✗'}
-					</a>
-				{/if}
-			</div>
+			<h1 class="text-lg md:text-xl font-bold text-primary uppercase tracking-wide">Issues</h1>
 			<p class="text-muted text-xs mt-0.5">
-				{#if !loading}{filtered.length} of {issues.length} issues{:else}Loading…{/if}
+				{#if !loading}{filtered.length}{#if filtered.length !== totalIssues} of {totalIssues}{/if} issues{:else}Loading…{/if}
 			</p>
 		</div>
 		<button
@@ -250,6 +265,7 @@
 		bind:sortField
 		bind:sortDesc
 		bind:visibleColumns
+		bind:showCompleted
 		{autoStart}
 		{autoMerge}
 		onCaptainToggle={handleCaptainToggle}
@@ -319,10 +335,8 @@
 			{#each filtered as issue, i (issue.id)}
 				<IssueCard
 					{issue}
-					{projectId}
 					{agentMap}
 					{visibleColumns}
-					{project}
 					isDispatching={dispatchingIssues.has(issue.id)}
 					ondispatch={handleDispatch}
 					animationDelay={i * 25}
@@ -380,11 +394,9 @@
 					{#each filtered as issue, i (issue.id)}
 						<IssueTableRow
 							{issue}
-							{projectId}
 							{agentMap}
 							{visibleColumns}
 							{gridCols}
-							{project}
 							isDispatching={dispatchingIssues.has(issue.id)}
 							ondispatch={handleDispatch}
 							index={i}
@@ -392,12 +404,24 @@
 					{/each}
 				</div>
 			</div>
+
+		{#if hasMore}
+			<div class="mt-4 text-center">
+				<button
+					type="button"
+					onclick={loadMore}
+					class="px-4 py-2 bg-surface border border-edge text-primary text-xs font-medium rounded hover:border-edge-hi hover:bg-surface-hi transition-colors uppercase tracking-wide min-h-[44px] md:min-h-0"
+				>
+					Load more ({totalIssues - issues.length} remaining)
+				</button>
+			</div>
+		{/if}
 	{/if}
 	</div>
 
 	<!-- Activity Terminal -->
 	<div class="border-t border-edge">
-		<ActivityTerminal {projectId} {issues} />
+		<ActivityTerminal {issues} />
 	</div>
 </div>
 

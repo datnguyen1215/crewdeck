@@ -153,35 +153,17 @@ CREATE TABLE IF NOT EXISTS ProjectKnowledge (
 CREATE INDEX IF NOT EXISTS idx_project_knowledge_project ON ProjectKnowledge(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_knowledge_updated ON ProjectKnowledge(project_id, updated_at DESC, created_at DESC);
 
--- Chat sessions
-CREATE TABLE IF NOT EXISTS ChatSession (
+-- Monitor messages (Captain Monitor event/response history)
+CREATE TABLE IF NOT EXISTS MonitorMessage (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
-  title TEXT,
-  summary TEXT,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_chat_session_project ON ChatSession(project_id);
-CREATE INDEX IF NOT EXISTS idx_chat_session_status ON ChatSession(project_id, status);
-CREATE INDEX IF NOT EXISTS idx_chat_session_created ON ChatSession(project_id, created_at DESC);
-
--- Chat messages
-CREATE TABLE IF NOT EXISTS ChatMessage (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
-  session_id TEXT REFERENCES ChatSession(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content TEXT NOT NULL,
-  images TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_chat_message_project ON ChatMessage(project_id);
-CREATE INDEX IF NOT EXISTS idx_chat_message_session ON ChatMessage(session_id);
-CREATE INDEX IF NOT EXISTS idx_chat_message_created ON ChatMessage(project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_monitor_message_project ON MonitorMessage(project_id);
+CREATE INDEX IF NOT EXISTS idx_monitor_message_created ON MonitorMessage(project_id, created_at DESC);
 
 -- Global per-agent model overrides (machine-level, not per-project)
 CREATE TABLE IF NOT EXISTS AgentConfig (

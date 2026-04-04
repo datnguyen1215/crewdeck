@@ -14,7 +14,8 @@
 		type LibrarianStatus
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
-	import { smartTime, fullTime } from '$lib/utils/time.js';
+	import { smartTimeDiff, smartTime, fullTime } from '$lib/utils/time.js';
+	import { stripMarkdown } from '$lib/utils/markdown.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -39,11 +40,28 @@
 	let scanning = $state(false);
 	let librarianStatus = $state<LibrarianStatus | null>(null);
 
+	// Category filter
+	let activeCategory = $state<string | null>(null);
+
 	// WebSocket for auto-refresh
 	const getWs = getContext<() => ProjectWebSocket | null>('projectWs');
 
 	// Computed: is a scan currently running?
 	let scanRunning = $derived(librarianStatus?.status === 'running' || librarianStatus?.status === 'queued');
+
+	// Computed: unique categories
+	let categories = $derived.by(() => {
+		const seen = new Set<string>();
+		for (const k of knowledge) {
+			if (k.category) seen.add(k.category);
+		}
+		return [...seen].sort();
+	});
+
+	// Computed: filtered entries
+	let filteredKnowledge = $derived(
+		activeCategory ? knowledge.filter(k => k.category === activeCategory) : knowledge
+	);
 
 	async function refreshData() {
 		const [k, status] = await Promise.all([
@@ -69,7 +87,6 @@
 		if (!ws) return;
 
 		const unsub = ws.on('run.completed', (data) => {
-			// Refresh when any librarian run completes
 			if (data.agent_id === 'librarian') {
 				refreshData().catch(() => {
 					toastStore.add('Failed to refresh data', 'error');
@@ -139,16 +156,10 @@
 		}
 	}
 
-	function truncate(text: string, maxLen: number): string {
-		if (text.length <= maxLen) return text;
-		return text.slice(0, maxLen) + '...';
-	}
-
 	async function handleScan() {
 		scanning = true;
 		try {
 			await triggerKnowledgeScan(projectId);
-			// Refresh status to show the new running scan
 			librarianStatus = await getLibrarianStatus(projectId);
 			toastStore.add('Scan triggered — librarian agent dispatched', 'success');
 		} catch (err) {
@@ -232,18 +243,14 @@
 
 	<!-- Content -->
 	{#if loading}
-		<div class="flex flex-col gap-3 fade-up">
-			{#each Array(4) as _, i}
-				<div class="p-4 bg-base border border-edge rounded" style="animation-delay: {i * 40}ms">
-					<div class="flex items-start gap-4">
-						<div class="flex-1">
-							<div class="skeleton h-4 w-48 rounded mb-2"></div>
-							<div class="skeleton h-3 w-24 rounded mb-3"></div>
-							<div class="skeleton h-3 w-full rounded mb-1"></div>
-							<div class="skeleton h-3 w-3/4 rounded"></div>
-						</div>
-						<div class="skeleton h-5 w-16 rounded"></div>
-					</div>
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+			{#each Array(6) as _, i}
+				<div class="flex flex-col p-4 bg-surface border border-edge rounded fade-up" style="animation-delay: {i * 40}ms">
+					<div class="skeleton h-4 w-3/4 rounded mb-2"></div>
+					<div class="skeleton h-3 w-20 rounded mb-3"></div>
+					<div class="skeleton h-3 w-full rounded mb-1.5"></div>
+					<div class="skeleton h-3 w-full rounded mb-1.5"></div>
+					<div class="skeleton h-3 w-2/3 rounded mt-auto"></div>
 				</div>
 			{/each}
 		</div>
@@ -259,68 +266,98 @@
 			</button>
 		</div>
 	{:else}
-		<div class="flex flex-col gap-3">
-			{#each knowledge as entry, i (entry.id)}
-				<div
-					class="p-4 bg-base border border-edge rounded hover:border-edge-hi transition-colors group"
-					style="animation: fade-up 0.25s ease both; animation-delay: {i * 25}ms"
+		<!-- Category filter chips -->
+		{#if categories.length > 0}
+			<div class="flex flex-wrap gap-2 mb-5">
+				<button
+					onclick={() => activeCategory = null}
+					class="px-2.5 py-1 text-xs font-medium rounded-full transition-colors {activeCategory === null
+						? 'bg-cyan/15 text-cyan border border-cyan/30'
+						: 'bg-surface text-muted border border-edge hover:border-edge-hi hover:text-secondary'
+					}"
 				>
-					<div class="flex items-start gap-4">
-						<div class="flex-1 min-w-0">
-							<!-- Title + Category -->
-							<div class="flex items-center gap-2 mb-1">
-								<h3 class="text-primary text-sm font-medium truncate">{entry.title}</h3>
-								{#if entry.category}
-									<span class="text-xs text-muted bg-surface px-1.5 py-0.5 rounded shrink-0">{entry.category}</span>
-								{/if}
-							</div>
+					All
+				</button>
+				{#each categories as cat}
+					<button
+						onclick={() => activeCategory = activeCategory === cat ? null : cat}
+						class="px-2.5 py-1 text-xs font-medium rounded-full transition-colors {activeCategory === cat
+							? 'bg-cyan/15 text-cyan border border-cyan/30'
+							: 'bg-surface text-muted border border-edge hover:border-edge-hi hover:text-secondary'
+						}"
+					>
+						{cat}
+					</button>
+				{/each}
+			</div>
+		{/if}
 
-							<!-- Source badge -->
-							<div class="flex items-center gap-2 mb-2">
-								<span class="text-xs px-1.5 py-0.5 rounded {entry.source === 'librarian' ? 'bg-purple/10 text-purple border border-purple/30' : 'bg-cyan/10 text-cyan border border-cyan/30'}">
-									{entry.source}
-								</span>
-							</div>
+		<!-- Card grid -->
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+			{#each filteredKnowledge as entry, i (entry.id)}
+				<div
+					class="group flex flex-col p-4 bg-surface border border-edge rounded hover:-translate-y-0.5 hover:border-edge-hi transition-all duration-200 cursor-pointer fade-up"
+					style="animation-delay: {i * 30}ms"
+					onclick={() => openEdit(entry)}
+					onkeydown={(e) => e.key === 'Enter' && openEdit(entry)}
+					tabindex="0"
+					role="button"
+				>
+					<!-- Header: category + source -->
+					<div class="flex items-center gap-2 mb-2">
+						{#if entry.category}
+							<span class="text-xs text-muted bg-base px-1.5 py-0.5 rounded">{entry.category}</span>
+						{/if}
+						{#if entry.source && entry.source !== 'librarian'}
+							<span class="text-xs px-1.5 py-0.5 rounded bg-cyan/10 text-cyan border border-cyan/30">{entry.source}</span>
+						{/if}
+						<span class="text-xs text-muted font-mono ml-auto" title={fullTime(entry.updated_at)}>{smartTimeDiff(entry.updated_at)}</span>
+					</div>
 
-							<!-- Content preview -->
-							<p class="text-secondary text-sm leading-relaxed">{truncate(entry.content, 150)}</p>
-						</div>
+					<!-- Title -->
+					<h3 class="text-primary text-sm font-medium mb-2 line-clamp-1">{entry.title}</h3>
 
-						<!-- Actions -->
-						<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+					<!-- Plain-text preview -->
+					<p class="text-secondary text-xs leading-relaxed line-clamp-3 mb-3" title={stripMarkdown(entry.content)}>{stripMarkdown(entry.content)}</p>
+
+					<!-- Actions (shown on hover) -->
+					<div class="mt-auto flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity" role="presentation" onclick={(e) => e.stopPropagation()}>
+						<button
+							onclick={() => openEdit(entry)}
+							class="px-2 py-1 text-xs text-secondary hover:text-primary border border-edge hover:border-edge-hi rounded transition-colors"
+						>
+							Edit
+						</button>
+						{#if confirmingDeleteId === entry.id}
 							<button
-								onclick={() => openEdit(entry)}
-								class="px-2 py-1 text-xs text-secondary hover:text-primary border border-edge hover:border-edge-hi rounded transition-colors"
+								onclick={() => handleDelete(entry.id)}
+								disabled={deletingId === entry.id}
+								class="px-2 py-1 text-xs text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-400/50 rounded transition-colors disabled:opacity-50"
 							>
-								Edit
+								{deletingId === entry.id ? '...' : 'Confirm'}
 							</button>
-							{#if confirmingDeleteId === entry.id}
-								<button
-									onclick={() => handleDelete(entry.id)}
-									disabled={deletingId === entry.id}
-									class="px-2 py-1 text-xs text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-400/50 rounded transition-colors disabled:opacity-50"
-								>
-									{deletingId === entry.id ? '...' : 'Confirm'}
-								</button>
-								<button
-									onclick={() => confirmingDeleteId = null}
-									class="px-2 py-1 text-xs text-muted hover:text-secondary transition-colors"
-								>
-									Cancel
-								</button>
-							{:else}
-								<button
-									onclick={() => confirmingDeleteId = entry.id}
-									class="px-2 py-1 text-xs text-red-400 hover:text-red-300 transition-colors"
-								>
-									Delete
-								</button>
-							{/if}
-						</div>
+							<button
+								onclick={() => confirmingDeleteId = null}
+								class="px-2 py-1 text-xs text-muted hover:text-secondary transition-colors"
+							>
+								Cancel
+							</button>
+						{:else}
+							<button
+								onclick={() => confirmingDeleteId = entry.id}
+								class="px-2 py-1 text-xs text-red-400 hover:text-red-300 transition-colors"
+							>
+								Delete
+							</button>
+						{/if}
 					</div>
 				</div>
 			{/each}
 		</div>
+
+		{#if filteredKnowledge.length === 0}
+			<p class="text-muted text-sm text-center py-12">No entries match the selected category.</p>
+		{/if}
 	{/if}
 </div>
 

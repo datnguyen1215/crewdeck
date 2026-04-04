@@ -5,6 +5,7 @@ import { logger } from "./logger.js";
 import { homedir } from "os";
 import { getTerminalSession } from "./orchestration/pty-service.js";
 import { getProject } from "./db/repositories/projects.js";
+import { validateSessionFromCookie } from "./middleware/auth.js";
 
 interface TerminalSession {
   pty: IPty;
@@ -21,6 +22,12 @@ export function setupTerminalWs(server: Server): WebSocketServer {
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     try {
+      const authSession = validateSessionFromCookie(req.headers.cookie);
+      if (!authSession) {
+        ws.close(4001, "Unauthorized");
+        return;
+      }
+
       const url = new URL(req.url ?? "", "http://localhost");
       const projectId = url.searchParams.get("projectId");
 

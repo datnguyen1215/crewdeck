@@ -26,8 +26,8 @@ describe("dispatch-queue", () => {
 
     // Create test project
     db.prepare(
-      "INSERT INTO Project (id, name, max_concurrency) VALUES (?, ?, ?)",
-    ).run(PROJECT_ID, "Test Project", 2);
+      "INSERT INTO Project (id, name) VALUES (?, ?)",
+    ).run(PROJECT_ID, "Test Project");
 
     // Create test issues
     db.prepare(

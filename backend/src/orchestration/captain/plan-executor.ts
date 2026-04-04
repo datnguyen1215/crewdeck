@@ -6,7 +6,8 @@
  */
 import { logger } from "../../logger.js";
 import { eventBus } from "../../events/bus.js";
-import { getActiveProcessCount } from "../processes.js";
+import * as agentRunRepo from "../../db/repositories/agent-runs.js";
+import * as globalConfigRepo from "../../db/repositories/global-config.js";
 import { getProject } from "../../db/repositories/projects.js";
 import * as issueRepo from "../../db/repositories/issues.js";
 import * as commentRepo from "../../db/repositories/comments.js";
@@ -16,6 +17,7 @@ import {
   handleCreatePR,
   handleScanCodebase,
 } from "../command-handlers.js";
+import type { Issue } from "../../types/entities.js";
 import type {
   Action,
   ActionPlan,
@@ -37,6 +39,31 @@ export interface ActionResult {
   success: boolean;
   message: string;
   data?: unknown;
+}
+
+/**
+ * Shared guard for actions that operate on an existing issue.
+ * Handles issue lookup, null check, project ownership check, and error formatting.
+ */
+function withIssueGuard(
+  projectId: string,
+  issueId: string,
+  action: Action,
+  fn: (issue: Issue) => ActionResult,
+): ActionResult {
+  try {
+    const issue = issueRepo.getIssue(issueId);
+    if (!issue) {
+      return { action, success: false, message: "Issue not found" };
+    }
+    if (issue.project_id !== projectId) {
+      return { action, success: false, message: "Issue belongs to a different project" };
+    }
+    return fn(issue);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { action, success: false, message: `Failed: ${message}` };
+  }
 }
 
 /**
@@ -103,32 +130,14 @@ function executeComment(
   projectId: string,
   action: CommentAction,
 ): ActionResult {
-  try {
-    const issue = issueRepo.getIssue(action.issue_id);
-    if (!issue) {
-      return { action, success: false, message: "Issue not found" };
-    }
-    if (issue.project_id !== projectId) {
-      return {
-        action,
-        success: false,
-        message: "Issue belongs to a different project",
-      };
-    }
+  return withIssueGuard(projectId, action.issue_id, action, () => {
     const comment = commentRepo.createComment(action.issue_id, {
       author_type: "captain",
       content: action.content,
     });
     eventBus.emit("comment.added", { comment, project_id: projectId });
     return { action, success: true, message: "Comment added" };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return {
-      action,
-      success: false,
-      message: `Failed to add comment: ${message}`,
-    };
-  }
+  });
 }
 
 /**
@@ -177,18 +186,7 @@ function executeUpdateIssue(
   projectId: string,
   action: UpdateIssueAction,
 ): ActionResult {
-  try {
-    const issue = issueRepo.getIssue(action.issue_id);
-    if (!issue) {
-      return { action, success: false, message: "Issue not found" };
-    }
-    if (issue.project_id !== projectId) {
-      return {
-        action,
-        success: false,
-        message: "Issue belongs to a different project",
-      };
-    }
+  return withIssueGuard(projectId, action.issue_id, action, (issue) => {
     const updates: { status?: string; title?: string } = {};
     if (action.status !== undefined) updates.status = action.status;
     if (action.title !== undefined) updates.title = action.title;
@@ -203,19 +201,11 @@ function executeUpdateIssue(
         project_id: projectId,
         from: oldStatus,
         to: action.status,
-        actor_type: "agent",
-        actor_id: "captain",
+        actor_type: "system",
       });
     }
     return { action, success: true, message: "Issue updated" };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return {
-      action,
-      success: false,
-      message: `Failed to update issue: ${message}`,
-    };
-  }
+  });
 }
 
 /**
@@ -227,6 +217,7 @@ async function executeCreatePR(
 ): Promise<ActionResult> {
   const result = await handleCreatePR(projectId, {
     issue_id: action.issue_id,
+    body: action.body,
   });
   return {
     action,
@@ -254,19 +245,7 @@ function executeSetDependencies(
   projectId: string,
   action: SetDependenciesAction,
 ): ActionResult {
-  try {
-    const issue = issueRepo.getIssue(action.issue_id);
-    if (!issue) {
-      return { action, success: false, message: "Issue not found" };
-    }
-    if (issue.project_id !== projectId) {
-      return {
-        action,
-        success: false,
-        message: "Issue belongs to a different project",
-      };
-    }
-
+  return withIssueGuard(projectId, action.issue_id, action, () => {
     // Resolve truncated dependency IDs before passing to repository
     const resolvedDeps: string[] = [];
     for (const depId of action.depends_on) {
@@ -288,14 +267,7 @@ function executeSetDependencies(
       message: `Set ${added.length} dependencies`,
       data: { dependencies: added },
     };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return {
-      action,
-      success: false,
-      message: `Failed to set dependencies: ${message}`,
-    };
-  }
+  });
 }
 
 /**
@@ -394,8 +366,8 @@ export async function executePlan(
 
   // Execute dispatch actions in parallel up to available capacity
   if (dispatchActions.length > 0) {
-    const runningAgents = getActiveProcessCount(projectId);
-    const availableSlots = Math.max(0, project.max_concurrency - runningAgents);
+    const runningAgents = agentRunRepo.countRunningGlobal();
+    const availableSlots = Math.max(0, globalConfigRepo.getMaxConcurrency() - runningAgents);
 
     logger.info(
       {

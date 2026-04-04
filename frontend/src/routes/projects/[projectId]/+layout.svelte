@@ -15,6 +15,7 @@
 	let agents = $state<Agent[]>([]);
 	let project = $state<Project | null>(null);
 
+	setContext('projectId', () => projectId);
 	setContext('projectWs', () => ws);
 	setContext('agents', () => agents);
 	setContext('project', () => project);

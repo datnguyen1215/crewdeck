@@ -1,0 +1,89 @@
+import { db } from "../index.js";
+import crypto from "node:crypto";
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  password_hash: string;
+  created_at: string;
+  setup_completed: number;
+}
+
+export interface Session {
+  id: string;
+  user_id: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export function adminExists(): boolean {
+  const row = db.prepare("SELECT COUNT(*) as count FROM AdminUser").get() as {
+    count: number;
+  };
+  return row.count > 0;
+}
+
+export function getAdminByUsername(username: string): AdminUser | null {
+  return (
+    (db.prepare("SELECT * FROM AdminUser WHERE username = ?").get(username) as
+      | AdminUser
+      | undefined) ?? null
+  );
+}
+
+export function createAdmin(username: string, passwordHash: string): AdminUser {
+  const id = crypto.randomUUID();
+  db.prepare(
+    "INSERT INTO AdminUser (id, username, password_hash) VALUES (?, ?, ?)",
+  ).run(id, username, passwordHash);
+  return db
+    .prepare("SELECT * FROM AdminUser WHERE id = ?")
+    .get(id) as AdminUser;
+}
+
+export function getAdminById(id: string): AdminUser | null {
+  return (
+    (db.prepare("SELECT * FROM AdminUser WHERE id = ?").get(id) as
+      | AdminUser
+      | undefined) ?? null
+  );
+}
+
+export function createSession(userId: string): Session {
+  const id = crypto.randomBytes(32).toString("hex");
+  const expiresAt = "9999-12-31T23:59:59Z";
+  db.prepare(
+    "INSERT INTO Session (id, user_id, expires_at) VALUES (?, ?, ?)",
+  ).run(id, userId, expiresAt);
+  return {
+    id,
+    user_id: userId,
+    expires_at: expiresAt,
+    created_at: new Date().toISOString(),
+  };
+}
+
+export function getSession(
+  token: string,
+): (Session & { username: string; setup_completed: number }) | null {
+  return (
+    (db
+      .prepare(
+        `SELECT s.*, u.username, u.setup_completed FROM Session s
+     JOIN AdminUser u ON s.user_id = u.id
+     WHERE s.id = ?`,
+      )
+      .get(token) as (Session & { username: string; setup_completed: number }) | undefined) ?? null
+  );
+}
+
+export function deleteSession(token: string): void {
+  db.prepare("DELETE FROM Session WHERE id = ?").run(token);
+}
+
+export function markSetupComplete(userId: string): void {
+  db.prepare("UPDATE AdminUser SET setup_completed = 1 WHERE id = ?").run(
+    userId,
+  );
+}
+

@@ -1,17 +1,14 @@
 /**
  * Monitor conversation history retrieval.
  */
-import * as chatRepo from "../../db/repositories/chat-messages.js";
+import * as monitorRepo from "../../db/repositories/monitor-messages.js";
 
 const MAX_CONTEXT_MESSAGES = 10;
 
-/**
- * Get monitor conversation history from DB.
- * Monitor messages are stored without a session_id.
- */
+/** Get monitor conversation history from DB. */
 export const getMonitorHistory = (projectId: string): string => {
-  const messages = chatRepo
-    .getByProjectWithoutSession(projectId, MAX_CONTEXT_MESSAGES)
+  const messages = monitorRepo
+    .getByProject(projectId, MAX_CONTEXT_MESSAGES)
     .reverse();
   if (messages.length === 0) return "";
 

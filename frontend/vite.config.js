@@ -10,6 +10,8 @@ export default defineConfig({
     port: 9380,
     proxy: {
       "/api": { target: backendUrl, timeout: 120000 },
+      "/ws": { target: backendUrl, ws: true },
+      "/terminal-ws": { target: backendUrl, ws: true },
     },
   },
 });

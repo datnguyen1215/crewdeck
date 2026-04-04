@@ -1,7 +1,10 @@
 import express from "express";
+import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
 import { logger } from "./logger.js";
 import { errorHandler } from "./middleware/error-handler.js";
+import { requireAuth } from "./middleware/auth.js";
+import { ensureSystemKey } from "./db/repositories/api-keys.js";
 import projectsRouter from "./routes/projects.js";
 import reposRouter from "./routes/repos.js";
 import agentsRouter from "./routes/agents.js";
@@ -17,26 +20,65 @@ import agentConfigRouter from "./routes/agent-config.js";
 import globalConfigRouter from "./routes/global-config.js";
 import globalEnvironmentRouter from "./routes/global-environment.js";
 import terminalRouter from "./routes/terminal.js";
-import chatRouter from "./routes/chat.js";
+import monitorRouter from "./routes/monitor.js";
+import chatThreadsRouter from "./routes/chat-threads.js";
+import authRouter from "./routes/auth.js";
+import apiKeysRouter from "./routes/api-keys.js";
+import globalActivityRouter from "./routes/global-activity.js";
+
+// In-memory system API key — set once on startup, used for spawning agents/captains
+let systemApiKey: string | null = null;
+
+export function getSystemApiKey(): string | null {
+  return systemApiKey;
+}
 
 export interface CreateAppOpts {
   silent?: boolean;
+  skipAuth?: boolean;
 }
 
 export function createApp(opts: CreateAppOpts = {}) {
+  // Ensure system API key exists — always recreates to get raw key in memory
+  if (!systemApiKey && !opts.skipAuth) {
+    systemApiKey = ensureSystemKey();
+  }
+
   const app = express();
 
-  app.use(express.json());
+  // Trust the first reverse proxy so req.ip reflects the real client IP.
+  // Override with TRUST_PROXY env (e.g. "loopback", "1").
+  app.set("trust proxy", process.env.TRUST_PROXY ?? 1);
+
+  app.use(express.json({ limit: "5mb" }));
+  app.use(cookieParser());
 
   if (!opts.silent) {
-    app.use(pinoHttp({ logger }));
+    app.use(pinoHttp({
+      logger,
+      serializers: {
+        req(req) {
+          return { method: req.method, url: req.url };
+        },
+        res(res) {
+          return { statusCode: res.statusCode };
+        },
+      },
+    }));
   }
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
 
+  // Auth routes (public — no session required)
   const v1 = "/api/v1";
+  app.use(`${v1}/auth`, authRouter);
+
+  // All other routes require authentication (unless skipped for testing)
+  if (!opts.skipAuth) {
+    app.use(requireAuth);
+  }
   app.use(`${v1}/projects`, projectsRouter);
   app.use(`${v1}/projects/:projectId/repos`, reposRouter);
   app.use(`${v1}/crew`, agentsRouter);
@@ -52,9 +94,12 @@ export function createApp(opts: CreateAppOpts = {}) {
   app.use(`${v1}/global-config`, globalConfigRouter);
   app.use(`${v1}/global-config/environment`, globalEnvironmentRouter);
   app.use(`${v1}/projects/:projectId`, terminalRouter);
-  app.use(`${v1}/projects/:projectId`, chatRouter);
+  app.use(`${v1}/projects/:projectId`, monitorRouter);
+  app.use(`${v1}/projects/:projectId`, chatThreadsRouter);
   app.use(`${v1}/internal`, internalRouter);
   app.use(`${v1}/vcs-accounts`, vcsAccountsRouter);
+  app.use(`${v1}/api-keys`, apiKeysRouter);
+  app.use(`${v1}/activity`, globalActivityRouter);
 
   app.use(errorHandler);
 

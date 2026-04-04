@@ -1,13 +1,13 @@
 /**
  * DB-backed dispatch queue for agent runs.
  * Replaces the in-memory queue with persistent storage using AgentRun table.
- * Supports global and per-project concurrency limits.
+ * Enforces a single global concurrency limit across all projects.
  */
 import * as log from "../logger.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import * as projectRepo from "../db/repositories/projects.js";
 import * as crew from "./crew.js";
-import { config } from "../config.js";
+import * as globalConfigRepo from "../db/repositories/global-config.js";
 import type { AgentRun } from "../types/entities.js";
 
 /**
@@ -52,20 +52,10 @@ export const isAgentActive = (
   issueId: string,
   agentId: string,
 ): boolean => {
-  const queuedRuns = agentRunRepo.listQueuedRuns(projectId);
-  const hasQueued = queuedRuns.some(
+  const activeRuns = agentRunRepo.listActiveRunsForProject(projectId);
+  return activeRuns.some(
     (run) => run.issue_id === issueId && run.agent_id === agentId,
   );
-  if (hasQueued) return true;
-
-  const runningRuns = agentRunRepo.listActiveRunsForProject(projectId);
-  const hasRunning = runningRuns.some(
-    (run) =>
-      run.status === "running" &&
-      run.issue_id === issueId &&
-      run.agent_id === agentId,
-  );
-  return hasRunning;
 };
 
 /**
@@ -102,25 +92,15 @@ export const drainQueue = async (
   const project = projectRepo.getProject(projectId);
   if (!project) return;
 
-  const maxGlobal = config.maxAgents;
+  const maxConcurrency = globalConfigRepo.getMaxConcurrency();
 
   while (true) {
     // Check global limit
     const globalRunning = agentRunRepo.countRunningGlobal();
-    if (globalRunning >= maxGlobal) {
+    if (globalRunning >= maxConcurrency) {
       log.logger.debug(
-        { globalRunning, maxGlobal },
+        { globalRunning, maxConcurrency },
         "Global concurrency limit reached, stopping queue drain",
-      );
-      return;
-    }
-
-    // Check project limit
-    const projectRunning = agentRunRepo.countRunningForProject(projectId);
-    if (projectRunning >= project.max_concurrency) {
-      log.logger.debug(
-        { projectRunning, maxConcurrency: project.max_concurrency, projectId },
-        "Project concurrency limit reached, stopping queue drain",
       );
       return;
     }
@@ -147,16 +127,7 @@ export const drainQueue = async (
       agentRunRepo.updateAgentRun(run.id, { status: "failed" });
       continue;
     }
-
-    // Skip non-dispatchable agents (e.g. captain is a background monitor, not spawnable)
-    if (agent.dispatchable === false) {
-      log.logger.warn(
-        { agentId: agent.id, runId: run.id },
-        "Queued agent is not dispatchable, marking as failed",
-      );
-      agentRunRepo.updateAgentRun(run.id, { status: "failed" });
-      continue;
-    }
+    // Non-dispatchable agents are rejected at enqueue time (enqueueRun)
 
     log.logger.info(
       { agentId: agent.id, issueId: run.issue_id, runId: run.id },

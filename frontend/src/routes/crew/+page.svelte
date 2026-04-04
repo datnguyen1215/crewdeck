@@ -5,112 +5,83 @@
 		setAgentModel,
 		deleteAgentConfig,
 		getGlobalConfig,
-		setProvider,
-		isGlmAvailable,
+		setDefaultModel,
+		getModelAvailability,
 		type Agent,
-		type AgentConfig,
-		type Provider
+		type AgentConfig
 	} from '$lib/api/http.js';
 	import { toastStore } from '$lib/stores/toasts.svelte.js';
-	import Modal from '$lib/components/Modal.svelte';
 
 	let agents = $state<Agent[]>([]);
 	let configs = $state<AgentConfig[]>([]);
-	let currentProvider = $state<Provider>('claude');
-	let glmAvailable = $state(false);
+	let defaultModel = $state('sonnet');
+	let glmAvailable = $state(true);
 	let loading = $state(true);
 	let saving = $state<Record<string, boolean>>({});
-	let providerSaving = $state(false);
-	let showConfirmDialog = $state(false);
-	let pendingProvider = $state<Provider | null>(null);
+	let defaultSaving = $state(false);
+
+	const ALL_MODELS = [
+		{ value: 'sonnet', label: 'Sonnet', provider: 'claude' },
+		{ value: 'opus', label: 'Opus', provider: 'claude' },
+		{ value: 'haiku', label: 'Haiku', provider: 'claude' },
+		{ value: 'glm-5.1', label: 'GLM-5.1', provider: 'glm' },
+		{ value: 'glm-5', label: 'GLM-5', provider: 'glm' },
+		{ value: 'glm-5-turbo', label: 'GLM-5-Turbo', provider: 'glm' },
+		{ value: 'glm-4.7', label: 'GLM-4.7', provider: 'glm' }
+	];
+
+	function modelLabel(value: string): string {
+		return ALL_MODELS.find(m => m.value === value)?.label ?? value;
+	}
 
 	$effect(() => {
 		let cancelled = false;
 		loading = true;
-		Promise.all([listAllAgents(), listAgentConfig(), getGlobalConfig(), isGlmAvailable()])
-			.then(([a, c, g, glm]) => {
+		Promise.all([listAllAgents(), listAgentConfig(), getGlobalConfig(), getModelAvailability()])
+			.then(([a, c, g, avail]) => {
 				if (cancelled) return;
 				agents = a;
 				configs = c;
-				currentProvider = g.provider;
-				glmAvailable = glm.available;
+				defaultModel = g.defaultModel;
+				glmAvailable = avail.glm.available;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load crew', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
 		return () => { cancelled = true; };
 	});
 
-	// Model options per provider
-	const CLAUDE_MODELS = [
-		{ value: '', label: 'Default (Sonnet)' },
-		{ value: 'sonnet', label: 'Sonnet' },
-		{ value: 'opus', label: 'Opus' },
-		{ value: 'haiku', label: 'Haiku' }
-	];
-	const GLM_MODELS = [
-		{ value: '', label: 'Default (GLM-5-Turbo)' },
-		{ value: 'glm-5.1', label: 'GLM-5.1' },
-		{ value: 'glm-5', label: 'GLM-5' },
-		{ value: 'glm-5-turbo', label: 'GLM-5-Turbo' },
-		{ value: 'glm-4.7', label: 'GLM-4.7' }
-	];
-
-	function getModelOptions() {
-		return currentProvider === 'glm' ? GLM_MODELS : CLAUDE_MODELS;
+	function getAgentModel(agentId: string): string {
+		return configs.find(c => c.agent_id === agentId)?.model ?? '';
 	}
 
-	function getAgentModel(agentId: string): string {
-		return configs.find(c => c.agent_id === agentId && c.provider === currentProvider)?.model ?? '';
+	async function onDefaultModelChange(value: string) {
+		defaultSaving = true;
+		try {
+			const result = await setDefaultModel(value);
+			defaultModel = result.model;
+			toastStore.add(`Default model set to ${modelLabel(defaultModel)}`, 'success');
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to save default model', 'error');
+		} finally {
+			defaultSaving = false;
+		}
 	}
 
 	async function onModelChange(agentId: string, value: string) {
 		saving = { ...saving, [agentId]: true };
 		try {
 			if (value === '') {
-				await deleteAgentConfig(agentId, currentProvider);
-				configs = configs.filter(c => !(c.agent_id === agentId && c.provider === currentProvider));
+				await deleteAgentConfig(agentId);
+				configs = configs.filter(c => c.agent_id !== agentId);
 			} else {
-				const updated = await setAgentModel(agentId, currentProvider, value);
-				const idx = configs.findIndex(c => c.agent_id === agentId && c.provider === currentProvider);
-				if (idx >= 0) {
-					configs = configs.map(c => (c.agent_id === agentId && c.provider === currentProvider) ? updated : c);
-				} else {
-					configs = [...configs, updated];
-				}
+				const updated = await setAgentModel(agentId, value);
+				configs = configs.map(c => (c.agent_id === agentId) ? updated : c);
 			}
 		} catch (err) {
 			toastStore.add(err instanceof Error ? err.message : 'Failed to save model', 'error');
 		} finally {
 			saving = { ...saving, [agentId]: false };
 		}
-	}
-
-	function onProviderSelect(e: Event) {
-		const value = (e.target as HTMLSelectElement).value as Provider;
-		if (value === currentProvider) return;
-		pendingProvider = value;
-		showConfirmDialog = true;
-	}
-
-	async function confirmProviderSwitch() {
-		if (!pendingProvider) return;
-		showConfirmDialog = false;
-		providerSaving = true;
-		try {
-			const result = await setProvider(pendingProvider);
-			currentProvider = result.provider;
-			toastStore.add(`Switched to ${result.provider === 'glm' ? 'GLM (Z.AI)' : 'Claude (Pro Max)'}`, 'success');
-		} catch (err) {
-			toastStore.add(err instanceof Error ? err.message : 'Failed to switch provider', 'error');
-		} finally {
-			providerSaving = false;
-			pendingProvider = null;
-		}
-	}
-
-	function cancelProviderSwitch() {
-		showConfirmDialog = false;
-		pendingProvider = null;
 	}
 </script>
 
@@ -126,23 +97,31 @@
 		</p>
 	</div>
 
-	<!-- Provider Toggle -->
-	<div class="mb-6 p-4 bg-surface border border-edge rounded max-w-md">
-		<label for="provider-select" class="block text-xs text-muted uppercase tracking-widest mb-2">AI Provider</label>
+	<!-- Default Model -->
+	<div class="mb-4 p-4 bg-surface border border-edge rounded max-w-md">
+		<label for="default-model-select" class="block text-xs text-muted uppercase tracking-widest mb-2">Default Model</label>
 		<select
-			id="provider-select"
-			value={currentProvider}
-			onchange={onProviderSelect}
-			disabled={loading || providerSaving}
+			id="default-model-select"
+			value={defaultModel}
+			onchange={(e) => onDefaultModelChange((e.target as HTMLSelectElement).value)}
+			disabled={loading || defaultSaving}
 			class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
 		>
-			<option value="claude">Claude (Pro Max)</option>
-			<option value="glm" disabled={!glmAvailable}>GLM (Z.AI){!glmAvailable ? ' — ZAI_API_KEY not set' : ''}</option>
+			{#each ALL_MODELS as model (model.value)}
+				<option value={model.value} disabled={model.provider === 'glm' && !glmAvailable}>
+					{model.label}{model.provider === 'glm' && !glmAvailable ? ' — unavailable' : ''}
+				</option>
+			{/each}
 		</select>
-		{#if !glmAvailable}
-			<p class="text-muted text-xs mt-1.5">Set ZAI_API_KEY environment variable to enable GLM</p>
-		{/if}
+		<p class="text-muted text-xs mt-1.5">All crew members use this unless overridden</p>
 	</div>
+
+	{#if !glmAvailable}
+		<div class="mb-6 px-4 py-2.5 bg-surface border border-edge rounded max-w-md flex items-start gap-2">
+			<span class="text-yellow-400 text-sm leading-5">⚠</span>
+			<p class="text-muted text-xs leading-5">GLM models unavailable — ZAI_API_KEY not set</p>
+		</div>
+	{/if}
 
 	{#if loading}
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
@@ -176,9 +155,19 @@
 							disabled={saving[agent.id]}
 							class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
 						>
-							{#each getModelOptions() as opt (opt.value)}
-								<option value={opt.value}>{opt.label}</option>
-							{/each}
+							<option value="">Default ({modelLabel(defaultModel)})</option>
+							<optgroup label="Claude">
+								{#each ALL_MODELS.filter(m => m.provider === 'claude') as model (model.value)}
+									<option value={model.value}>{model.label}</option>
+								{/each}
+							</optgroup>
+							<optgroup label="GLM">
+								{#each ALL_MODELS.filter(m => m.provider === 'glm') as model (model.value)}
+									<option value={model.value} disabled={!glmAvailable}>
+										{model.label}{!glmAvailable ? ' — unavailable' : ''}
+									</option>
+								{/each}
+							</optgroup>
 						</select>
 					</div>
 				</div>
@@ -186,26 +175,3 @@
 		</div>
 	{/if}
 </div>
-
-<!-- Confirmation Dialog -->
-<Modal open={showConfirmDialog} onClose={cancelProviderSwitch} label="Switch Provider" maxWidth="max-w-md">
-	<h2 class="text-primary font-semibold text-lg mb-3">Switch Provider?</h2>
-	<p class="text-muted text-sm mb-6">
-		This will restart all active Captain terminal sessions.
-		Existing agent runs will continue with their original provider until completion.
-	</p>
-	<div class="flex justify-end gap-3">
-		<button
-			onclick={cancelProviderSwitch}
-			class="px-4 py-2 text-sm text-muted hover:text-primary border border-edge rounded transition-colors"
-		>
-			Cancel
-		</button>
-		<button
-			onclick={confirmProviderSwitch}
-			class="px-4 py-2 text-sm bg-cyan text-base font-medium rounded hover:opacity-90 transition-opacity"
-		>
-			Switch Provider
-		</button>
-	</div>
-</Modal>

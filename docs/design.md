@@ -27,8 +27,6 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - Knowledge entries for project context (conventions, structure notes, gotchas) injected into agent prompts.
 - One or more linked GitHub repositories.
 - A shared roster of 5 fixed agents (defined globally, not per-project; all are dispatchable).
-- A concurrency limit (max simultaneous agent processes).
-- A chain depth limit (max agent dispatches per issue before requiring manual reset).
 - Agent model preferences are configured globally via the `/crew` page (not per-project).
 
 ### Agent
@@ -45,7 +43,7 @@ Orchestration is driven by `/dispatch` commands in issue comments. When a user o
 
 A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch engineer lead`. When multiple agents are dispatched, they are grouped as a batch and spawned immediately.
 
-The chain depth is tracked per issue (capped at the project's `max_chain_depth` setting, default 20) to prevent infinite loops. Concurrency is bounded by the project's `max_concurrency` setting.
+The chain depth is tracked per issue (capped at the global `max_chain_depth` setting, default 20) to prevent infinite loops. Concurrency is bounded by the global `max_concurrency` setting.
 
 ### Issue
 
@@ -115,10 +113,11 @@ Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_
 | **WebSocket**          | `ws`                            | Minimal, no abstraction overhead                                                                                                                                                   |
 | **Testing**            | Vitest + supertest              | Vitest for unit tests; supertest for HTTP integration tests                                                                                                                        |
 | **Logging**            | pino                            | Fast structured JSON logging                                                                                                                                                       |
+| **Password hashing**   | bcrypt                          | Industry-standard, adaptive cost (≥ 12 rounds)                                                                                                                                     |
 | **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate                                                                                                                                       |
 | **CSS**                | Tailwind CSS                    | Utility-first, dark theme; shared UI primitives (`Button`, `TextInput`, `Select`) in `frontend/src/lib/components/ui/` enforce consistency without a third-party component library |
 | **Configuration**      | Environment variables (`.env`)  | Simple, standard approach                                                                                                                                                          |
-| **Agent spawning**     | `claude -p` (print mode)        | One-shot process per mention; no persistent sessions to manage                                                                                                                     |
+| **Agent spawning**     | `claude -p` (print mode)        | One-shot process per mention; no persistent sessions to manage. Chat threads use `--resume` for persistent Claude sessions.                                                      |
 
 ## Project Structure
 
@@ -139,11 +138,15 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │                  Frontend (Svelte)               │
 │                                                  │
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │ Project  │ │  Issue   │ │  Comment Thread  │ │
+│  │ Cross-  │ │  Issue   │ │  Comment Thread  │ │
 │  │Dashboard │ │  Board   │ │  (@mention UI)   │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
-│  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │Terminals │ │ Activity │ │ Captain (Chat)   │ │
+│  ┌──────────┐ ┌──────────────────┐             │
+│  │Terminals │ │ Chat (Threads)   │             │
+│  └──────────┘ └──────────────────┘             │
+│  ┌──────────┐ ┌──────────┐                     │
+│  │  Login   │ │  Setup   │  (standalone pages) │
+│  └──────────┘ └──────────┘                     │
 │  │          │ │   Log    │ │                  │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 └────────────────────┬────────────────────────────┘
@@ -156,6 +159,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │   REST   │ │WebSocket │ │   Event Bus      │ │
 │  │ API (v1) │ │ Server   │ │  (EventEmitter)  │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
+│  ┌──────────────────────────────────────────────┐ │
+│  │  Auth Middleware (session cookie or API key)  │ │
+│  └──────────────────────────────────────────────┘ │
 │  ┌──────────────────────────────────────────────┐ │
 │  │  MentionHandler + ProcessAdapter            │ │
 │  │  (comment.added → claude -p → comment)      │ │
@@ -178,27 +184,31 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 **Frontend (Svelte)**
 
-- Renders project dashboard, issue board, global crew page (`/crew`), activity log (Mission Control terminal at bottom of issues page showing activity entries with clickable issue title links), Terminals page, and Captain page (side-by-side Chat + Monitor). The crew page is global (not per-project) and includes a provider toggle at the top (Claude / Z.AI) that switches the active AI provider for all agent spawns. Each agent card has a model dropdown that shows provider-specific options: Claude models (Opus, Sonnet, Haiku) when Claude is selected, GLM models (GLM-5.1, GLM-5, GLM-5-Turbo, GLM-4.7) when GLM is selected. Model selections are saved per provider (`PUT /agent-config/:agentId` with `provider` + `model`), so switching providers automatically shows each agent's saved model for that provider. Removing an override falls back to the provider's default: `sonnet` for Claude, `glm-5-turbo` for GLM (`DELETE /agent-config/:agentId/:provider`). All agents including Captain are shown since they all run Claude CLI processes. The sidebar surfaces "Crew" as a global nav item linking to `/crew`. The sidebar uses accordion-style expansion for project submenus — only one project submenu is expanded at a time; expanding a new project collapses any previously expanded one.
-- Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity). The project layout (`+layout.svelte`) establishes shared context for WebSocket and agents data via Svelte `setContext`/`getContext`. Project and agents data are fetched using `fetchEffect` (from `$lib/utils/fetch-effect.svelte.js`), which handles cancellation on navigation and error toasts automatically — ensuring stale data from a previous project never overwrites state after rapid navigation, and agents re-fetch on remount. The layout also includes a `<div id="modal-portal">` element as a sibling to `<main>` for rendering modals outside the scroll container.
+- Renders the cross-project Dashboard (`/dashboard`), project issue board, global crew page (`/crew`), activity log (Mission Control terminal at bottom of issues page showing activity entries with clickable issue title links), Terminals page, and Captain page (side-by-side Chat + Monitor). The Dashboard page uses a terminal-style UI aesthetic with a `$ crew status --all` command header and scanline overlay. It fetches all projects with stats via `GET /projects?stats` and active agent counts via `GET /global-config/active-agents`. The dashboard uses a two-column layout on desktop (lg breakpoint): a "Process List" panel on the left (2/3 width) and a "Mission Log" panel on the right (1/3 width). Both panels have terminal window chrome (macOS-style traffic light dots with title bar). The Process List displays projects in a table format with columns: ID (truncated 8-char UUID), PROJECT, OPEN, PROG, PR, BLK, RDY, DONE, AGENTS, and STATUS (idle/active based on `active_runs > 0`). Column headers are color-coded (OPEN=blue, PROG=amber, PR=purple, BLK=red, RDY=green, DONE=secondary, AGENTS=cyan). Active project rows have a subtle cyan background highlight. A summary line at the bottom shows aggregate counts (e.g., "3 projects │ 3/5 agents │ 2 in progress │ 164 done"). Both panels have a blinking cyan cursor at the bottom. The Mission Log is powered by a `DashboardActivityFeed` component that fetches the 10 most recent entries via `GET /activity` (global endpoint). Each entry is displayed in a two-line layout: line 1 shows context (`[HH:MM] ActorName > projectname > issue title`) and line 2 shows the action message (indented with `pl-12` to align with content). Each entry has a 3px left border colored by actor type (Captain/Lead=cyan, Engineer=green, Librarian/Docs=purple) and actor name colored to match. Issue titles use CSS `truncate` for overflow. Project name and issue title are conditionally shown (hidden when unavailable). Project name is desktop-only (`hidden md:inline`). Older entries fade out with decreasing opacity. Clicking an entry navigates to the relevant issue or project. The dashboard uses responsive layouts: card view on mobile and table view on desktop with keyboard-accessible rows that navigate via SvelteKit `goto()`. The entire dashboard (process list, activity feed, and agent counts) updates in real-time via the global WebSocket connection (`/ws?global=true`). Active Agents refreshes silently on `run.started` and `run.completed` events. A reconnecting indicator (amber banner) is shown when the WebSocket is disconnected. The crew page is global (not per-project) and includes a provider toggle at the top (Claude / Z.AI) that switches the active AI provider for all agent spawns. Each agent card has a model dropdown that shows provider-specific options: Claude models (Opus, Sonnet, Haiku) when Claude is selected, GLM models (GLM-5.1, GLM-5, GLM-5-Turbo, GLM-4.7) when GLM is selected. Model selections are saved per provider (`PUT /agent-config/:agentId` with `provider` + `model`), so switching providers automatically shows each agent's saved model for that provider. Removing an override falls back to the provider's default: `sonnet` for Claude, `glm-5-turbo` for GLM (`DELETE /agent-config/:agentId/:provider`). All agents including Captain are shown since they all run Claude CLI processes. The sidebar surfaces "Crew" as a global nav item linking to `/crew`. The sidebar uses accordion-style expansion for project submenus — only one project submenu is expanded at a time; expanding a new project collapses any previously expanded one. Utility links (Accounts, API Keys, Settings) are grouped under a collapsible "SYSTEM" section header at the bottom of the sidebar. The SYSTEM section uses the same toggle pattern as the PROJECTS section: a clickable header with chevron icon, with collapsed state persisted to localStorage (`sidebar-system-collapsed`). When the sidebar itself is collapsed (narrow mode), the SYSTEM header is hidden and the items render as icon-only links. The Log out button remains outside both sections and is always visible.
+- Connects to backend via WebSocket for real-time updates (comments, status changes, agent activity). Per-project WebSocket connections are used for project-scoped updates (`/ws?projectId={id}`). The dashboard uses a separate global WebSocket (`/ws?global=true`) that receives events from all projects — used for real-time project stats and activity feed updates. The project layout (`+layout.svelte`) establishes shared context for WebSocket, agents, project, and projectId data via Svelte `setContext`/`getContext`. Project and agents data are fetched using `fetchEffect` (from `$lib/utils/fetch-effect.svelte.js`), which handles cancellation on navigation and error toasts automatically — ensuring stale data from a previous project never overwrites state after rapid navigation, and agents re-fetch on remount. The layout also includes a `<div id="modal-portal">` element as a sibling to `<main>` for rendering modals outside the scroll container.
 - **Modal rendering**: Modals use a portal pattern to prevent scroll jumps. `Modal.svelte` uses a Svelte action (`use:portal`) to append modal content to `#modal-portal`, which is outside the `<main class="overflow-auto">` scroll container. This prevents the browser from auto-scrolling when modals are inserted into the DOM.
-- **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each agent pane shows agent name, status badge, clickable issue link, an event feed with full content display, and elapsed time + cost. Events show their full content: assistant thinking/response text, user messages, tool call details (file paths, commands, patterns), and tool results. The feed auto-scrolls to new events when the user is at the bottom but preserves scroll position when the user has scrolled up to read history. Only agents with active runs are shown — idle agents are hidden. On mount, also fetches `GET /projects/:id/captain/status` to hydrate the captain monitor state immediately (shows spinner if `thinking`/`executing`, idle otherwise) — WebSocket events then provide live granularity. The captain monitor feed captures the `scrollToBottom` callback from the `autoscroll` action; after the initial history loads and `monitorLoading` becomes false, it awaits `tick()` then calls `scrollToBottom` explicitly to ensure the feed starts at the bottom regardless of MutationObserver timing. Subsequent new messages continue to auto-scroll via the MutationObserver as long as the user hasn't scrolled up.
-- **Captain page** (`/projects/:id/chat`) — PTY-backed terminal interface for direct CLI access to captain. Uses xterm.js for terminal rendering and connects to the backend via `/terminal-ws` WebSocket for bidirectional PTY streaming. The terminal component (`Terminal.svelte`) handles resize events, reconnection with exponential backoff, and FitAddon/WebLinksAddon integration. The page auto-creates a terminal session if none exists via `POST /projects/:id/terminal`.
-- Issue detail page (`[issueId]/+page.svelte`) is a thin orchestrator (~360 lines) that loads data, manages comment CRUD state, subscribes to WebSocket events, and passes props to focused child components:
+- **Terminals page** (`/projects/:id/terminals`) — mission-control grid of live agent panes. Uses `GET /projects/:id/active-runs` for initial data and subscribes to `run.started`, `run.event`, `run.completed` WebSocket events for live updates. Each agent pane shows agent name, status badge, clickable issue link, an event feed with full content display, and elapsed time + cost. Events show their full content: assistant thinking/response text, user messages, tool call details (file paths, commands, patterns), and tool results. The feed auto-scrolls to new events when the user is at the bottom but preserves scroll position when the user has scrolled up to read history. Only agents with active runs are shown — idle agents are hidden. The captain monitor feed was removed from this page; it now lives in the Chat interface. A deprecation notice links to the Chat page.
+- **Chat page** (`/projects/:id/chat`) — thread-based chat interface replacing the former PTY-backed Captain terminal. On desktop (≥768px), displays a split-panel layout with a 280px thread list on the left and a chat view on the right. On mobile, the thread list is full-screen; selecting a thread navigates to `/projects/:id/chat/:threadId`. The thread list is rendered by `ChatThreadList.svelte`, which fetches threads via `GET /projects/:id/chat/threads` and supports creating new threads. Subscribes to `chat.message`, `chat.thinking`, `chat.complete`, `chat.error`, and `chat.session_expired` WebSocket events to track which threads are currently active (in-memory `Set<string>`). Accepts an `activeThreadIdOverride` prop for instant active indicator — when `ChatView` fires its `onProcessingChange` callback on send, the parent sets this override so the cyan dot appears immediately without waiting for the first WebSocket event. The override is merged with WebSocket-driven active tracking: `isActive(id) = id === override || activeThreadIds.has(id)`. A pulsing cyan dot is shown next to threads with active processing. Monitor threads are pinned at the top with a cyan accent and `[auto]` badge. The page breadcrumb and header label use "Chat" instead of "Captain". The sidebar nav item label was also updated from "Captain" to "Chat". The desktop panel loads thread detail via `GET /projects/:id/chat/threads/:threadId` when a thread is selected and renders `ChatView.svelte` with the loaded thread data.
+  - **`ChatView.svelte`** — renders the full chat experience for a thread. Accepts `thread` (`ChatThreadDetail`), `projectId`, and optional `onProcessingChange` callback props. When the thread has no messages and no active processing, displays a `ChatEmptyState.svelte` component with a time-of-day greeting and clickable suggestion chips. Renders stored messages with distinct bubble styling per role (system, event, assistant, tool, user), streams assistant responses in real-time via WebSocket (`chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, `chat.complete`, `chat.session_expired`, `chat.error`), and includes status indicators with pulsing cursor. When the `chat.thinking` event fires, a "Thinking..." indicator is shown; otherwise the generic "Analyzing_" indicator appears. The indicator appears immediately after the user sends a message (optimistic `isProcessing` state) and persists until streaming begins, providing visual feedback during the gap between send and first streamed content. Tool call matching uses FIFO order (first unresolved call for the same tool name). The `chat.complete` handler reloads the thread from the API to get canonical stored messages. The `chat.error` handler resets all streaming and thinking state (`isThinking`, `isProcessing`, `isStreaming`) and displays a red-bordered error banner with the error message and a "Retry" button that re-sends the last user message (after removing the duplicate from the failed attempt). On thread change, calls `getChatThreadStatus()` to check if the captain is still processing the thread (navigate-back resilience) and restores `isProcessing` accordingly. Uses the `autoscroll` action for auto-scroll behavior and `md()` for assistant message markdown rendering. Tool call content is escaped via `esc()` helpers (`toolLine`, `toolResultLine`) to prevent XSS. Resets all streaming, thinking, processing, and error state when the thread prop changes.
+  - **`ChatEmptyState.svelte`** — empty state shown when a chat thread has no messages. Displays a time-of-day greeting ("Good morning", "Good afternoon", or "Good evening") based on the user's local clock, and 4 project-relevant suggestion chips ("What issues need attention?", "Summarize recent activity", "Review open pull requests", "What's the project status?"). Clicking a chip sends that text as a message via the `onSend` callback. Shown when `messages.length === 0 && !isStreaming && !isProcessing`.
+  - **`ChatInput.svelte`** — message input bar at the bottom of the chat view. Accepts `disabled` (boolean) and `onSend` (callback) props. Auto-expanding textarea (2 rows default, up to 8 rows) with monospace font and placeholder "Ask anything about this project...". Desktop: Enter to send, Shift+Enter for newline. Mobile: Enter for newline, Send button to send. Disabled during processing and streaming, and for monitor threads. Circular send button (arrow-up SVG icon) positioned inside the textarea (bottom-right). Active state: `bg-cyan text-base`; disabled state: `bg-surface text-muted cursor-not-allowed`. Focus state shows cyan ring (`focus:border-cyan/50 focus:ring-1 focus:ring-cyan/20`). Desktop-only keyboard hint ("Enter to send · Shift+Enter for newline") displayed below the textarea.
+  - **`[threadId]/+page.svelte`** — mobile full-screen chat view. Loads thread detail via `GET /projects/:id/chat/threads/:threadId`. Renders `ChatView.svelte` with a sticky header containing a back button and overflow menu. Overflow menu provides: Rename (inline input edit), Delete (confirmation modal, disabled for monitor threads), and New Session (confirmation modal, calls `PATCH` with `session_id: null` then reloads thread). Listens for `chat.session_expired` WebSocket events to reload the thread when the session is transparently reset.
+- Issue detail page (`[issueId]/+page.svelte`) is a thin orchestrator (~310 lines) that loads data, subscribes to WebSocket events, and passes props to focused child components. Comment CRUD state is delegated to `createCommentActions()` from `$lib/utils/comments.svelte.js` — created once outside any `$effect` so editing/deleting state persists across WebSocket-driven `issue` reassignments. Callbacks guard with `if (!issue) return` and directly mutate the `issue.comments` array:
   - **`IssueTimeline.svelte`** — renders the unified chronological timeline merging comments, activity entries, and agent run summaries. Accepts `comments`, `activityEntries`, `runs`, and `liveEvents` props. Owns activity expansion state and inline run expansion (loads run events on toggle, appends live events via a reactive `$effect`). Matches `mention.spawned`/`mention.completed` activity entries to `AgentRun` records by `agent_id` + timestamp (60s tolerance) and displays colored status dots (green = running, amber = queued, red = failed, cyan = completed). Stale-fetch guard: captures `runId` before async calls and checks it after await before updating state. Delegates rendering to two sub-components:
-    - **`TimelineComment.svelte`** — comment card with author metadata, edit mode form, markdown display, and delete button. Accepts `comment`, `index`, `editingCommentId`, `editingCommentText` (bindable), `commentWorking`, and action callbacks (`onStartEdit`, `onSaveEdit`, `onCancelEdit`, `onDelete`).
+    - **`TimelineComment.svelte`** — comment card with author metadata, edit mode form, markdown display, and delete button. Accepts `comment`, `index`, `editingCommentId`, `editingCommentText` (bindable), `commentWorking`, and action callbacks (`onStartEdit`, `onSaveEdit`, `onCancelEdit`, `onDelete`). All comment state props are passed from the parent page's `commentActions` object (created via `createCommentActions()`).
     - **`TimelineActivity.svelte`** — activity item with run matching, expandable run details with events list, and activity detail expansion. Accepts `entry`, `index`, `activityExpanded`, `expandedRun`, `expandedEvents`, `loadingEvents`, `matchedRun`, `spawnedRun`, and action callbacks (`onToggleActivityExpand`, `onToggleRunExpand`, `onOpenRunModal`).
   - **`RunDetailModal.svelte`** — modal showing the full event log for a selected run. Accepts a `run` prop and a `liveEvents` map. Loads events from the API on open, merges in any already-received live events, then appends new live events via a second `$effect` that uses `untrack()` to read `modalEvents` without creating a reactive dependency. Stale-fetch guard: captures `runId` before the API call and checks `runId !== run?.id` before assigning results.
   - **`DispatchInput.svelte`** — comment textarea with `/dispatch` autocomplete dropdown. Accepts `onSubmit` callback and `posting` prop. Delegates textarea rendering and autocomplete behavior to `DispatchAutocomplete.svelte`.
   - **`DispatchAutocomplete.svelte`** — shared reusable component encapsulating `/dispatch` autocomplete logic. Reads the `agents` list from Svelte context (`getContext('agents')`). Accepts `value` (bindable), `placeholder`, `rows`, `class`, and `onSubmit` props. Owns all autocomplete state (`showMentions`, `mentionFilter`, `mentionIdx`, `textareaEl`) and keyboard navigation (arrow keys, enter/tab to select, escape to dismiss). Used by both `DispatchInput.svelte` and `IssueComments.svelte`.
-- **Issues list page** (`routes/projects/[projectId]/+page.svelte`) is a ~410-line orchestrator that owns data fetching (`fetchEffect`), WebSocket subscriptions, filter/sort state, the `filtered` derived computation, and the dispatch/create handlers. Sorting supports four fields — `created_at`, `updated_at`, `status` (by workflow order via `STATUS_ORDER` from `$lib/config/status.ts`), and `agent` (alphabetically by name). On desktop, clicking a sortable column header toggles the sort; on mobile, a dropdown in the filter bar provides the same options. The default sort is `created_at` descending (newest first). Captain toggle state (`autoStart`, `autoMerge`) is synced from the `project` object via a `$effect` and persisted immediately on toggle via `updateProject()` with a toast confirmation. Column visibility state is managed via `visibleColumns` array (loaded from localStorage via `loadVisibleColumns()` from `$lib/config/columns.ts`, saved on change). The grid layout is computed dynamically using `computeGridCols(visibleColumns)`. It composes three presentational sub-components:
-  - **`IssueFilters.svelte`** — filter bar with search input (supports filter syntax: `status:open`, `paused:true`, combined with text search), autocomplete dropdown for filter values (arrow keys, Enter/Tab to select, Escape to dismiss), mobile-only sort controls (field + direction, hidden on desktop via `md:hidden`), captain toggles (Auto-start, Auto-merge), and `ColumnSelector` dropdown. Status and paused filters are parsed from the search query via `parseSearchQuery()` in the page. Done items are hidden by default unless explicitly included via `status:done`. All filter props use `$bindable()` for two-way binding from the page. Captain toggles receive `autoStart`/`autoMerge` as plain props and an `onCaptainToggle` callback, visually separated from filters with a left border.
+- **Issues list page** (`routes/projects/[projectId]/+page.svelte`) is a ~410-line orchestrator that owns data fetching (`fetchEffect`), WebSocket subscriptions, filter/sort state, the `filtered` derived computation, and the dispatch/create handlers. Issues are fetched paginated from the server (default 50, max 100) with a "Load more" button to fetch additional pages. The `total` count from the API enables a "X of Y issues" display. Sorting supports four fields — `created_at`, `updated_at`, `status` (by workflow order via `STATUS_ORDER` from `$lib/config/status.ts`), and `agent` (alphabetically by name). On desktop, clicking a sortable column header toggles the sort; on mobile, a dropdown in the filter bar provides the same options. The default sort is `created_at` descending (newest first). Captain toggle state (`autoStart`, `autoMerge`) is synced from the `project` object via a `$effect` and persisted immediately on toggle via `updateProject()` with a toast confirmation. Column visibility state is managed via `visibleColumns` array (loaded from localStorage via `loadVisibleColumns()` from `$lib/config/columns.ts`, saved on change). The grid layout is computed dynamically using `computeGridCols(visibleColumns)`. It composes three presentational sub-components:
+  - **`IssueFilters.svelte`** — filter bar with search input (supports filter syntax: `status:open`, `paused:true`, combined with text search), autocomplete dropdown for filter values (arrow keys, Enter/Tab to select, Escape to dismiss), mobile-only sort controls (field + direction, hidden on desktop via `md:hidden`), captain toggles (Auto-start, Auto-merge), and `ColumnSelector` dropdown. Status and paused filters are parsed from the search query via `parseSearchQuery()` in the page and applied as additional client-side filters on top of the server's default status exclusion (done issues are excluded server-side unless explicitly requested via the `status` query param). All filter props use `$bindable()` for two-way binding from the page. Captain toggles receive `autoStart`/`autoMerge` as plain props and an `onCaptainToggle` callback, visually separated from filters with a left border.
   - **`ColumnSelector.svelte`** — dropdown button labeled "Columns" with checkboxes for each configurable column. Locked columns (title, dispatch) are shown as disabled. Column visibility is bound to parent via `visibleColumns` bindable prop. Dropdown closes on click-outside or Escape key.
-  - **`IssueCard.svelte`** — mobile card view for a single issue. Shows title (with pause/proposed indicators), status badge, running agent name, dispatch button, dependencies list, and base branch (conditional). Accepts `issue`, `projectId`, `agentMap`, `visibleColumns`, `project`, `isDispatching`, `ondispatch`, and optional `animationDelay` props. Respects column visibility for agent, base branch, and time columns.
-  - **`IssueTableRow.svelte`** — desktop table row for a single issue. Dynamically renders columns based on `visibleColumns` prop. Accepts `issue`, `projectId`, `agentMap`, `visibleColumns`, `gridCols`, `project`, `isDispatching`, `ondispatch`, and `index` props. Each column section is conditionally rendered based on visibility.
+  - **`IssueCard.svelte`** — mobile card view for a single issue. Shows title (with pause/proposed indicators), status badge, running agent name, dispatch button, dependencies list, and base branch (conditional). Accepts `issue`, `agentMap`, `visibleColumns`, `isDispatching`, `ondispatch`, and optional `animationDelay` props. Reads `projectId` and `project` from Svelte context (set in the project layout). Respects column visibility for agent, base branch, and time columns.
+  - **`IssueTableRow.svelte`** — desktop table row for a single issue. Dynamically renders columns based on `visibleColumns` prop. Accepts `issue`, `agentMap`, `visibleColumns`, `gridCols`, `isDispatching`, `ondispatch`, and `index` props. Reads `projectId` and `project` from Svelte context (set in the project layout). Each column section is conditionally rendered based on visibility.
   - **Table header row** — sortable column headers (Status, Agent, Age, Updated) are rendered as `<button>` elements with `cursor-pointer`, hover state (`hover:text-primary`), and an active sort indicator (▲/▼) styled with `text-cyan`. Clicking an unsorted column sorts descending; clicking the active column toggles direction. Non-sortable columns (Title, Base, Dispatch) remain plain `<div>` elements.
-- **Mission Control terminal** (`ActivityTerminal.svelte`) — fixed-height terminal panel at the bottom of the issues list page displaying real-time activity log. Receives `issues` prop for issue title resolution. Uses `terminal.ts` formatters to convert API activity entries and WebSocket events into `TerminalLine` objects. Each line displays `[timestamp] Issue Title › message` with the issue title rendered as a clickable link to `/projects/:id/issues/:issueId` (truncated at 25 chars with full text in tooltip). Issue title resolution uses 3-tier fallback: API enrichment (`issue_title` field) → WebSocket payload → issues prop lookup. Color-coded by severity: cyan for started events (spawned, run started), green for success, red for errors, amber for warnings and status transitions, gray for info. Uses the `autoscroll` action from `$lib/utils/autoscroll.js` to auto-scroll to bottom as new events arrive (via MutationObserver) when the user is at the bottom; scroll position is preserved when the user has scrolled up. The scroll container captures the `forceScrollToBottom` callback and calls it after the initial activity load to ensure the terminal starts at the bottom. Messages include agent names (e.g., "Engineer spawned", "Engineer finished — success") with human-readable exit code descriptions. Both API-path and WebSocket-path formatters use `agent_name` when available, falling back to `agent_id`. Delegates rendering to two sub-components:
+- **Mission Control terminal** (`ActivityTerminal.svelte`) — fixed-height terminal panel at the bottom of the issues list page displaying real-time activity log. Receives `issues` prop for issue title resolution. Reads `projectId` from Svelte context (set in the project layout). Uses `terminal.ts` formatters to convert API activity entries and WebSocket events into `TerminalLine` objects. Each line displays `[timestamp] Issue Title › message` with the issue title rendered as a clickable link to `/projects/:id/issues/:issueId` (truncated at 25 chars with full text in tooltip). Issue title resolution uses 3-tier fallback: API enrichment (`issue_title` field) → WebSocket payload → issues prop lookup. Color-coded by severity: cyan for started events (spawned, run started), green for success, red for errors, amber for warnings and status transitions, gray for info. Uses the `autoscroll` action from `$lib/utils/autoscroll.js` to auto-scroll to bottom as new events arrive (via MutationObserver) when the user is at the bottom; scroll position is preserved when the user has scrolled up. The scroll container captures the `forceScrollToBottom` callback and calls it after the initial activity load to ensure the terminal starts at the bottom. Messages include actor names (e.g., "User posted a comment", "Engineer spawned", "Engineer finished — success") with human-readable exit code descriptions. Both API-path and WebSocket-path formatters use `agent_name` when available, falling back to `agent_id`, then `actor_type` ("User"/"System"/"Agent"). Delegates rendering to two sub-components:
   - **`TerminalHeader.svelte`** — title bar with collapse toggle and agent/error filter buttons. Accepts `title`, `collapsed`, `agentFilter`, `errorFilter`, and toggle callbacks.
-  - **`TerminalLine.svelte`** — single terminal line with timestamp, issue title link, message, severity coloring, and new-entry animation. Accepts a `line` prop (`TerminalLine` object).
+  - **`TerminalLine.svelte`** — single terminal line with timestamp, issue title link, message, severity coloring, and new-entry animation. Accepts `line`, `isNew`, `issueTitle`, and `truncateTitle` props. Reads `projectId` from Svelte context (set in the project layout).
 - Provides autocomplete for `/dispatch` commands in comment inputs via the shared `DispatchAutocomplete.svelte` component (used by `DispatchInput.svelte` and `IssueComments.svelte`).
 - Provides "Mark as PR Created" and "Mark as Done" action buttons on issue detail.
 - Provides "Reset chain depth" button when chain depth limit is reached.
@@ -206,6 +216,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - `event.ts` — `renderEventContent(event)` formats an `AgentRunEvent` into a human-readable string for display; `extractToolDescription(input)` extracts a short label from a tool input record. Used by `TimelineActivity.svelte`, `RunDetailModal.svelte`, and `AgentRuns.svelte`.
   - `format.ts` — `formatDuration(ms)` converts milliseconds to a `Xs` / `Xm Ys` string; `formatCost(cost)` formats a number as `$X.XXXX`. Used by `TimelineActivity.svelte`, `RunDetailModal.svelte`, and `AgentRuns.svelte`.
   - `comments.ts` — `commentStyle(authorType)` returns border/text color tokens for a comment card; `commentAuthorLabel(comment)` returns the display name for a comment author. Used by `IssueComments.svelte` and `TimelineComment.svelte`.
+  - `comments.svelte.ts` — `createCommentActions(projectId, issueId, callbacks)` encapsulates all comment CRUD state (`editingCommentId`, `editingCommentText`, `deletingCommentId`, `commentWorking`, `posting`) and methods (`postComment`, `startEditComment`, `saveEditComment`, `confirmDeleteComment`, etc.) using Svelte 5 `$state` runes. Accepts `onAdded`, `onUpdated`, `onDeleted` callbacks. Used by both `IssueComments.svelte` (wired to prop callbacks) and the issue detail page (wired to direct `issue.comments` mutations).
   - `autoscroll.js` — Svelte action that auto-scrolls a container to the bottom via MutationObserver when new content is added, while preserving scroll position when the user has scrolled up.
 - **Column configuration** (`frontend/src/lib/config/columns.ts`): Centralized column metadata and visibility management for the issues list table. Exports `COLUMN_CONFIG` array defining all available columns with `key`, `label`, `width` (Tailwind grid unit), `defaultVisible`, and `locked` flags. Provides utilities: `loadVisibleColumns()` (loads from localStorage with legacy migration from `showBaseBranch` boolean), `saveVisibleColumns()` (persists to `crewdeck:visibleColumns`), `getDefaultVisibleColumns()` (returns default set), and `computeGridCols()` (generates Tailwind `grid-cols-[...]` class from visible columns). Available columns: title (locked), status, agent, baseBranch, age, updated, dispatch (locked).
 - **Status configuration** (`frontend/src/lib/config/status.ts`): Centralized status display constants and workflow sort order. Exports `STATUS_ORDER` array defining the canonical workflow progression (Open → In Progress → PR Created → PR Conflict → CI Failed → Ready to Merge → Done) used for sorting the issues list by status column.
@@ -218,12 +229,13 @@ The frontend and backend are separate directories. Each has its own `package.jso
 **Backend (Node.js + TypeScript)**
 
 - Exposes REST API (versioned at `/api/v1`) for CRUD operations on projects, issues, comments; crew is read-only (fixed constants).
+- Admin authentication via session cookies or API keys (Bearer token). Session cookies use bcrypt password hashing, HTTP-only cookies, rate-limited login. API keys use SHA-256 hashed storage; a system key is auto-generated on startup and injected into agent/captain processes. Key management endpoints are session-auth-only (API keys cannot manage other API keys).
 - All request validation via Zod schemas. Issue and PR status fields use Zod enum validation against centralized constants (`backend/src/constants/statuses.ts`).
 - Centralized error handling middleware (all errors formatted as `{ error: { code, message, details } }`).
-- Runs WebSocket server (`ws` library) to push real-time events to the frontend.
-- Runs separate terminal WebSocket server (`/terminal-ws`) for PTY streaming.
+- Runs WebSocket server (`ws` library) to push real-time events to the frontend. Supports two connection modes: per-project (`/ws?projectId={id}`) and global (`/ws?global=true` for dashboard). Connections require a valid session cookie — validated via `validateSessionFromCookie()` before accepting.
+- Runs separate terminal WebSocket server (`/terminal-ws`) for PTY streaming. Session validation is enforced on this endpoint as well (the most sensitive endpoint — direct shell access).
 - In-process event bus (typed EventEmitter) for decoupled internal communication between components.
-- Manages agent lifecycle — spawning `claude -p` processes, tracking active processes, enforcing concurrency limits.
+- Manages agent lifecycle — spawning `claude -p` processes, tracking active processes, enforcing global concurrency limits.
 - Manages terminal sessions — persistent tmux sessions running Claude CLI with idle timeout cleanup (default 30 min, `ORCHESTRATION_PTY_IDLE_TIMEOUT_MS`).
 - Graceful shutdown on SIGTERM/SIGINT — kills active agent processes and terminal sessions.
 - Structured JSON logging via pino.
@@ -299,7 +311,7 @@ The captain monitor is split into focused modules:
 
 | Module                     | Responsibility                                                        |
 | -------------------------- | --------------------------------------------------------------------- |
-| `monitor-agent.ts`         | Orchestrator — calls the other modules, spawns LLM, executes plan     |
+| `monitor-agent.ts`         | Orchestrator — calls the other modules, spawns LLM, executes plan; dual-writes events/responses to the project's monitor chat thread and emits `chat.*` WebSocket events alongside `monitor.*` events |
 | `prompt-builder.ts`        | Builds the system prompt (project config + state snapshot + capacity) |
 | `state-snapshot.ts`        | Queries DB for issues, runs, knowledge; returns formatted markdown    |
 | `event-formatter.ts`       | Formats raw events with enriched DB context (PR info, agent reports)  |
@@ -337,17 +349,24 @@ Approval flags are cleared after successful dispatch/merge and are stored in-mem
 
 **Captain Monitor Event Response Rules**
 
-When the captain monitor handles a `run.completed` event: if the completed issue has an open PR (visible in the snapshot or event context), the captain sets the issue status back to `pr_created`. This ensures the PR poller re-evaluates CI and mergeability from GitHub, since the poller skips `in_progress` issues.
+When the captain monitor handles a `run.completed` event, it routes based on **which agent** completed:
 
-The captain continues the workflow up to PR creation (engineer → lead → docs → PR). After a PR is created or updated, the captain sets status to `pr_created` and **waits** — it does NOT issue a merge action immediately. The PR poller transitions the issue to `pr_ready_to_merge` once CI passes. The captain only merges after receiving a `status_changed → pr_ready_to_merge` event.
+- **Engineer completed**: Always dispatches lead for code review, regardless of whether a PR already exists for the issue. The engineer's full report is passed as context in the dispatch instructions.
+- **Lead completed**: If the lead reported issues/findings, dispatches engineer with those findings as instructions (starting a fix cycle). If the lead reported no issues ("looks good"), dispatches docs.
+- **Docs completed**: Creates the PR, then sets the issue status to `pr_created`.
+- **Librarian completed**: Checks for newly unblocked issues and dispatches if ready.
+
+Lead review is mandatory — the monitor never skips it, even when a PR already exists. The fix cycle (engineer → lead → engineer → lead) can repeat until the lead approves. Only after lead approval does docs get dispatched, followed by PR creation.
+
+After a PR is created or updated, the captain sets status to `pr_created` and **waits** — it does NOT issue a merge action immediately. The PR poller transitions the issue to `pr_ready_to_merge` once CI passes. The captain only merges after receiving a `status_changed → pr_ready_to_merge` event.
 
 **Command Execution** (`backend/src/orchestration/command-handlers.ts`)
 
 Captain's output commands are parsed by the mention handler and executed via command-handlers.ts:
 
 - `handleDispatchAgent()` — spawns the specified agent on the issue
-- `handleMergePR()` — merges the PR using the VCS provider; rejects with an error if `issue.status !== 'pr_ready_to_merge'`, making it impossible to merge before CI passes regardless of LLM decisions
-- `handleCreatePR()` — creates a PR using the VCS provider
+- `handleMergePR()` — merges the PR using the VCS provider; rejects with an error if the issue is paused or `issue.status !== 'pr_ready_to_merge'`, making it impossible to merge before CI passes or while paused regardless of LLM decisions
+- `handleCreatePR()` — creates a PR using the VCS provider; rejects with an error if the issue is paused
 - `handleCreateIssue()` — creates a new issue
 
 Commands are restricted to captain-only (checked via `author_type === "captain"` in handler.ts).
@@ -360,31 +379,45 @@ The terminal/PTY functionality is split across three focused modules:
 
 - **`pty-service.ts`** — session lifecycle manager. Manages persistent tmux sessions running Claude CLI for terminal access to captain chat. Each project can have one terminal session running `claude --system-prompt-file` inside tmux. Session lifecycle: `createTerminalSession()`, `getTerminalSession()`, `destroyTerminalSession()`. Auto-cleanup: idle timeout kills sessions and removes temporary files (system prompt, SSH keys) — default 30 min, `ORCHESTRATION_PTY_IDLE_TIMEOUT_MS`. Concurrency control: `pendingCreations` Set guards against race conditions when multiple clients request sessions simultaneously.
 - **`captain-prompt.ts`** — system prompt builder. `buildSystemPrompt()` constructs the enriched system prompt injected into each session: project knowledge (workflows/conventions), API reference (Issues, Runs, Activity, Knowledge APIs), current capacity (running agents, available slots), project settings, and repository context.
-- **`captain-worktree.ts`** — worktree and auth setup. `createCaptainWorktree()` creates or reuses a long-lived git worktree per project (named `crewdeck/captain-{projectId}`) in `/tmp/crewdeck-worktrees/`. The worktree persists across PTY reconnects and auto-rebases onto the latest default branch on creation. Terminal sessions run with the worktree as the working directory. `setupGitHubAuth()` configures `GH_TOKEN` and `GIT_SSH_COMMAND` from the project's VCS account.
+- **`captain-worktree.ts`** — worktree and auth setup. `createCaptainWorktree()` creates or reuses a long-lived git worktree per project (named `captain/<project-slug>`) in `/tmp/crewdeck/<project-slug>/captain`. The worktree is created from the project's `default_base_branch` (falling back to `repo.default_branch`) and auto-rebases onto that branch on creation. The worktree persists across PTY reconnects. Terminal sessions run with the worktree as the working directory. `setupGitHubAuth()` configures `GH_TOKEN` and `GIT_SSH_COMMAND` from the project's VCS account.
 
-Environment injection: project-defined env vars (from project settings), `CREWDECK_*` vars, `GH_TOKEN`, `GIT_SSH_COMMAND` from the project's GitHub account, and provider-specific env vars (via `buildProviderEnv()`). These are baked directly into the tmux `new-session` command as `env KEY=VAL ... claude ...` so the shell inside the session receives them regardless of tmux server environment state.
-
-**Provider switching**: When the global provider is changed (via Crew page), all active Captain terminal sessions are terminated via `shutdownPtyService()`. New sessions created after the switch will use the new provider's environment variables.
+Environment injection: project-defined env vars (from project settings), `CREWDECK_*` vars, `GH_TOKEN`, `GIT_SSH_COMMAND` from the project's GitHub account, provider-specific env vars (via `buildProviderEnv(model)`), and `ANTHROPIC_API_KEY=""` to clear any inherited key (matching agent spawn behavior in `process.ts`). These are baked directly into the tmux `new-session` command as `env KEY=VAL ... claude --model <model> ...` so the shell inside the session receives them regardless of tmux server environment state.
 
 **Terminal WebSocket Server** (`backend/src/terminal-ws.ts`)
 
 - Separate WebSocket server on `/terminal-ws?projectId={id}` path.
+- **Session validation**: connections are authenticated via `validateSessionFromCookie()` from `middleware/auth.ts`. Invalid/missing sessions are rejected with `ws.close(4001, 'Unauthorized')` before any other processing.
 - Spawns `node-pty` process attaching to the project's tmux session via `tmux attach-session -t {name}`.
 - Bidirectional I/O: PTY output → WebSocket send (raw bytes), WebSocket messages → PTY write (keyboard input).
 - Resize handling: JSON messages with `{ type: "resize", cols, rows }` → `pty.resize()`.
 - Connection cleanup: kills PTY attach process on disconnect (does not kill the tmux session itself).
 
+**Chat Service** (`backend/src/orchestration/chat-service.ts`)
+
+Handles Claude session lifecycle for the web-based chat interface. Each chat thread spawns `claude -p` with `--resume {sessionId}` for persistent multi-turn conversations.
+
+- **Session management**: Captures Claude CLI session IDs from `system` stream events and stores them on the `ChatThread` record. Subsequent messages reuse the session via `--resume`.
+- **Session expiry recovery**: If `--resume` fails (expired/invalid session), the service emits `chat.session_expired`, clears the stored session ID, and starts a fresh session transparently.
+- **Concurrency control**: An in-memory lock (Map<threadId, boolean>) ensures only one `claude -p` process runs per thread at a time. The lock check and set are synchronous (no `await` between them) to prevent TOCTOU races. Concurrent sends return `409 CONFLICT`.
+- **Fire-and-forget processing**: The message endpoint (`POST /chat/threads/:threadId/messages`) returns HTTP 202 immediately after saving the user message and acquiring the lock. The Claude session runs in a detached promise (`runThreadSession`). On failure, errors are logged and emitted as `chat.error` + `chat.complete` events. Use `GET /chat/threads/:threadId/status` to check if a thread is actively processing.
+- **Event streaming**: Parses `--output-format stream-json` output using `normalizeEvent()` from `event-normalizer.ts`, which handles both the old flat Claude CLI format and the new nested `message.content[]` format. Emits `chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, `chat.complete`, `chat.error`, and `chat.session_expired` events on the event bus with `project_id` and `thread_id` for frontend filtering. The monitor agent also dual-writes to the project's monitor chat thread — events save as `role: 'event'`, assistant responses as `role: 'assistant'` — and emits `chat.*` equivalents of `monitor.*` events (`chat.event_received`, `chat.thinking`, `chat.message`, `chat.tool_call`, `chat.tool_result`, `chat.complete`) so the Chat UI receives real-time monitor activity without needing to subscribe to `monitor.*` events.
+- **System prompts**: Always uses the captain prompt builder (`captain-prompt.ts`) for all threads, giving chat the same project context (issues, API reference, available actions) as agent sessions.
+- **Model resolution**: Resolves model via `getDefaultModel()` (from `GlobalConfig`) and passes `--model <model>` to the Claude CLI, matching how agent spawns resolve models.
+- **Error handling**: If the Claude process exits with a non-zero code and no content, `runThreadSession` emits `chat.error` (user-friendly message) and `chat.complete`. No ghost assistant message is saved. Errors are logged server-side.
+- **Auto title generation**: After the first successful reply in an untitled thread (`thread.title === null`), a fire-and-forget `spawnClaude()` call generates a concise 5-7 word title from the user message and assistant reply. Uses `resolveModel('captain')` for the model. On success, updates the DB and emits `chat.thread_updated` so the sidebar updates in real-time. Re-reads the thread before writing to avoid overwriting a user-set title (race condition guard). If generation fails (spawn error, non-zero exit, or empty/short result), a fallback title is set from the first 40 characters of the user's message and emitted via `chat.thread_updated`. If the user message is empty, the fallback is "New conversation".
+- **Environment**: Same pattern as monitor agent — sets `CREWDECK_API_URL`, `CREWDECK_PROJECT_ID`, GitHub auth (`GH_TOKEN`, `GIT_SSH_COMMAND` from the project's VCS account via `setupGitHubAuth()`), provider API keys (via `buildProviderEnv(model)`), etc. SSH key temp files are cleaned up in an outer `try/finally` that wraps the entire session, ensuring no leaks even if errors occur between auth setup and process spawn.
+
 **Event Bus**
 
 - In-process typed EventEmitter singleton.
 - All internal components communicate through the event bus rather than calling each other directly.
-- Producers: REST API handlers, MentionHandler, PR Detector, PR Poller, VCS Provider clients.
+- Producers: REST API handlers, MentionHandler, Chat Service, PR Detector, PR Poller, VCS Provider clients.
 - Consumers: MentionHandler, PR Detector, WebSocket broadcaster, Activity Logger, Event Commenter, Worktree Cleanup.
 - Fire-and-forget — emitters do not wait for consumers to finish processing.
 
 **SQLite Database**
 
-- Stores all persistent state: projects, issues, comments, activity logs. (Agents are fixed constants in code, not persisted.)
+- Stores all persistent state: projects, issues, comments, activity logs, admin users, sessions, API keys. (Agents are fixed constants in code, not persisted.)
 - Accessed via `better-sqlite3` with raw SQL (synchronous API).
 - File-based migration system in `backend/src/db/migrations/`. Migrations are the single source of truth — there is no separate `schema.sql`. Fresh databases run all migrations from `000_initial_schema.sql` to the latest.
 - Versioned migration system (`_migrations` table) tracks which migrations have run. Each migration runs idempotently — it checks whether its changes are already present before executing, making it safe for both fresh and existing databases. Destructive migrations (table recreation) are wrapped in transactions with `foreign_keys = OFF`.
@@ -407,8 +440,9 @@ The backend uses an in-process typed EventEmitter as the central communication b
 │                                                          │
 │  Producers:                    Consumers:                │
 │  ├── REST API handlers    ──→  WebSocket broadcaster     │
-│  ├── Agent Runtime        ──→  MentionHandler            │
-│  ├── MentionHandler       ──→  Activity Logger           │
+│  ├── Agent Runtime        ──→  Global WS broadcaster     │
+│  ├── MentionHandler       ──→  MentionHandler            │
+│  ├── Chat Service         ──→  Activity Logger           │
 │  ├── PR Detector/Poller   ──→  PR Detector               │
 │  │                        ──→  Event Commenter            │
 │  └── Worktree Cleanup     ──→  Worktree Cleanup           │
@@ -455,9 +489,15 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
+- **Monitor events** — captain monitor streaming events (`monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.rate_limit`, `monitor.result`, `monitor.complete`). Broadcast to project-scoped subscribers only; excluded from the global WebSocket to avoid flooding the dashboard.
 - **PR events** — PR created, status updated.
+- **Chat events** — assistant message chunks, tool calls, tool results, completion, errors, session expiry, event_received, thinking, thread title updates. Emitted by the Chat Service during `claude -p` sessions for chat threads, and dual-emitted by the monitor agent (as `chat.*` equivalents of `monitor.*` events) so the Chat UI receives real-time monitor activity.
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
+
+### Global WebSocket (Dashboard)
+
+A separate global WebSocket connection (`/ws?global=true`) broadcasts all events (except high-frequency `run.event` and monitor events) to dashboard subscribers. This allows the dashboard to update project stats and the activity feed in real-time without per-project connections or polling. The `GlobalWebSocket` class (`frontend/src/lib/api/global-ws.svelte.ts`) mirrors `ProjectWebSocket` with the same reconnection logic and a reactive `state` property. Event payloads are typed via `GlobalWsEventMap` — a subset of `WsEventMap` that excludes `run.event` and monitor events.
 
 ### Shared Frontend Utilities
 
@@ -474,9 +514,9 @@ $effect(() => {
 });
 ```
 
-Takes a `ProjectWebSocket` and a `SubscriptionMap` (a partial `Record<WsEvent, handler>` where each handler is typed to its event's payload via `WsEventMap`). Subscribes all handlers and returns a cleanup function that unsubscribes all of them. Used by `QueueMonitor.svelte`, `AgentRuns.svelte`, `ActivityTerminal.svelte`, `routes/projects/[projectId]/+page.svelte`, and `routes/projects/[projectId]/terminals/+page.svelte`.
+Takes a `ProjectWebSocket` and a `SubscriptionMap` (a partial `Record<WsEvent, handler>` where each handler is typed to its event's payload via `WsEventMap`). Subscribes all handlers and returns a cleanup function that unsubscribes all of them. Used by `ChatThreadList.svelte`, `QueueMonitor.svelte`, `AgentRuns.svelte`, `ActivityTerminal.svelte`, `routes/projects/[projectId]/+page.svelte`, and `routes/projects/[projectId]/terminals/+page.svelte`.
 
-> **Note:** Components that need to subscribe the same event twice with different handlers (e.g., `issues/[issueId]/+page.svelte`) continue to use an array of unsubscribe functions directly, since a `Record`-based map cannot express duplicate keys.
+> **Note:** Components that need to subscribe the same event twice with different handlers (e.g., `issues/[issueId]/+page.svelte`) continue to use an array of unsubscribe functions directly, since a `Record`-based map cannot express duplicate keys. The dashboard uses `GlobalWebSocket` (not `ProjectWebSocket`) with direct `on()` calls for stats and activity event subscriptions.
 
 ## Execution Model
 
@@ -491,7 +531,7 @@ Each `/dispatch` command spawns a one-shot `claude -p` process:
       ↓
 3. Per-agent-per-issue deduplication check (skip if already running)
       ↓
-4. Chain depth checked (atomic DB increment, per project's max_chain_depth)
+4. Chain depth checked (atomic DB increment, global max_chain_depth)
       ↓
 5. Concurrency checked (active processes < max_concurrency)
       → if limit reached: dispatch queued; system comment posted; stops here
@@ -527,22 +567,23 @@ Worktrees are automatically cleaned up via event-driven and synchronous mechanis
   3. **Always clears** `worktree_path` and `branch_name` DB fields (via `finally` block), regardless of cleanup success
   4. Logs warnings on failure but continues (cleanup errors are non-fatal)
 
+- **Event-driven dependency cleanup (`initDependencyCleanup()`)** — Listens for `issue.status_changed` events with `to === "done"`. When triggered, removes all `IssueDependency` rows where other issues depend on the resolved issue. This uses `listDependents(issue_id)` to find blocked issues, then `removeDependency()` for each. Removal is idempotent. Issue deletion is handled separately by `ON DELETE CASCADE` on the `IssueDependency` table.
+
 - **Synchronous cleanup on deletion** — DELETE `/issues/:issueId` and POST `/issues/:issueId/discard` routes call cleanup before deleting database records to prevent worktree leaks
 
 This approach ensures:
 
 - No unbounded disk usage from abandoned worktrees
 - Database never points to broken or partially-cleaned worktree state
+- No stale dependency rows blocking the captain from dispatching unblocked issues
 - Cleanup failures don't block issue status transitions or deletions
 - Early exit optimization when path already gone (no unnecessary git operations)
 
 ### Concurrency Control
 
-- Two-level concurrency limits:
-  - **Global limit** (`MAX_AGENTS` env var, default 10): maximum agents running across all projects
-  - **Per-project limit** (`max_concurrency`): maximum agents per project
-- The MentionHandler checks both limits before each spawn.
-- If either limit is reached, the dispatch is placed in a DB-backed FIFO queue (using `AgentRun` table with `status='queued'`) and a system comment is posted with the queue position. When a running process exits, the handler dequeues the next pending dispatch and spawns it automatically. Queued runs persist across server restarts.
+- A single global concurrency limit (`max_concurrency` setting, default 5): maximum agents running across all projects.
+- The MentionHandler checks this limit before each spawn.
+- If the limit is reached, the dispatch is placed in a DB-backed FIFO queue (using `AgentRun` table with `status='queued'`) and a system comment is posted with the queue position. When a running process exits, the handler dequeues the next pending dispatch and spawns it automatically. Queued runs persist across server restarts.
 
 ## Process Lifecycle
 
@@ -552,16 +593,18 @@ On startup, the backend:
 
 1. Loads configuration from environment variables (`.env` file).
 2. Initializes SQLite database (runs all pending migrations from `backend/src/db/migrations/`).
-3. Initializes the activity logger (registers event listeners).
-4. Initializes the worktree cleanup listener (subscribes to `issue.status_changed`).
-5. Initializes the event commenter (subscribes to `run.completed`, `pr.status_changed`, `issue.status_changed`).
-6. Initializes the MentionHandler (subscribes to `comment.added`).
-7. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
-8. Starts the PR poller (polls VCS providers for PR status updates, default every 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`).
-9. Starts the Express HTTP server.
-10. Starts the WebSocket server (`/ws` for events).
-11. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
-12. Logs startup complete via pino.
+3. Ensures a system API key exists (deletes and recreates on every startup, storing the raw key in memory for agent/captain injection).
+4. Initializes the activity logger (registers event listeners).
+5. Initializes the worktree cleanup listener (subscribes to `issue.status_changed`).
+6. Initializes the dependency cleanup listener (subscribes to `issue.status_changed`).
+7. Initializes the event commenter (subscribes to `run.completed`, `pr.status_changed`, `issue.status_changed`).
+8. Initializes the MentionHandler (subscribes to `comment.added`).
+9. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
+10. Starts the PR poller (polls VCS providers for PR status updates, default every 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`).
+11. Starts the Express HTTP server.
+12. Starts the WebSocket server (`/ws` for events).
+13. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
+14. Logs startup complete via pino.
 
 Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery). Terminal sessions are also lost (clients must reconnect and recreate sessions).
 
@@ -577,10 +620,14 @@ On SIGTERM or SIGINT, the backend:
 
 ## Security and Access
 
+- **Admin authentication**: The backend requires either a session cookie or an API key for all API endpoints (except health check and initial setup). A single admin account is created via `POST /api/v1/auth/setup`. Sessions use `HttpOnly; Secure; SameSite=Strict` cookies with a 10-year `maxAge` (sessions persist indefinitely; no server-side expiry check). Multiple concurrent sessions are supported — logging in from a new device does not invalidate existing sessions, and logout only affects the calling device. Passwords are hashed with bcrypt (≥ 12 rounds). Login is rate-limited to 5 attempts per minute per IP.
+- **API key authentication**: API keys provide programmatic access. The auth middleware checks for `Authorization: Bearer <key>` first, then falls back to session cookies. Keys are stored as SHA-256 hashes; the plaintext is shown only once at creation. A system API key is auto-generated on every server startup for internal agent/captain use — it is passed as `CREWDECK_API_KEY` to all spawned processes. Key management endpoints (`/api-keys`) require session auth to prevent API keys from managing other API keys. System keys are hidden from the user-facing UI.
+- **Frontend auth middleware**: `hooks.server.js` validates the session cookie on every non-auth request by calling `GET /api/v1/auth/me`. Invalid/missing sessions redirect to `/login`. If no admin exists (`needsSetup: true`), redirects to `/register`. Auth paths (`/login`, `/register`, `/api/v1/auth/*`) are exempt. Static assets (files with extensions) are also exempt.
+- **Auth layout**: The root layout (`+layout.svelte`) conditionally renders — auth pages (`/login`, `/register`, `/setup/*`) get a centered layout without the sidebar; all other pages render the normal sidebar layout with utility navigation (Accounts, API Keys, Settings grouped under a collapsible SYSTEM section) and a logout button at the bottom.
+- **First-login onboarding**: After first login, users are directed to the preflight wizard (`/setup/preflight`) which runs sequential system checks (Claude CLI installation, Claude authentication, Z.AI API key). The wizard completes setup by calling `POST /auth/complete-setup` when the user clicks "Continue to Dashboard". If the user reaches the dashboard without completing the preflight wizard, the Create Project modal auto-opens when `setupCompleted` is `false`. Subsequent logins show the dashboard normally.
 - GitHub authentication is managed in-app via Device Flow OAuth (Accounts page). No host-level `gh auth login` is required.
 - OAuth tokens are stored in SQLite and injected as `GH_TOKEN` into agent processes at spawn time. They are never persisted in `.git/config`.
 - Each project can be linked to a specific GitHub account, enabling per-project identity for git operations.
-- The system runs locally — no data leaves the machine except through GitHub API calls.
 - Full audit trail of all agent actions is maintained in the database.
 
 ## Future Considerations
