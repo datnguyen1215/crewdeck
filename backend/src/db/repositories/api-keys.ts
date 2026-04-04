@@ -11,16 +11,15 @@ export interface ApiKey {
   scopes: string | null; // JSON array string or null (unrestricted)
   created_at: string;
   last_used_at: string | null;
-  scopes: string | null;
 }
 
 /**
  * Parse the scopes column from the database.
- * `null` means unrestricted. A JSON array string like '["read","write"]' is parsed
+ * `null` or `undefined` means unrestricted. A JSON array string like '["read","write"]' is parsed
  * into an array. An empty array means the key has no permissions.
  */
-export function parseScopes(raw: string | null): string[] | null {
-  if (raw === null) return null;
+export function parseScopes(raw: string | null | undefined): string[] | null {
+  if (raw === null || raw === undefined) return null;
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.map(String) : [];
@@ -36,17 +35,6 @@ export interface ApiKeyPublic {
   created_at: string;
   last_used_at: string | null;
   scopes: string[] | null;
-}
-
-/** Parse scopes from JSON string stored in DB, or return null. */
-function parseScopes(raw: string | null): string[] | null {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 function toPublic(key: ApiKey): ApiKeyPublic {
@@ -72,7 +60,8 @@ export function listApiKeys(): ApiKeyPublic[] {
 
 export function getApiKeyById(id: string): ApiKey | null {
   return (
-    (db.prepare("SELECT * FROM ApiKey WHERE id = ?").get(id) as ApiKey) ?? null
+    (db.prepare("SELECT * FROM ApiKey WHERE id = ?").get(id) as ApiKey) ??
+    null
   );
 }
 
