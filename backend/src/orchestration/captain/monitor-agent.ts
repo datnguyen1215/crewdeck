@@ -140,38 +140,6 @@ async function buildAgentEnv(projectId: string): Promise<{ env: Record<string, s
   return { env, sshKeyPath };
 }
 
-/** Create the onEvent callback that relays stream events to the frontend. */
-function createStreamHandler(
-  projectId: string,
-  monitorThread: { id: string },
-): (event: { type: string; [key: string]: unknown }) => void {
-  return (event) => {
-    try {
-      if (event.type === "assistant") {
-        const content = event.message as
-          | { content?: Array<{ text?: string }> }
-          | undefined;
-        const text = content?.content?.[0]?.text;
-        if (text) {
-          emitMonitorMessage(projectId, monitorThread.id, text);
-        }
-      } else if (event.type === "tool_use") {
-        emitMonitorToolCall(projectId, monitorThread.id,
-          (event.name as string) ?? "unknown",
-          event.input,
-        );
-      } else if (event.type === "tool_result") {
-        emitMonitorToolResult(projectId, monitorThread.id, "bash", event.content);
-      }
-    } catch (eventErr) {
-      logger.warn(
-        { eventErr, eventType: event.type },
-        "Monitor: Failed to process stream event",
-      );
-    }
-  };
-}
-
 /** Retry action plan extraction with a minimal prompt. */
 async function retryActionExtraction(
   resultText: string,
@@ -366,12 +334,79 @@ export const processWithLLM = async (
 
   try {
     const model = resolveModel("captain");
-    const { events: collectedEvents, resultText, exitCode } =
-      await runClaudeWithTimeout({
-        prompt: userPrompt, systemPrompt, env, model,
-        timeoutMs: 2 * 60 * 1000, projectId,
-        onEvent: createStreamHandler(projectId, monitorThread),
-      });
+
+    // Emit streaming events for frontend visibility.
+    // Handles all Claude CLI stream-json event types so the terminal shows
+    // the full working process (text, thinking, tools, rate limits, result).
+    const onEvent = (event: { type: string; [key: string]: unknown }) => {
+      try {
+        if (event.type === "assistant") {
+          const content = event.message as
+            | { content?: Array<{ type?: string; text?: string; thinking?: string }> }
+            | undefined;
+          for (const block of content?.content ?? []) {
+            if (block.type === "thinking" && block.thinking) {
+              eventBus.emit("monitor.thinking", {
+                project_id: projectId,
+                content: block.thinking,
+              });
+            } else if (block.type === "text" && block.text) {
+              emitMonitorMessage(projectId, monitorThread.id, block.text);
+            } else if (block.type === "tool_use") {
+              emitMonitorToolCall(projectId, monitorThread.id,
+                (block as Record<string, unknown>).name as string ?? "unknown",
+                (block as Record<string, unknown>).input,
+              );
+            }
+          }
+          // Also handle flat tool_use events (no message.content wrapper)
+          if (!content?.content?.length && event.name) {
+            emitMonitorToolCall(projectId, monitorThread.id,
+              (event.name as string) ?? "unknown",
+              event.input,
+            );
+          }
+        } else if (event.type === "tool_use") {
+          emitMonitorToolCall(projectId, monitorThread.id,
+            (event.name as string) ?? "unknown",
+            event.input,
+          );
+        } else if (event.type === "tool_result") {
+          emitMonitorToolResult(projectId, monitorThread.id, "bash", event.content);
+        } else if (event.type === "rate_limit_event") {
+          eventBus.emit("monitor.rate_limit", {
+            project_id: projectId,
+            message: (event.message as string) ?? "Rate limited",
+          });
+        } else if (event.type === "result") {
+          eventBus.emit("monitor.result", {
+            project_id: projectId,
+            cost_usd: (event.cost_usd ?? event.total_cost_usd) as number | undefined,
+            duration_ms: event.duration_ms as number | undefined,
+            stop_reason: event.stop_reason as string | undefined,
+          });
+        }
+      } catch (eventErr) {
+        logger.warn(
+          { eventErr, eventType: event.type },
+          "Monitor: Failed to process stream event",
+        );
+      }
+    };
+
+    const {
+      events: collectedEvents,
+      resultText,
+      exitCode,
+    } = await runClaudeWithTimeout({
+      prompt: userPrompt,
+      systemPrompt,
+      env,
+      model,
+      timeoutMs: 2 * 60 * 1000,
+      projectId,
+      onEvent,
+    });
 
     if (exitCode !== 0) {
       logger.warn({ projectId, code: exitCode }, "Monitor claude -p exited non-zero");

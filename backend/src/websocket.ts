@@ -249,6 +249,12 @@ function subscribeEvents(bus: EventBus): void {
   bus.on("monitor.complete", (data) => {
     broadcast(data.project_id, "monitor.complete", data);
   });
+  bus.on("monitor.rate_limit", (data) => {
+    broadcast(data.project_id, "monitor.rate_limit", data);
+  });
+  bus.on("monitor.result", (data) => {
+    broadcast(data.project_id, "monitor.result", data);
+  });
 
   // Chat thread events
   bus.on("chat.event_received", (data) => {
@@ -274,9 +280,6 @@ function subscribeEvents(bus: EventBus): void {
   });
   bus.on("chat.session_expired", (data) => {
     broadcast(data.project_id, "chat.session_expired", data);
-  });
-  bus.on("chat.error", (data) => {
-    broadcast(data.project_id, "chat.error", data);
   });
   bus.on("chat.thread_updated", (data) => {
     broadcast(data.project_id, "chat.thread_updated", data);

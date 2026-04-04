@@ -293,7 +293,7 @@ Returns the current captain monitor phase for the project. Use this on page load
 - `thinking` → `executing` — the LLM produced an action plan and the backend is executing it
 - `executing` → `idle` — all actions complete (or the cycle errors out)
 
-**Note:** When a new event arrives while the captain is already `thinking` or `executing`, the status is **not** regressed to `receiving` — the more-advanced phase is preserved. WebSocket events (`monitor.thinking`, `monitor.tool_call`, `monitor.tool_result`, `monitor.complete`) continue to provide real-time granularity; this REST endpoint is for hydration on page load only.
+**Note:** When a new event arrives while the captain is already `thinking` or `executing`, the status is **not** regressed to `receiving` — the more-advanced phase is preserved. WebSocket events (`monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.rate_limit`, `monitor.result`, `monitor.complete`) continue to provide real-time granularity; this REST endpoint is for hydration on page load only.
 
 **Error:** `404 Not Found` — Project does not exist.
 
@@ -906,7 +906,7 @@ GET /projects/:projectId/runs/:runId?events_limit=50
 }
 ```
 
-Event `type` values are strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `result`, `system`, `error`). Events are **normalized** on retrieval — the normalizer (`event-normalizer.ts`) handles both the old flat Claude CLI format (`subtype`/`content` fields) and the new nested format (`message.content[]` arrays), flattening them into a simpler structure:
+Event `type` values are strings from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `rate_limit_event`, `result`, `system`, `error`). Events are **normalized** on retrieval — the normalizer (`event-normalizer.ts`) handles both the old flat Claude CLI format (`subtype`/`content` fields) and the new nested format (`message.content[]` arrays), flattening them into a simpler structure:
 
 | Type          | Normalized `data` fields                                                        |
 | ------------- | ------------------------------------------------------------------------------- |
