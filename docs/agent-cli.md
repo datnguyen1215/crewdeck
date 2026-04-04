@@ -59,7 +59,7 @@ The following variables are passed to each agent process:
 | `CREWDECK_PROJECT_ID` | The project ID                                             |
 | `CREWDECK_AGENT_ID`   | The agent's ID                                             |
 | `CREWDECK_ISSUE_ID`   | The issue ID being worked on (only set for issue-based spawns; omitted for scans and other standalone runs) |
-| `CREWDECK_API_KEY`    | System API key for authentication (passed as Bearer token) |
+| `CREWDECK_API_KEY`    | System API key for authentication (passed as Bearer token). Created with predefined scopes covering all agent operations. |
 
 In addition, any project-level environment variables configured via the [Environment Variables API](api.md#environment-variables) are injected.
 

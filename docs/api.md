@@ -1706,13 +1706,17 @@ Creates a new API key. The full plaintext key is returned **only once** in the r
 
 ```json
 {
-  "name": "Claude CI Process"
+  "name": "Claude CI Process",
+  "scopes": ["issues:read", "issues:write"]
 }
 ```
 
-| Field | Required | Description                       |
-| ----- | -------- | --------------------------------- |
-| name  | Yes      | Human-readable label for the key. |
+| Field  | Required | Description                                                                                                                            |
+| ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| name   | Yes      | Human-readable label for the key.                                                                                                     |
+| scopes | No       | Array of scope strings to restrict the key's access. If omitted or `null`, the key is unrestricted (admin-level). Each scope must be a known scope constant. |
+
+**Available scopes:** See `backend/src/constants/scopes.ts` for the full list. Common scopes include `issues:read`, `issues:create`, `comments:read`, `comments:create`, `knowledge:read`, `knowledge:write`, `projects:read`, `runs:read`, `activity:read`.
 
 **Response:** `201 Created`
 
@@ -1730,7 +1734,11 @@ Creates a new API key. The full plaintext key is returned **only once** in the r
 
 The `key` field contains the full plaintext key. It is not stored server-side (only the SHA-256 hash is stored) and will never be shown again. User-created keys default to `scopes: null` (unrestricted access).
 
-**Error:** `400 VALIDATION_ERROR` — `name` is empty or not a string.
+**Errors:**
+
+- `400 VALIDATION_ERROR` — `name` is empty or not a string.
+- `400 VALIDATION_ERROR` — `scopes` is not an array.
+- `400 VALIDATION_ERROR` — `scopes` contains an invalid scope value.
 
 #### Delete API Key
 
