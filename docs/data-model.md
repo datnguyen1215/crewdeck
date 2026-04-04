@@ -372,6 +372,8 @@ An API key for programmatic authentication. Two tiers exist: system keys (auto-g
 
 **Scopes:** Scope constants are defined in `backend/src/constants/scopes.ts`. The system key is granted a fixed set of read-oriented and internal scopes (e.g., `issues:read`, `comments:create`, `knowledge:write`, `internal:dispatch`). Destructive admin operations (`issues:delete`, `projects:write`, `global-config:write`, `api-keys:write`, etc.) are excluded from the system key. User-created keys default to `NULL` scopes (unrestricted access).
 
+**Scope-based authorization:** When a request is authenticated via API key, the middleware attaches the key's parsed scopes to `req.apiKey`. The `requireScope(...scopes)` middleware factory (in `middleware/scope.ts`) enforces that API keys have all required scopes. Session-authenticated requests (admin users) always bypass scope checks. Keys with `null` scopes are unrestricted.
+
 ---
 
 ### AgentConfig
