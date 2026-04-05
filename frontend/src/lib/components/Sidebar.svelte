@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { listProjectsWithStats, logout, type ProjectWithStats } from '$lib/api/http.js';
 	import { onMount } from 'svelte';
+	import { globalWs } from '$lib/api/global-ws.svelte.js';
 	import ProjectNavItem from './ProjectNavItem.svelte';
 	import { icons } from './icons.js';
 
@@ -46,6 +47,12 @@
 		}
 	});
 
+	const fetchProjects = () => {
+		listProjectsWithStats()
+			.then((data) => { projects = data; })
+			.catch(() => {});
+	};
+
 	onMount(() => {
 		// Check for mobile on mount and window resize
 		const checkMobile = () => {
@@ -76,22 +83,24 @@
 		const projectsStored = migrateKey(PROJECTS_COLLAPSED_KEY, LEGACY_PROJECTS_COLLAPSED_KEY);
 		if (projectsStored !== null) projectsSectionCollapsed = projectsStored === 'true';
 
-		// Load projects (async, but don't block)
-		const fetchProjects = () => {
-			listProjectsWithStats()
-				.then((data) => { projects = data; })
-				// Silent catch: 30s polling failure; toasting would be noisy on transient network issues
-				.catch(() => {});
-		};
 		fetchProjects();
 
-		// Poll for updates every 30 seconds
-		const interval = setInterval(fetchProjects, 30_000);
+		// Subscribe to WebSocket events for real-time project count updates
+		const STATS_EVENTS = [
+			'issue.status_changed', 'issue.created', 'run.started', 'run.completed',
+			'dispatch.queued', 'dispatch.dequeued', 'issue.paused', 'issue.resumed',
+		] as const;
+		const unsubs = STATS_EVENTS.map((e) => globalWs.on(e, fetchProjects));
 
 		return () => {
 			window.removeEventListener('resize', checkMobile);
-			clearInterval(interval);
+			unsubs.forEach((fn) => fn());
 		};
+	});
+
+	// Refresh projects on reconnect to catch missed events
+	$effect(() => {
+		if (globalWs.state === 'connected') fetchProjects();
 	});
 
 	function toggleSidebar() {

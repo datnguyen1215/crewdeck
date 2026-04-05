@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, listVCSAccounts, getAuthMe, type ProjectWithStats, type ActivityLog, type VCSAccount } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
-	import { GlobalWebSocket } from '$lib/api/global-ws.svelte.js';
+	import { globalWs } from '$lib/api/global-ws.svelte.js';
 	import DashboardActivityFeed from '$lib/components/DashboardActivityFeed.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import ProjectForm from '$lib/components/ProjectForm.svelte';
@@ -52,8 +52,6 @@
 
 	refreshActivity();
 
-	const globws = new GlobalWebSocket();
-
 	const STATS_EVENTS = ['run.started', 'run.completed', 'issue.status_changed', 'issue.paused', 'issue.resumed', 'issue.created', 'dispatch.queued', 'dispatch.dequeued'] as const;
 	const ACTIVITY_EVENTS = [
 		'issue.created', 'issue.status_changed', 'issue.paused', 'issue.resumed',
@@ -64,11 +62,10 @@
 	let unsubs: (() => void)[] = [];
 
 	onMount(async () => {
-		globws.connect();
 		unsubs = [
-			...STATS_EVENTS.map((e) => globws.on(e, refreshProjects)),
-			...ACTIVITY_EVENTS.map((e) => globws.on(e, refreshActivity)),
-			...AGENT_EVENTS.map((e) => globws.on(e, refreshActiveAgents)),
+			...STATS_EVENTS.map((e) => globalWs.on(e, refreshProjects)),
+			...ACTIVITY_EVENTS.map((e) => globalWs.on(e, refreshActivity)),
+			...AGENT_EVENTS.map((e) => globalWs.on(e, refreshActiveAgents)),
 		];
 
 		try {
@@ -81,7 +78,6 @@
 	});
 
 	onDestroy(() => {
-		globws.disconnect();
 		unsubs.forEach((fn) => fn());
 	});
 
@@ -126,13 +122,6 @@
 <svelte:head>
 	<title>Dashboard - CrewDeck</title>
 </svelte:head>
-
-{#if globws.state === 'reconnecting' || globws.state === 'connecting'}
-	<div class="fixed top-0 left-0 right-0 z-[300] flex items-center justify-center gap-2 py-1 bg-amber/10 border-b border-amber/30 text-amber text-xs" style="view-transition-name: none">
-		<span class="inline-block w-1.5 h-1.5 rounded-full bg-amber animate-pulse"></span>
-		{globws.state === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
-	</div>
-{/if}
 
 <div class="p-4 md:p-8 h-full overflow-auto pt-14 md:pt-8 terminal-scanlines">
 	<!-- Header -->
