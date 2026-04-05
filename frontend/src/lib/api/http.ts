@@ -1,7 +1,6 @@
 import type {
   Project,
   ProjectWithStats,
-  Repo,
   Agent,
   Issue,
   IssueWithRunningAgent,
@@ -31,7 +30,6 @@ import type {
 export type {
   Project,
   ProjectWithStats,
-  Repo,
   Agent,
   Issue,
   IssueWithRunningAgent,
@@ -152,9 +150,6 @@ export function getPreflightZai() {
 }
 
 // Projects
-export function listProjects() {
-  return request<Project[]>("GET", "/projects");
-}
 export function getProject(id: string) {
   return request<Project>("GET", `/projects/${e(id)}`);
 }
@@ -172,23 +167,6 @@ export function deleteProject(id: string) {
 }
 export function listProjectsWithStats() {
   return request<ProjectWithStats[]>("GET", "/projects?stats");
-}
-
-// Repos
-export function listRepos(projectId: string) {
-  return request<Repo[]>("GET", `/projects/${e(projectId)}/repos`);
-}
-export function createRepo(
-  projectId: string,
-  data: { repo_url: string; default_branch?: string },
-) {
-  return request<Repo>("POST", `/projects/${e(projectId)}/repos`, data);
-}
-export function deleteRepo(projectId: string, repoId: string) {
-  return request<void>(
-    "DELETE",
-    `/projects/${e(projectId)}/repos/${e(repoId)}`,
-  );
 }
 
 // Agents (read-only — crew is fixed)
@@ -490,55 +468,6 @@ export function getLibrarianStatus(projectId: string) {
   );
 }
 
-// Terminal sessions
-export interface TerminalSession {
-  projectId: string;
-  tmuxSessionName: string;
-  createdAt: string;
-  lastAccessedAt?: string;
-}
-
-export interface TerminalSessionStatus {
-  exists: boolean;
-  projectId?: string;
-  tmuxSessionName?: string;
-  createdAt?: string;
-  lastAccessedAt?: string;
-}
-
-export function createTerminalSession(projectId: string) {
-  return request<TerminalSession>("POST", `/projects/${e(projectId)}/terminal`);
-}
-
-export function getTerminalSession(projectId: string) {
-  return request<TerminalSessionStatus>(
-    "GET",
-    `/projects/${e(projectId)}/terminal`,
-  );
-}
-
-export function destroyTerminalSession(projectId: string) {
-  return request<{ destroyed: boolean }>(
-    "DELETE",
-    `/projects/${e(projectId)}/terminal`,
-  );
-}
-
-// Captain dispatch
-export function dispatchAgent(
-  projectId: string,
-  issueId: string,
-  agentId: string,
-  instructions?: string,
-): Promise<{ success: boolean; message: string }> {
-  return request("POST", `/internal/captain/dispatch-agent`, {
-    project_id: projectId,
-    issue_id: issueId,
-    agent_id: agentId,
-    instructions,
-  });
-}
-
 // Monitor history
 export function getMonitorHistory(
   projectId: string,
@@ -557,9 +486,6 @@ export function getCaptainStatus(projectId: string): Promise<CaptainStatus> {
 export function getGlobalConfig(): Promise<GlobalConfig> {
   return request("GET", "/global-config");
 }
-export function getDefaultModel(): Promise<{ model: string }> {
-  return request("GET", "/global-config/default-model");
-}
 export function setDefaultModel(model: string): Promise<{ model: string }> {
   return request("PUT", "/global-config/default-model", { model });
 }
@@ -571,23 +497,14 @@ export function getModelAvailability(): Promise<{
 }
 
 // Orchestration settings
-export function getMaxConcurrency(): Promise<{ maxConcurrency: number }> {
-  return request("GET", "/global-config/max-concurrency");
-}
 export function getActiveAgents(): Promise<{ activeAgents: number; maxConcurrency: number }> {
   return request("GET", "/global-config/active-agents");
 }
 export function setMaxConcurrency(maxConcurrency: number): Promise<{ maxConcurrency: number }> {
   return request("PUT", "/global-config/max-concurrency", { maxConcurrency });
 }
-export function getMaxChainDepth(): Promise<{ maxChainDepth: number }> {
-  return request("GET", "/global-config/max-chain-depth");
-}
 export function setMaxChainDepth(maxChainDepth: number): Promise<{ maxChainDepth: number }> {
   return request("PUT", "/global-config/max-chain-depth", { maxChainDepth });
-}
-export function getAgentTimeoutMinutes(): Promise<{ agentTimeoutMinutes: number }> {
-  return request("GET", "/global-config/agent-timeout-minutes");
 }
 export function setAgentTimeoutMinutes(agentTimeoutMinutes: number): Promise<{ agentTimeoutMinutes: number }> {
   return request("PUT", "/global-config/agent-timeout-minutes", { agentTimeoutMinutes });
