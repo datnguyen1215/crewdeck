@@ -169,7 +169,9 @@ export function updateCaptainStatus(
 
 export function deleteProject(id: string): void {
   db.transaction(() => {
-    db.prepare("DELETE FROM ProjectKnowledge WHERE project_id = ?").run(id);
+    // ProjectKnowledge has ON DELETE CASCADE — no manual delete needed
+    // AgentRun has ON DELETE CASCADE on project_id (migration 046) — no manual delete needed
+    // AgentRunEvent has ON DELETE CASCADE on agent_run_id — no manual delete needed
     db.prepare("DELETE FROM EnvironmentVariable WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM ActivityLog WHERE project_id = ?").run(id);
     db.prepare(
