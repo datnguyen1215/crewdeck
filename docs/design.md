@@ -224,7 +224,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - `Button.svelte` — `variant` (`primary` | `secondary` | `danger` | `ghost`) × `size` (`xs` | `sm` | `md`). All variants include `disabled:opacity-50` and `transition-colors`.
   - `TextInput.svelte` — wraps `<input>` or `<textarea>` (via `multiline` prop). Props: `type`, `mono` (adds `font-mono`), `compact` (tighter padding), `multiline`. `value` is `$bindable`.
   - `Select.svelte` — `variant` (`form` for full-width form fields | `filter` for compact inline selects). Accepts `children` snippet for `<option>` elements.
-- **Error handling convention**: User-facing errors from user-initiated actions (page load, form submit, status change) are shown via `toastStore.add(message, 'error')`. WS-triggered background refreshes and polling use silent `.catch(() => {})` to avoid flooding the user with transient network errors.
+- **Error handling convention**: User-facing errors from user-initiated actions (page load, form submit, status change) are shown via `toastStore.add(message, 'error')`. WS-triggered background refreshes use silent `.catch(() => {})` to avoid flooding the user with transient network errors.
 
 **Backend (Node.js + TypeScript)**
 
@@ -496,9 +496,15 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
 
-### Global WebSocket (Dashboard)
+### Global WebSocket (Shared Singleton)
 
-A separate global WebSocket connection (`/ws?global=true`) broadcasts all events (except high-frequency `run.event` and monitor events) to dashboard subscribers. This allows the dashboard to update project stats and the activity feed in real-time without per-project connections or polling. The `GlobalWebSocket` class (`frontend/src/lib/api/global-ws.svelte.ts`) mirrors `ProjectWebSocket` with the same reconnection logic and a reactive `state` property. Event payloads are typed via `GlobalWsEventMap` — a subset of `WsEventMap` that excludes `run.event` and monitor events.
+A module-level `globalWs` singleton (exported from `frontend/src/lib/api/global-ws.svelte.ts`) maintains a single global WebSocket connection (`/ws?global=true`) for the entire authenticated session. The connection is managed reactively in the root layout (`+layout.svelte`): a `$effect` calls `globalWs.connect()` when the user is on a non-auth page and `globalWs.disconnect()` when navigating to an auth page, with `onDestroy` as a safety net for component teardown.
+
+The singleton is shared across all components that need real-time updates without per-project connections or polling:
+- **Dashboard** (`dashboard/+page.svelte`) — subscribes to stats, activity, and agent events for real-time project stats and activity feed updates.
+- **Sidebar** (`Sidebar.svelte`) — subscribes to issue and run events to refresh project counts (active issues, terminals) immediately when statuses change, replacing the previous 30-second polling interval.
+
+The `GlobalWebSocket` class mirrors `ProjectWebSocket` with the same reconnection logic and a reactive `state` property. Event payloads are typed via `GlobalWsEventMap` — a subset of `WsEventMap` that excludes `run.event` and monitor events. A reconnection banner is rendered at the layout level (visible on all pages) when `globalWs.state` is `connecting` or `reconnecting`.
 
 ### Shared Frontend Utilities
 
@@ -517,7 +523,7 @@ $effect(() => {
 
 Takes a `ProjectWebSocket` and a `SubscriptionMap` (a partial `Record<WsEvent, handler>` where each handler is typed to its event's payload via `WsEventMap`). Subscribes all handlers and returns a cleanup function that unsubscribes all of them. Used by `ChatThreadList.svelte`, `QueueMonitor.svelte`, `AgentRuns.svelte`, `ActivityTerminal.svelte`, `routes/projects/[projectId]/+page.svelte`, and `routes/projects/[projectId]/terminals/+page.svelte`.
 
-> **Note:** Components that need to subscribe the same event twice with different handlers (e.g., `issues/[issueId]/+page.svelte`) continue to use an array of unsubscribe functions directly, since a `Record`-based map cannot express duplicate keys. The dashboard uses `GlobalWebSocket` (not `ProjectWebSocket`) with direct `on()` calls for stats and activity event subscriptions.
+> **Note:** Components that need to subscribe the same event twice with different handlers (e.g., `issues/[issueId]/+page.svelte`) continue to use an array of unsubscribe functions directly, since a `Record`-based map cannot express duplicate keys. The dashboard and sidebar use the shared `globalWs` singleton (not `ProjectWebSocket`) with direct `on()` calls for stats and activity event subscriptions.
 
 ## Execution Model
 
@@ -625,7 +631,7 @@ On SIGTERM or SIGINT, the backend:
 - **API key authentication**: API keys provide programmatic access. The auth middleware checks for `Authorization: Bearer <key>` first, then falls back to session cookies. Keys are stored as SHA-256 hashes; the plaintext is shown only once at creation. Each key has an optional `scopes` field (JSON array of permission strings); `null` scopes mean unrestricted admin-level access. A system API key is auto-generated on every server startup for internal agent/captain use — it is passed as `CREWDECK_API_KEY` to all spawned processes and is created with a predefined set of non-destructive scopes that exclude admin-only operations. Key management endpoints (`/api-keys`) require session auth to prevent API keys from managing other API keys. System keys are hidden from the user-facing UI.
 - **Scope-based authorization**: Every route enforces scope requirements via the `requireScope(...scopes)` middleware factory (`middleware/scope.ts`). When a request is authenticated via API key, the middleware checks that the key's scopes include all required scopes for the route. Session-authenticated requests (admin users) always bypass scope checks. Keys with `null` scopes are unrestricted (admin-level access). This ensures the system API key cannot access admin-only operations (e.g., `projects:write`, `global-config:write`, `api-keys:write`, `issues:delete`) while still being able to perform agent operations (read issues, create comments, dispatch agents, etc.). All internal API routes require authentication and scope checks.
 - **Frontend auth middleware**: `hooks.server.js` validates the session cookie on every non-auth request by calling `GET /api/v1/auth/me`. Invalid/missing sessions redirect to `/login`. If no admin exists (`needsSetup: true`), redirects to `/register`. Auth paths (`/login`, `/register`, `/api/v1/auth/*`) are exempt. Static assets (files with extensions) are also exempt.
-- **Auth layout**: The root layout (`+layout.svelte`) conditionally renders — auth pages (`/login`, `/register`, `/setup/*`) get a centered layout without the sidebar; all other pages render the normal sidebar layout with utility navigation (Accounts, API Keys, Settings grouped under a collapsible SYSTEM section) and a logout button at the bottom.
+- **Auth layout**: The root layout (`+layout.svelte`) conditionally renders — auth pages (`/login`, `/register`, `/setup/*`) get a centered layout without the sidebar; all other pages render the normal sidebar layout with utility navigation (Accounts, API Keys, Settings grouped under a collapsible SYSTEM section) and a logout button at the bottom. The layout also manages the shared `globalWs` WebSocket singleton lifecycle (connect on non-auth pages, disconnect on auth pages) and renders a reconnecting/connecting banner at the top of all non-auth pages.
 - **First-login onboarding**: After first login, users are directed to the preflight wizard (`/setup/preflight`) which runs sequential system checks (Claude CLI installation, Claude authentication, Z.AI API key). The wizard completes setup by calling `POST /auth/complete-setup` when the user clicks "Continue to Dashboard". If the user reaches the dashboard without completing the preflight wizard, the Create Project modal auto-opens when `setupCompleted` is `false`. Subsequent logins show the dashboard normally.
 - GitHub authentication is managed in-app via Device Flow OAuth (Accounts page). No host-level `gh auth login` is required.
 - OAuth tokens are stored in SQLite and injected as `GH_TOKEN` into agent processes at spawn time. They are never persisted in `.git/config`.
