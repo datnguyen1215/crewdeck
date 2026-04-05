@@ -34,20 +34,6 @@
 
   // Events loaded from API for past assistant messages (history replay)
   let historyEvents = $state<Record<string, ChatMessageEvent[]>>({});
-  let loadedEventIds = new Set<string>();
-
-  async function loadEventsForMessage(messageId: string, threadId: string) {
-    if (loadedEventIds.has(messageId)) return;
-    loadedEventIds.add(messageId);
-    try {
-      const { events } = await getChatMessageEvents(threadId, messageId, projectId);
-      if (events.length > 0 && thread.id === threadId) {
-        historyEvents[messageId] = events;
-      }
-    } catch {
-      // ignore — events are optional
-    }
-  }
 
   function getEventsForMessage(messageId: string): ChatMessageEvent[] {
     if (messageId === streamingMessageId) return streamingEvents;
@@ -58,6 +44,9 @@
   $effect(() => {
     const id = thread.id;
     const pid = projectId;
+    let stale = false;
+
+    // Reset all state
     messages = thread.messages;
     streamingText = '';
     streamingEvents = [];
@@ -67,20 +56,31 @@
     chatError = null;
     onProcessingChange?.(false);
     historyEvents = {};
-    loadedEventIds = new Set();
+
     // Determine last user message for retry
     const lastUser = [...thread.messages].reverse().find(m => m.role === 'user');
     lastUserText = lastUser?.content ?? '';
+
     // Check if captain is still processing this thread
     getChatThreadStatus(id, pid).then(({ active }) => {
-      if (active && thread.id === id) isProcessing = true;
+      if (!stale && active && thread.id === id) isProcessing = true;
     }).catch(() => {});
+
     // Lazy-load events for past assistant messages
+    const loaded = new Set<string>();
     for (const msg of thread.messages) {
-      if (msg.role === 'assistant') {
-        loadEventsForMessage(msg.id, id);
+      if (msg.role === 'assistant' && !loaded.has(msg.id)) {
+        loaded.add(msg.id);
+        getChatMessageEvents(id, msg.id, pid).then(({ events }) => {
+          if (stale) return;
+          if (events.length > 0) {
+            historyEvents[msg.id] = events;
+          }
+        }).catch(() => {});
       }
     }
+
+    return () => { stale = true; };
   });
 
   // WebSocket subscriptions for streaming
@@ -154,7 +154,6 @@
           // Move streaming events into history
           if (completedMsgId && completedEvents.length > 0) {
             historyEvents[completedMsgId] = completedEvents;
-            loadedEventIds.add(completedMsgId);
           }
         }).catch(() => {});
       },
