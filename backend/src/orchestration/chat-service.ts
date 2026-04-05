@@ -34,11 +34,24 @@ import { getSystemApiKey } from "../app.js";
 import { ConflictError } from "../middleware/errors.js";
 import { normalizeEvent } from "../services/event-normalizer.js";
 
-// In-memory lock: only one claude -p process per thread at a time
-const activeThreads = new Map<string, boolean>();
+// In-memory lock: only one claude -p process per thread at a time.
+// Value is the ChildProcess when streaming, or `true` in the brief window
+// between lock acquisition and process spawn.
+const activeThreads = new Map<string, ChildProcess | true>();
 
 export function isThreadActive(threadId: string): boolean {
-  return activeThreads.get(threadId) ?? false;
+  return activeThreads.has(threadId);
+}
+
+/**
+ * Kill an active streaming process for a thread. Safe to call even if
+ * no process is running.
+ */
+export function abortThread(threadId: string): void {
+  const entry = activeThreads.get(threadId);
+  if (entry && entry !== true) {
+    entry.kill("SIGTERM");
+  }
 }
 
 interface ChatServiceResult {
@@ -298,6 +311,11 @@ async function runClaudeProcess(
 
   child.stdin!.end(prompt);
 
+  // Register the child process so it can be killed on thread deletion.
+  // The entry may be `true` (set by acquireAndCreateMessage) — overwrite with
+  // the actual process handle.
+  activeThreads.set(threadId, child);
+
   let stderr = "";
   const stderrDone = new Promise<void>((resolve) => {
     child.stderr!.on("data", (chunk: Buffer) => {
@@ -354,128 +372,134 @@ async function runClaudeProcess(
       return;
     }
 
-    const type = event.type as string;
+    try {
+      const type = event.type as string;
 
-    if (type === "system") {
-      const subtype = event.subtype as string | undefined;
-      if (subtype === "init" && event.session_id) {
-        sessionId = String(event.session_id);
+      if (type === "system") {
+        const subtype = event.subtype as string | undefined;
+        if (subtype === "init" && event.session_id) {
+          sessionId = String(event.session_id);
+        }
+        if (event.message && String(event.message).includes("session")) {
+          const msg = String(event.message).toLowerCase();
+          if (msg.includes("expired") || msg.includes("not found") || msg.includes("invalid")) {
+            sessionExpired = true;
+          }
+        }
+        return;
       }
-      if (event.message && String(event.message).includes("session")) {
-        const msg = String(event.message).toLowerCase();
-        if (msg.includes("expired") || msg.includes("not found") || msg.includes("invalid")) {
-          sessionExpired = true;
-        }
-      }
-      return;
-    }
 
-    if (type === "assistant" || type === "user") {
-      // Normalize handles both old flat format and new nested message.content[] format
-      const normalized = normalizeEvent({
-        id: "",
-        agent_run_id: "",
-        type,
-        data: event,
-        created_at: new Date().toISOString(),
-      });
-      const d = normalized.data as Record<string, unknown>;
+      if (type === "assistant" || type === "user") {
+        // Normalize handles both old flat format and new nested message.content[] format
+        const normalized = normalizeEvent({
+          id: "",
+          agent_run_id: "",
+          type,
+          data: event,
+          created_at: new Date().toISOString(),
+        });
+        const d = normalized.data as Record<string, unknown>;
 
-      if (type === "assistant") {
-        if (typeof d.text === "string" && d.text) {
-          content += d.text;
-          chatEventRepo.createEvent(msgId, "text", { content: d.text });
-          eventBus.emit("chat.message", {
-            project_id: projId,
-            thread_id: thrdId,
-            message_id: msgId,
-            content: d.text,
-          });
-        }
-        if (typeof d.thinking === "string" && d.thinking) {
-          chatEventRepo.createEvent(msgId, "thinking", { content: d.thinking });
-          eventBus.emit("chat.thinking", {
-            project_id: projId,
-            thread_id: thrdId,
-            message_id: msgId,
-            content: d.thinking,
-          });
-        }
-        if (Array.isArray(d.tool_use)) {
-          for (const tu of d.tool_use) {
-            const tuRec = tu as { id: string; name: string; input: unknown };
-            const toolCallId = tuRec.id || `${tuRec.name}:${Date.now()}`;
-            lastToolCallId = toolCallId;
-            toolNamesById.set(toolCallId, tuRec.name);
-            chatEventRepo.createEvent(msgId, "tool_call", {
-              tool_call_id: toolCallId,
-              tool_name: tuRec.name,
-              tool_input: tuRec.input,
+        if (type === "assistant") {
+          if (typeof d.text === "string" && d.text) {
+            content += d.text;
+            chatEventRepo.createEvent(msgId, "text", { content: d.text });
+            eventBus.emit("chat.message", {
+              project_id: projId,
+              thread_id: thrdId,
+              message_id: msgId,
+              content: d.text,
             });
-            eventBus.emit("chat.tool_call", {
+          }
+          if (typeof d.thinking === "string" && d.thinking) {
+            chatEventRepo.createEvent(msgId, "thinking", { content: d.thinking });
+            eventBus.emit("chat.thinking", {
+              project_id: projId,
+              thread_id: thrdId,
+              message_id: msgId,
+              content: d.thinking,
+            });
+          }
+          if (Array.isArray(d.tool_use)) {
+            for (const tu of d.tool_use) {
+              const tuRec = tu as { id: string; name: string; input: unknown };
+              const toolCallId = tuRec.id || `${tuRec.name}:${Date.now()}`;
+              lastToolCallId = toolCallId;
+              toolNamesById.set(toolCallId, tuRec.name);
+              chatEventRepo.createEvent(msgId, "tool_call", {
+                tool_call_id: toolCallId,
+                tool_name: tuRec.name,
+                tool_input: tuRec.input,
+              });
+              eventBus.emit("chat.tool_call", {
+                project_id: projId,
+                thread_id: thrdId,
+                message_id: msgId,
+                tool_call_id: toolCallId,
+                tool_name: tuRec.name,
+                tool_input: tuRec.input,
+              });
+            }
+          }
+        }
+
+        if (type === "user" && Array.isArray(d.tool_results)) {
+          for (const tr of d.tool_results) {
+            const trRec = tr as { tool_use_id: string; output: string; is_error?: boolean };
+            const toolCallId = trRec.tool_use_id || lastToolCallId || "";
+            const toolName = toolNamesById.get(toolCallId) || "";
+            chatEventRepo.createEvent(msgId, "tool_result", {
+              tool_call_id: toolCallId,
+              tool_name: toolName,
+              result: trRec.output,
+            });
+            eventBus.emit("chat.tool_result", {
               project_id: projId,
               thread_id: thrdId,
               message_id: msgId,
               tool_call_id: toolCallId,
-              tool_name: tuRec.name,
-              tool_input: tuRec.input,
+              tool_name: toolName,
+              result: trRec.output,
             });
           }
         }
       }
 
-      if (type === "user" && Array.isArray(d.tool_results)) {
-        for (const tr of d.tool_results) {
-          const trRec = tr as { tool_use_id: string; output: string; is_error?: boolean };
-          const toolCallId = trRec.tool_use_id || lastToolCallId || "";
-          const toolName = toolNamesById.get(toolCallId) || "";
-          chatEventRepo.createEvent(msgId, "tool_result", {
-            tool_call_id: toolCallId,
-            tool_name: toolName,
-            result: trRec.output,
-          });
-          eventBus.emit("chat.tool_result", {
-            project_id: projId,
-            thread_id: thrdId,
-            message_id: msgId,
-            tool_call_id: toolCallId,
-            tool_name: toolName,
-            result: trRec.output,
-          });
-        }
+      // Handle legacy flat tool_result events (old Claude CLI format)
+      if (type === "tool_result" && event.tool_name) {
+        const toolCallId = String(event.tool_call_id ?? lastToolCallId ?? "");
+        chatEventRepo.createEvent(msgId, "tool_result", {
+          tool_call_id: toolCallId,
+          tool_name: String(event.tool_name),
+          result: event.result,
+        });
+        eventBus.emit("chat.tool_result", {
+          project_id: projId,
+          thread_id: thrdId,
+          message_id: msgId,
+          tool_call_id: toolCallId,
+          tool_name: String(event.tool_name),
+          result: event.result,
+        });
       }
-    }
 
-    // Handle legacy flat tool_result events (old Claude CLI format)
-    if (type === "tool_result" && event.tool_name) {
-      const toolCallId = String(event.tool_call_id ?? lastToolCallId ?? "");
-      chatEventRepo.createEvent(msgId, "tool_result", {
-        tool_call_id: toolCallId,
-        tool_name: String(event.tool_name),
-        result: event.result,
-      });
-      eventBus.emit("chat.tool_result", {
-        project_id: projId,
-        thread_id: thrdId,
-        message_id: msgId,
-        tool_call_id: toolCallId,
-        tool_name: String(event.tool_name),
-        result: event.result,
-      });
-    }
-
-    if (type === "result") {
-      if (event.session_id && !sessionId) {
-        sessionId = String(event.session_id);
-      }
-      if (event.is_error && Array.isArray(event.errors)) {
-        const errMsg = (event.errors as string[]).join(" ").toLowerCase();
-        if (errMsg.includes("session") || errMsg.includes("conversation") ||
-            errMsg.includes("not found") || errMsg.includes("expired") || errMsg.includes("invalid")) {
-          sessionExpired = true;
+      if (type === "result") {
+        if (event.session_id && !sessionId) {
+          sessionId = String(event.session_id);
         }
+        if (event.is_error && Array.isArray(event.errors)) {
+          const errMsg = (event.errors as string[]).join(" ").toLowerCase();
+          if (errMsg.includes("session") || errMsg.includes("conversation") ||
+              errMsg.includes("not found") || errMsg.includes("expired") || errMsg.includes("invalid")) {
+            sessionExpired = true;
+          }
+        }
+        chatEventRepo.createEvent(msgId, "result", event);
       }
-      chatEventRepo.createEvent(msgId, "result", event);
+    } catch (err) {
+      // DB writes can fail if the thread was deleted while streaming
+      // (e.g. FK constraint on ChatMessageEvent.message_id).
+      logger.warn({ err, threadId: thrdId }, "processStreamLine: event handling failed, stream may be orphaned");
     }
   }
 

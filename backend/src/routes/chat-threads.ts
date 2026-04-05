@@ -12,7 +12,7 @@ import * as threadRepo from "../db/repositories/chat-threads.js";
 import * as messageRepo from "../db/repositories/chat-messages.js";
 import * as chatEventRepo from "../db/repositories/chat-message-events.js";
 import type { ChatThread, ChatMessage } from "../types/entities.js";
-import { acquireAndCreateMessage, runThreadSession, isThreadActive } from "../orchestration/chat-service.js";
+import { acquireAndCreateMessage, runThreadSession, isThreadActive, abortThread } from "../orchestration/chat-service.js";
 import { Scope } from "../constants/scopes.js";
 
 const router = Router({ mergeParams: true });
@@ -105,6 +105,7 @@ router.delete(
     if (!thread || thread.project_id !== req.params.projectId) {
       throw new NotFoundError("Thread not found");
     }
+    abortThread(thread.id);
     messageRepo.deleteMessagesByThread(thread.id);
     threadRepo.deleteThread(thread.id);
     res.json({ deleted: true });

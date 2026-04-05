@@ -1975,7 +1975,7 @@ Updates a thread. The `title` field is user-editable. The `session_id` field can
 DELETE /projects/:projectId/chat/threads/:threadId
 ```
 
-Deletes a thread and all its messages.
+Deletes a thread and all its messages. If Claude is actively streaming a response for this thread, the child process is terminated (SIGTERM) before rows are removed, preventing FK constraint errors.
 
 **Response:** `200 OK`
 
