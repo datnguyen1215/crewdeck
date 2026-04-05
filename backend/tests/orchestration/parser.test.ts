@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDispatches, parseCommands } from "../../src/orchestration/parser.js";
+import { parseDispatches } from "../../src/orchestration/parser.js";
 import type { Agent } from "../../src/types/entities.js";
 
 function makeAgent(id: string, name: string): Agent {
@@ -119,107 +119,5 @@ Focus on:
     const result = parseDispatches(content, agents);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("engineer");
-  });
-});
-
-describe("parseCommands", () => {
-  it("extracts merge command with full UUID", () => {
-    const result = parseCommands("/merge a3f21b78-1234-5678-9abc-def012345678");
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      type: "merge",
-      issueId: "a3f21b78-1234-5678-9abc-def012345678",
-    });
-  });
-
-  it("extracts merge command with truncated UUID", () => {
-    const result = parseCommands("/merge a3f21b78");
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      type: "merge",
-      issueId: "a3f21b78",
-    });
-  });
-
-  it("extracts create-pr command", () => {
-    const result = parseCommands("/create-pr fa41fc96");
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      type: "create-pr",
-      issueId: "fa41fc96",
-    });
-  });
-
-  it("extracts create-issue command with title", () => {
-    const result = parseCommands('/create-issue Fix bug in auth');
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      type: "create-issue",
-      title: "Fix bug in auth",
-    });
-  });
-
-  it("extracts create-issue command with multiline title", () => {
-    const result = parseCommands('/create-issue Add dark mode support');
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      type: "create-issue",
-      title: "Add dark mode support",
-    });
-  });
-
-  it("extracts multiple commands", () => {
-    const result = parseCommands(
-      "/merge a3f21b78\n/create-pr fa41fc96\n/create-issue Test issue"
-    );
-    expect(result).toHaveLength(3);
-    expect(result[0].type).toBe("merge");
-    expect(result[1].type).toBe("create-pr");
-    expect(result[2].type).toBe("create-issue");
-  });
-
-  it("skips commands inside fenced code blocks", () => {
-    const text = "Check this:\n```\n/merge a3f21b78\n```\n/create-pr fa41fc96";
-    const result = parseCommands(text);
-    expect(result).toHaveLength(1);
-    expect(result[0].type).toBe("create-pr");
-  });
-
-  it("skips commands inside inline backticks", () => {
-    const text = "Use `/merge issue-id` to merge\n/create-pr fa41fc96";
-    const result = parseCommands(text);
-    expect(result).toHaveLength(1);
-    expect(result[0].type).toBe("create-pr");
-  });
-
-  it("returns empty array for no commands", () => {
-    const result = parseCommands("Just a normal comment");
-    expect(result).toEqual([]);
-  });
-
-  it("handles malformed create-issue (missing title)", () => {
-    const result = parseCommands('/create-issue');
-    expect(result).toEqual([]);
-  });
-
-  it("handles malformed merge (no issue ID)", () => {
-    const result = parseCommands("/merge");
-    expect(result).toEqual([]);
-  });
-
-  it("handles malformed create-pr (no issue ID)", () => {
-    const result = parseCommands("/create-pr");
-    expect(result).toEqual([]);
-  });
-
-  it("handles commands at start of line with leading whitespace", () => {
-    const result = parseCommands("  /merge a3f21b78");
-    expect(result).toHaveLength(1);
-    expect(result[0].type).toBe("merge");
-  });
-
-  it("ignores commands in middle of line", () => {
-    const result = parseCommands("Please /merge a3f21b78");
-    expect(result).toEqual([]);
   });
 });

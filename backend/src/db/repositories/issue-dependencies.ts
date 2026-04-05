@@ -4,10 +4,7 @@
  * Manages dependencies between issues (issue A depends on issue B).
  */
 import { db } from "../index.js";
-import type {
-  IssueDependency,
-  IssueDependencySummary,
-} from "../../types/entities.js";
+import type { IssueDependencySummary } from "../../types/entities.js";
 import { getIssue } from "./issues.js";
 import { logger } from "../../logger.js";
 
@@ -55,47 +52,6 @@ function wouldCreateCycle(issueId: string, dependsOnId: string): boolean {
   }
 
   return false;
-}
-
-/**
- * Add a single dependency.
- * Returns the created dependency or null if it would create a cycle,
- * issues don't exist, or issues are in different projects.
- */
-export function addDependency(
-  issueId: string,
-  dependsOnId: string,
-): IssueDependency | null {
-  // Self-dependency check
-  if (issueId === dependsOnId) return null;
-
-  // Verify both issues exist and are in the same project
-  const issue = getIssue(issueId);
-  const depIssue = getIssue(dependsOnId);
-  if (!issue || !depIssue) return null;
-  if (issue.project_id !== depIssue.project_id) return null;
-
-  // Circular dependency check
-  if (wouldCreateCycle(issueId, dependsOnId)) return null;
-
-  const id = crypto.randomUUID();
-  try {
-    db.prepare(
-      `INSERT INTO IssueDependency (id, issue_id, depends_on_issue_id)
-       VALUES (?, ?, ?)`,
-    ).run(id, issueId, dependsOnId);
-  } catch {
-    // UNIQUE constraint violation - dependency already exists
-    logger.debug(
-      { issueId, dependsOnId },
-      "Skipping duplicate dependency (already exists)",
-    );
-    return null;
-  }
-
-  return db
-    .prepare("SELECT * FROM IssueDependency WHERE id = ?")
-    .get(id) as IssueDependency;
 }
 
 /**

@@ -231,9 +231,6 @@ function subscribeEvents(bus: EventBus): void {
   });
 
   // Monitor events (captain orchestration)
-  bus.on("monitor.event_received", (data) => {
-    broadcast(data.project_id, "monitor.event_received", data);
-  });
   bus.on("monitor.thinking", (data) => {
     broadcast(data.project_id, "monitor.thinking", data);
   });
@@ -257,9 +254,6 @@ function subscribeEvents(bus: EventBus): void {
   });
 
   // Chat thread events
-  bus.on("chat.event_received", (data) => {
-    broadcast(data.project_id, "chat.event_received", data);
-  });
   bus.on("chat.thinking", (data) => {
     broadcast(data.project_id, "chat.thinking", data);
   });
