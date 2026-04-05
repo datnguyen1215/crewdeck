@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { page } from '$app/stores';
 	import { onNavigate } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import Toast from '$lib/components/Toast.svelte';
 	import { globalWs } from '$lib/api/global-ws.svelte.js';
@@ -42,9 +42,17 @@
 		});
 	});
 
-	onMount(() => {
-		if (!isAuthPage) globalWs.connect();
-		return () => { globalWs.disconnect(); };
+	// Connect/disconnect WebSocket reactively based on auth page state
+	$effect(() => {
+		if (!isAuthPage) {
+			globalWs.connect();
+		} else {
+			globalWs.disconnect();
+		}
+	});
+
+	onDestroy(() => {
+		globalWs.disconnect();
 	});
 </script>
 

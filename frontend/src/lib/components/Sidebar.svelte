@@ -47,6 +47,12 @@
 		}
 	});
 
+	const fetchProjects = () => {
+		listProjectsWithStats()
+			.then((data) => { projects = data; })
+			.catch(() => {});
+	};
+
 	onMount(() => {
 		// Check for mobile on mount and window resize
 		const checkMobile = () => {
@@ -77,12 +83,6 @@
 		const projectsStored = migrateKey(PROJECTS_COLLAPSED_KEY, LEGACY_PROJECTS_COLLAPSED_KEY);
 		if (projectsStored !== null) projectsSectionCollapsed = projectsStored === 'true';
 
-		// Load projects (async, but don't block)
-		const fetchProjects = () => {
-			listProjectsWithStats()
-				.then((data) => { projects = data; })
-				.catch(() => {});
-		};
 		fetchProjects();
 
 		// Subscribe to WebSocket events for real-time project count updates
@@ -90,18 +90,17 @@
 			'issue.status_changed', 'issue.created', 'run.started', 'run.completed',
 			'dispatch.queued', 'dispatch.dequeued', 'issue.paused', 'issue.resumed',
 		] as const;
-		const unsubs = [
-			...STATS_EVENTS.map((e) => globalWs.on(e, fetchProjects)),
-			// Refresh on reconnect to catch missed events
-			globalWs.on('*', (data) => {
-				if (data._event === 'connected') fetchProjects();
-			}),
-		];
+		const unsubs = STATS_EVENTS.map((e) => globalWs.on(e, fetchProjects));
 
 		return () => {
 			window.removeEventListener('resize', checkMobile);
 			unsubs.forEach((fn) => fn());
 		};
+	});
+
+	// Refresh projects on reconnect to catch missed events
+	$effect(() => {
+		if (globalWs.state === 'connected') fetchProjects();
 	});
 
 	function toggleSidebar() {
