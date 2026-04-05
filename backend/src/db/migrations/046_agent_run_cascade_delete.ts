@@ -1,11 +1,6 @@
 import type Database from "better-sqlite3";
 
 export function run(db: Database.Database): void {
-  // Check if cascade already exists by inspecting the SQL schema
-  const fks = db.pragma("foreign_key_list(AgentRun)") as { table: string; from: string }[];
-  const hasProjectFK = fks.some((f) => f.from === "project_id" && f.table === "Project");
-  if (!hasProjectFK) return;
-
   db.pragma("foreign_keys = OFF");
   try {
     db.transaction(() => {
