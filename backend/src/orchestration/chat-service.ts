@@ -519,11 +519,12 @@ async function runClaudeProcess(
 }
 
 const TITLE_SYSTEM_PROMPT =
-  "You generate titles for conversations. Rules:\n" +
-  "- Output exactly 3-7 words\n" +
-  "- Plain text only — no quotes, no markdown, no punctuation at the end\n" +
-  "- No preamble, no explanation, no thinking, no prefixes like \"Title:\"\n" +
-  "- Just the title, nothing else";
+  "You generate titles for conversations. Output your title inside <title> tags.\n" +
+  "Example: <title>Refactoring the Auth Middleware</title>\n" +
+  "Rules:\n" +
+  "- 3-7 words\n" +
+  "- No quotes, no markdown, no punctuation at the end\n" +
+  "- Nothing outside the tags";
 
 /**
  * Fire-and-forget: generate a thread title from the first exchange.
@@ -559,28 +560,20 @@ function generateThreadTitle(
       try {
         const parsed = JSON.parse(title);
         if (Array.isArray(parsed)) {
-          // New Claude CLI format: array of stream events
           const assistant = parsed.find((e: any) => e.type === 'assistant');
           const textBlock = assistant?.message?.content?.find((b: any) => b.type === 'text');
           title = textBlock?.text ?? title;
         } else {
-          // Old format: single JSON object with result/text field
           title = parsed.result ?? parsed.text ?? title;
         }
       } catch {
         // If not valid JSON, use raw stdout
       }
 
-      title = title.trim().replace(/^["']|["']$/g, "");
+      const titleMatch = title.match(/<title>(.*?)<\/title>/s);
+      if (titleMatch) title = titleMatch[1].trim();
 
-      // Safety: take only the first line
-      const newlineIdx = title.indexOf("\n");
-      if (newlineIdx !== -1) title = title.slice(0, newlineIdx);
-
-      // Strip common prefixes the model might still produce
-      title = title.replace(/^(title|here('?s| is a)?)[:\s-]+/i, "").trim();
-
-      // Truncate to a reasonable length
+      // Safety: truncate to reasonable length
       if (title.length > 80) title = title.slice(0, 80).replace(/\s+\S*$/, "");
 
       if (!title || title.length < 2) {

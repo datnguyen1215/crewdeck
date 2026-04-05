@@ -4,7 +4,9 @@ import { getDefaultModel } from "../db/repositories/global-config.js";
 import { updateIssue } from "../db/repositories/issues.js";
 
 const SYSTEM_PROMPT =
-  "You are a summarizer. Given an issue title and description, output a 1-2 sentence summary that captures the key goal and approach. Output only the summary text, nothing else.";
+  "You are a summarizer. Given an issue title and description, output a 1-2 sentence summary inside <summary> tags.\n" +
+  "Example: <summary>Add retry logic to the webhook dispatcher to handle transient failures.</summary>\n" +
+  "Nothing outside the tags.";
 
 /**
  * Fire-and-forget: spawn a lightweight Claude call to summarize an issue.
@@ -40,10 +42,19 @@ export function summarizeIssueAsync(
       let text = stdout.trim();
       try {
         const parsed = JSON.parse(text);
-        text = parsed.result ?? parsed.text ?? text;
+        if (Array.isArray(parsed)) {
+          const assistant = parsed.find((e: any) => e.type === 'assistant');
+          const textBlock = assistant?.message?.content?.find((b: any) => b.type === 'text');
+          text = textBlock?.text ?? text;
+        } else {
+          text = parsed.result ?? parsed.text ?? text;
+        }
       } catch {
         // If not valid JSON, use raw stdout
       }
+
+      const summaryMatch = text.match(/<summary>(.*?)<\/summary>/s);
+      if (summaryMatch) text = summaryMatch[1].trim();
 
       text = text.trim();
       if (!text || text.length < 5) {
