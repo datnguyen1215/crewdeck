@@ -114,3 +114,5 @@ export class GlobalWebSocket {
     }
   }
 }
+
+export const globalWs = new GlobalWebSocket();
