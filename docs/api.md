@@ -2557,7 +2557,6 @@ All events below (except `run.event` and monitor events) are broadcast to both p
 
 | Event                    | Description                                 | Data                                                                  |
 | ------------------------ | ------------------------------------------- | --------------------------------------------------------------------- |
-| `chat.event_received`    | Monitor event received (dual-emitted)       | `{ project_id, thread_id, event_type, description }`                 |
 | `chat.thinking`          | Captain is analyzing (dual-emitted)         | `{ project_id, thread_id }`                                          |
 | `chat.message`           | Assistant text chunk streamed               | `{ project_id, thread_id, content }`                                 |
 | `chat.tool_call`         | Tool usage by Claude during chat            | `{ project_id, thread_id, tool_name, tool_input }`                   |
