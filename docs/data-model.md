@@ -200,8 +200,8 @@ Records a single execution of an agent. Can be associated with an issue (for `/d
 | Field        | Type        | Constraints                         | Description                                                                                                        |
 | ------------ | ----------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                                                 |
-| project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id  | Owning project.                                                                                                    |
-| issue_id     | TEXT        | FOREIGN KEY → Issue.id, NULLABLE    | The issue this run was triggered by. NULL for standalone runs (e.g., scans).                                       |
+| project_id   | TEXT        | NOT NULL, FOREIGN KEY → Project.id ON DELETE CASCADE  | Owning project. Deleting a project cascades to its agent runs (and their events).                                    |
+| issue_id     | TEXT        | FOREIGN KEY → Issue.id ON DELETE CASCADE, NULLABLE    | The issue this run was triggered by. NULL for standalone runs (e.g., scans). Deleting an issue cascades to its agent runs (and their events). |
 | agent_id     | TEXT        | NOT NULL                            | The agent that was spawned (e.g., `engineer`).                                                                     |
 | pid          | INTEGER     | NULLABLE                            | OS process ID. NULL until the process is spawned (i.e., while `status='queued'`).                                  |
 | status       | TEXT        | NOT NULL, DEFAULT 'queued'          | Current status. One of: `queued`, `running`, `completed`, `failed`, `timeout`. Runs start in `queued` status.      |
