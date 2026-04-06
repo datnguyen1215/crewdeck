@@ -76,8 +76,8 @@ function broadcastGlobal(event: string, data: unknown): void {
 
 function subscribeEvents(bus: EventBus): void {
   bus.on("issue.created", ({ issue }) => {
-    broadcast(issue.project_id, "issue.created", issue);
-    broadcastGlobal("issue.created", issue);
+    broadcast(issue.project_id, "issue.created", { issue });
+    broadcastGlobal("issue.created", { issue });
   });
 
   bus.on("issue.updated", ({ issue_id, project_id, changes }) => {
