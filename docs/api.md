@@ -1681,9 +1681,13 @@ All events follow this structure:
 
 #### Project Events
 
-| Event                      | Description               | Data          |
-| -------------------------- | ------------------------- | ------------- |
-| `project.settings_changed` | Project settings modified | `{ changes }` |
+Project events are broadcast to **all connected clients** across all projects (not scoped to the originating project), so any WebSocket connection receives them regardless of which project it is subscribed to.
+
+| Event                      | Description               | Data                    |
+| -------------------------- | ------------------------- | ----------------------- |
+| `project.settings_changed` | Project settings modified | `{ changes }`           |
+| `project.created`          | New project created       | `{ project }` — full Project object |
+| `project.deleted`          | Project deleted           | `{ project_id }`        |
 
 ---
 

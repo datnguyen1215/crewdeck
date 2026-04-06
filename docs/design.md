@@ -456,8 +456,11 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
 - **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
 - **PR events** — PR created, status updated.
+- **Project events** — `project.created`, `project.deleted`, `project.settings_changed`. Unlike other events, project events are broadcast to *all* connected clients via `broadcastAll()` (not scoped to the originating project) so that every open tab updates its project list immediately.
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
+
+**Sidebar real-time updates:** `Sidebar.svelte` establishes a WebSocket connection to an arbitrary project so it can receive `project.created` and `project.deleted` broadcast events regardless of which page the user is on. When navigating into a project, it switches to that project's connection. When the connected project is deleted, it reconnects to any surviving project. If no projects exist, the sidebar falls back to its 30-second polling interval until a project is created.
 
 ### Shared Frontend Utilities
 
