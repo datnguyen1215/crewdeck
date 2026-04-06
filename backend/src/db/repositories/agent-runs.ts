@@ -148,6 +148,14 @@ export function listActiveRunsForProject(projectId: string): AgentRun[] {
     .all(projectId) as AgentRun[];
 }
 
+export function listActiveRunsGlobal(): AgentRun[] {
+  return db
+    .prepare(
+      "SELECT * FROM AgentRun WHERE status IN ('running', 'queued') ORDER BY created_at ASC",
+    )
+    .all() as AgentRun[];
+}
+
 export function getLatestLibrarianRun(projectId: string): AgentRun | null {
   return (
     (db

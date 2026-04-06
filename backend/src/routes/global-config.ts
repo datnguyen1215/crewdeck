@@ -9,6 +9,9 @@ import { requireScope } from "../middleware/scope.js";
 import { getZaiApiKey } from "../orchestration/provider-env.js";
 import * as globalEnvVarRepo from "../db/repositories/global-environment-variables.js";
 import { Scope } from "../constants/scopes.js";
+import { getCrewMember } from "../orchestration/crew.js";
+import { getByIds } from "../db/repositories/issues.js";
+import { listProjects, getProject } from "../db/repositories/projects.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -156,6 +159,53 @@ router.get("/preflight/claude-auth", requireScope(Scope.GLOBAL_CONFIG_READ), asy
       error: msg || "Authentication check failed",
     });
   }
+});
+
+router.get("/active-runs", requireScope(Scope.GLOBAL_CONFIG_READ), (req, res) => {
+  const includeEvents = req.query.include_events === "true";
+  const runs = agentRunRepo.listActiveRunsGlobal();
+
+  const issueIds = runs
+    .map((r) => r.issue_id)
+    .filter((id): id is string => id != null);
+  const issueMap = getByIds(issueIds);
+
+  const result = runs.map((run) => {
+    const agent = getCrewMember(run.agent_id);
+    const issue = run.issue_id ? issueMap.get(run.issue_id) : null;
+    const project = getProject(run.project_id);
+    const recentEvents = includeEvents
+      ? agentRunRepo.listRecentAgentRunEvents(run.id, 50)
+      : [];
+    return {
+      ...run,
+      agent_name: agent?.name ?? run.agent_id,
+      agent_title: agent?.title ?? null,
+      issue_title: issue?.title ?? null,
+      project_name: project?.name ?? null,
+      events: recentEvents,
+    };
+  });
+  res.json(result);
+});
+
+router.get("/captain-statuses", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
+  const projects = listProjects();
+  const result = projects.map((project) => {
+    const processingDurationMs = project.captain_processing_since
+      ? Date.now() - new Date(project.captain_processing_since + "Z").getTime()
+      : null;
+    return {
+      project_id: project.id,
+      project_name: project.name,
+      status: project.captain_status ?? "idle",
+      detail: project.captain_status_detail ?? null,
+      pending_count: project.captain_pending_count ?? 0,
+      processing_since: project.captain_processing_since ?? null,
+      processing_duration_ms: processingDurationMs,
+    };
+  });
+  res.json(result);
 });
 
 // GET /preflight/zai — check if Z.AI API key is configured
