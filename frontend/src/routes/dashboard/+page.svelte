@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, listVCSAccounts, getAuthMe, listActiveRunsGlobal, type ProjectWithStats, type ActivityLog, type VCSAccount, type GlobalActiveRun } from '$lib/api/http.js';
+	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, listVCSAccounts, getAuthMe, listActiveRunsGlobal, listCaptainStatuses, type ProjectWithStats, type ActivityLog, type VCSAccount, type GlobalActiveRun, type GlobalCaptainStatus } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { globalWs } from '$lib/api/global-ws.svelte.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
@@ -17,6 +17,9 @@
 	let maxConcurrency = $state(5);
 	let showCreateModal = $state(false);
 	let githubAccounts = $state<VCSAccount[]>([]);
+	let captains = $state<GlobalCaptainStatus[]>([]);
+	let captainsCollapsed = $state(false);
+	let captainsInitialized = $state(false);
 
 	// Active agent runs state
 	let runs = $state<GlobalActiveRun[]>([]);
@@ -67,6 +70,10 @@
 		if (isInitialLoad) activityLoading = false;
 	}
 
+	async function refreshCaptains() {
+		try { captains = await listCaptainStatuses(); } catch {}
+	}
+
 	fetchEffect(() => listProjectsWithStats(), {
 		onData: (data) => { projects = data; },
 		onError: 'Failed to load dashboard',
@@ -86,6 +93,7 @@
 	});
 
 	refreshActivity();
+	refreshCaptains();
 
 	const STATS_EVENTS = ['run.started', 'run.completed', 'issue.status_changed', 'issue.paused', 'issue.resumed', 'issue.created', 'dispatch.queued', 'dispatch.dequeued'] as const;
 	const ACTIVITY_EVENTS = [
@@ -94,6 +102,7 @@
 		'mention.error', 'dispatch.queued', 'run.started', 'run.completed',
 	] as const;
 	const AGENT_EVENTS = ['run.started', 'run.completed', 'dispatch.queued', 'dispatch.dequeued'] as const;
+	const CAPTAIN_EVENTS = ['run.started', 'run.completed', 'dispatch.queued', 'dispatch.dequeued'] as const;
 	let unsubs: (() => void)[] = [];
 
 	onMount(async () => {
@@ -101,6 +110,7 @@
 			...STATS_EVENTS.map((e) => globalWs.on(e, refreshProjects)),
 			...ACTIVITY_EVENTS.map((e) => globalWs.on(e, refreshActivity)),
 			...AGENT_EVENTS.map((e) => globalWs.on(e, refreshActiveAgents)),
+			...CAPTAIN_EVENTS.map((e) => globalWs.on(e, refreshCaptains)),
 
 			// Active runs pane: refresh list on lifecycle events
 			globalWs.on('run.started', refreshRuns),
@@ -128,6 +138,11 @@
 			}),
 			globalWs.on('mention.completed', refreshRuns),
 		];
+
+		// Load captains collapse state from localStorage
+		const stored = localStorage.getItem('crewdeck:dashboard:captains-collapsed');
+		if (stored !== null) captainsCollapsed = stored === 'true';
+		captainsInitialized = true;
 
 		try {
 			const { setupCompleted } = await getAuthMe();
@@ -169,6 +184,25 @@
 		if (queued > 0) parts.push(`${queued} queued`);
 		return parts.join(' · ') || 'none';
 	});
+
+	let captainsSummary = $derived.by(() => {
+		const counts: Record<string, number> = {};
+		for (const c of captains) {
+			counts[c.status] = (counts[c.status] ?? 0) + 1;
+		}
+		return Object.entries(counts)
+			.filter(([, n]) => n > 0)
+			.map(([s, n]) => `${n} ${s}`)
+			.join(' · ') || 'all idle';
+	});
+
+	function toggleCaptains() {
+		captainsCollapsed = !captainsCollapsed;
+		if (captainsInitialized) {
+			localStorage.setItem('crewdeck:dashboard:captains-collapsed', String(captainsCollapsed));
+		}
+	}
+
 
 	function blockedCount(issues: ProjectWithStats['issues']) {
 		return issues.pr_conflict + issues.pr_failed_actions;
@@ -511,6 +545,53 @@
 			<div>
 				<DashboardActivityFeed entries={activity} loading={activityLoading} />
 			</div>
+		</div>
+
+		<!-- Captains pane -->
+		<div class="mt-6 bg-surface border border-edge rounded-sm fade-up">
+			<!-- Header -->
+			<button
+				onclick={toggleCaptains}
+				class="w-full flex items-center gap-2 px-4 py-2 bg-base-hi rounded-t-sm hover:bg-base-hi/80 transition-colors"
+			>
+				<span class="text-muted text-sm font-mono">captains ({captains.length})</span>
+				{#if captainsCollapsed}
+					<span class="text-secondary text-xs font-mono ml-2">{captainsSummary}</span>
+				{/if}
+				<span class="ml-auto text-muted text-xs">{captainsCollapsed ? '▶' : '▼'}</span>
+			</button>
+
+			{#if !captainsCollapsed}
+				{#if captains.length === 0}
+					<div class="px-4 py-4 text-muted text-sm font-mono">No captains</div>
+				{:else}
+					<div class="flex flex-wrap gap-3 p-4">
+						{#each captains as captain (captain.project_id)}
+							{@const isActive = captain.status !== 'idle'}
+							<a
+								href="/projects/{captain.project_id}/terminals"
+								class="flex flex-col gap-1 px-3 py-2 border rounded-sm font-mono text-xs transition-colors hover:border-cyan/50 {isActive ? 'border-cyan/30 bg-cyan/5' : 'border-edge opacity-60 hover:opacity-100'}"
+							>
+								<div class="flex items-center gap-2">
+									{#if isActive}
+										<span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse flex-shrink-0"></span>
+									{/if}
+									<span class="text-primary truncate max-w-[10rem]">{captain.project_name}</span>
+									<span class="ml-auto px-1.5 py-0.5 rounded text-xs font-mono {
+										captain.status === 'executing' ? 'bg-cyan/20 text-cyan' :
+										captain.status === 'thinking' ? 'bg-amber/20 text-amber' :
+										captain.status === 'receiving' ? 'bg-purple/20 text-purple' :
+										'bg-edge text-muted'
+									}">{captain.status}</span>
+								</div>
+								{#if captain.detail}
+									<span class="text-muted truncate max-w-[14rem]">{captain.detail}</span>
+								{/if}
+							</a>
+						{/each}
+					</div>
+				{/if}
+			{/if}
 		</div>
 	{/if}
 </div>
