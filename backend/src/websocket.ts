@@ -34,6 +34,7 @@ function addGlobalSubscriber(ws: WebSocket): void {
 
 function removeGlobalSubscriber(ws: WebSocket): void {
   globalSubscribers.delete(ws);
+
 }
 
 function broadcast(projectId: string, event: string, data: unknown): void {
@@ -229,6 +230,14 @@ function subscribeEvents(bus: EventBus): void {
     broadcast(project_id, "project.settings_changed", { changes });
     broadcastGlobal("project.settings_changed", { project_id, changes });
   });
+
+  bus.on("project.created", ({ project }) =>
+    broadcastGlobal("project.created", { project }),
+  );
+
+  bus.on("project.deleted", ({ project_id }) =>
+    broadcastGlobal("project.deleted", { project_id }),
+  );
 
   // Monitor events (captain orchestration)
   bus.on("monitor.thinking", (data) => {

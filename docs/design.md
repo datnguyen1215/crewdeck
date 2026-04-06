@@ -493,6 +493,7 @@ All state changes are broadcast to connected frontend clients via WebSocket:
 - **Monitor events** — captain monitor streaming events (`monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.rate_limit`, `monitor.result`, `monitor.complete`). Broadcast to project-scoped subscribers only; excluded from the global WebSocket to avoid flooding the dashboard.
 - **PR events** — PR created, status updated.
 - **Chat events** — assistant message chunks, tool calls, tool results, completion, errors, session expiry, thinking, thread title updates. Emitted by the Chat Service during `claude -p` sessions for chat threads, and dual-emitted by the monitor agent (as `chat.*` equivalents of `monitor.*` events) so the Chat UI receives real-time monitor activity.
+- **Project events** — `project.created`, `project.deleted`, `project.settings_changed`. Project events are broadcast to all connected global WebSocket clients so that every open tab updates its project list immediately.
 
 The frontend subscribes to events scoped by project. All event payloads are strongly typed via a `WsEventMap` interface (`frontend/src/lib/api/types.ts`) that maps each event name to its payload type. `ProjectWebSocket.on()` uses generic overloads so handlers receive typed `data` parameters with full IDE autocomplete.
 
@@ -502,7 +503,7 @@ A module-level `globalWs` singleton (exported from `frontend/src/lib/api/global-
 
 The singleton is shared across all components that need real-time updates without per-project connections or polling:
 - **Dashboard** (`dashboard/+page.svelte`) — subscribes to stats, activity, and agent events for real-time project stats and activity feed updates.
-- **Sidebar** (`Sidebar.svelte`) — subscribes to issue and run events to refresh project counts (active issues, terminals) immediately when statuses change, replacing the previous 30-second polling interval.
+- **Sidebar** (`Sidebar.svelte`) — subscribes to issue, run, and project lifecycle events to refresh project counts and the project list immediately when statuses change.
 
 The `GlobalWebSocket` class mirrors `ProjectWebSocket` with the same reconnection logic and a reactive `state` property. Event payloads are typed via `GlobalWsEventMap` — a subset of `WsEventMap` that excludes `run.event` and monitor events. A reconnection banner is rendered at the layout level (visible on all pages) when `globalWs.state` is `connecting` or `reconnecting`.
 

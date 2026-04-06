@@ -124,6 +124,12 @@ export interface EventMap {
     project_id: string;
     changes: Partial<Project>;
   };
+  "project.created": {
+    project: Project;
+  };
+  "project.deleted": {
+    project_id: string;
+  };
   // Monitor events (captain orchestration)
   "monitor.event_received": {
     project_id: string;

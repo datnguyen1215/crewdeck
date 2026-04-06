@@ -2568,9 +2568,13 @@ All events below (except `run.event` and monitor events) are broadcast to both p
 
 #### Project Events
 
-| Event                      | Description               | Data          |
-| -------------------------- | ------------------------- | ------------- |
+Project events are broadcast to **all connected clients** via the global WebSocket, so any connection receives them regardless of which project it is subscribed to.
+
+| Event                      | Description               | Data                    |
+| -------------------------- | ------------------------- | ----------------------- |
 | `project.settings_changed` | Project settings modified | `{ project_id, changes }` |
+| `project.created`          | New project created       | `{ project }` — full Project object |
+| `project.deleted`          | Project deleted           | `{ project_id }`        |
 
 ---
 

@@ -7,6 +7,7 @@
 	import ProjectNavItem from './ProjectNavItem.svelte';
 	import { icons } from './icons.js';
 
+
 	const STORAGE_KEY = 'crewdeck:sidebar:collapsed';
 	const LEGACY_STORAGE_KEY = 'sidebar-collapsed';
 	const SYSTEM_STORAGE_KEY = 'crewdeck:sidebar:systemCollapsed';
@@ -89,6 +90,7 @@
 		const STATS_EVENTS = [
 			'issue.status_changed', 'issue.created', 'run.started', 'run.completed',
 			'dispatch.queued', 'dispatch.dequeued', 'issue.paused', 'issue.resumed',
+			'project.created', 'project.deleted',
 		] as const;
 		const unsubs = STATS_EVENTS.map((e) => globalWs.on(e, fetchProjects));
 

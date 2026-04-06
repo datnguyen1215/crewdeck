@@ -60,6 +60,7 @@ router.post("/", requireScope(Scope.PROJECTS_WRITE), validate(CreateProjectSchem
 
     startMonitorForProject(project.id);
 
+    eventBus.emit("project.created", { project });
     res.status(201).json(project);
   } catch (err) {
     next(err);
@@ -83,6 +84,7 @@ router.delete("/:id", requireScope(Scope.PROJECTS_DELETE), (req, res) => {
   const existing = getProject(req.params.id);
   if (!existing) throw new NotFoundError("Project not found");
   deleteProject(req.params.id);
+  eventBus.emit("project.deleted", { project_id: req.params.id });
   res.status(204).send();
 });
 
