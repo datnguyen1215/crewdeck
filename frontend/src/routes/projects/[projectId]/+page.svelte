@@ -137,7 +137,9 @@
 					skipNextCreatedId = null;
 					return;
 				}
-				reload();
+				if (issues.some(i => i.id === data.issue.id)) return;
+				issues = [{ ...data.issue, running_agent_id: null, running_agent_status: null, dependencies: [], dependents: [] }, ...issues];
+				totalIssues += 1;
 			},
 			'issue.updated': reload,
 			'issue.status_changed': reload,
