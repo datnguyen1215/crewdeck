@@ -1550,6 +1550,89 @@ Returns the current global agent activity count and the concurrency limit. Used 
 | activeAgents   | INTEGER | Number of currently running agent processes globally.   |
 | maxConcurrency | INTEGER | Maximum concurrent agents allowed (global limit).      |
 
+#### List Active Runs (Global)
+
+```
+GET /global-config/active-runs
+```
+
+Returns all currently running or queued agent runs across every project, enriched with agent info, issue titles, and project names. Used to power a cross-project agent dashboard.
+
+**Query Parameters:**
+
+| Parameter      | Type    | Description                                                                 |
+| -------------- | ------- | --------------------------------------------------------------------------- |
+| include_events | boolean | When `true`, includes the 50 most recent events per run. Default: `false`.  |
+
+**Response:** `200 OK` — Array of enriched AgentRun objects ordered by `created_at` ascending.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "issue_id": "uuid | null",
+    "agent_id": "engineer",
+    "pid": 12345,
+    "status": "running",
+    "exit_code": null,
+    "cost_usd": null,
+    "duration_ms": null,
+    "started_at": "ISO 8601",
+    "completed_at": null,
+    "created_at": "ISO 8601",
+    "agent_name": "Engineer",
+    "agent_title": "Software Engineer",
+    "issue_title": "Fix login bug",
+    "project_name": "my-project",
+    "events": []
+  }
+]
+```
+
+Each run includes:
+
+- `agent_name` / `agent_title` — resolved from the crew roster (falls back to `agent_id` if not found).
+- `issue_title` — title of the associated issue (null for standalone runs or if issue not found).
+- `project_name` — name of the owning project (null if project was deleted while run was active).
+- `events` — when `include_events=true`, the 50 most recent `AgentRunEvent` records ordered by `created_at` ascending; otherwise an empty array.
+
+Only runs with status `running` or `queued` are returned.
+
+#### List Captain Statuses (Global)
+
+```
+GET /global-config/captain-statuses
+```
+
+Returns the captain monitor phase for every project in a single call. Used to power a cross-project dashboard without polling each project individually.
+
+**Response:** `200 OK` — Array of captain status objects, one per project.
+
+```json
+[
+  {
+    "project_id": "uuid",
+    "project_name": "my-project",
+    "status": "idle",
+    "detail": null,
+    "pending_count": 0,
+    "processing_since": null,
+    "processing_duration_ms": null
+  }
+]
+```
+
+| Field                  | Type             | Description                                                                                       |
+| ---------------------- | ---------------- | ------------------------------------------------------------------------------------------------- |
+| project_id             | TEXT             | UUID of the project.                                                                              |
+| project_name           | TEXT             | Display name of the project.                                                                      |
+| status                 | TEXT             | Current captain phase. One of: `idle`, `receiving`, `thinking`, `executing`.                      |
+| detail                 | TEXT \| null     | Human-readable detail for the current phase. NULL when idle.                                      |
+| pending_count          | INTEGER          | Number of events queued for the captain to process.                                               |
+| processing_since       | DATETIME \| null | UTC timestamp when the current cycle started. NULL when idle.                                     |
+| processing_duration_ms | INTEGER \| null  | Milliseconds elapsed since `processing_since`. Computed server-side. NULL when idle.              |
+
 #### Check Model Availability
 
 ```

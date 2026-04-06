@@ -417,6 +417,26 @@ export function listActiveRuns(projectId: string) {
   );
 }
 
+export interface GlobalActiveRun extends ActiveRun {
+  project_name: string | null;
+}
+
+export interface GlobalCaptainStatus extends CaptainStatus {
+  project_id: string;
+  project_name: string;
+}
+
+export function listActiveRunsGlobal(includeEvents = false) {
+  return request<GlobalActiveRun[]>(
+    "GET",
+    `/global-config/active-runs${includeEvents ? "?include_events=true" : ""}`,
+  );
+}
+
+export function listCaptainStatuses() {
+  return request<GlobalCaptainStatus[]>("GET", "/global-config/captain-statuses");
+}
+
 // Knowledge
 export function listKnowledge(projectId: string) {
   return request<ProjectKnowledge[]>(
