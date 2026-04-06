@@ -76,8 +76,22 @@
 			listProjectsWithStats()
 				.then((data) => {
 					projects = data;
+
+					// HACK: No global WS endpoint exists, so we piggyback on an arbitrary project's
+					// connection. broadcastAll() on the backend sends these events to all project
+					// subscribers regardless of which project they're connected to.
+
+					// If the currently-connected project was deleted, reset the WS so we can
+					// reconnect to a surviving project below.
+					if (currentWsPid && !data.find((p) => p.id === currentWsPid)) {
+						teardownWs();
+					}
+
 					// If not already connected, connect to any available project so we
 					// receive project.created/project.deleted events regardless of current page.
+					// NOTE: When there are zero projects no connection can be established, so
+					// project.created events won't be received in real-time; the 30s poll will
+					// eventually pick up the first created project.
 					if (!currentWsPid && data.length > 0) {
 						setupWs(data[0].id);
 					}
