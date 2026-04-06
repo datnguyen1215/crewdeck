@@ -216,9 +216,10 @@ function subscribeEvents(bus: EventBus): void {
     broadcastGlobal("run.started", { project_id, ...data });
   });
 
-  bus.on("run.event", ({ project_id, ...data }) =>
-    broadcast(project_id, "run.event", data),
-  );
+  bus.on("run.event", ({ project_id, ...data }) => {
+    broadcast(project_id, "run.event", data);
+    broadcastGlobal("run.event", { project_id, ...data });
+  });
 
   bus.on("run.completed", ({ project_id, ...data }) => {
     broadcast(project_id, "run.completed", data);
