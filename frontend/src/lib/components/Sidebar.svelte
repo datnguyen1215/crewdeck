@@ -48,25 +48,15 @@
 			collapsed = stored === 'true';
 		}
 
-		// Load projects (async, but don't block)
-		const fetchProjects = () => {
-			listProjectsWithStats()
-				.then((data) => { projects = data; })
-				// Silent catch: 30s polling failure; toasting would be noisy on transient network issues
-				.catch(() => {});
-		};
-		fetchProjects();
-
-		// Poll for updates every 30 seconds
-		const interval = setInterval(fetchProjects, 30_000);
-
-		// Listen for project created/deleted via WebSocket when in a project context.
-		// broadcastAll on the backend sends these events to all connected clients.
+		// Listen for project created/deleted via WebSocket.
+		// broadcastAll on the backend sends these events to all project subscribers,
+		// so connecting to any project is sufficient to receive them.
 		let ws: ProjectWebSocket | null = null;
 		let currentWsPid: string | null = null;
 
 		const setupWs = (pid: string) => {
-			if (ws) { ws.disconnect(); ws = null; }
+			if (currentWsPid === pid) return;
+			ws?.disconnect();
 			currentWsPid = pid;
 			const conn = new ProjectWebSocket(pid);
 			conn.on('project.created', fetchProjects);
@@ -81,12 +71,30 @@
 			currentWsPid = null;
 		};
 
+		// Load projects (async, but don't block)
+		const fetchProjects = () => {
+			listProjectsWithStats()
+				.then((data) => {
+					projects = data;
+					// If not already connected, connect to any available project so we
+					// receive project.created/project.deleted events regardless of current page.
+					if (!currentWsPid && data.length > 0) {
+						setupWs(data[0].id);
+					}
+				})
+				// Silent catch: 30s polling failure; toasting would be noisy on transient network issues
+				.catch(() => {});
+		};
+		fetchProjects();
+
+		// Poll for updates every 30 seconds
+		const interval = setInterval(fetchProjects, 30_000);
+
+		// When navigating into a project, prefer that project's WS connection.
 		const unsubscribePage = page.subscribe(($page) => {
 			const pid = $page.params.projectId;
-			if (pid && pid !== currentWsPid) {
+			if (pid) {
 				setupWs(pid);
-			} else if (!pid && ws) {
-				teardownWs();
 			}
 		});
 
