@@ -233,22 +233,24 @@ POST /projects
   "repo_url": "https://github.com/owner/repo",
   "name": "Optional override",
   "description": "Optional override",
+  "default_base_branch": "develop",
   "vcs_account_id": "uuid"
 }
 ```
 
-| Field          | Required | Default                       | Description                                                             |
-| -------------- | -------- | ----------------------------- | ----------------------------------------------------------------------- |
-| repo_url       | Yes      | —                             | Repository URL (GitHub, GitLab, etc.) to link to this project.          |
-| name           | No       | Repo name from VCS API        | Project name.                                                           |
-| description    | No       | Repo description from VCS API | Project description.                                                    |
-| vcs_account_id | No       | null                          | ID of a connected VCSAccount to use for git operations in this project. |
+| Field                | Required | Default                          | Description                                                                                                              |
+| -------------------- | -------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| repo_url             | Yes      | —                                | Repository URL (GitHub, GitLab, etc.) to link to this project.                                                           |
+| name                 | No       | Repo name from VCS API           | Project name.                                                                                                            |
+| description          | No       | Repo description from VCS API    | Project description.                                                                                                     |
+| default_base_branch  | No       | Auto-detected from VCS API       | Default base branch for PRs and worktrees. Overrides VCS auto-detection. Must be a non-empty string if provided.         |
+| vcs_account_id       | No       | null                             | ID of a connected VCSAccount to use for git operations in this project.                                                  |
 
 **Response:** `201 Created` — The created project object.
 
-**Error:** `400 VALIDATION_ERROR` — If `repo_url` is invalid or the repository cannot be cloned.
+**Error:** `400 VALIDATION_ERROR` — If `repo_url` is invalid, the repository cannot be cloned, or `default_base_branch` is an empty string.
 
-**Side effects:** The backend fetches repo metadata (name, description, default branch) from the VCS provider API and clones the repository. The project's `default_base_branch` is set from the repo's actual default branch returned by the VCS API (e.g. `develop`, `master`); falls back to `"main"` if metadata resolution fails. The captain monitor is started immediately for the new project. If `vcs_account_id` is provided, the token is used for the API call and git operations; otherwise metadata is fetched unauthenticated with a fallback to URL-derived values on failure.
+**Side effects:** The backend fetches repo metadata (name, description, default branch) from the VCS provider API and clones the repository. The project's `default_base_branch` is resolved in this order: (1) `default_base_branch` from the request body if provided, (2) the repo's actual default branch from the VCS API, (3) `"main"` as a final fallback. The captain monitor is started immediately for the new project. If `vcs_account_id` is provided, the token is used for the API call and git operations; otherwise metadata is fetched unauthenticated with a fallback to URL-derived values on failure.
 
 #### Update Project
 
