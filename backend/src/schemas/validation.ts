@@ -22,6 +22,7 @@ const CreateProjectBase = z.object({
   description: z.string().nullable().optional(),
   repo_url: githubUrl,
   default_branch: z.string().optional(),
+  default_base_branch: z.string().min(1).optional(),
   vcs_account_id: z.string().nullable().optional(),
 });
 
