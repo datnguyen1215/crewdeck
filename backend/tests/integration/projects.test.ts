@@ -131,6 +131,30 @@ describe("Projects CRUD", () => {
       expect(res.body.default_base_branch).toBe("main");
     });
 
+    it("uses provided default_base_branch over GitHub metadata", async () => {
+      const { resolveRepoMetadata } = await import("../../src/vcs/resolve-repo-metadata.js");
+      vi.mocked(resolveRepoMetadata).mockResolvedValueOnce({
+        name: "my-repo",
+        description: null,
+        default_branch: "main",
+      });
+
+      const res = await request(app)
+        .post(BASE)
+        .send({ name: name("custom-base"), repo_url: "https://github.com/test/my-repo", default_base_branch: "develop" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.default_base_branch).toBe("develop");
+    });
+
+    it("rejects empty string default_base_branch with 400", async () => {
+      const res = await request(app)
+        .post(BASE)
+        .send({ name: name("empty-base"), repo_url: "https://github.com/test/my-repo", default_base_branch: "" });
+
+      expect(res.status).toBe(400);
+    });
+
     it("returns 400 with message when git clone fails", async () => {
       const mock = vi.mocked(execFileSync);
       const err = Object.assign(new Error("Command failed"), {
