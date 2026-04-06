@@ -50,6 +50,7 @@ router.post("/", requireScope(Scope.PROJECTS_WRITE), validate(CreateProjectSchem
       description: body.description || metadata.description || undefined,
       repo_url: body.repo_url,
       default_branch: metadata.default_branch,
+      default_base_branch: metadata.default_branch,
       vcs_account_id: body.vcs_account_id,
     });
 

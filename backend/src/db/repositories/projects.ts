@@ -103,13 +103,14 @@ export function createProject(input: CreateProjectInput): Project {
 
   db.transaction(() => {
     db.prepare(
-      `INSERT INTO Project (id, name, description, vcs_account_id)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO Project (id, name, description, vcs_account_id, default_base_branch)
+       VALUES (?, ?, ?, ?, ?)`,
     ).run(
       id,
       input.name,
       input.description ?? null,
       input.vcs_account_id ?? null,
+      input.default_base_branch ?? "main",
     );
 
     if (input.repo_url) {
