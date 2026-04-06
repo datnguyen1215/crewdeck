@@ -34,6 +34,21 @@ describe("createProject", () => {
     });
     expect(p.description).toBe("desc");
   });
+
+  it("defaults default_base_branch to 'main' when not provided", () => {
+    const p = createProject({ name: "DefaultBranch" });
+    expect(p.default_base_branch).toBe("main");
+  });
+
+  it("uses provided default_base_branch", () => {
+    const p = createProject({ name: "DevelopBranch", default_base_branch: "develop" });
+    expect(p.default_base_branch).toBe("develop");
+  });
+
+  it("uses 'main' as default_base_branch when explicitly passed 'main'", () => {
+    const p = createProject({ name: "MainBranch", default_base_branch: "main" });
+    expect(p.default_base_branch).toBe("main");
+  });
 });
 
 describe("getProject", () => {

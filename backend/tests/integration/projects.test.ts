@@ -4,6 +4,14 @@ import type { Express } from "express";
 import { execFileSync } from "node:child_process";
 import { getApp } from "./setup.js";
 
+vi.mock("../../src/vcs/resolve-repo-metadata.js", () => ({
+  resolveRepoMetadata: vi.fn(async (_url: string) => ({
+    name: "repo",
+    description: null,
+    default_branch: "main",
+  })),
+}));
+
 const BASE = "/api/v1/projects";
 
 // Use a unique prefix to avoid collisions with other test files sharing the DB
@@ -73,6 +81,54 @@ describe("Projects CRUD", () => {
         .send({ repo_url: "https://github.com/test/my-project" });
       expect(res.status).toBe(201);
       expect(res.body.name).toBe("my-project");
+    });
+
+    it("sets default_base_branch from GitHub metadata (develop)", async () => {
+      const { resolveRepoMetadata } = await import("../../src/vcs/resolve-repo-metadata.js");
+      vi.mocked(resolveRepoMetadata).mockResolvedValueOnce({
+        name: "my-repo",
+        description: null,
+        default_branch: "develop",
+      });
+
+      const res = await request(app)
+        .post(BASE)
+        .send({ name: name("develop-branch"), repo_url: "https://github.com/test/my-repo" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.default_base_branch).toBe("develop");
+    });
+
+    it("sets default_base_branch to main when metadata returns main", async () => {
+      const { resolveRepoMetadata } = await import("../../src/vcs/resolve-repo-metadata.js");
+      vi.mocked(resolveRepoMetadata).mockResolvedValueOnce({
+        name: "my-repo",
+        description: null,
+        default_branch: "main",
+      });
+
+      const res = await request(app)
+        .post(BASE)
+        .send({ name: name("main-branch"), repo_url: "https://github.com/test/my-repo" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.default_base_branch).toBe("main");
+    });
+
+    it("falls back to main when metadata resolution returns default fallback", async () => {
+      const { resolveRepoMetadata } = await import("../../src/vcs/resolve-repo-metadata.js");
+      vi.mocked(resolveRepoMetadata).mockResolvedValueOnce({
+        name: "my-repo",
+        description: null,
+        default_branch: "main",
+      });
+
+      const res = await request(app)
+        .post(BASE)
+        .send({ name: name("fallback-branch"), repo_url: "https://github.com/test/my-repo" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.default_base_branch).toBe("main");
     });
 
     it("returns 400 with message when git clone fails", async () => {

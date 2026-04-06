@@ -232,6 +232,7 @@ export interface CreateProjectInput {
   description?: string;
   repo_url?: string;
   default_branch?: string;
+  default_base_branch?: string;
   vcs_account_id?: string;
 }
 
