@@ -505,7 +505,7 @@ The singleton is shared across all components that need real-time updates withou
 - **Dashboard** (`dashboard/+page.svelte`) — subscribes to stats, activity, and agent events for real-time project stats and activity feed updates.
 - **Sidebar** (`Sidebar.svelte`) — subscribes to issue, run, and project lifecycle events to refresh project counts and the project list immediately when statuses change.
 
-The `GlobalWebSocket` class mirrors `ProjectWebSocket` with the same reconnection logic and a reactive `state` property. Event payloads are typed via `GlobalWsEventMap` — a subset of `WsEventMap` that excludes `run.event` and monitor events. A reconnection banner is rendered at the layout level (visible on all pages) when `globalWs.state` is `connecting` or `reconnecting`.
+The `GlobalWebSocket` class mirrors `ProjectWebSocket` with the same reconnection logic and a reactive `state` property. Event payloads are typed via `GlobalWsEventMap` — a subset of `WsEventMap` that excludes monitor events. `run.event` is included in `GlobalWsEventMap` (with `project_id` in the payload) and broadcast globally, but is high-frequency — consumers should update only the matching run card, not re-render the entire list. A reconnection banner is rendered at the layout level (visible on all pages) when `globalWs.state` is `connecting` or `reconnecting`.
 
 ### Shared Frontend Utilities
 
