@@ -156,6 +156,7 @@ export function getProject(id: string) {
 export function createProject(data: {
   repo_url: string;
   vcs_account_id?: string;
+  default_base_branch?: string;
 }) {
   return request<Project>("POST", "/projects", data);
 }

@@ -8,6 +8,7 @@
 	} = $props();
 
 	let githubUrl = $state('');
+	let defaultBaseBranch = $state('');
 	let selectedVCSAccountId = $state('');
 	let submitting = $state(false);
 	let githubUrlError = $state('');
@@ -26,7 +27,8 @@
 		try {
 			const project = await createProject({
 				repo_url: githubUrl.trim(),
-				vcs_account_id: selectedVCSAccountId || undefined
+				vcs_account_id: selectedVCSAccountId || undefined,
+				default_base_branch: defaultBaseBranch.trim() || undefined
 			});
 			onCreated(project);
 		} catch (err) {
@@ -60,6 +62,22 @@
 		{:else}
 			<p class="text-muted text-xs mt-1">Name, description, and branch will be fetched automatically</p>
 		{/if}
+	</div>
+
+	<!-- Default Base Branch -->
+	<div>
+		<label for="proj-base-branch" class="block text-xs text-muted uppercase tracking-widest mb-1.5">
+			Default Base Branch
+		</label>
+		<input
+			id="proj-base-branch"
+			type="text"
+			bind:value={defaultBaseBranch}
+			placeholder="main"
+			class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary placeholder-muted
+				focus:outline-none focus:border-cyan transition-colors"
+		/>
+		<p class="text-muted text-xs mt-1">Branch that agents will target. Auto-detected from repo if left blank.</p>
 	</div>
 
 	<!-- GitHub Account -->
