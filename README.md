@@ -18,6 +18,22 @@ Open http://localhost:9380. On first access, the app prompts you to create an ad
 
 Data persists in a Docker volume across restarts. See [Running CrewDeck](docs/running.md) for details.
 
+### Android Toolchain
+
+For projects that need JDK, Android SDK/NDK, Go, and gomobile (e.g., ScreenBeam):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.android.yml up --build
+```
+
+This swaps the backend with a heavier image (~5-6 GB) that includes JDK 17, Android SDK (platform 35, build-tools 35.0.0), NDK 30, Go 1.24, and gomobile. First build is slow; subsequent builds use Docker cache.
+
+To switch back to the lightweight image, run the normal command:
+
+```bash
+docker compose up --build
+```
+
 ### Exposing to the Internet
 
 To expose CrewDeck via a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/):

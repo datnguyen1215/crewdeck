@@ -1,0 +1,12 @@
+# Android toolchain override — replaces the default backend image with one
+# that includes JDK 17, Android SDK/NDK, Go, and gomobile.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.android.yml up --build
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.android
+      additional_contexts:
+        claude-config: ~/.claude
