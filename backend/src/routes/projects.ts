@@ -49,6 +49,7 @@ router.post("/", validate(CreateProjectSchema), async (req, res, next) => {
       vcs_account_id: body.vcs_account_id,
     });
 
+    eventBus.emit("project.created", { project });
     res.status(201).json(project);
   } catch (err) {
     next(err);
@@ -72,6 +73,7 @@ router.delete("/:id", (req, res) => {
   const existing = getProject(req.params.id);
   if (!existing) throw new NotFoundError("Project not found");
   deleteProject(req.params.id);
+  eventBus.emit("project.deleted", { project_id: req.params.id });
   res.status(204).send();
 });
 

@@ -373,4 +373,7 @@ export interface WsEventMap {
     result: unknown;
   };
   "monitor.complete": { project_id: string; response: string };
+  "project.settings_changed": { changes: Partial<Project> };
+  "project.created": { project: Project };
+  "project.deleted": { project_id: string };
 }

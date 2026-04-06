@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import ProjectNavItem from './ProjectNavItem.svelte';
 	import { icons } from './icons.js';
+	import { ProjectWebSocket } from '$lib/api/ws.svelte.js';
 
 	const STORAGE_KEY = 'sidebar-collapsed';
 	const MOBILE_BREAKPOINT = 768;
@@ -59,9 +60,41 @@
 		// Poll for updates every 30 seconds
 		const interval = setInterval(fetchProjects, 30_000);
 
+		// Listen for project created/deleted via WebSocket when in a project context.
+		// broadcastAll on the backend sends these events to all connected clients.
+		let ws: ProjectWebSocket | null = null;
+		let currentWsPid: string | null = null;
+
+		const setupWs = (pid: string) => {
+			if (ws) { ws.disconnect(); ws = null; }
+			currentWsPid = pid;
+			const conn = new ProjectWebSocket(pid);
+			conn.on('project.created', fetchProjects);
+			conn.on('project.deleted', fetchProjects);
+			conn.connect();
+			ws = conn;
+		};
+
+		const teardownWs = () => {
+			ws?.disconnect();
+			ws = null;
+			currentWsPid = null;
+		};
+
+		const unsubscribePage = page.subscribe(($page) => {
+			const pid = $page.params.projectId;
+			if (pid && pid !== currentWsPid) {
+				setupWs(pid);
+			} else if (!pid && ws) {
+				teardownWs();
+			}
+		});
+
 		return () => {
 			window.removeEventListener('resize', checkMobile);
 			clearInterval(interval);
+			unsubscribePage();
+			teardownWs();
 		};
 	});
 

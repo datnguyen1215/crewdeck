@@ -26,6 +26,25 @@ function removeSubscriber(projectId: string, ws: WebSocket): void {
   if (clients.size === 0) subscribers.delete(projectId);
 }
 
+function broadcastAll(event: string, data: unknown): void {
+  const message = JSON.stringify({
+    event,
+    data,
+    timestamp: new Date().toISOString(),
+  });
+  for (const [projectId, clients] of subscribers) {
+    for (const ws of [...clients]) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      try {
+        ws.send(message);
+      } catch (err) {
+        logger.error({ err }, "WebSocket send failed");
+        removeSubscriber(projectId, ws);
+      }
+    }
+  }
+}
+
 function broadcast(projectId: string, event: string, data: unknown): void {
   const clients = subscribers.get(projectId);
   if (!clients?.size) return;
@@ -175,6 +194,14 @@ function subscribeEvents(bus: EventBus): void {
   // Project settings changed
   bus.on("project.settings_changed", ({ project_id, changes }) =>
     broadcast(project_id, "project.settings_changed", { changes }),
+  );
+
+  bus.on("project.created", ({ project }) =>
+    broadcastAll("project.created", { project }),
+  );
+
+  bus.on("project.deleted", ({ project_id }) =>
+    broadcastAll("project.deleted", { project_id }),
   );
 
   // Monitor events (captain orchestration)
