@@ -31,7 +31,7 @@
 	});
 
 	const EVENT_TOASTS: Partial<Record<WsEvent, (data: Record<string, unknown>) => { msg: string; type: 'info' | 'success' | 'warning' | 'error' } | null>> = {
-		'issue.created': (d) => ({ msg: `Issue created: ${d.title ?? 'New issue'}`, type: 'info' }),
+		'issue.created': (d) => ({ msg: `Issue created: ${(d.issue as Record<string, unknown>)?.title ?? 'New issue'}`, type: 'info' }),
 		'issue.status_changed': (d) => ({ msg: `Issue status: ${String(d.from).replace(/_/g, ' ')} → ${String(d.to).replace(/_/g, ' ')}`, type: 'info' }),
 		'mention.spawned': (d) => {
 			const agent = d.agent_name ?? 'Agent';
