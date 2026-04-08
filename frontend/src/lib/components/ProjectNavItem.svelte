@@ -99,7 +99,6 @@
 		{#if isExpanded}
 			<div class="ml-5 flex flex-col gap-0.5">
 				{@render subNavItem(`/projects/${project.id}`, 'Issues', 'issues', pathname === `/projects/${project.id}` || pathname.startsWith(`/projects/${project.id}/issues`), getActiveIssueCount(project))}
-				{@render subNavItem(`/projects/${project.id}/terminals`, 'Terminals', 'terminals', isActive(`/projects/${project.id}/terminals`), project.active_runs)}
 				{@render subNavItem(`/projects/${project.id}/chat`, 'Chat', 'chat', isActive(`/projects/${project.id}/chat`))}
 				{@render subNavItem(`/projects/${project.id}/knowledge`, 'Knowledge', 'knowledge', isActive(`/projects/${project.id}/knowledge`))}
 				{@render subNavItem(`/projects/${project.id}/settings`, 'Settings', 'settings', isActive(`/projects/${project.id}/settings`))}
