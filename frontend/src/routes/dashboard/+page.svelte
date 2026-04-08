@@ -328,7 +328,7 @@
 		try { githubAccounts = await listVCSAccounts(); } catch {}
 	}
 
-	// Agent card formatting (mirrored from terminals page)
+	// Agent card formatting
 	interface FormattedEvent {
 		label: string;
 		content: string | null;
@@ -716,7 +716,7 @@
 							<div class="bg-surface border border-cyan/30 rounded-lg overflow-hidden flex flex-col">
 								<div class="px-4 py-3 border-b border-cyan/30 bg-cyan/5">
 									<div class="flex items-center gap-2 mb-1">
-										<a href="/projects/{captain.project_id}/terminals" class="text-sm font-medium text-cyan hover:underline">
+										<a href="/projects/{captain.project_id}/issues" class="text-sm font-medium text-cyan hover:underline">
 											{captain.project_name}
 										</a>
 										<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border {isAnalyzing ? 'text-cyan bg-cyan/10 border-cyan/30' : 'text-muted bg-surface border-edge'}">
