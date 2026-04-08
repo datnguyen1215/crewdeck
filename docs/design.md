@@ -141,9 +141,9 @@ The frontend and backend are separate directories. Each has its own `package.jso
 │  │ Cross-  │ │  Issue   │ │  Comment Thread  │ │
 │  │Dashboard │ │  Board   │ │  (@mention UI)   │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
-│  ┌──────────┐ ┌──────────────────┐             │
-│  │Terminals │ │ Chat (Threads)   │             │
-│  └──────────┘ └──────────────────┘             │
+│  ┌──────────────────┐                          │
+│  │ Chat (Threads)   │                          │
+│  └──────────────────┘                          │
 │  ┌──────────┐ ┌──────────┐                     │
 │  │  Login   │ │  Setup   │  (standalone pages) │
 │  └──────────┘ └──────────┘                     │
@@ -488,7 +488,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 All state changes are broadcast to connected frontend clients via WebSocket:
 
 - **Issue events** — created, status changed, comment added, comment updated, comment deleted.
-- **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The Terminals page subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
+- **Agent events** — mention spawned, mention completed, chain depth reached, dispatch queued, dispatch dequeued. The dashboard Active Agents pane subscribes to `run.started`, `run.event`, and `run.completed` for live agent activity feeds.
 - **Monitor events** — captain monitor streaming events (`monitor.event_received`, `monitor.thinking`, `monitor.message`, `monitor.tool_call`, `monitor.tool_result`, `monitor.rate_limit`, `monitor.result`, `monitor.complete`). Broadcast to both project-scoped and global WebSocket subscribers; each global payload includes `project_id` so the dashboard can associate events with the correct captain.
 - **PR events** — PR created, status updated.
 - **Chat events** — assistant message chunks, tool calls, tool results, completion, errors, session expiry, thinking, thread title updates. Emitted by the Chat Service during `claude -p` sessions for chat threads, and dual-emitted by the monitor agent (as `chat.*` equivalents of `monitor.*` events) so the Chat UI receives real-time monitor activity.

@@ -966,7 +966,7 @@ GET /projects/:projectId/runs?limit=50&offset=0
 GET /projects/:projectId/active-runs
 ```
 
-Returns currently running or queued agent runs for a project, enriched with agent info, issue info, and the most recent events. Used by the Terminals page to display live agent panes.
+Returns currently running or queued agent runs for a project, enriched with agent info, issue info, and the most recent events. Used by the dashboard Active Agents pane to display live agent cards.
 
 **Response:** `200 OK` — Array of enriched AgentRun objects ordered by `created_at` ascending.
 
