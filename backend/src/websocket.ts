@@ -241,26 +241,37 @@ function subscribeEvents(bus: EventBus): void {
   );
 
   // Monitor events (captain orchestration)
+  bus.on("monitor.event_received", (data) => {
+    broadcast(data.project_id, "monitor.event_received", data);
+    broadcastGlobal("monitor.event_received", data);
+  });
   bus.on("monitor.thinking", (data) => {
     broadcast(data.project_id, "monitor.thinking", data);
+    broadcastGlobal("monitor.thinking", data);
   });
   bus.on("monitor.message", (data) => {
     broadcast(data.project_id, "monitor.message", data);
+    broadcastGlobal("monitor.message", data);
   });
   bus.on("monitor.tool_call", (data) => {
     broadcast(data.project_id, "monitor.tool_call", data);
+    broadcastGlobal("monitor.tool_call", data);
   });
   bus.on("monitor.tool_result", (data) => {
     broadcast(data.project_id, "monitor.tool_result", data);
+    broadcastGlobal("monitor.tool_result", data);
   });
   bus.on("monitor.complete", (data) => {
     broadcast(data.project_id, "monitor.complete", data);
+    broadcastGlobal("monitor.complete", data);
   });
   bus.on("monitor.rate_limit", (data) => {
     broadcast(data.project_id, "monitor.rate_limit", data);
+    broadcastGlobal("monitor.rate_limit", data);
   });
   bus.on("monitor.result", (data) => {
     broadcast(data.project_id, "monitor.result", data);
+    broadcastGlobal("monitor.result", data);
   });
 
   // Chat thread events
