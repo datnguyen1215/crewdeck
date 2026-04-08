@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, listVCSAccounts, getAuthMe, listActiveRunsGlobal, listCaptainStatuses, type ProjectWithStats, type ActivityLog, type VCSAccount, type GlobalActiveRun, type GlobalCaptainStatus } from '$lib/api/http.js';
+	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, listVCSAccounts, getAuthMe, listActiveRunsGlobal, listCaptainStatuses, getGlobalMonitorHistory, type ProjectWithStats, type ActivityLog, type VCSAccount, type GlobalActiveRun, type GlobalCaptainStatus } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { globalWs } from '$lib/api/global-ws.svelte.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
+	import { md } from '$lib/utils/markdown.js';
+	import { mapMessageToEntry } from '$lib/utils/monitor.js';
+	import type { MonitorEntry } from '$lib/api/types.js';
 	import DashboardActivityFeed from '$lib/components/DashboardActivityFeed.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import ProjectForm from '$lib/components/ProjectForm.svelte';
@@ -20,6 +23,11 @@
 	let captains = $state<GlobalCaptainStatus[]>([]);
 	let captainsCollapsed = $state(false);
 	let captainsInitialized = $state(false);
+
+	// Per-project monitor feeds: project_id -> MonitorEntry[]
+	let monitorFeeds = $state<Record<string, MonitorEntry[]>>({});
+	// Per-project analyzing state: project_id -> boolean
+	let analyzingState = $state<Record<string, boolean>>({});
 
 	// Active agent runs state
 	let runs = $state<GlobalActiveRun[]>([]);
@@ -95,6 +103,21 @@
 	refreshActivity();
 	refreshCaptains();
 
+	async function loadGlobalMonitorHistory() {
+		try {
+			const history = await getGlobalMonitorHistory(50);
+			// Group by project_id
+			const feeds: Record<string, MonitorEntry[]> = {};
+			for (const msg of history) {
+				if (!feeds[msg.project_id]) feeds[msg.project_id] = [];
+				feeds[msg.project_id].push(mapMessageToEntry(msg));
+			}
+			monitorFeeds = feeds;
+		} catch {}
+	}
+
+	loadGlobalMonitorHistory();
+
 	const STATS_EVENTS = ['run.started', 'run.completed', 'issue.status_changed', 'issue.paused', 'issue.resumed', 'issue.created', 'dispatch.queued', 'dispatch.dequeued'] as const;
 	const ACTIVITY_EVENTS = [
 		'issue.created', 'issue.status_changed', 'issue.paused', 'issue.resumed',
@@ -104,6 +127,11 @@
 	const AGENT_EVENTS = ['run.started', 'run.completed', 'dispatch.queued', 'dispatch.dequeued'] as const;
 	const CAPTAIN_EVENTS = ['run.started', 'run.completed', 'dispatch.queued', 'dispatch.dequeued'] as const;
 	let unsubs: (() => void)[] = [];
+
+	function appendMonitorEntry(projectId: string, entry: MonitorEntry) {
+		const prev = monitorFeeds[projectId] ?? [];
+		monitorFeeds = { ...monitorFeeds, [projectId]: [...prev.slice(-49), entry] };
+	}
 
 	onMount(async () => {
 		unsubs = [
@@ -137,6 +165,84 @@
 				runs = runs.filter((r) => r.id !== data.agent_run_id);
 			}),
 			globalWs.on('mention.completed', refreshRuns),
+
+			// Global monitor feed events
+			globalWs.on('monitor.event_received', (data) => {
+				appendMonitorEntry(data.project_id, {
+					id: crypto.randomUUID(),
+					type: 'event',
+					content: `${data.event_type} - ${data.description ?? ''}`,
+					timestamp: new Date(),
+				});
+			}),
+			globalWs.on('monitor.thinking', (data) => {
+				analyzingState = { ...analyzingState, [data.project_id]: true };
+				appendMonitorEntry(data.project_id, {
+					id: crypto.randomUUID(),
+					type: 'thinking',
+					content: data.content ?? 'Analyzing...',
+					timestamp: new Date(),
+				});
+			}),
+			globalWs.on('monitor.message', (data) => {
+				appendMonitorEntry(data.project_id, {
+					id: crypto.randomUUID(),
+					type: 'message',
+					content: data.content,
+					timestamp: new Date(),
+				});
+			}),
+			globalWs.on('monitor.tool_call', (data) => {
+				appendMonitorEntry(data.project_id, {
+					id: crypto.randomUUID(),
+					type: 'tool_call',
+					content: data.tool_name,
+					toolName: data.tool_name,
+					toolInput: data.tool_input,
+					timestamp: new Date(),
+				});
+			}),
+			globalWs.on('monitor.tool_result', (data) => {
+				const result = data.result as { success: boolean; message: string } | undefined;
+				appendMonitorEntry(data.project_id, {
+					id: crypto.randomUUID(),
+					type: 'tool_result',
+					content: result?.message ?? '',
+					toolName: data.tool_name,
+					success: result?.success ?? true,
+					timestamp: new Date(),
+				});
+			}),
+			globalWs.on('monitor.rate_limit', (data) => {
+				appendMonitorEntry(data.project_id, {
+					id: crypto.randomUUID(),
+					type: 'rate_limit',
+					content: data.message,
+					timestamp: new Date(),
+				});
+			}),
+			globalWs.on('monitor.result', (data) => {
+				const parts: string[] = [];
+				if (data.stop_reason) parts.push(data.stop_reason);
+				if (data.cost_usd != null) parts.push(`$${data.cost_usd.toFixed(2)}`);
+				if (data.duration_ms != null) {
+					const secs = Math.floor(data.duration_ms / 1000);
+					parts.push(secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`);
+				}
+				appendMonitorEntry(data.project_id, {
+					id: crypto.randomUUID(),
+					type: 'result',
+					content: parts.length > 0 ? parts.join(' · ') : 'Done',
+					costUsd: data.cost_usd,
+					durationMs: data.duration_ms,
+					timestamp: new Date(),
+				});
+			}),
+			globalWs.on('monitor.complete', (data) => {
+				analyzingState = { ...analyzingState, [data.project_id]: false };
+				const prev = monitorFeeds[data.project_id] ?? [];
+				monitorFeeds = { ...monitorFeeds, [data.project_id]: prev.filter(e => e.type !== 'thinking') };
+			}),
 		];
 
 		// Load captains collapse state from localStorage
@@ -307,6 +413,44 @@
 			case 'running': return 'text-green bg-green/10 border-green/30';
 			case 'queued': return 'text-amber bg-amber/10 border-amber/30';
 			default: return 'text-muted bg-surface border-edge';
+		}
+	}
+
+	function formatMonitorTime(date: Date): string {
+		return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+	}
+
+	function formatToolInput(input: unknown): string {
+		if (!input) return '';
+		if (typeof input === 'object') {
+			return Object.entries(input as Record<string, unknown>)
+				.map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+				.join(', ');
+		}
+		return String(input);
+	}
+
+	function monitorTypeLabel(type: MonitorEntry['type']): string {
+		switch (type) {
+			case 'event': return 'event';
+			case 'thinking': return 'monitor';
+			case 'message': return 'monitor';
+			case 'tool_call': return 'tool';
+			case 'tool_result': return 'tool';
+			case 'rate_limit': return 'limit';
+			case 'result': return 'done';
+		}
+	}
+
+	function monitorTypeColor(type: MonitorEntry['type']): string {
+		switch (type) {
+			case 'event': return 'text-yellow/80';
+			case 'thinking': return 'text-cyan';
+			case 'message': return 'text-cyan';
+			case 'tool_call': return 'text-purple';
+			case 'tool_result': return 'text-purple';
+			case 'rate_limit': return 'text-amber';
+			case 'result': return 'text-green';
 		}
 	}
 </script>
@@ -565,29 +709,74 @@
 				{#if captains.length === 0}
 					<div class="px-4 py-4 text-muted text-sm font-mono">No captains</div>
 				{:else}
-					<div class="flex flex-wrap gap-3 p-4">
+					<div class="p-4 grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
 						{#each captains as captain (captain.project_id)}
-							{@const isActive = captain.status !== 'idle'}
-							<a
-								href="/projects/{captain.project_id}/terminals"
-								class="flex flex-col gap-1 px-3 py-2 border rounded-sm font-mono text-xs transition-colors hover:border-cyan/50 {isActive ? 'border-cyan/30 bg-cyan/5' : 'border-edge opacity-60 hover:opacity-100'}"
-							>
-								<div class="flex items-center gap-2">
-									{#if isActive}
-										<span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse flex-shrink-0"></span>
-									{/if}
-									<span class="text-primary truncate max-w-[10rem]">{captain.project_name}</span>
-									<span class="ml-auto px-1.5 py-0.5 rounded text-xs font-mono {
-										captain.status === 'executing' ? 'bg-cyan/20 text-cyan' :
-										captain.status === 'thinking' ? 'bg-amber/20 text-amber' :
-										captain.status === 'receiving' ? 'bg-purple/20 text-purple' :
-										'bg-edge text-muted'
-									}">{captain.status}</span>
+							{@const isAnalyzing = analyzingState[captain.project_id] ?? false}
+							{@const entries = monitorFeeds[captain.project_id] ?? []}
+							<div class="bg-surface border border-cyan/30 rounded-lg overflow-hidden flex flex-col">
+								<div class="px-4 py-3 border-b border-cyan/30 bg-cyan/5">
+									<div class="flex items-center gap-2 mb-1">
+										<a href="/projects/{captain.project_id}/terminals" class="text-sm font-medium text-cyan hover:underline">
+											{captain.project_name}
+										</a>
+										<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border {isAnalyzing ? 'text-cyan bg-cyan/10 border-cyan/30' : 'text-muted bg-surface border-edge'}">
+											{isAnalyzing ? 'Analyzing' : 'Monitoring'}
+										</span>
+										{#if isAnalyzing}
+											<span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse"></span>
+										{/if}
+									</div>
+									<p class="text-xs text-muted">Project orchestration feed</p>
 								</div>
-								{#if captain.detail}
-									<span class="text-muted truncate max-w-[14rem]">{captain.detail}</span>
-								{/if}
-							</a>
+
+								<div
+									use:autoscroll
+									class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs bg-black/20"
+								>
+									{#if entries.length === 0}
+										<div class="text-muted py-8 text-center">
+											<p class="mb-2">Monitor feed empty.</p>
+											<p class="text-xs">Orchestration events will appear here.</p>
+										</div>
+									{:else}
+										<div class="space-y-2">
+											{#each entries.slice(-50) as entry (entry.id)}
+												<div class="flex gap-2 min-w-0">
+													<span class="text-muted/50 flex-shrink-0">[{formatMonitorTime(entry.timestamp)}]</span>
+													<span class="{monitorTypeColor(entry.type)} flex-shrink-0">[{monitorTypeLabel(entry.type)}]</span>
+													{#if entry.type === 'event'}
+														<span class="text-muted break-words min-w-0">{entry.content}</span>
+													{:else if entry.type === 'thinking'}
+														<span class="text-muted animate-pulse min-w-0">{entry.content}</span>
+													{:else if entry.type === 'message'}
+														<span class="text-primary prose prose-sm prose-invert max-w-none inline break-words min-w-0">
+															{@html md(entry.content)}
+														</span>
+													{:else if entry.type === 'tool_call'}
+														<span class="text-purple break-words min-w-0">
+															<span class="text-muted/50">-></span> {entry.toolName}({formatToolInput(entry.toolInput)})
+														</span>
+													{:else if entry.type === 'tool_result'}
+														<span class="text-muted/50 flex-shrink-0">-></span>
+														<span class="{entry.success ? 'text-green' : 'text-red'} min-w-0">
+															{entry.success ? 'ok' : 'err'}:
+														</span>
+														<span class="text-muted break-words min-w-0">{entry.content}</span>
+													{:else if entry.type === 'rate_limit'}
+														<span class="text-amber break-words min-w-0">⏳ {entry.content}</span>
+													{:else if entry.type === 'result'}
+														<span class="text-green break-words min-w-0">✓ {entry.content}</span>
+													{/if}
+												</div>
+											{/each}
+										</div>
+									{/if}
+								</div>
+
+								<div class="px-4 py-2 border-t border-cyan/30 text-xs text-muted bg-cyan/5">
+									<span class="font-mono">Read-only feed</span>
+								</div>
+							</div>
 						{/each}
 					</div>
 				{/if}
