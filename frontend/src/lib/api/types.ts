@@ -442,7 +442,7 @@ export interface WsEventMap {
 }
 
 // Subset of events broadcast to global (dashboard) WebSocket subscribers.
-// Excludes monitor/chat events. run.event is high-frequency — consumers should
+// Excludes chat events. run.event is high-frequency — consumers should
 // update only the matching run card, not re-render the entire list.
 export interface GlobalWsEventMap {
   "run.event": {
