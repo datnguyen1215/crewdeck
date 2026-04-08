@@ -73,7 +73,7 @@
 		const isInitialLoad = activity.length === 0;
 		if (isInitialLoad) activityLoading = true;
 		try {
-			activity = await listGlobalActivity({ limit: 10 });
+			activity = await listGlobalActivity({ limit: 50 });
 		} catch {}
 		if (isInitialLoad) activityLoading = false;
 	}
