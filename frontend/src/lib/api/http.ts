@@ -408,7 +408,7 @@ export function listProjectRuns(
   );
 }
 
-// Active Runs (for Terminals page)
+// Active Runs
 export function listActiveRuns(projectId: string) {
   // Frontend UI displays events, so include them
   return request<ActiveRun[]>(
