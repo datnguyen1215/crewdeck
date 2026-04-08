@@ -2545,7 +2545,7 @@ Clients connect with a project ID to receive events scoped to that project. **Re
 ws://localhost:<port>/ws?global=true
 ```
 
-Clients connect without a project ID to receive events from all projects. Used by the dashboard and sidebar via a shared `globalWs` singleton for real-time project stats, activity feed updates, and sidebar count updates. **Requires a valid session cookie** (`session_token`). Broadcasts all events except monitor events. `run.event` is broadcast globally but is high-frequency — consumers should update only the matching run card, not re-render the entire list. Unauthenticated or invalid sessions receive `ws.close(4001, 'Unauthorized')`.
+Clients connect without a project ID to receive events from all projects. Used by the dashboard and sidebar via a shared `globalWs` singleton for real-time project stats, activity feed updates, and sidebar count updates. **Requires a valid session cookie** (`session_token`). Broadcasts all events except chat events. `run.event` is broadcast globally but is high-frequency — consumers should update only the matching run card, not re-render the entire list. Unauthenticated or invalid sessions receive `ws.close(4001, 'Unauthorized')`.
 
 ### Terminal WebSocket Connection
 
@@ -2576,7 +2576,7 @@ Non-resize messages are treated as terminal input and written directly to the PT
 
 The frontend defines a `WsEventMap` interface in `frontend/src/lib/api/types.ts` that maps every event name to its typed payload. `ProjectWebSocket.on()` uses generic overloads so handlers receive fully typed `data` parameters with IDE autocomplete — no manual casting required.
 
-Global WebSocket subscribers use a `GlobalWsEventMap` interface — a subset of `WsEventMap` that excludes monitor events. `run.event` is included in `GlobalWsEventMap` (with `project_id` in the payload) but is high-frequency — consumers should update only the matching run card. A module-level `globalWs` singleton (`frontend/src/lib/api/global-ws.svelte.ts`) is shared across the dashboard and sidebar. The `GlobalWebSocket` class uses the same typed `on()` pattern as `ProjectWebSocket`.
+Global WebSocket subscribers use a `GlobalWsEventMap` interface — a subset of `WsEventMap` that excludes chat events. All `monitor.*` events are included in `GlobalWsEventMap` with `project_id` in each payload. `run.event` is also included but is high-frequency — consumers should update only the matching run card. A module-level `globalWs` singleton (`frontend/src/lib/api/global-ws.svelte.ts`) is shared across the dashboard and sidebar. The `GlobalWebSocket` class uses the same typed `on()` pattern as `ProjectWebSocket`.
 
 ### Event Format
 
@@ -2592,7 +2592,7 @@ All events follow this structure:
 
 ### Events
 
-All events below (except monitor events) are broadcast to both per-project subscribers and global subscribers. Monitor events are sent to per-project subscribers only.
+All events below are broadcast to both per-project subscribers and global subscribers, except chat events which are per-project only.
 
 #### Issue Events
 
