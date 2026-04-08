@@ -1633,6 +1633,44 @@ Returns the captain monitor phase for every project in a single call. Used to po
 | processing_since       | DATETIME \| null | UTC timestamp when the current cycle started. NULL when idle.                                     |
 | processing_duration_ms | INTEGER \| null  | Milliseconds elapsed since `processing_since`. Computed server-side. NULL when idle.              |
 
+#### List Captain Monitor History (Global)
+
+```
+GET /global-config/captain-monitors
+```
+
+Returns recent captain monitor messages for all projects in a single call. Used to populate cross-project captain monitor feeds on dashboard load.
+
+**Query Parameters:**
+
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| limit     | integer | Max entries per project to return. Default: 20, max 100. |
+
+**Response:** `200 OK` — Array of monitor message objects with project context, ordered by `project_id`, then `created_at` descending.
+
+```json
+[
+  {
+    "id": "uuid",
+    "project_id": "uuid",
+    "project_name": "my-project",
+    "role": "assistant",
+    "content": "Thinking about the issue...",
+    "created_at": "ISO 8601"
+  }
+]
+```
+
+| Field        | Type         | Description                                             |
+| ------------ | ------------ | ------------------------------------------------------- |
+| id           | TEXT         | UUID of the monitor message.                            |
+| project_id   | TEXT         | UUID of the owning project.                             |
+| project_name | TEXT \| null | Display name of the project. null if project deleted.   |
+| role         | TEXT         | Message role: `user` or `assistant`.                    |
+| content      | TEXT         | Message content.                                        |
+| created_at   | DATETIME     | UTC timestamp when the message was recorded.            |
+
 #### Check Model Availability
 
 ```
