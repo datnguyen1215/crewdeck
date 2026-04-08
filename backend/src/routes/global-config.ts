@@ -12,6 +12,7 @@ import { Scope } from "../constants/scopes.js";
 import { getCrewMember } from "../orchestration/crew.js";
 import { getByIds } from "../db/repositories/issues.js";
 import { listProjects, getProject } from "../db/repositories/projects.js";
+import { getAllProjects as getAllMonitorMessages } from "../db/repositories/monitor-messages.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -205,6 +206,17 @@ router.get("/captain-statuses", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, r
       processing_duration_ms: processingDurationMs,
     };
   });
+  res.json(result);
+});
+
+router.get("/captain-monitors", requireScope(Scope.GLOBAL_CONFIG_READ), (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 20, 100);
+  const messages = getAllMonitorMessages(limit);
+  const projects = new Map(listProjects().map((p) => [p.id, p.name]));
+  const result = messages.map((msg) => ({
+    ...msg,
+    project_name: projects.get(msg.project_id) ?? null,
+  }));
   res.json(result);
 });
 

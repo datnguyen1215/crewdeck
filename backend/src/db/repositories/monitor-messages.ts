@@ -35,3 +35,18 @@ export function getByProject(projectId: string, limit = 100): MonitorMessage[] {
     .all(projectId, limit) as MonitorMessageRow[];
   return rows;
 }
+
+export function getAllProjects(limitPerProject = 20): MonitorMessage[] {
+  const rows = db
+    .prepare(
+      `SELECT id, project_id, role, content, created_at
+       FROM (
+         SELECT *, ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY created_at DESC) AS rn
+         FROM MonitorMessage
+       )
+       WHERE rn <= ?
+       ORDER BY project_id, created_at DESC`,
+    )
+    .all(limitPerProject) as MonitorMessageRow[];
+  return rows;
+}
