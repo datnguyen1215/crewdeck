@@ -442,7 +442,7 @@ export interface WsEventMap {
 }
 
 // Subset of events broadcast to global (dashboard) WebSocket subscribers.
-// Excludes monitor/chat events. run.event is high-frequency — consumers should
+// Excludes chat events. run.event is high-frequency — consumers should
 // update only the matching run card, not re-render the entire list.
 export interface GlobalWsEventMap {
   "run.event": {
@@ -539,6 +539,31 @@ export interface GlobalWsEventMap {
     cost_usd: number | null;
     duration_ms: number | null;
     completed_at: string;
+  };
+  "monitor.event_received": {
+    project_id: string;
+    event_type: string;
+    description: string;
+  };
+  "monitor.thinking": { project_id: string; content?: string };
+  "monitor.message": { project_id: string; content: string };
+  "monitor.tool_call": {
+    project_id: string;
+    tool_name: string;
+    tool_input: unknown;
+  };
+  "monitor.tool_result": {
+    project_id: string;
+    tool_name: string;
+    result: unknown;
+  };
+  "monitor.complete": { project_id: string; response: string };
+  "monitor.rate_limit": { project_id: string; message: string };
+  "monitor.result": {
+    project_id: string;
+    cost_usd?: number;
+    duration_ms?: number;
+    stop_reason?: string;
   };
   "project.settings_changed": { project_id: string; changes: Partial<Project> };
   "project.created": { project: Project };
