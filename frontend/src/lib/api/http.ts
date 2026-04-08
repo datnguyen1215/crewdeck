@@ -498,6 +498,15 @@ export function getMonitorHistory(
   return request("GET", `/projects/${e(projectId)}/monitor/history${params}`);
 }
 
+export interface GlobalMonitorMessage extends MonitorMessage {
+  project_name: string | null;
+}
+
+export function getGlobalMonitorHistory(limit?: number): Promise<GlobalMonitorMessage[]> {
+  const params = limit ? `?limit=${limit}` : "";
+  return request("GET", `/global-config/captain-monitors${params}`);
+}
+
 // Captain status
 export function getCaptainStatus(projectId: string): Promise<CaptainStatus> {
   return request("GET", `/projects/${e(projectId)}/captain/status`);
