@@ -686,7 +686,7 @@
 			</div>
 
 			<!-- Right: Activity log -->
-			<div>
+			<div class="lg:sticky lg:top-8 lg:self-start lg:max-h-[calc(100vh-4rem)]">
 				<DashboardActivityFeed entries={activity} loading={activityLoading} />
 			</div>
 		</div>
