@@ -51,6 +51,10 @@ export const CreateIssueSchema = z.object({
   base_branch: z.string().min(1).optional(),
 });
 
+export const SetDependenciesSchema = z.object({
+  depends_on: z.array(z.string()).min(1),
+});
+
 export const UpdateIssueSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
