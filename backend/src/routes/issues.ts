@@ -191,7 +191,15 @@ router.put(
       }
     }
 
-    setDependencies(issueId, depends_on);
+    const added = setDependencies(issueId, depends_on);
+
+    // Detect any dependencies silently dropped (e.g. cycle created by earlier inserts in batch)
+    const dropped = depends_on.filter((id: string) => !added.includes(id));
+    if (dropped.length > 0) {
+      throw new ValidationError(
+        `Circular dependency detected: could not set dependencies on ${dropped.join(", ")}`,
+      );
+    }
 
     const depsMap = listDependenciesBatchWithDetails([issueId]);
     res.json({

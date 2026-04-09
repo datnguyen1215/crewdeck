@@ -414,14 +414,15 @@ describe("Issues API", () => {
       expect(res.body.error.message).toContain("Circular dependency");
     });
 
-    it("returns 400 for empty depends_on array", async () => {
+    it("returns 200 with empty dependencies for empty depends_on array", async () => {
       const issue = await createIssue(app, projectId, { title: "A" });
 
       const res = await request(app)
         .put(`${base(projectId)}/${issue.id}/dependencies`)
         .send({ depends_on: [] });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
+      expect(res.body.dependencies).toEqual([]);
     });
 
     it("returns 404 for non-existent issue", async () => {

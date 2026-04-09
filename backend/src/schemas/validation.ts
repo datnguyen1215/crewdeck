@@ -52,7 +52,7 @@ export const CreateIssueSchema = z.object({
 });
 
 export const SetDependenciesSchema = z.object({
-  depends_on: z.array(z.string()).min(1),
+  depends_on: z.array(z.string().min(1)),
 });
 
 export const UpdateIssueSchema = z.object({
