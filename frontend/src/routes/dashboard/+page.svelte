@@ -469,7 +469,7 @@
 	{#if loading}
 		<!-- Skeleton: terminal-style -->
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-			<div class="">
+			<div>
 				<div class="bg-surface border border-edge rounded-sm">
 					<!-- Pane header skeleton -->
 					<div class="flex items-center gap-2 px-4 py-2 bg-base-hi rounded-t-sm">
@@ -683,97 +683,97 @@
 						{/if}
 					{/if}
 				</div>
-			<!-- Captains pane -->
-			<div class="bg-surface border border-edge rounded-sm fade-up">
-				<!-- Header -->
-				<button
-					onclick={toggleCaptains}
-					class="w-full flex items-center gap-2 px-4 py-2 bg-base-hi rounded-t-sm hover:bg-base-hi/80 transition-colors"
-				>
-					<span class="text-muted text-sm font-mono">captains ({captains.length})</span>
-					{#if captainsCollapsed}
-						<span class="text-secondary text-xs font-mono ml-2">{captainsSummary}</span>
-					{/if}
-					<span class="ml-auto text-muted text-xs">{captainsCollapsed ? '▶' : '▼'}</span>
-				</button>
+				<!-- Captains pane -->
+				<div class="bg-surface border border-edge rounded-sm fade-up">
+					<!-- Header -->
+					<button
+						onclick={toggleCaptains}
+						class="w-full flex items-center gap-2 px-4 py-2 bg-base-hi rounded-t-sm hover:bg-base-hi/80 transition-colors"
+					>
+						<span class="text-muted text-sm font-mono">captains ({captains.length})</span>
+						{#if captainsCollapsed}
+							<span class="text-secondary text-xs font-mono ml-2">{captainsSummary}</span>
+						{/if}
+						<span class="ml-auto text-muted text-xs">{captainsCollapsed ? '▶' : '▼'}</span>
+					</button>
 
-				{#if !captainsCollapsed}
-					{#if captains.length === 0}
-						<div class="px-4 py-4 text-muted text-sm font-mono">No captains</div>
-					{:else}
-						<div class="p-4 grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
-							{#each captains as captain (captain.project_id)}
-								{@const isAnalyzing = analyzingState[captain.project_id] ?? false}
-								{@const entries = monitorFeeds[captain.project_id] ?? []}
-								<div class="bg-surface border border-cyan/30 rounded-lg overflow-hidden flex flex-col">
-									<div class="px-4 py-3 border-b border-cyan/30 bg-cyan/5">
-										<div class="flex items-center gap-2 mb-1">
-											<a href="/projects/{captain.project_id}/issues" class="text-sm font-medium text-cyan hover:underline">
-												{captain.project_name}
-											</a>
-											<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border {isAnalyzing ? 'text-cyan bg-cyan/10 border-cyan/30' : 'text-muted bg-surface border-edge'}">
-												{isAnalyzing ? 'Analyzing' : 'Monitoring'}
-											</span>
-											{#if isAnalyzing}
-												<span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse"></span>
+					{#if !captainsCollapsed}
+						{#if captains.length === 0}
+							<div class="px-4 py-4 text-muted text-sm font-mono">No captains</div>
+						{:else}
+							<div class="p-4 grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
+								{#each captains as captain (captain.project_id)}
+									{@const isAnalyzing = analyzingState[captain.project_id] ?? false}
+									{@const entries = monitorFeeds[captain.project_id] ?? []}
+									<div class="bg-surface border border-cyan/30 rounded-lg overflow-hidden flex flex-col">
+										<div class="px-4 py-3 border-b border-cyan/30 bg-cyan/5">
+											<div class="flex items-center gap-2 mb-1">
+												<a href="/projects/{captain.project_id}/issues" class="text-sm font-medium text-cyan hover:underline">
+													{captain.project_name}
+												</a>
+												<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border {isAnalyzing ? 'text-cyan bg-cyan/10 border-cyan/30' : 'text-muted bg-surface border-edge'}">
+													{isAnalyzing ? 'Analyzing' : 'Monitoring'}
+												</span>
+												{#if isAnalyzing}
+													<span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse"></span>
+												{/if}
+											</div>
+											<p class="text-xs text-muted">Project orchestration feed</p>
+										</div>
+
+										<div
+											use:autoscroll
+											class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs bg-black/20"
+										>
+											{#if entries.length === 0}
+												<div class="text-muted py-8 text-center">
+													<p class="mb-2">Monitor feed empty.</p>
+													<p class="text-xs">Orchestration events will appear here.</p>
+												</div>
+											{:else}
+												<div class="space-y-2">
+													{#each entries.slice(-50) as entry (entry.id)}
+														<div class="flex gap-2 min-w-0">
+															<span class="text-muted/50 flex-shrink-0">[{formatMonitorTime(entry.timestamp)}]</span>
+															<span class="{monitorTypeColor(entry.type)} flex-shrink-0">[{monitorTypeLabel(entry.type)}]</span>
+															{#if entry.type === 'event'}
+																<span class="text-muted break-words min-w-0">{entry.content}</span>
+															{:else if entry.type === 'thinking'}
+																<span class="text-muted animate-pulse min-w-0">{entry.content}</span>
+															{:else if entry.type === 'message'}
+																<span class="text-primary prose prose-sm prose-invert max-w-none inline break-words min-w-0">
+																	{@html md(entry.content)}
+																</span>
+															{:else if entry.type === 'tool_call'}
+																<span class="text-purple break-words min-w-0">
+																	<span class="text-muted/50">-></span> {entry.toolName}({formatToolInput(entry.toolInput)})
+																</span>
+															{:else if entry.type === 'tool_result'}
+																<span class="text-muted/50 flex-shrink-0">-></span>
+																<span class="{entry.success ? 'text-green' : 'text-red'} min-w-0">
+																	{entry.success ? 'ok' : 'err'}:
+																</span>
+																<span class="text-muted break-words min-w-0">{entry.content}</span>
+															{:else if entry.type === 'rate_limit'}
+																<span class="text-amber break-words min-w-0">⏳ {entry.content}</span>
+															{:else if entry.type === 'result'}
+																<span class="text-green break-words min-w-0">✓ {entry.content}</span>
+															{/if}
+														</div>
+													{/each}
+												</div>
 											{/if}
 										</div>
-										<p class="text-xs text-muted">Project orchestration feed</p>
-									</div>
 
-									<div
-										use:autoscroll
-										class="flex-1 min-h-[200px] max-h-[300px] overflow-y-auto p-3 font-mono text-xs bg-black/20"
-									>
-										{#if entries.length === 0}
-											<div class="text-muted py-8 text-center">
-												<p class="mb-2">Monitor feed empty.</p>
-												<p class="text-xs">Orchestration events will appear here.</p>
-											</div>
-										{:else}
-											<div class="space-y-2">
-												{#each entries.slice(-50) as entry (entry.id)}
-													<div class="flex gap-2 min-w-0">
-														<span class="text-muted/50 flex-shrink-0">[{formatMonitorTime(entry.timestamp)}]</span>
-														<span class="{monitorTypeColor(entry.type)} flex-shrink-0">[{monitorTypeLabel(entry.type)}]</span>
-														{#if entry.type === 'event'}
-															<span class="text-muted break-words min-w-0">{entry.content}</span>
-														{:else if entry.type === 'thinking'}
-															<span class="text-muted animate-pulse min-w-0">{entry.content}</span>
-														{:else if entry.type === 'message'}
-															<span class="text-primary prose prose-sm prose-invert max-w-none inline break-words min-w-0">
-																{@html md(entry.content)}
-															</span>
-														{:else if entry.type === 'tool_call'}
-															<span class="text-purple break-words min-w-0">
-																<span class="text-muted/50">-></span> {entry.toolName}({formatToolInput(entry.toolInput)})
-															</span>
-														{:else if entry.type === 'tool_result'}
-															<span class="text-muted/50 flex-shrink-0">-></span>
-															<span class="{entry.success ? 'text-green' : 'text-red'} min-w-0">
-																{entry.success ? 'ok' : 'err'}:
-															</span>
-															<span class="text-muted break-words min-w-0">{entry.content}</span>
-														{:else if entry.type === 'rate_limit'}
-															<span class="text-amber break-words min-w-0">⏳ {entry.content}</span>
-														{:else if entry.type === 'result'}
-															<span class="text-green break-words min-w-0">✓ {entry.content}</span>
-														{/if}
-													</div>
-												{/each}
-											</div>
-										{/if}
+										<div class="px-4 py-2 border-t border-cyan/30 text-xs text-muted bg-cyan/5">
+											<span class="font-mono">Read-only feed</span>
+										</div>
 									</div>
-
-									<div class="px-4 py-2 border-t border-cyan/30 text-xs text-muted bg-cyan/5">
-										<span class="font-mono">Read-only feed</span>
-									</div>
-								</div>
-							{/each}
-						</div>
+								{/each}
+							</div>
+						{/if}
 					{/if}
-				{/if}
-			</div>
+				</div>
 			</div>
 
 			<!-- Right: Activity log -->
