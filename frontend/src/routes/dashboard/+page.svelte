@@ -777,7 +777,7 @@
 			</div>
 
 			<!-- Right: Activity log -->
-			<div class="max-h-[calc(100vh-6rem)]">
+			<div class="lg:sticky lg:top-8 max-h-[calc(100vh-6rem)] overflow-hidden">
 				<DashboardActivityFeed entries={activity} loading={activityLoading} />
 			</div>
 		</div>
