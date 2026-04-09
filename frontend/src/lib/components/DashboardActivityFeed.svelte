@@ -43,7 +43,7 @@
 
 </script>
 
-<div class="bg-surface border border-edge rounded-sm flex flex-col h-full">
+<div class="bg-surface border border-edge rounded-sm flex flex-col h-full min-w-0">
 	<!-- Pane header -->
 	<div class="flex items-center px-4 py-2 bg-base-hi rounded-t-sm">
 		<span class="text-muted text-sm font-mono">mission.log</span>
@@ -60,7 +60,7 @@
 			<p class="text-muted text-xs font-mono">No recent activity</p>
 		</div>
 	{:else}
-		<div class="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+		<div class="flex flex-col flex-1 overflow-y-auto overflow-x-hidden min-w-0">
 			{#each entries as entry, i (entry.id)}
 				{@const borderColorCls = borderColor(entry)}
 				{@const colorCls = actorColor(entry)}
@@ -68,7 +68,7 @@
 					href={entry.issue_id
 						? `/projects/${entry.project_id}/issues/${entry.issue_id}`
 						: `/projects/${entry.project_id}`}
-					class="grid grid-cols-[2.5rem_4.5rem_7rem_1fr] gap-2 px-3 py-1 border-l-2 hover:bg-base-hi transition-colors cursor-pointer {borderColorCls}"
+					class="grid grid-cols-[2.5rem_4.5rem_7rem_1fr] gap-2 px-3 py-1 border-l-2 hover:bg-base-hi transition-colors cursor-pointer {borderColorCls} min-w-0"
 					style="opacity: {1 - i * 0.03}; animation: terminal-entry-enter 150ms ease-out both; animation-delay: {Math.min(i * 30, 200)}ms"
 				>
 					<span class="text-muted text-xs font-mono truncate">{formatTime(entry.created_at)}</span>
