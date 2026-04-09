@@ -778,6 +778,55 @@ Manually approves an issue for merge, bypassing the `auto_merge` setting. Used w
 - WebSocket event emitted: `issue.approved_to_merge`
 - Captain receives event and merges PR
 
+#### Set Issue Dependencies
+
+```
+PUT /projects/:projectId/issues/:issueId/dependencies
+```
+
+Atomically replaces all dependencies for an issue. Validates each dependency ID, enforces same-project constraint, and detects circular dependencies via BFS pre-check.
+
+**Scope:** `issues:update`
+
+**Request Body:**
+
+```json
+{
+  "depends_on": ["issue-id-1", "issue-id-2"]
+}
+```
+
+| Field       | Required | Description                                           |
+| ----------- | -------- | ----------------------------------------------------- |
+| depends_on  | Yes      | Array of issue IDs this issue depends on. Empty array clears all dependencies. Each ID must be a non-empty string. |
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "issue_id": "uuid",
+  "dependencies": [
+    { "id": "uuid", "title": "Set up database", "status": "done" },
+    { "id": "uuid", "title": "Write migration", "status": "in_progress" }
+  ]
+}
+```
+
+**Validation:**
+
+- Self-dependencies are rejected (400)
+- Non-existent issue IDs are rejected (400)
+- Dependencies must belong to the same project (400)
+- Circular dependencies are rejected (400) — checked via BFS pre-check before any writes
+
+**Error responses:**
+
+| Status | Condition                              |
+| ------ | -------------------------------------- |
+| 400    | Invalid dependency (self, not found, wrong project, circular) |
+| 404    | Issue not found                        |
+
 ---
 
 ### Comments
