@@ -468,7 +468,7 @@
 
 	{#if loading}
 		<!-- Skeleton: terminal-style -->
-		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+		<div class="grid grid-cols-1 lg:grid-cols-[1fr_20rem] gap-6">
 			<div>
 				<div class="bg-surface border border-edge rounded-sm">
 					<!-- Pane header skeleton -->
@@ -512,7 +512,7 @@
 		</div>
 	{:else}
 		<!-- Two-column layout: process list + activity log -->
-		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+		<div class="grid grid-cols-1 lg:grid-cols-[1fr_20rem] gap-6">
 			<!-- Left: Process list -->
 			<div class="space-y-6">
 				<div class="bg-surface border border-edge rounded-sm fade-up">
@@ -777,7 +777,7 @@
 			</div>
 
 			<!-- Right: Activity log -->
-			<div class="lg:sticky lg:top-8 lg:self-start lg:max-h-[50vh]">
+			<div class="max-h-[calc(100vh-6rem)]">
 				<DashboardActivityFeed entries={activity} loading={activityLoading} />
 			</div>
 		</div>
