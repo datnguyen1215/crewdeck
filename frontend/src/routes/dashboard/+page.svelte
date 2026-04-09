@@ -21,7 +21,7 @@
 	let showCreateModal = $state(false);
 	let githubAccounts = $state<VCSAccount[]>([]);
 	let captains = $state<GlobalCaptainStatus[]>([]);
-	let captainsCollapsed = $state(false);
+	let captainsCollapsed = $state(true);
 	let captainsInitialized = $state(false);
 
 	// Per-project monitor feeds: project_id -> MonitorEntry[]
