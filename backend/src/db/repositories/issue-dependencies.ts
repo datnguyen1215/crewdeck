@@ -36,7 +36,7 @@ export function listDependents(issueId: string): string[] {
  * Check for circular dependencies.
  * Returns true if adding a dependency from issueId to dependsOnId would create a cycle.
  */
-function wouldCreateCycle(issueId: string, dependsOnId: string): boolean {
+export function wouldCreateCycle(issueId: string, dependsOnId: string): boolean {
   // BFS: Check if dependsOnId eventually depends on issueId
   const visited = new Set<string>();
   const queue = [dependsOnId];

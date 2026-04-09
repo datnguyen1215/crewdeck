@@ -1,5 +1,5 @@
 import { Router, type Request } from "express";
-import { listIssues, createIssue, listIssuesPaginated } from "../db/repositories/issues.js";
+import { listIssues, createIssue, listIssuesPaginated, getIssue } from "../db/repositories/issues.js";
 import { getProject } from "../db/repositories/projects.js";
 import { validate } from "../middleware/validate.js";
 import { requireScope } from "../middleware/scope.js";
@@ -10,7 +10,7 @@ import {
   verifyIssueOwnership,
   verifyIssueWithDetails,
 } from "../middleware/ownership.js";
-import { CreateIssueSchema, UpdateIssueSchema } from "../schemas/validation.js";
+import { CreateIssueSchema, UpdateIssueSchema, SetDependenciesSchema } from "../schemas/validation.js";
 import { eventBus } from "../events/bus.js";
 import type { IssueFilters } from "../types/entities.js";
 import {
@@ -24,6 +24,8 @@ import {
 import {
   listDependenciesBatchWithDetails,
   listDependentsBatchWithDetails,
+  setDependencies,
+  wouldCreateCycle,
 } from "../db/repositories/issue-dependencies.js";
 import { summarizeIssueAsync } from "../orchestration/summarizer.js";
 
@@ -160,5 +162,52 @@ router.post("/:issueId/approve-merge", requireScope(Scope.ISSUES_APPROVE), verif
   approveIssueForMerge(req.issue!);
   res.json({ success: true, issue_id: req.issue!.id, approved_to_merge: true });
 });
+
+router.put(
+  "/:issueId/dependencies",
+  requireScope(Scope.ISSUES_UPDATE),
+  verifyIssueOwnership,
+  validate(SetDependenciesSchema),
+  (req, res) => {
+    const { depends_on } = req.body;
+    const issueId = req.issue!.id;
+
+    // Validate all dependency IDs exist and belong to the same project
+    for (const depId of depends_on) {
+      if (depId === issueId) {
+        throw new ValidationError("Issue cannot depend on itself");
+      }
+      const dep = getIssue(depId);
+      if (!dep) {
+        throw new ValidationError(`Issue not found: ${depId}`);
+      }
+      if (dep.project_id !== req.issue!.project_id) {
+        throw new ValidationError(`Issue ${depId} is not in this project`);
+      }
+      if (wouldCreateCycle(issueId, depId)) {
+        throw new ValidationError(
+          `Circular dependency detected: adding dependency on ${depId} would create a cycle`,
+        );
+      }
+    }
+
+    const added = setDependencies(issueId, depends_on);
+
+    // Detect any dependencies silently dropped (e.g. cycle created by earlier inserts in batch)
+    const dropped = depends_on.filter((id: string) => !added.includes(id));
+    if (dropped.length > 0) {
+      throw new ValidationError(
+        `Circular dependency detected: could not set dependencies on ${dropped.join(", ")}`,
+      );
+    }
+
+    const depsMap = listDependenciesBatchWithDetails([issueId]);
+    res.json({
+      success: true,
+      issue_id: issueId,
+      dependencies: depsMap.get(issueId) ?? [],
+    });
+  },
+);
 
 export default router;

@@ -314,6 +314,144 @@ describe("Issues API", () => {
     });
   });
 
+  // --- Dependencies ---
+
+  describe("PUT /issues/:issueId/dependencies", () => {
+    it("sets dependencies and returns summaries", async () => {
+      const issueA = await createIssue(app, projectId, { title: "A" });
+      const issueB = await createIssue(app, projectId, { title: "B" });
+      const issueC = await createIssue(app, projectId, { title: "C" });
+
+      const res = await request(app)
+        .put(`${base(projectId)}/${issueA.id}/dependencies`)
+        .send({ depends_on: [issueB.id, issueC.id] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.issue_id).toBe(issueA.id);
+      expect(res.body.dependencies).toHaveLength(2);
+      expect(res.body.dependencies.map((d: { id: string }) => d.id).sort()).toEqual(
+        [issueB.id, issueC.id].sort(),
+      );
+    });
+
+    it("atomically replaces existing dependencies", async () => {
+      const issueA = await createIssue(app, projectId, { title: "A" });
+      const issueB = await createIssue(app, projectId, { title: "B" });
+      const issueC = await createIssue(app, projectId, { title: "C" });
+
+      // Set initial dependency
+      await request(app)
+        .put(`${base(projectId)}/${issueA.id}/dependencies`)
+        .send({ depends_on: [issueB.id] });
+
+      // Replace with a different dependency
+      const res = await request(app)
+        .put(`${base(projectId)}/${issueA.id}/dependencies`)
+        .send({ depends_on: [issueC.id] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.dependencies).toHaveLength(1);
+      expect(res.body.dependencies[0].id).toBe(issueC.id);
+    });
+
+    it("returns 400 for self-dependency", async () => {
+      const issue = await createIssue(app, projectId, { title: "Self" });
+
+      const res = await request(app)
+        .put(`${base(projectId)}/${issue.id}/dependencies`)
+        .send({ depends_on: [issue.id] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain("cannot depend on itself");
+    });
+
+    it("returns 400 for non-existent dependency ID", async () => {
+      const issue = await createIssue(app, projectId, { title: "A" });
+
+      const res = await request(app)
+        .put(`${base(projectId)}/${issue.id}/dependencies`)
+        .send({ depends_on: ["nonexistent-id"] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain("not found");
+    });
+
+    it("returns 400 for dependency in different project", async () => {
+      const issueA = await createIssue(app, projectId, { title: "A" });
+
+      // Create an issue in a different project
+      const otherProj = await request(app)
+        .post("/api/v1/projects")
+        .send({ name: "other-project", repo_url: "https://github.com/test/repo2" });
+      const issueB = await request(app)
+        .post(base(otherProj.body.id))
+        .send({ title: "B", description: "desc" });
+
+      const res = await request(app)
+        .put(`${base(projectId)}/${issueA.id}/dependencies`)
+        .send({ depends_on: [issueB.body.id] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain("not in this project");
+    });
+
+    it("returns 400 for circular dependency", async () => {
+      const issueA = await createIssue(app, projectId, { title: "A" });
+      const issueB = await createIssue(app, projectId, { title: "B" });
+
+      // A depends on B
+      await request(app)
+        .put(`${base(projectId)}/${issueA.id}/dependencies`)
+        .send({ depends_on: [issueB.id] });
+
+      // B depends on A → circular
+      const res = await request(app)
+        .put(`${base(projectId)}/${issueB.id}/dependencies`)
+        .send({ depends_on: [issueA.id] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain("Circular dependency");
+    });
+
+    it("returns 200 with empty dependencies for empty depends_on array", async () => {
+      const issue = await createIssue(app, projectId, { title: "A" });
+
+      const res = await request(app)
+        .put(`${base(projectId)}/${issue.id}/dependencies`)
+        .send({ depends_on: [] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.dependencies).toEqual([]);
+    });
+
+    it("returns 404 for non-existent issue", async () => {
+      const res = await request(app)
+        .put(`${base(projectId)}/nonexistent/dependencies`)
+        .send({ depends_on: ["some-id"] });
+
+      expect(res.status).toBe(404);
+    });
+
+    it("returns dependency summaries with title and status", async () => {
+      const issueA = await createIssue(app, projectId, { title: "A" });
+      const issueB = await createIssue(app, projectId, {
+        title: "Feature B",
+        description: "desc",
+      });
+
+      const res = await request(app)
+        .put(`${base(projectId)}/${issueA.id}/dependencies`)
+        .send({ depends_on: [issueB.id] });
+
+      expect(res.status).toBe(200);
+      const dep = res.body.dependencies[0];
+      expect(dep.id).toBe(issueB.id);
+      expect(dep.title).toBe("Feature B");
+      expect(dep.status).toBe("open");
+    });
+  });
+
   describe("PATCH status=done with active processes", () => {
     afterEach(() => {
       for (const entry of activeProcesses.values()) {
