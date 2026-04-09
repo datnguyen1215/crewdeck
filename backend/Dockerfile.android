@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     wget \
     openjdk-17-jdk-headless \
+    cmake \
+    autoconf automake libtool \
+    perl \
   && rm -rf /var/lib/apt/lists/*
 
 # GitHub CLI
