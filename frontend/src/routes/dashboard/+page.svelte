@@ -512,7 +512,7 @@
 		</div>
 	{:else}
 		<!-- Two-column layout: process list + activity log -->
-		<div class="grid grid-cols-1 lg:grid-cols-[1fr_20rem] gap-6">
+		<div class="grid grid-cols-1 lg:grid-cols-[1fr_30rem] gap-6">
 			<!-- Left: Process list -->
 			<div class="space-y-6">
 				<div class="bg-surface border border-edge rounded-sm fade-up">
@@ -777,7 +777,7 @@
 			</div>
 
 			<!-- Right: Activity log -->
-			<div class="max-h-[calc(100vh-6rem)] flex flex-col">
+			<div class="max-h-[50%] flex flex-col">
 				<DashboardActivityFeed entries={activity} loading={activityLoading} />
 			</div>
 		</div>
