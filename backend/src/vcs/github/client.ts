@@ -171,6 +171,26 @@ function combineCheckResults(
 }
 
 /**
+ * Fetch the GitHub noreply email for a user via their token.
+ * Returns `<id>+<login>@users.noreply.github.com` or null on failure.
+ */
+export async function fetchNoreplyEmail(
+  token: string,
+): Promise<string | null> {
+  interface GitHubUserResponse {
+    id: number;
+    login: string;
+  }
+  const data = await githubFetch<GitHubUserResponse>(
+    "https://api.github.com/user",
+    token,
+    "fetch noreply email",
+  );
+  if (!data) return null;
+  return `${data.id}+${data.login}@users.noreply.github.com`;
+}
+
+/**
  * GitHub VCS Provider Client Implementation
  */
 export class GitHubClient implements VCSProviderClient {
