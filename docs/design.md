@@ -561,6 +561,7 @@ Each `/dispatch` command spawns a one-shot `claude -p` process:
 Each issue gets its own git worktree:
 
 - When an agent is first spawned on an issue, a new worktree is created from the project repo's default branch.
+- The worktree's `user.name` and `user.email` are set to the project's linked VCS account identity (via `ensureEmail()`), so all commits are attributed to the repo owner. This is non-fatal — if the VCS account has no email, the container's global git identity is used.
 - The worktree path and branch name are recorded on the issue and reused for subsequent agent spawns on the same issue.
 - On subsequent runs, the existing branch is rebased onto `origin/<defaultBranch>` to incorporate the latest main. If the rebase fails (e.g. conflicts), it is aborted and the agent continues with its existing branch state.
 
