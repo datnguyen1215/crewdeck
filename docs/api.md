@@ -398,6 +398,7 @@ On success (`201 Created`): VCSAccount object (without `token`):
   "provider": "github",
   "account_name": "octocat",
   "username": "octocat",
+  "email": "12345+octocat@users.noreply.github.com",
   "scopes": "repo,workflow",
   "created_at": "ISO 8601"
 }

@@ -5,6 +5,7 @@ export interface VCSAccount {
   username: string;
   token: string;
   ssh_private_key: string;
+  email: string | null;
   created_at: string;
 }
 

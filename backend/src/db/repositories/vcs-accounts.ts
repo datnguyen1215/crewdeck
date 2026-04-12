@@ -1,5 +1,6 @@
 /** VCS account repository for managing SSH key + PAT linked accounts. */
 import { db } from "../index.js";
+import { fetchNoreplyEmail } from "../../vcs/github/client.js";
 import type {
   VCSAccount,
   CreateVCSAccountInput,
@@ -34,6 +35,19 @@ export const createVCSAccount = (
     input.token,
     input.ssh_private_key,
   );
+
+  // Fire-and-forget: fetch noreply email from GitHub and store it
+  fetchNoreplyEmail(input.token)
+    .then((email) => {
+      if (email) {
+        db.prepare("UPDATE VCSAccount SET email = ? WHERE id = ?").run(
+          email,
+          id,
+        );
+      }
+    })
+    .catch(() => {});
+
   return getVCSAccount(id)!;
 };
 
@@ -66,6 +80,21 @@ export const updateVCSAccount = (
   db.prepare(`UPDATE VCSAccount SET ${fields.join(", ")} WHERE id = ?`).run(
     ...values,
   );
+
+  // If token was updated, re-fetch the noreply email
+  if (input.token !== undefined) {
+    fetchNoreplyEmail(input.token)
+      .then((email) => {
+        if (email) {
+          db.prepare("UPDATE VCSAccount SET email = ? WHERE id = ?").run(
+            email,
+            id,
+          );
+        }
+      })
+      .catch(() => {});
+  }
+
   return getVCSAccount(id);
 };
 
@@ -76,6 +105,24 @@ export const getVCSAccountByUsername = (
   (db
     .prepare("SELECT * FROM VCSAccount WHERE username = ? LIMIT 1")
     .get(username) as VCSAccount) ?? null;
+
+/**
+ * Ensure the VCS account has an email. Returns it immediately if present,
+ * otherwise fetches from GitHub, stores it, and returns it.
+ */
+export const ensureEmail = async (
+  account: VCSAccount,
+): Promise<string | null> => {
+  if (account.email) return account.email;
+  const email = await fetchNoreplyEmail(account.token);
+  if (email) {
+    db.prepare("UPDATE VCSAccount SET email = ? WHERE id = ?").run(
+      email,
+      account.id,
+    );
+  }
+  return email;
+};
 
 /** Deletes a VCS account. Project.vcs_account_id is nullified by ON DELETE SET NULL. */
 export const deleteVCSAccount = (id: string): void => {
