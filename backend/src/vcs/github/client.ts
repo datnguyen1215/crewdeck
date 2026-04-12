@@ -274,7 +274,7 @@ export class GitHubClient implements VCSProviderClient {
           ...GITHUB_HEADERS,
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ merge_method: "squash" }),
+        body: JSON.stringify({ merge_method: "merge" }),
       });
 
       if (response.ok)
