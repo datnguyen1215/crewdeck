@@ -325,6 +325,15 @@ git -C <repoPath> fetch origin                          # updates origin/<defaul
 git -C <repoPath> worktree add -b <branchName> <worktreePath> origin/<defaultBranch>
 ```
 
+After creation, the worktree's local git config is set to the project's linked VCS account identity:
+
+```
+git -C <worktreePath> config user.name <vcs_account_username>
+git -C <worktreePath> config user.email <vcs_account_noreply_email>
+```
+
+The email is obtained via `ensureEmail(account)` which lazily backfills the noreply email from GitHub if missing. This is wrapped in try/catch — if the VCS account has no email or `git config` fails, the agent falls back to the container's global git identity.
+
 `generateBranchName(title, issueId)` produces human-like branch names with type prefix inference:
 
 1. **`inferPrefix(title)`** — detects issue type from keywords in the title:
@@ -354,7 +363,7 @@ When a worktree branch already exists (subsequent agent runs on the same issue),
 CrewDeck uses two types of git worktrees:
 
 1. **Issue worktrees** — ephemeral worktrees created per issue (named `<prefix>/<slug>-<hash>`). Cleaned up when the issue reaches `done` status or is deleted.
-2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `captain/<project-slug>`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck/<project-slug>/captain` from the project's `default_base_branch` (falling back to `repo.default_branch`) and auto-rebase onto that branch on creation.
+2. **Captain worktrees** — long-lived worktrees for the Captain Chat terminal (named `captain/<project-slug>`). Persist across PTY session reconnects and are reused. Created in `/tmp/crewdeck/<project-slug>/captain` from the project's `default_base_branch` (falling back to `repo.default_branch`) and auto-rebase onto that branch on creation. Git identity is set to the project's VCS account (same as issue worktrees).
 
 ### Worktree Cleanup
 

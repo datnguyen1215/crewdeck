@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { join } from "node:path";
 import { updateIssue } from "../db/repositories/issues.js";
 import { getProject } from "../db/repositories/projects.js";
+import { getVCSAccount, ensureEmail } from "../db/repositories/vcs-accounts.js";
 import { shellQuote } from "./shell.js";
 import { toContainerPath } from "../utils/paths.js";
 import { createGitSshEnv, cleanupSshKey } from "../utils/git-auth.js";
@@ -131,6 +132,26 @@ export async function createWorktree(
     join(claudeDir, "settings.json"),
     JSON.stringify({ attribution: { commit: "", pr: "" } }),
   );
+
+  // Set git identity to the linked VCS account so commits are attributed to the repo owner
+  try {
+    const account = project?.vcs_account_id
+      ? getVCSAccount(project.vcs_account_id)
+      : null;
+    if (account) {
+      const email = await ensureEmail(account);
+      if (email) {
+        await execAsync(
+          `git -C ${shellQuote(worktreePath)} config user.name ${shellQuote(account.username)}`,
+        );
+        await execAsync(
+          `git -C ${shellQuote(worktreePath)} config user.email ${shellQuote(email)}`,
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn({ issueId: issue.id, err }, "Failed to set git identity in worktree");
+  }
 
   updateIssue(issue.id, {
     branch_name: branchName,
