@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { logger } from "../logger.js";
 import { getProject } from "../db/repositories/projects.js";
 import { listRepos } from "../db/repositories/repos.js";
-import { getVCSAccount } from "../db/repositories/vcs-accounts.js";
+import { getVCSAccount, ensureEmail } from "../db/repositories/vcs-accounts.js";
 import { toContainerPath } from "../utils/paths.js";
 import { shellQuote } from "./shell.js";
 import { slugify } from "./worktree.js";
@@ -174,6 +174,26 @@ export async function createCaptainWorktree(
     join(claudeDir, "settings.json"),
     JSON.stringify({ attribution: { commit: "", pr: "" } }),
   );
+
+  // Set git identity to the linked VCS account so commits are attributed to the repo owner
+  try {
+    const account = project?.vcs_account_id
+      ? getVCSAccount(project.vcs_account_id)
+      : null;
+    if (account) {
+      const email = await ensureEmail(account);
+      if (email) {
+        await execAsync(
+          `git -C ${shellQuote(worktreePath)} config user.name ${shellQuote(account.username)}`,
+        );
+        await execAsync(
+          `git -C ${shellQuote(worktreePath)} config user.email ${shellQuote(email)}`,
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn({ projectId, err }, "Failed to set git identity in captain worktree");
+  }
 
   logger.info({ projectId, worktreePath }, "Captain worktree created");
   return worktreePath;
