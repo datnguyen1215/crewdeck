@@ -86,15 +86,17 @@ Represents a body of work tied to one or more GitHub repositories.
 
 A VCS account (GitHub, GitLab, etc.) connected via Device Flow OAuth.
 
-| Field        | Type        | Constraints                         | Description                                          |
-| ------------ | ----------- | ----------------------------------- | ---------------------------------------------------- |
-| id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                   |
-| provider     | TEXT        | NOT NULL, DEFAULT 'github'          | VCS provider (e.g., 'github', 'gitlab').             |
-| account_name | TEXT        | NOT NULL                            | Display name for the account (matches username).     |
-| username     | TEXT        | NOT NULL                            | Username on the VCS provider.                        |
-| token        | TEXT        | NOT NULL                            | OAuth/API access token. Never returned to client.    |
-| scopes       | TEXT        |                                     | Comma-separated OAuth scopes granted (if supported). |
-| created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                      |
+| Field        | Type        | Constraints                         | Description                                                                                   |
+| ------------ | ----------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
+| id           | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                            |
+| provider     | TEXT        | NOT NULL, DEFAULT 'github'          | VCS provider (e.g., 'github', 'gitlab').                                                      |
+| account_name | TEXT        | NOT NULL                            | Display name for the account (matches username).                                              |
+| username     | TEXT        | NOT NULL                            | Username on the VCS provider.                                                                 |
+| token        | TEXT        | NOT NULL                            | OAuth/API access token. Never returned to client.                                             |
+| ssh_private_key | TEXT      |                                     | SSH private key for git operations.                                                           |
+| email        | TEXT        | NULLABLE                            | GitHub noreply email (`<id>+<login>@users.noreply.github.com`). Fetched from GitHub on account creation; lazily backfilled for older accounts. |
+| scopes       | TEXT        |                                     | Comma-separated OAuth scopes granted (if supported).                                          |
+| created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                               |
 
 **Note:** `token` is stored server-side only and stripped from all API responses.
 
