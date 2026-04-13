@@ -136,12 +136,10 @@ export async function updateProject(id: string, input: UpdateProjectInput): Prom
   const { create_database, ...rest } = input;
   if (create_database) {
     const existing = getProject(id);
-    if (!existing || existing.database_name) {
-      // Already has a database — no-op
-      return getProject(id)!;
+    if (existing && !existing.database_name) {
+      const dbName = await createProjectDatabase(id);
+      overrides.database_name = dbName;
     }
-    const dbName = await createProjectDatabase(id);
-    overrides.database_name = dbName;
   }
 
   buildAndRunUpdate("Project", id, rest, overrides);
