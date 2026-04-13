@@ -37,15 +37,17 @@ Subsequent visits require signing in at `/login`.
 
 ## How It Works
 
-Docker Compose runs three core services on a bridge network. Only the Caddy reverse proxy exposes a port to the host:
+Docker Compose runs five services on a bridge network. Only the Caddy reverse proxy exposes a port to the host:
 
-| Service    | Internal Port | Description                               |
-| ---------- | ------------: | ----------------------------------------- |
-| `caddy`    |          9380 | Reverse proxy (exposed to host)           |
-| `frontend` |          3000 | SvelteKit production build (adapter-node) |
-| `backend`  |          9381 | Express API + SQLite + agent runtime      |
+| Service       | Internal Port | Published | Description                                |
+| ------------ | ------------: | --------- | ------------------------------------------ |
+| `caddy`      |          9380 | 9380      | Reverse proxy (exposed to host)            |
+| `frontend`   |          3000 | —         | SvelteKit production build (adapter-node)  |
+| `backend`    |          9381 | —         | Express API + SQLite + agent runtime       |
+| `postgres`   |          5432 | —         | PostgreSQL 16 (internal only)              |
+| `cloudflared`|              | —         | Cloudflare Tunnel (optional, `network_mode: host`) |
 
-Caddy routes `/ws` and `/terminal-ws` (WebSocket) requests to the backend, and everything else to the frontend. Only port 9380 is published to the host — the frontend and backend are not directly accessible.
+Caddy routes `/ws` and `/terminal-ws` (WebSocket) requests to the backend, and everything else to the frontend. Only port 9380 is published to the host — the other services are not directly accessible. PostgreSQL is reachable only from other containers on the Docker network at `postgres:5432`.
 
 Both services are self-contained — no host source code is mounted. The frontend is built during `docker build` and served by Node.
 
@@ -55,7 +57,7 @@ When you add a repo to a project, the backend clones it automatically into its o
 
 ## Volumes
 
-Application data (SQLite database and cloned repos) is stored in a named Docker volume `crewdeck-data`, which persists across container restarts and rebuilds.
+Application data (SQLite database and cloned repos) is stored in a named Docker volume `crewdeck-data`, which persists across container restarts and rebuilds. PostgreSQL data is stored in a separate named volume `crewdeck-pgdata`.
 
 The only host mount is for Claude Code configuration (read-only):
 
@@ -73,6 +75,10 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 | ---------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
 | `DB_PATH`              | `/app/data/crewdeck.db` | SQLite database location                                                                        |
 | `CREWDECK_REPOS_DIR`   | `/app/data/repos`       | Where repos are cloned                                                                          |
+| `POSTGRES_HOST`        | `postgres`              | PostgreSQL host (internal Docker service name)                                                   |
+| `POSTGRES_PORT`        | `5432`                  | PostgreSQL port                                                                                 |
+| `POSTGRES_USER`        | `crewdeck`              | PostgreSQL superuser username                                                                   |
+| `POSTGRES_PASSWORD`    | `crewdeck`              | PostgreSQL superuser password                                                                   |
 | `SESSION_EXPIRY_HOURS` | `168` (7 days)          | _(No longer used)_ Sessions persist indefinitely; cookie `maxAge` is set to 10 years.           |
 | `ANTHROPIC_API_KEY`    | _(your API key)_        | Anthropic API key (required for Captain LLM agent and default Claude provider)                  |
 | `ZAI_API_KEY`          | _(optional)_            | Z.AI API key (required if using GLM provider). Enables GLM option in Crew page provider toggle. |
@@ -135,7 +141,7 @@ docker compose up
 docker compose down
 ```
 
-Data persists in the `crewdeck-data` Docker volume between restarts. To remove all data:
+Data persists in the `crewdeck-data` and `crewdeck-pgdata` Docker volumes between restarts. To remove all data:
 
 ```bash
 docker compose down -v
