@@ -160,7 +160,7 @@ export function createProject(data: {
 }) {
   return request<Project>("POST", "/projects", data);
 }
-export function updateProject(id: string, data: Partial<Project>) {
+export function updateProject(id: string, data: Partial<Project> & { create_database?: boolean }) {
   return request<Project>("PATCH", `/projects/${e(id)}`, data);
 }
 export function deleteProject(id: string) {

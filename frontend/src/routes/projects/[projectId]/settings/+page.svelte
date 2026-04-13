@@ -42,6 +42,39 @@
 	let deletingEnvId = $state<string | null>(null);
 	let confirmingDeleteEnvId = $state<string | null>(null);
 
+	// Database state
+	let creatingDb = $state(false);
+	let copied = $state(false);
+
+	let connectionString = $derived(project?.database_name
+		? `postgresql://crewdeck:crewdeck@postgres:5432/${project.database_name}`
+		: ''
+	);
+
+	async function createDatabase() {
+		if (!project) return;
+		creatingDb = true;
+		try {
+			const updated = await updateProject(project.id, { create_database: true });
+			project = updated;
+			toastStore.add('Database created', 'success');
+		} catch (err) {
+			toastStore.add(err instanceof Error ? err.message : 'Failed to create database', 'error');
+		} finally {
+			creatingDb = false;
+		}
+	}
+
+	async function copyConnectionString() {
+		try {
+			await navigator.clipboard.writeText(connectionString);
+			copied = true;
+			setTimeout(() => { copied = false; }, 2000);
+		} catch {
+			toastStore.add('Failed to copy to clipboard', 'error');
+		}
+	}
+
 	// Delete project state
 	let deletingProject = $state(false);
 	let deleteConfirmName = $state('');
@@ -316,6 +349,25 @@
 							{addingEnv ? 'Adding...' : 'Add'}
 						</button>
 					</form>
+				{/if}
+			</div>
+
+			<!-- Database Section -->
+			<div class="mt-12 fade-up">
+				<h2 class="text-sm font-bold tracking-[0.3em] uppercase mb-6" style="color: var(--color-cyan); text-shadow: var(--glow-cyan)">Database</h2>
+				<p class="text-muted text-xs mb-4">Managed PostgreSQL database for this project.</p>
+
+				{#if project.database_name}
+					<div class="flex gap-2 items-center">
+						<input type="text" readonly value={connectionString} class="flex-1 bg-base border border-edge rounded px-3 py-2 text-sm text-primary font-mono" />
+						<button onclick={copyConnectionString} class="px-4 py-2 border border-edge rounded text-sm text-secondary hover:text-primary transition-colors">
+							{copied ? 'Copied!' : 'Copy'}
+						</button>
+					</div>
+				{:else}
+					<button onclick={createDatabase} disabled={creatingDb} class="px-4 py-2 bg-cyan/10 border border-cyan rounded text-sm text-cyan hover:bg-cyan/20 transition-colors disabled:opacity-50">
+						{creatingDb ? 'Creating...' : 'Create Database'}
+					</button>
 				{/if}
 			</div>
 

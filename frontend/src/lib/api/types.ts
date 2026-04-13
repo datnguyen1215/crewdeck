@@ -7,6 +7,7 @@ export interface Project {
   model: string;
   vcs_account_id: string | null;
   default_base_branch: string;
+  database_name: string | null;
   created_at: string;
   updated_at: string;
 }
