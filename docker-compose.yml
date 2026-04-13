@@ -17,6 +17,15 @@ services:
     depends_on:
       - backend
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=crewdeck
+      - POSTGRES_PASSWORD=crewdeck
+    volumes:
+      - crewdeck-pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -34,6 +43,12 @@ services:
       - DB_PATH=/app/data/crewdeck.db
       - CREWDECK_REPOS_DIR=/app/data/repos
       - CREWDECK_WORKTREES_DIR=/app/data/worktrees
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=crewdeck
+      - POSTGRES_PASSWORD=crewdeck
+    depends_on:
+      - postgres
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -45,3 +60,4 @@ services:
 
 volumes:
   crewdeck-data:
+  crewdeck-pgdata:
