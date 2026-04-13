@@ -175,6 +175,7 @@ Without `?stats`:
     "auto_start": false,
     "auto_merge": false,
     "vcs_account_id": "uuid | null",
+    "database_name": "project_<id> | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601"
   }
@@ -193,6 +194,7 @@ With `?stats`:
     "auto_start": false,
     "auto_merge": false,
     "vcs_account_id": "uuid | null",
+    "database_name": "project_<id> | null",
     "created_at": "ISO 8601",
     "updated_at": "ISO 8601",
     "repo_count": 2,
@@ -258,15 +260,17 @@ POST /projects
 PATCH /projects/:id
 ```
 
-**Request Body:** Any subset of project fields (name, description, model, auto_start, auto_merge, vcs_account_id).
+**Request Body:** Any subset of project fields (name, description, model, auto_start, auto_merge, vcs_account_id, default_base_branch, create_database).
 
-| Field      | Type    | Description                                                              |
-| ---------- | ------- | ------------------------------------------------------------------------ |
-| model      | TEXT    | Default Claude model for agent spawning. One of: `sonnet`, `opus`.       |
-| auto_start | BOOLEAN | Whether Captain automatically starts work on new issues. Default: false. |
-| auto_merge | BOOLEAN | Whether Captain automatically merges ready PRs. Default: false.          |
+| Field            | Type    | Description                                                              |
+| ---------------- | ------- | ------------------------------------------------------------------------ |
+| model            | TEXT    | Default Claude model for agent spawning. One of: `sonnet`, `opus`.       |
+| auto_start       | BOOLEAN | Whether Captain automatically starts work on new issues. Default: false. |
+| auto_merge       | BOOLEAN | Whether Captain automatically merges ready PRs. Default: false.          |
+| default_base_branch | TEXT | Default base branch for PRs and worktrees.                              |
+| create_database  | BOOLEAN | When `true`, provisions a managed PostgreSQL database for this project. The database name (`project_<sanitized-uuid>`) is stored on the project. No-op if a database already exists. |
 
-**Response:** `200 OK` — The updated project object.
+**Response:** `200 OK` — The updated project object (includes `database_name` when set).
 
 #### Delete Project
 
@@ -276,7 +280,7 @@ DELETE /projects/:id
 
 **Response:** `204 No Content`
 
-**Side effects:** Kills any active agent processes, cleans up worktrees, deletes all related data (cascading).
+**Side effects:** Kills any active agent processes, cleans up worktrees, drops the managed PostgreSQL database if one exists (using `DROP DATABASE IF EXISTS ... WITH (FORCE)`), deletes all related data (cascading).
 
 #### Get Captain Status
 

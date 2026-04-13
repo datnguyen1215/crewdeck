@@ -178,6 +178,12 @@ The frontend and backend are separate directories. Each has its own `package.jso
      │ SQLite │ │   gh   │ │ claude │
      │   DB   │ │  CLI   │ │  -p    │
      └────────┘ └────────┘ └────────┘
+          │
+          ▼
+     ┌────────────┐
+     │ PostgreSQL │  (per-project databases)
+     │   (16)     │
+     └────────────┘
 ```
 
 ### Component Responsibilities
