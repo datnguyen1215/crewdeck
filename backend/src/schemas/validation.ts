@@ -37,6 +37,7 @@ export const UpdateProjectSchema = CreateProjectBase.omit({
     auto_start: z.boolean().optional(),
     auto_merge: z.boolean().optional(),
     default_base_branch: z.string().min(1).optional(),
+    create_database: z.boolean().optional(),
   });
 
 export const CreateRepoSchema = z.object({

@@ -71,24 +71,24 @@ describe("listProjects", () => {
 });
 
 describe("updateProject", () => {
-  it("updates name", () => {
+  it("updates name", async () => {
     const p = createProject({ name: "Old" });
-    const updated = updateProject(p.id, { name: "New" });
+    const updated = await updateProject(p.id, { name: "New" });
     expect(updated.name).toBe("New");
   });
 
-  it("updates only specified fields", () => {
+  it("updates only specified fields", async () => {
     const p = createProject({ name: "Orig" });
-    const updated = updateProject(p.id, { description: "hi" });
+    const updated = await updateProject(p.id, { description: "hi" });
     expect(updated.name).toBe("Orig");
     expect(updated.description).toBe("hi");
   });
 });
 
 describe("deleteProject", () => {
-  it("deletes the project", () => {
+  it("deletes the project", async () => {
     const p = createProject({ name: "Del" });
-    deleteProject(p.id);
+    await deleteProject(p.id);
     expect(getProject(p.id)).toBeNull();
   });
 });

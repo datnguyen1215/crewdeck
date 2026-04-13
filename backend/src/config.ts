@@ -25,4 +25,8 @@ export const config = {
   worktreesDir: optional("CREWDECK_WORKTREES_DIR", "./data/worktrees"),
   reposHostPath: process.env.CREWDECK_REPOS_HOST_PATH || "",
   reposContainerPath: process.env.CREWDECK_REPOS_CONTAINER_PATH || "",
+  postgresHost: optional("POSTGRES_HOST", "localhost"),
+  postgresPort: parseIntEnv("POSTGRES_PORT", 5432),
+  postgresUser: optional("POSTGRES_USER", "crewdeck"),
+  postgresPassword: optional("POSTGRES_PASSWORD", "crewdeck"),
 };
