@@ -55,7 +55,7 @@
 		if (!project) return;
 		creatingDb = true;
 		try {
-			const updated = await updateProject(project.id, { create_database: true } as Partial<Project>);
+			const updated = await updateProject(project.id, { create_database: true });
 			project = updated;
 			toastStore.add('Database created', 'success');
 		} catch (err) {
