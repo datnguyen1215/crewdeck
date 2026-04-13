@@ -30,6 +30,7 @@ export interface Project {
   captain_status_detail: string | null;
   captain_pending_count: number;
   captain_processing_since: string | null;
+  database_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -244,6 +245,7 @@ export interface UpdateProjectInput {
   auto_merge?: boolean;
   vcs_account_id?: string | null;
   default_base_branch?: string;
+  create_database?: boolean;
 }
 
 export interface AgentConfig {

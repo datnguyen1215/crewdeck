@@ -9,6 +9,7 @@ import { ensureCloned, insertRepo } from "./repos.js";
 import { getVCSAccount } from "./vcs-accounts.js";
 import { buildAndRunUpdate, deserializeBoolean } from "./utils.js";
 import { IssueStatus } from "../../constants/statuses.js";
+import { createProjectDatabase, dropProjectDatabase } from "../../utils/postgres.js";
 
 function fromRow(row: unknown): Project {
   const r = row as Record<string, unknown>;
@@ -124,14 +125,24 @@ export function createProject(input: CreateProjectInput): Project {
   return getProject(id)!;
 }
 
-export function updateProject(id: string, input: UpdateProjectInput): Project {
+export async function updateProject(id: string, input: UpdateProjectInput): Promise<Project> {
   // Convert booleans to integers for SQLite
   const overrides: Record<string, unknown> = {};
   if (input.auto_start !== undefined)
     overrides.auto_start = input.auto_start ? 1 : 0;
   if (input.auto_merge !== undefined)
     overrides.auto_merge = input.auto_merge ? 1 : 0;
-  buildAndRunUpdate("Project", id, input, overrides);
+
+  const { create_database, ...rest } = input;
+  if (create_database) {
+    const existing = getProject(id);
+    if (existing && !existing.database_name) {
+      const dbName = await createProjectDatabase(id);
+      overrides.database_name = dbName;
+    }
+  }
+
+  buildAndRunUpdate("Project", id, rest, overrides);
   return getProject(id)!;
 }
 
@@ -168,7 +179,11 @@ export function updateCaptainStatus(
   }
 }
 
-export function deleteProject(id: string): void {
+export async function deleteProject(id: string): Promise<void> {
+  const project = getProject(id);
+  if (project?.database_name) {
+    await dropProjectDatabase(project.database_name);
+  }
   db.transaction(() => {
     // ProjectKnowledge has ON DELETE CASCADE — no manual delete needed
     // AgentRun has ON DELETE CASCADE on project_id (migration 046) — no manual delete needed

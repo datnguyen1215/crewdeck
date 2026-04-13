@@ -68,25 +68,33 @@ router.post("/", requireScope(Scope.PROJECTS_WRITE), validate(CreateProjectSchem
   }
 });
 
-router.patch("/:id", requireScope(Scope.PROJECTS_WRITE), validate(UpdateProjectSchema), (req, res) => {
-  const existing = getProject(req.params.id);
-  if (!existing) throw new NotFoundError("Project not found");
-  const updated = updateProject(req.params.id, req.body);
-  if (Object.keys(req.body).length > 0) {
-    eventBus.emit("project.settings_changed", {
-      project_id: req.params.id,
-      changes: req.body,
-    });
+router.patch("/:id", requireScope(Scope.PROJECTS_WRITE), validate(UpdateProjectSchema), async (req, res, next) => {
+  try {
+    const existing = getProject(req.params.id);
+    if (!existing) throw new NotFoundError("Project not found");
+    const updated = await updateProject(req.params.id, req.body);
+    if (Object.keys(req.body).length > 0) {
+      eventBus.emit("project.settings_changed", {
+        project_id: req.params.id,
+        changes: req.body,
+      });
+    }
+    res.json(updated);
+  } catch (err) {
+    next(err);
   }
-  res.json(updated);
 });
 
-router.delete("/:id", requireScope(Scope.PROJECTS_DELETE), (req, res) => {
-  const existing = getProject(req.params.id);
-  if (!existing) throw new NotFoundError("Project not found");
-  deleteProject(req.params.id);
-  eventBus.emit("project.deleted", { project_id: req.params.id });
-  res.status(204).send();
+router.delete("/:id", requireScope(Scope.PROJECTS_DELETE), async (req, res, next) => {
+  try {
+    const existing = getProject(req.params.id);
+    if (!existing) throw new NotFoundError("Project not found");
+    await deleteProject(req.params.id);
+    eventBus.emit("project.deleted", { project_id: req.params.id });
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get("/:id/librarian-status", requireScope(Scope.PROJECTS_READ), (req, res) => {

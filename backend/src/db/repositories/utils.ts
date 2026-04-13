@@ -25,6 +25,7 @@ const ALLOWED_COLUMNS: Record<Table, Set<string>> = {
     "vcs_account_id",
     "model",
     "default_base_branch",
+    "database_name",
   ]),
 };
 
