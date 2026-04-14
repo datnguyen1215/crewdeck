@@ -8,7 +8,7 @@ This guide covers running CrewDeck using Docker Compose.
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configured on your host machine
 - A GitHub account with an SSH key and Personal Access Token (PAT) with `repo` and `workflow` scopes
 
-The following host directory **must exist** or the backend container will fail to start:
+The following host files **must exist** before starting. If they don't, Docker will silently create them as empty directories, causing Claude CLI to fail at runtime with confusing errors:
 
 | Host Path                     | Purpose                                                        |
 | ----------------------------- | -------------------------------------------------------------- |
