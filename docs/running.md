@@ -64,8 +64,8 @@ Claude credential files are mounted read-write so the container and host share l
 
 | Host Path                     | Container Path                            | Purpose                        |
 | ----------------------------- | ----------------------------------------- | ------------------------------ |
-| `~/.claude/.credentials.json` | `/home/app/.claude/.credentials.json` (rw) | Claude OAuth tokens (shared)   |
-| `~/.claude.json`              | `/home/app/.claude.json` (rw)              | Claude session config (shared) |
+| `~/.claude/.credentials.json` | `/home/node/.claude/.credentials.json` (rw) | Claude OAuth tokens (shared)   |
+| `~/.claude.json`              | `/home/node/.claude.json` (rw)              | Claude session config (shared) |
 
 ## Environment Variables
 

@@ -21,8 +21,9 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 # Agents need the latest tool support and model compatibility.
 RUN npm install -g @anthropic-ai/claude-code
 
-# Create non-root user
-RUN groupadd -r app && useradd -r -g app -m -s /bin/bash app
+# Use the built-in 'node' user (uid 1000) from the base image.
+# This matches the typical host UID so bind-mounted credential files
+# (e.g. ~/.claude/.credentials.json) are readable without chown.
 
 WORKDIR /app
 
@@ -38,13 +39,13 @@ RUN cd backend && npm run build
 # /app/data — DB and repos (Docker volume mount point)
 # /app/backend/data — log files (default LOG_FILE_PATH is ./data/server.log)
 RUN mkdir -p /app/data /app/backend/data \
-    && chown app:app /app/data /app/backend/data
+    && chown node:node /app/data /app/backend/data
 
 # Create writable ~/.claude directory for Claude CLI runtime files.
 # Credential files are mounted at runtime via docker-compose volume mounts.
-RUN mkdir -p /home/app/.claude && chown app:app /home/app/.claude
+RUN mkdir -p /home/node/.claude && chown node:node /home/node/.claude
 
-USER app
+USER node
 
 ENV HOST=0.0.0.0
 ENV PORT=3000

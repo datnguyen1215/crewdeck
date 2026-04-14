@@ -32,8 +32,8 @@ services:
       dockerfile: backend/Dockerfile
     volumes:
       - crewdeck-data:/app/data
-      - ~/.claude/.credentials.json:/home/app/.claude/.credentials.json
-      - ~/.claude.json:/home/app/.claude.json
+      - ~/.claude/.credentials.json:/home/node/.claude/.credentials.json
+      - ~/.claude.json:/home/node/.claude.json
     environment:
       - PORT=9381
       - HOST=0.0.0.0
