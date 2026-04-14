@@ -61,36 +61,6 @@
 	}
 }
 
-@keyframes vt-slide-in {
-	from {
-		opacity: 0;
-		transform: translateY(8px);
-	}
-}
-
-@keyframes vt-slide-out {
-	to {
-		opacity: 0;
-		transform: translateY(-4px);
-	}
-}
-
-/* ---- View Transitions (page navigation) ---- */
-
-/* Exclude fixed-position overlays from view transition snapshots
-   to prevent blank-space bugs when toasts/modals are visible during navigation */
-:where(.fixed) {
-	view-transition-name: none;
-}
-
-::view-transition-old(root) {
-	animation: 200ms ease-in both vt-slide-out;
-}
-
-::view-transition-new(root) {
-	animation: 350ms cubic-bezier(0, 0, 0.2, 1) both vt-slide-in;
-}
-
 /* ---- Base ---- */
 
 @layer base {
@@ -226,12 +196,5 @@ a[role="button"]:active {
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
-	}
-
-	::view-transition-group(*),
-	::view-transition-image-pair(*),
-	::view-transition-old(*),
-	::view-transition-new(*) {
-		animation: none !important;
 	}
 }
