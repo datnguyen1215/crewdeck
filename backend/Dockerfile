@@ -40,20 +40,9 @@ RUN cd backend && npm run build
 RUN mkdir -p /app/data /app/backend/data \
     && chown app:app /app/data /app/backend/data
 
-# Copy host ~/.claude so the container has a writable, independent copy.
-# Why build-time COPY instead of a volume mount?
-#   - Read-only mount won't work: Claude Code writes to ~/.claude at runtime.
-#   - Read-write mount modifies the host's ~/.claude, which is undesirable.
-#   - COPY gives each container its own isolated copy that it can freely modify.
-# Note: This bakes credentials into the image layers. Never push built images
-# to a public registry.
-COPY --from=claude-config --chown=app:app / /home/app/.claude/
-
-# Restore .claude.json from backup if the host didn't provide it directly.
-# Claude CLI expects ~/.claude.json at the home root; the backup lives inside
-# ~/.claude/backups/ which is already copied above.
-RUN latest=$(ls -t /home/app/.claude/backups/.claude.json.backup.* 2>/dev/null | head -1) \
-    && if [ -n "$latest" ]; then cp "$latest" /home/app/.claude.json && chown app:app /home/app/.claude.json; fi
+# Create writable ~/.claude directory for Claude CLI runtime files.
+# Credential files are mounted at runtime via docker-compose volume mounts.
+RUN mkdir -p /home/app/.claude && chown app:app /home/app/.claude
 
 USER app
 
