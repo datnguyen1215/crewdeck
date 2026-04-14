@@ -8,11 +8,12 @@ This guide covers running CrewDeck using Docker Compose.
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configured on your host machine
 - A GitHub account with an SSH key and Personal Access Token (PAT) with `repo` and `workflow` scopes
 
-The following host directory **must exist** or the backend container will fail to start:
+The following host files **must exist** before starting. If they don't, Docker will silently create them as empty directories, causing Claude CLI to fail at runtime with confusing errors:
 
-| Host Path   | Purpose                                             |
-| ----------- | --------------------------------------------------- |
-| `~/.claude` | Claude Code config (mounted read-only into backend) |
+| Host Path                     | Purpose                                                        |
+| ----------------------------- | -------------------------------------------------------------- |
+| `~/.claude/.credentials.json` | Claude Code OAuth credentials (shared read-write with container) |
+| `~/.claude.json`              | Claude Code session config (shared read-write with container)    |
 
 ## Quick Start
 
@@ -49,7 +50,7 @@ Docker Compose runs five services on a bridge network. Only the Caddy reverse pr
 
 Caddy routes `/ws` and `/terminal-ws` (WebSocket) requests to the backend, and everything else to the frontend. Only port 9380 is published to the host — the other services are not directly accessible. PostgreSQL is reachable only from other containers on the Docker network at `postgres:5432`.
 
-Both services are self-contained — no host source code is mounted. The frontend is built during `docker build` and served by Node.
+Both services are self-contained — no host source code is mounted. The frontend is built during `docker build` and served by Node. Claude credential files (`~/.claude/.credentials.json` and `~/.claude.json`) are mounted read-write so the container and host share live tokens.
 
 The backend container includes tmux, git, GitHub CLI, and Claude Code CLI so agents can run autonomously inside it.
 
@@ -59,11 +60,12 @@ When you add a repo to a project, the backend clones it automatically into its o
 
 Application data (SQLite database and cloned repos) is stored in a named Docker volume `crewdeck-data`, which persists across container restarts and rebuilds. PostgreSQL data is stored in a separate named volume `crewdeck-pgdata`.
 
-The only host mount is for Claude Code configuration (read-only):
+Claude credential files are mounted read-write so the container and host share live tokens:
 
-| Host Path   | Container Path           | Purpose            |
-| ----------- | ------------------------ | ------------------ |
-| `~/.claude` | `/home/app/.claude` (ro) | Claude Code config |
+| Host Path                     | Container Path                            | Purpose                        |
+| ----------------------------- | ----------------------------------------- | ------------------------------ |
+| `~/.claude/.credentials.json` | `/home/app/.claude/.credentials.json` (rw) | Claude OAuth tokens (shared)   |
+| `~/.claude.json`              | `/home/app/.claude.json` (rw)              | Claude session config (shared) |
 
 ## Environment Variables
 
@@ -162,4 +164,4 @@ docker compose logs -f frontend
 
 **GitHub authentication**: GitHub accounts are added in-app (Accounts page) by providing an SSH private key and a Personal Access Token (PAT) with `repo` and `workflow` scopes. Each project links to an account for per-project credential isolation. You do not need `gh auth login` or machine-wide SSH config on your host.
 
-**Claude Code not working**: Ensure `~/.claude` exists on your host with valid configuration.
+**Claude Code not working**: Ensure `~/.claude/.credentials.json` and `~/.claude.json` exist on your host with valid Claude authentication.

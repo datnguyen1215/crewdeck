@@ -30,12 +30,10 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-      # Feed host ~/.claude into the build so the container gets its own
-      # writable copy of Claude credentials and config (see backend/Dockerfile).
-      additional_contexts:
-        claude-config: ~/.claude
     volumes:
       - crewdeck-data:/app/data
+      - ~/.claude/.credentials.json:/home/app/.claude/.credentials.json
+      - ~/.claude.json:/home/app/.claude.json
     environment:
       - PORT=9381
       - HOST=0.0.0.0
