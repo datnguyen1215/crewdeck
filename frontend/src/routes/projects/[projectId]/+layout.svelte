@@ -87,7 +87,7 @@
 </script>
 
 {#if ws && (ws.state === 'reconnecting' || ws.state === 'connecting')}
-	<div class="fixed top-0 left-0 right-0 z-[300] flex items-center justify-center gap-2 py-1 bg-amber/10 border-b border-amber/30 text-amber text-xs" style="view-transition-name: none">
+	<div class="fixed top-0 left-0 right-0 z-[300] flex items-center justify-center gap-2 py-1 bg-amber/10 border-b border-amber/30 text-amber text-xs">
 		<span class="inline-block w-1.5 h-1.5 rounded-full bg-amber animate-pulse"></span>
 		{ws.state === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
 	</div>
