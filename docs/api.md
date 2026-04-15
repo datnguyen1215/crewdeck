@@ -1357,8 +1357,8 @@ Creates or updates the model for a specific agent.
 
 | Field    | Required | Description                                                                                                                                                                         |
 | -------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| provider | Yes      | AI provider. One of: `claude`, `glm`.                                                                                                                                               |
-| model    | Yes      | Model to use. For `claude`: `sonnet`, `opus`, `haiku`, or `null`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, or `null`. `null` clears the override for that provider. |
+| provider | Yes      | AI provider. One of: `claude`, `glm`, `ollama`.                                                                                                                                                                       |
+| model    | Yes      | Model to use. For `claude`: `sonnet`, `opus`, `haiku`, or `null`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, or `null`. For `ollama`: `qwen-3.5-9b`, or `null`. `null` clears the override for that provider. |
 
 **Response:** `200 OK` — The created or updated agent config object.
 
