@@ -84,6 +84,7 @@ Docker Compose sets these automatically. You do **not** need a `.env` file for D
 | `SESSION_EXPIRY_HOURS` | `168` (7 days)          | _(No longer used)_ Sessions persist indefinitely; cookie `maxAge` is set to 10 years.           |
 | `ANTHROPIC_API_KEY`    | _(your API key)_        | Anthropic API key (required for Captain LLM agent and default Claude provider)                  |
 | `ZAI_API_KEY`          | _(optional)_            | Z.AI API key (required if using GLM provider). Enables GLM option in Crew page provider toggle. |
+| `OLLAMA_PROXY_URL`     | _(optional)_            | LiteLLM proxy URL for Qwen models (default: `http://localhost:4000`). Required if using `qwen-` prefixed models. |
 
 **Orchestration tuning** (optional, override defaults):
 
