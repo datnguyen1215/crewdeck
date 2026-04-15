@@ -1440,7 +1440,7 @@ Sets the default model for all agent spawns when no per-agent override is config
 
 | Field | Required | Description                                                                                     |
 | ----- | -------- | ----------------------------------------------------------------------------------------------- |
-| model | Yes      | Default model. One of: `sonnet`, `opus`, `haiku`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. |
+| model | Yes      | Default model. One of: `sonnet`, `opus`, `haiku`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, `qwen-3.5-9b`. |
 
 **Response:** `200 OK`
 

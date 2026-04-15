@@ -64,8 +64,9 @@ claude -p <prompt> \
 
 The provider is inferred from the model name:
 
-- **Claude (default)**: Models not starting with `glm-` use `ANTHROPIC_API_KEY` from environment (no additional variables).
+- **Claude (default)**: Models not matching any known prefix use `ANTHROPIC_API_KEY` from environment (no additional variables).
 - **GLM (Z.AI)**: Models starting with `glm-` inject `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and `ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY`, and explicitly clear `ANTHROPIC_API_KEY` to an empty string. This prevents a host `ANTHROPIC_API_KEY` from conflicting with Z.AI authentication. Requires `ZAI_API_KEY` environment variable to be set on the backend.
+- **Qwen (Ollama/LiteLLM)**: Models starting with `qwen-` inject `ANTHROPIC_BASE_URL=<proxy_url>` and `ANTHROPIC_AUTH_TOKEN=ollama`. The proxy URL defaults to `http://localhost:4000` (LiteLLM default) and can be overridden via `OLLAMA_PROXY_URL` env var or the `GlobalEnvironmentVariable` table.
 
 Provider variables are injected via `buildProviderEnv(model)` in `backend/src/orchestration/provider-env.ts` and apply to all `claude -p` spawns (including Captain terminal sessions). The `ANTHROPIC_API_KEY: ""` clearing is applied after `buildProviderEnv()` in both `process.ts` (agent spawns) and `pty-service.ts` (Captain PTY sessions).
 
