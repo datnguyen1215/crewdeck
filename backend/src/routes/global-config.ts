@@ -26,6 +26,7 @@ const ALL_MODELS = [
   "glm-5",
   "glm-5-turbo",
   "glm-4.7",
+  "qwen-3.5-9b",
 ] as const;
 
 const SetDefaultModelSchema = z.object({
