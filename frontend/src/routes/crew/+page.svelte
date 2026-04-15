@@ -16,6 +16,7 @@
 	let configs = $state<AgentConfig[]>([]);
 	let defaultModel = $state('sonnet');
 	let glmAvailable = $state(true);
+	let ollamaAvailable = $state(true);
 	let loading = $state(true);
 	let saving = $state<Record<string, boolean>>({});
 	let defaultSaving = $state(false);
@@ -27,7 +28,8 @@
 		{ value: 'glm-5.1', label: 'GLM-5.1', provider: 'glm' },
 		{ value: 'glm-5', label: 'GLM-5', provider: 'glm' },
 		{ value: 'glm-5-turbo', label: 'GLM-5-Turbo', provider: 'glm' },
-		{ value: 'glm-4.7', label: 'GLM-4.7', provider: 'glm' }
+		{ value: 'glm-4.7', label: 'GLM-4.7', provider: 'glm' },
+		{ value: 'qwen-3.5-9b', label: 'Qwen 3.5 9B', provider: 'ollama' }
 	];
 
 	function modelLabel(value: string): string {
@@ -44,6 +46,7 @@
 				configs = c;
 				defaultModel = g.defaultModel;
 				glmAvailable = avail.glm.available;
+				ollamaAvailable = avail.ollama.available;
 			})
 			.catch(() => { if (!cancelled) toastStore.add('Failed to load crew', 'error'); })
 			.finally(() => { if (!cancelled) loading = false; });
@@ -108,8 +111,8 @@
 			class="w-full bg-base border border-edge rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
 		>
 			{#each ALL_MODELS as model (model.value)}
-				<option value={model.value} disabled={model.provider === 'glm' && !glmAvailable}>
-					{model.label}{model.provider === 'glm' && !glmAvailable ? ' — unavailable' : ''}
+				<option value={model.value} disabled={(model.provider === 'glm' && !glmAvailable) || (model.provider === 'ollama' && !ollamaAvailable)}>
+					{model.label}{model.provider === 'glm' && !glmAvailable ? ' — unavailable' : ''}{model.provider === 'ollama' && !ollamaAvailable ? ' — unavailable' : ''}
 				</option>
 			{/each}
 		</select>
@@ -120,6 +123,13 @@
 		<div class="mb-6 px-4 py-2.5 bg-surface border border-edge rounded max-w-md flex items-start gap-2">
 			<span class="text-yellow-400 text-sm leading-5">⚠</span>
 			<p class="text-muted text-xs leading-5">GLM models unavailable — ZAI_API_KEY not set</p>
+		</div>
+	{/if}
+
+	{#if !ollamaAvailable}
+		<div class="mb-6 px-4 py-2.5 bg-surface border border-edge rounded max-w-md flex items-start gap-2">
+			<span class="text-yellow-400 text-sm leading-5">⚠</span>
+			<p class="text-muted text-xs leading-5">Qwen models unavailable — Ollama/LiteLLM proxy not running</p>
 		</div>
 	{/if}
 
@@ -165,6 +175,13 @@
 								{#each ALL_MODELS.filter(m => m.provider === 'glm') as model (model.value)}
 									<option value={model.value} disabled={!glmAvailable}>
 										{model.label}{!glmAvailable ? ' — unavailable' : ''}
+									</option>
+								{/each}
+							</optgroup>
+							<optgroup label="Qwen">
+								{#each ALL_MODELS.filter(m => m.provider === 'ollama') as model (model.value)}
+									<option value={model.value} disabled={!ollamaAvailable}>
+										{model.label}{!ollamaAvailable ? ' — unavailable' : ''}
 									</option>
 								{/each}
 							</optgroup>
