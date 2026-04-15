@@ -6,7 +6,7 @@ import * as globalConfigRepo from "../db/repositories/global-config.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
 import { validate } from "../middleware/validate.js";
 import { requireScope } from "../middleware/scope.js";
-import { getZaiApiKey } from "../orchestration/provider-env.js";
+import { getZaiApiKey, getOllamaProxyUrl } from "../orchestration/provider-env.js";
 import * as globalEnvVarRepo from "../db/repositories/global-environment-variables.js";
 import { Scope } from "../constants/scopes.js";
 import { getCrewMember } from "../orchestration/crew.js";
@@ -102,11 +102,20 @@ router.get("/active-agents", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res)
   });
 });
 
-router.get("/model-availability", requireScope(Scope.GLOBAL_CONFIG_READ), (_req, res) => {
+router.get("/model-availability", requireScope(Scope.GLOBAL_CONFIG_READ), async (_req, res) => {
   const zaiAvailable = !!getZaiApiKey();
+  let ollamaAvailable = false;
+  try {
+    const url = getOllamaProxyUrl();
+    const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
+    ollamaAvailable = response.ok;
+  } catch {
+    ollamaAvailable = false;
+  }
   res.json({
     claude: { available: true },
     glm: { available: zaiAvailable },
+    ollama: { available: ollamaAvailable },
   });
 });
 
@@ -219,6 +228,21 @@ router.get("/captain-monitors", requireScope(Scope.GLOBAL_CONFIG_READ), (req, re
     project_name: projects.get(msg.project_id) ?? null,
   }));
   res.json(result);
+});
+
+// GET /preflight/ollama — check if LiteLLM proxy is reachable
+router.get("/preflight/ollama", requireScope(Scope.GLOBAL_CONFIG_READ), async (_req, res) => {
+  const url = getOllamaProxyUrl();
+  try {
+    const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
+    if (response.ok) {
+      res.json({ configured: true, url });
+      return;
+    }
+    res.json({ configured: false });
+  } catch {
+    res.json({ configured: false });
+  }
 });
 
 // GET /preflight/zai — check if Z.AI API key is configured

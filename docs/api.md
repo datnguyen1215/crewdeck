@@ -1731,21 +1731,23 @@ Returns recent captain monitor messages for all projects in a single call. Used 
 GET /global-config/model-availability
 ```
 
-Returns which model providers are available based on configured API keys.
+Returns which model providers are available based on configured API keys and reachable services.
 
 **Response:** `200 OK`
 
 ```json
 {
   "claude": { "available": true },
-  "glm": { "available": true }
+  "glm": { "available": true },
+  "ollama": { "available": true }
 }
 ```
 
-| Field  | Type   | Description                                                        |
-| ------ | ------ | ------------------------------------------------------------------ |
-| claude | object | Claude availability (always `true` if `ANTHROPIC_API_KEY` is set). |
-| glm    | object | GLM (Z.AI) availability (`true` if `ZAI_API_KEY` is set).          |
+| Field  | Type   | Description                                                                                      |
+| ------ | ------ | ------------------------------------------------------------------------------------------------ |
+| claude | object | Claude availability (always `true` if `ANTHROPIC_API_KEY` is set).                               |
+| glm    | object | GLM (Z.AI) availability (`true` if `ZAI_API_KEY` is set).                                        |
+| ollama | object | Ollama/LiteLLM availability (`true` if the LiteLLM proxy at `OLLAMA_PROXY_URL` responds to `/health` within 3 seconds). |
 
 #### Preflight Checks
 
@@ -1832,6 +1834,33 @@ When not configured:
 | ---------- | ------- | -------------------------------------------------------------------- |
 | configured | boolean | Whether a Z.AI API key is available.                                 |
 | source     | string  | Where the key was found: `"env"` (environment variable) or `"database"` (GlobalEnvironmentVariable table). Omitted when not configured. |
+
+##### Check Ollama/LiteLLM Proxy
+
+```
+GET /global-config/preflight/ollama
+```
+
+Checks whether the LiteLLM proxy is reachable by pinging `<OLLAMA_PROXY_URL>/health` with a 3-second timeout. The proxy URL defaults to `http://localhost:4000` and can be overridden via the `OLLAMA_PROXY_URL` environment variable.
+
+**Response:** `200 OK`
+
+When reachable:
+
+```json
+{ "configured": true, "url": "http://localhost:4000" }
+```
+
+When not reachable:
+
+```json
+{ "configured": false }
+```
+
+| Field      | Type    | Description                                                    |
+| ---------- | ------- | -------------------------------------------------------------- |
+| configured | boolean | Whether the LiteLLM proxy responded successfully.              |
+| url        | string  | The proxy URL that was checked. Omitted when not configured.   |
 
 ---
 
