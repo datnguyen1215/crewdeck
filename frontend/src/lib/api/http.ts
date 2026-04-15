@@ -522,6 +522,7 @@ export function setDefaultModel(model: string): Promise<{ model: string }> {
 export function getModelAvailability(): Promise<{
   claude: { available: boolean };
   glm: { available: boolean };
+  ollama: { available: boolean };
 }> {
   return request("GET", "/global-config/model-availability");
 }
