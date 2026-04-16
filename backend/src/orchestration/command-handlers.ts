@@ -298,7 +298,7 @@ export const handleDispatchAgent = async (
     postSystemComment(issue.id, projectId, input.instructions, "captain");
 
   try {
-    await spawnAgent(agent, issue.id, projectId, undefined, undefined, input.instructions);
+    await spawnAgent(agent, issue.id, projectId, undefined, { instructions: input.instructions });
     return {
       success: true,
       message: `Dispatched ${agent.name} to work on "${issue.title}"`,

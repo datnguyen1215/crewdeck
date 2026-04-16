@@ -32,6 +32,16 @@ export function getSession(
   );
 }
 
+export function deleteSession(
+  projectId: string,
+  issueId: string,
+  agentId: string,
+): void {
+  db.prepare(
+    "DELETE FROM AgentSession WHERE project_id = ? AND issue_id = ? AND agent_id = ?",
+  ).run(projectId, issueId, agentId);
+}
+
 export function deleteByIssue(issueId: string): void {
   db.prepare("DELETE FROM AgentSession WHERE issue_id = ?").run(issueId);
 }
