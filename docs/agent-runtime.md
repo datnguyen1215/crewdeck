@@ -291,7 +291,10 @@ comment.added event
     │       │               already has a merged PR (#NNN)" system comment, return early
     │       ├── regress issue status to in_progress if needed (from any PR-related status or done)
     │       ├── create worktree if needed
-    │       ├── build prompt from issue + comments + agentId
+    │       ├── look up existing AgentSession (project_id, issue_id, agent_id)
+    │       │       ├── if session exists: use dispatch instructions as prompt, pass --resume <sessionId>
+    │       │       │       └── on resume failure: delete session, retry as fresh spawn
+    │       │       └── if no session: build full prompt, pass --session-id <newUUID>, store session after spawn
     │       └── spawnClaude(...)
     │
     └── on process exit:
@@ -468,7 +471,7 @@ More content...
 
 Entries are filtered by category. Only `workflows` and `conventions` categories are injected into agent prompts. Entries with `architecture`, `setup`, and `api` categories are available via read-only knowledge API endpoints that agents can query on demand. All entries are ordered by `updated_at DESC, created_at DESC`.
 
-Every invocation gets a complete, self-contained prompt from the database. The backend does not rely on Claude's session management.
+**Session reuse:** On first spawn, `buildPrompt()` constructs a full self-contained prompt from the database. On subsequent spawns for the same issue, the full prompt is skipped — only the dispatch `instructions` (or a minimal continuation prompt) are sent, and the Claude session is resumed via `--resume <sessionId>`. See [spawnWithSessionReuse](#spawner) below.
 
 ## Startup and Shutdown
 

@@ -117,7 +117,7 @@ Dispatching an agent on any PR-related status (`pr_created`, `pr_conflict`, `pr_
 | **Frontend framework** | SvelteKit (Svelte 5 with runes) | Fine-grained reactivity, minimal boilerplate                                                                                                                                       |
 | **CSS**                | Tailwind CSS                    | Utility-first, dark theme; shared UI primitives (`Button`, `TextInput`, `Select`) in `frontend/src/lib/components/ui/` enforce consistency without a third-party component library |
 | **Configuration**      | Environment variables (`.env`)  | Simple, standard approach                                                                                                                                                          |
-| **Agent spawning**     | `claude -p` (print mode)        | One-shot process per mention; no persistent sessions to manage. Chat threads use `--resume` for persistent Claude sessions.                                                      |
+| **Agent spawning**     | `claude -p` (print mode)        | One-shot process per mention; sessions are reused across spawns on the same issue via `--session-id`/`--resume` (`AgentSession` table). Chat threads also use `--resume` for persistent conversations. |
 
 ## Project Structure
 
@@ -553,7 +553,9 @@ Each `/dispatch` command spawns a one-shot `claude -p` process:
       ↓
 7. Worktree created if needed
       ↓
-8. Prompt built from issue + comments
+8. Session reuse check: look up AgentSession (project_id, issue_id, agent_id)
+      → if session exists: use dispatch instructions as prompt, spawn with --resume <sessionId>
+      → if no session: build full prompt from issue + comments, spawn with --session-id <newUUID>, store session
       ↓
 9. ProcessAdapter.spawnClaude() → child process starts
       ↓
