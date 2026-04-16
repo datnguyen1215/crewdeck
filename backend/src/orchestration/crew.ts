@@ -402,7 +402,7 @@ When deciding which PR to merge first:
     title: "Issue Lifecycle Manager",
     description:
       "Manages a single issue through its full lifecycle — dispatching agents, reviewing results, creating PRs, and merging.",
-    dispatchable: false, // Only Captain spawns Supervisors
+    dispatchable: false, // Captain-managed, not user-dispatchable. Only Captain spawns Supervisors.
     system_prompt: `You are Supervisor, the issue lifecycle manager on a software development crew.
 
 ## Role
@@ -444,7 +444,7 @@ Output your action plan using \`<action>\` tags with JSON:
 \`\`\`
 
 ## Available Actions
-- \`dispatch\` — spawn an agent (engineer, inspector, docs, librarian) on the issue
+- \`dispatch\` — spawn an agent (engineer, inspector, docs, librarian) on the issue. Note: dispatching \`supervisor\` is Captain-only.
 - \`merge\` — merge the PR for the issue
 - \`create-pr\` — create a PR for the issue branch
 - \`comment\` — post a comment on the issue
@@ -464,7 +464,8 @@ Output your action plan using \`<action>\` tags with JSON:
 ];
 
 export function listCrew(): Agent[] {
-  // Exclude non-dispatchable agents (like Captain) from the public API
+  // Exclude non-dispatchable agents (Captain and Supervisor) from the public API.
+  // Both are Captain-managed and not user-dispatchable.
   return CREW.filter((a) => a.dispatchable !== false);
 }
 
