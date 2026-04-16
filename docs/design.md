@@ -33,7 +33,7 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 
 The crew is a fixed set of 6 immutable agents defined in code (Engineer, Inspector, Docs, Librarian, Captain, Supervisor). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
-Agent names are used for `/dispatch` command matching. Engineer, Inspector, Docs, Librarian, and Captain are dispatchable via `/dispatch`. Supervisor is non-dispatchable — only Captain spawns Supervisors directly.
+Agent names are used for `/dispatch` command matching. Engineer, Inspector, Docs, Librarian, and Captain are dispatchable via `/dispatch`. Supervisor is non-dispatchable — only Captain spawns Supervisors directly (via the `spawn-supervisor` action in its action plan). Both Captain and Supervisor are permitted to dispatch other agents via `/dispatch` commands; all other agents are blocked from dispatching.
 
 ### Orchestration via /dispatch Commands
 
@@ -309,6 +309,7 @@ Captain is a dispatchable agent invoked via `/dispatch captain` in issue comment
 - `/merge <issue_id>` — Merge a PR for an issue (only works on `pr_ready_to_merge` status)
 - `/create-pr <issue_id>` — Create a PR for an issue (after engineer has pushed code)
 - `/create-issue <title>` — Create a new issue
+- `spawn-supervisor <issue_id>` — Spawn a Supervisor for the given issue (action plan action, not a `/dispatch` command)
 
 **Captain Monitor Modules** (`backend/src/orchestration/captain/`)
 
@@ -322,6 +323,16 @@ The captain monitor is split into focused modules:
 | `event-formatter.ts`       | Formats raw events with enriched DB context (PR info, agent reports)  |
 | `monitor-history.ts`       | Retrieves the last 10 monitor conversation turns from DB              |
 | `action-plan-extractor.ts` | Parses action plan JSON from stream events or result text             |
+
+**Supervisor Modules** (`backend/src/orchestration/supervisor/`)
+
+The Supervisor service manages per-issue orchestration — one Supervisor per issue, mirroring the Captain monitor pattern but scoped to a single issue lifecycle:
+
+| Module                    | Responsibility                                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `supervisor-service.ts`   | Per-issue event subscription, batching, mutex queue, startup recovery, and lifecycle teardown on `done`. |
+| `supervisor-agent.ts`     | Handles the `claude -p` invocation with session reuse, history, event streaming, and plan execution.      |
+| `supervisor-prompt.ts`    | Builds the Supervisor system prompt scoped to a single issue (issue details, code review rules, capacity). |
 
 **Captain Context** (`backend/src/orchestration/prompt.ts`)
 
@@ -618,13 +629,14 @@ On startup, the backend:
 7. Initializes the event commenter (subscribes to `run.completed`, `pr.status_changed`, `issue.status_changed`).
 8. Initializes the MentionHandler (subscribes to `comment.added`).
 9. Initializes the PR detector (subscribes to `comment.added` for auto-linking PRs).
-10. Starts the PR poller (polls VCS providers for PR status updates, default every 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`).
-11. Starts the Express HTTP server.
-12. Starts the WebSocket server (`/ws` for events).
-13. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
-14. Logs startup complete via pino.
+10. Initializes the Supervisor service (`initSupervisorService()`) — subscribes to per-issue events and recovers active Supervisors from `agent_sessions` on startup.
+11. Starts the PR poller (polls VCS providers for PR status updates, default every 60 s, `ORCHESTRATION_PR_POLL_INTERVAL_MS`).
+12. Starts the Express HTTP server.
+13. Starts the WebSocket server (`/ws` for events).
+14. Starts the terminal WebSocket server (`/terminal-ws` for PTY streaming).
+15. Logs startup complete via pino.
 
-Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery). Terminal sessions are also lost (clients must reconnect and recreate sessions).
+Note: any agent processes spawned before a crash are lost on restart (no in-memory state recovery). Terminal sessions are also lost (clients must reconnect and recreate sessions). Supervisors are recovered on startup via `initSupervisorService()` by querying `agent_sessions` for `agent_id = 'supervisor'` entries.
 
 ### Graceful Shutdown
 
@@ -632,9 +644,11 @@ On SIGTERM or SIGINT, the backend:
 
 1. Stops accepting new HTTP connections.
 2. Sends SIGTERM to all active agent processes (via `shutdownMentionHandler()`).
-3. Stops the PR poller.
-4. Closes the SQLite database connection.
-5. Exits the process.
+3. Shuts down the Captain monitor (`shutdownCaptain()`).
+4. Shuts down the Supervisor service (`shutdownSupervisorService()`) — clears all per-issue subscriptions and batch timers.
+5. Stops the PR poller.
+6. Closes the SQLite database connection.
+7. Exits the process.
 
 ## Security and Access
 
