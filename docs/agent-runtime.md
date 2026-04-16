@@ -373,11 +373,12 @@ Issue worktrees are automatically cleaned up when an issue reaches `done` status
 **Event-driven cleanup (`initWorktreeCleanup()`):**
 
 1. Listens for `issue.status_changed` events with `to === "done"`
-2. Retrieves the issue and checks for worktree info (`worktree_path`, `branch_name`, `repo_id`)
-3. If the worktree path is already missing from disk, clears DB fields and returns early
-4. If the worktree path exists, calls `cleanupWorktree(repo, worktreePath, branchName, true)` to remove it
-5. **Always clears** `worktree_path` and `branch_name` fields on the issue record (via `finally` block) regardless of cleanup success
-6. Logs warnings on failure but continues — cleanup errors are non-fatal
+2. Retrieves the issue and immediately calls `deleteByIssue(issue_id)` to remove all `AgentSession` rows for the issue — runs before the worktree guard so sessions are always cleaned up even for issues without a worktree
+3. Checks for worktree info (`worktree_path`, `branch_name`, `repo_id`)
+4. If the worktree path is already missing from disk, clears DB fields and returns early
+5. If the worktree path exists, calls `cleanupWorktree(repo, worktreePath, branchName, true)` to remove it
+6. **Always clears** `worktree_path` and `branch_name` fields on the issue record (via `finally` block) regardless of cleanup success
+7. Logs warnings on failure but continues — cleanup errors are non-fatal
 
 **Synchronous cleanup on deletion:**
 
@@ -390,6 +391,7 @@ When an issue is deleted via `DELETE /issues/:issueId`, cleanup runs synchronous
 
 **Implementation guarantees:**
 
+- `AgentSession` rows are always deleted when status reaches `done`, before the worktree guard check
 - Database fields are always cleared when status reaches `done`, even if git cleanup fails
 - This prevents DB from pointing to broken or partially-cleaned worktree state
 - Early exit optimization when path already gone (no unnecessary git operations)

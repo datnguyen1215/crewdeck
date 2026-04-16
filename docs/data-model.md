@@ -35,6 +35,10 @@ All persistent state is stored in a local SQLite database. This document defines
 │  Issue   │1────N│ AgentRun │1────N│ AgentRunEvent  │
 └──────────┘       └──────────┘       └────────────────┘
 
+┌──────────┐       ┌──────────────┐
+│  Issue   │1────N│ AgentSession │
+└──────────┘       └──────────────┘
+
 ┌──────────┐       ┌────────────────┐
 │ Project  │1────N│ MonitorMessage │
 └──────────┘       └────────────────┘
@@ -226,6 +230,32 @@ A single streamed event from the Claude CLI (`--output-format stream-json`) capt
 | type         | TEXT        | NOT NULL                                              | Raw event type from Claude CLI stream-json output (e.g., `assistant`, `user`, `tool_use`, `tool_result`, `rate_limit_event`, `result`). Stored as-is without mapping. |
 | data         | TEXT        | NOT NULL                                              | JSON-encoded event payload from the Claude CLI. Stored raw; normalized on retrieval (see [API docs](api.md#get-run-with-events)).                 |
 | created_at   | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP                   | When the event was recorded.                                                                                                                      |
+
+---
+
+### AgentSession
+
+Persists Claude Code session IDs per agent per issue to enable session reuse across agent spawns. When an agent is spawned on an issue, its session ID is stored here. On subsequent spawns for the same issue, the agent resumes that session instead of starting fresh — saving tokens and preserving codebase context.
+
+| Field      | Type        | Constraints                                        | Description                                              |
+| ---------- | ----------- | -------------------------------------------------- | -------------------------------------------------------- |
+| project_id | TEXT        | NOT NULL, FOREIGN KEY → Project.id                 | Owning project.                                          |
+| issue_id   | TEXT        | NOT NULL, FOREIGN KEY → Issue.id                   | The issue this session is associated with.               |
+| agent_id   | TEXT        | NOT NULL                                           | The agent that owns this session (e.g., `engineer`).     |
+| session_id | TEXT        | NOT NULL                                           | Claude Code session ID for `--resume`.                   |
+| created_at | DATETIME    | NOT NULL, DEFAULT datetime('now')                  | When the session was first recorded.                     |
+| updated_at | DATETIME    | NOT NULL, DEFAULT datetime('now')                  | When the session ID was last updated (on each upsert).   |
+
+**Constraints:**
+
+- PRIMARY KEY (project_id, issue_id, agent_id) — one session per agent per issue per project. Upsert on conflict updates `session_id` and `updated_at`.
+
+**Automatic cleanup:**
+
+Session rows are removed in two cases:
+
+1. **Issue reaches `done` status** — `initWorktreeCleanup()` calls `deleteByIssue(issue_id)` before the worktree guard check, so sessions are always cleaned up even for issues without a worktree.
+2. **Project is deleted** — `deleteProject()` calls `DELETE FROM AgentSession WHERE project_id = ?` inside its transaction before removing the `Project` row.
 
 ---
 
@@ -480,6 +510,7 @@ Migration naming: `NNN_description.sql` or `NNN_description.ts`. The name stored
 | Issue → IssueDependency       | One-to-Many | An issue can depend on multiple other issues.                               |
 | Issue → ActivityLog           | One-to-Many | An issue has many activity log entries.                                     |
 | Issue → AgentRun              | One-to-Many | An issue has many agent run records. Some runs (e.g., scans) have no issue. |
+| Issue → AgentSession          | One-to-Many | An issue has one session per agent (composite PK: project_id, issue_id, agent_id). |
 | AgentRun → AgentRunEvent      | One-to-Many | A run has many streamed events (ordered by created_at).                     |
 | Project → AgentRun            | One-to-Many | A project has many agent run records.                                       |
 | Project → MonitorMessage      | One-to-Many | A project has many monitor messages (captain event/response history).       |

@@ -483,7 +483,7 @@ The backend uses an in-process typed EventEmitter as the central communication b
 2. API handler updates issue status in DB
 3. API handler emits: bus.emit("issue.status_changed", { issue_id, project_id, from: "in_progress", to: "done" })
 4. Event Commenter receives event → posts system comment with status transition
-5. Worktree Cleanup listener receives event → cleans up git worktree, always clears DB fields (in finally block)
+5. Worktree Cleanup listener receives event → deletes AgentSession rows, cleans up git worktree, always clears DB fields (in finally block)
 6. Activity Logger receives event → writes ActivityLog entry
 7. WebSocket broadcaster receives event → sends to connected frontend clients
 8. API handler returns 200 to the client
@@ -576,10 +576,11 @@ Each issue gets its own git worktree:
 Worktrees are automatically cleaned up via event-driven and synchronous mechanisms:
 
 - **Event-driven cleanup (`initWorktreeCleanup()`)** — Listens for `issue.status_changed` events with `to === "done"`. When triggered:
-  1. Checks if worktree path exists on disk
-  2. Calls `cleanupWorktree()` to remove git worktree and branch
-  3. **Always clears** `worktree_path` and `branch_name` DB fields (via `finally` block), regardless of cleanup success
-  4. Logs warnings on failure but continues (cleanup errors are non-fatal)
+  1. **Always deletes** `AgentSession` rows for the issue via `deleteByIssue(issue_id)` (runs before the worktree guard, so sessions are cleaned up even for issues without a worktree)
+  2. Checks if worktree path exists on disk
+  3. Calls `cleanupWorktree()` to remove git worktree and branch
+  4. **Always clears** `worktree_path` and `branch_name` DB fields (via `finally` block), regardless of cleanup success
+  5. Logs warnings on failure but continues (cleanup errors are non-fatal)
 
 - **Event-driven dependency cleanup (`initDependencyCleanup()`)** — Listens for `issue.status_changed` events with `to === "done"`. When triggered, removes all `IssueDependency` rows where other issues depend on the resolved issue. This uses `listDependents(issue_id)` to find blocked issues, then `removeDependency()` for each. Removal is idempotent. Issue deletion is handled separately by `ON DELETE CASCADE` on the `IssueDependency` table.
 
@@ -590,6 +591,7 @@ This approach ensures:
 - No unbounded disk usage from abandoned worktrees
 - Database never points to broken or partially-cleaned worktree state
 - No stale dependency rows blocking the captain from dispatching unblocked issues
+- No stale agent session rows consuming token budget on future spawns
 - Cleanup failures don't block issue status transitions or deletions
 - Early exit optimization when path already gone (no unnecessary git operations)
 
