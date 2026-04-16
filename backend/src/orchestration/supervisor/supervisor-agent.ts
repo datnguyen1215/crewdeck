@@ -5,6 +5,7 @@
  * Processes per-issue events: run.completed, pr.status_changed, comment.added, etc.
  * Extracts action plans and executes them via the existing plan executor.
  */
+import { randomUUID } from "node:crypto";
 import { logger } from "../../logger.js";
 import { eventBus } from "../../events/bus.js";
 import { getProject } from "../../db/repositories/projects.js";
@@ -18,6 +19,7 @@ import {
 } from "../captain/action-plan-extractor.js";
 import { formatEvents } from "../captain/event-formatter.js";
 import * as monitorRepo from "../../db/repositories/monitor-messages.js";
+import * as agentSessionRepo from "../../db/repositories/agent-sessions.js";
 import { getVCSAccount } from "../../db/repositories/vcs-accounts.js";
 import { createGitSshEnv, cleanupSshKey } from "../../utils/git-auth.js";
 import * as globalEnvVarRepo from "../../db/repositories/global-environment-variables.js";
@@ -30,8 +32,8 @@ const MAX_CONTEXT_MESSAGES = 10;
 
 /** Get Supervisor conversation history for an issue from DB. */
 function getSupervisorHistory(issueId: string): string {
-  // Re-use monitor_messages table scoped by issue_id stored in project_id field
-  // We use a composite key convention: "supervisor:<issueId>" as the pseudo project_id
+  // Reuses monitor_messages table with "supervisor:<issueId>" as a synthetic project_id key.
+  // Project IDs are UUIDs so this prefix cannot collide with real project IDs.
   const pseudoProjectId = `supervisor:${issueId}`;
   const messages = monitorRepo
     .getByProject(pseudoProjectId, MAX_CONTEXT_MESSAGES)
@@ -101,6 +103,8 @@ async function runClaudeWithTimeout(opts: {
   model: string;
   timeoutMs: number;
   issueId: string;
+  sessionId?: string;
+  resumeSessionId?: string;
   onEvent?: (event: { type: string; [key: string]: unknown }) => void;
 }): Promise<{
   events: Array<{ type: string; [key: string]: unknown }>;
@@ -113,6 +117,8 @@ async function runClaudeWithTimeout(opts: {
     workdir: ".",
     env: opts.env,
     model: opts.model,
+    sessionId: opts.sessionId,
+    resumeSessionId: opts.resumeSessionId,
   });
 
   const timer = setTimeout(() => {
@@ -184,6 +190,19 @@ export async function processSupervisorWithLLM(
   const { userPrompt, eventSection } = buildUserPrompt(events, issueId);
   const { env, sshKeyPath } = await buildSupervisorEnv(projectId, issueId);
 
+  // Resolve session: resume if one exists, otherwise generate a new UUID and persist it
+  const existingSession = agentSessionRepo.getSession(projectId, issueId, "supervisor");
+  let sessionId: string | undefined;
+  let resumeSessionId: string | undefined;
+  if (existingSession) {
+    resumeSessionId = existingSession.session_id;
+    logger.debug({ issueId, sessionId: resumeSessionId }, "Supervisor: Resuming existing session");
+  } else {
+    sessionId = randomUUID();
+    agentSessionRepo.upsertSession(projectId, issueId, "supervisor", sessionId);
+    logger.debug({ issueId, sessionId }, "Supervisor: Starting new session");
+  }
+
   // Emit event_received for each event
   for (const event of events) {
     const description = formatEvents([event]).replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, "");
@@ -207,6 +226,9 @@ export async function processSupervisorWithLLM(
             | undefined;
           for (const block of content?.content ?? []) {
             if (block.type === "text" && block.text) {
+              // Note: reusing monitor.message/monitor.complete events (project-scoped).
+              // Multiple concurrent Supervisors for the same project will have interleaved
+              // messages under the same namespace — known limitation of reusing monitor events.
               eventBus.emit("monitor.message", {
                 project_id: projectId,
                 content: block.text,
@@ -237,6 +259,8 @@ export async function processSupervisorWithLLM(
         model,
         timeoutMs: 2 * 60 * 1000,
         issueId,
+        sessionId,
+        resumeSessionId,
         onEvent,
       });
 
@@ -271,6 +295,8 @@ export async function processSupervisorWithLLM(
   persistMessages(issueId, eventSection, finalResponse);
 
   if (finalResponse) {
+    // Known limitation: monitor.message and monitor.complete are project-scoped events.
+    // Multiple concurrent Supervisors for the same project will have interleaved messages.
     eventBus.emit("monitor.message", { project_id: projectId, content: finalResponse });
     eventBus.emit("monitor.complete", { project_id: projectId, response: finalResponse });
   }

@@ -34,6 +34,11 @@ const SUPERVISOR_PREFIX = "supervisor:";
 // Track per-issue event subscriptions (unsubscribe functions)
 const issueSubscriptions = new Map<string, () => void>();
 
+/** Returns true if a Supervisor is currently active (subscribed) for the given issue. */
+export function isSupervisorActive(issueId: string): boolean {
+  return issueSubscriptions.has(issueId);
+}
+
 // Per-issue batch timers
 const batchTimers = new Map<string, NodeJS.Timeout>();
 
@@ -175,14 +180,10 @@ function subscribeToIssueEvents(issueId: string, projectId: string): () => void 
   }
 
   makeHandler("run.completed", (d) => (d as AnyData).issue_id as string | null);
-  makeHandler(
-    "pr.status_changed",
-    (d) => {
-      // pr.status_changed doesn't have issue_id directly — need to look up via pr
-      // We filter by project_id and let the agent handle scoping
-      return (d as AnyData).project_id === projectId ? issueId : null;
-    },
-  );
+  // pr.status_changed does not carry issue_id — skip if we can't correlate to this issue.
+  // The event payload only has pr_id and project_id; without a PR→issue lookup we cannot
+  // reliably route it to the correct Supervisor. Leave unhandled until the event carries
+  // issue_id or a lookup is added.
   makeHandler(
     "issue.status_changed",
     (d) => (d as AnyData).issue_id as string | null,
@@ -255,10 +256,10 @@ export function stopSupervisorForIssue(issueId: string): void {
  * Also starts Supervisors for all non-done issues that have sessions.
  */
 export function initSupervisorService(): void {
-  const projects = listProjects();
-
-  // Delay startup to allow recovery cleanup to complete first
+  // Delay startup to allow recovery cleanup to complete first.
+  // listProjects() is called inside the callback so it reads fresh data at scan time.
   setTimeout(() => {
+    const projects = listProjects();
     let issueCount = 0;
 
     for (const project of projects) {
@@ -275,7 +276,10 @@ export function initSupervisorService(): void {
       });
 
       for (const issue of issues) {
-        // Only start Supervisor for issues that have a Supervisor session
+        // Only re-subscribe Supervisors that had an active session before restart.
+        // This is intentional lazy recovery: no proactive LLM call is made on boot.
+        // The Supervisor will invoke the LLM when the next event arrives for its issue.
+        // Prior in-flight state is not recovered — the next event triggers a fresh invocation.
         const session = agentSessionRepo.getSession(project.id, issue.id, "supervisor");
         if (session) {
           startSupervisorForIssue(issue.id, project.id);

@@ -32,10 +32,9 @@ import type {
   SpawnSupervisorAction,
 } from "./action-schema.js";
 import * as issueDepsRepo from "../../db/repositories/issue-dependencies.js";
-import * as agentSessionRepo from "../../db/repositories/agent-sessions.js";
 import { clearStartApproval, clearMergeApproval } from "../approval-store.js";
 import { resolveIssueId } from "../issue-resolver.js";
-import { startSupervisorForIssue } from "../supervisor/supervisor-service.js";
+import { startSupervisorForIssue, isSupervisorActive } from "../supervisor/supervisor-service.js";
 
 export interface ActionResult {
   action: Action;
@@ -232,15 +231,16 @@ async function executeCreatePR(
 
 /**
  * Execute a spawn-supervisor action.
- * Starts a Supervisor for the given issue if one doesn't exist yet.
+ * Starts a Supervisor for the given issue if one isn't already active.
+ * Uses the in-memory subscription map as the source of truth to avoid
+ * double-starting when a session exists in DB but the Supervisor is already running.
  */
 async function executeSpawnSupervisor(
   projectId: string,
   action: SpawnSupervisorAction,
 ): Promise<ActionResult> {
   return withIssueGuard(projectId, action.issue_id, action, (issue) => {
-    const existing = agentSessionRepo.getSession(projectId, issue.id, "supervisor");
-    if (existing) {
+    if (isSupervisorActive(issue.id)) {
       return { action, success: true, message: "Supervisor already running for this issue" };
     }
     startSupervisorForIssue(issue.id, projectId);
