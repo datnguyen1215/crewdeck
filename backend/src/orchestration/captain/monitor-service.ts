@@ -1,9 +1,10 @@
 /**
- * Monitor Service
+ * Monitor Service (Captain)
  *
- * Handles automated orchestration events (issue lifecycle, agent runs, PR status).
- * Subscribes to eventBus events, queues them, and processes batches through the
- * Monitor LLM agent. Does NOT handle user chat messages.
+ * Handles lifecycle events: issue created, issue done, settings changed, approved-to-start.
+ * Subscribes to eventBus events, queues them, and processes batches through Captain LLM.
+ * Per-issue events (run.completed, pr.status_changed, comment.added, approved_to_merge)
+ * are routed to Supervisor instead. Does NOT handle user chat messages.
  */
 import { eventBus } from "../../events/bus.js";
 import { logger } from "../../logger.js";
@@ -12,7 +13,6 @@ import {
   listProjects,
   updateCaptainStatus,
 } from "../../db/repositories/projects.js";
-import { isIssuePaused } from "../../services/issue-service.js";
 import {
   enqueue,
   tryAcquire,
@@ -22,13 +22,9 @@ import {
   pendingCount,
 } from "./queue.js";
 import { processWithLLM } from "./monitor-agent.js";
-import { RECOVERY_DELAY_MS } from "../recovery.js";
 import type { CaptainEvent, CaptainEventType } from "./queue.js";
 import type { EventMap } from "../../events/types.js";
-import {
-  EVENT_BATCHING_WINDOW_MS,
-  STARTUP_BUFFER_MS,
-} from "../../config/orchestration.js";
+import { EVENT_BATCHING_WINDOW_MS } from "../../config/orchestration.js";
 
 // Queue namespace prefix to separate monitor from chat queues
 const MONITOR_PREFIX = "monitor:";
@@ -157,13 +153,8 @@ type AnyData = Record<string, unknown>;
 const notAgentCreated = (data: AnyData): boolean =>
   (data.issue as AnyData)?.created_by !== "agent";
 
-const notIssuePaused = (data: AnyData): boolean => {
-  const issueId = data.issue_id as string | null | undefined;
-  return !(issueId && isIssuePaused(issueId));
-};
-
-const userAuthorOnly = (data: AnyData): boolean =>
-  (data.comment as AnyData)?.author_type === "user";
+const isStatusDone = (data: AnyData): boolean =>
+  (data.to as string) === "done";
 
 // Event types handled by the monitor (subset of EventMap that are also CaptainEventType)
 type MonitorEventType = CaptainEventType & keyof EventMap;
@@ -175,34 +166,23 @@ interface HandlerConfig {
   filter?: (data: AnyData) => boolean;
 }
 
+// Captain only handles lifecycle events. Per-issue orchestration is handled by Supervisor.
 const HANDLER_CONFIGS: HandlerConfig[] = [
-  // Ignore agent-created issues to prevent chain reactions where Monitor
+  // Ignore agent-created issues to prevent chain reactions where Captain
   // sees its own issue creations and tries to process them
   {
     eventType: "issue.created",
     projectIdPath: "issue.project_id",
     filter: notAgentCreated,
   },
-  { eventType: "issue.updated", projectIdPath: "project_id" },
+  // Only notify Captain when an issue reaches done — to check for unblocked work
   {
     eventType: "issue.status_changed",
     projectIdPath: "project_id",
-    filter: notIssuePaused,
-  },
-  {
-    eventType: "run.completed",
-    projectIdPath: "project_id",
-    filter: notIssuePaused,
-  },
-  { eventType: "pr.status_changed", projectIdPath: "project_id" },
-  {
-    eventType: "comment.added",
-    projectIdPath: "project_id",
-    filter: userAuthorOnly,
+    filter: isStatusDone,
   },
   { eventType: "project.settings_changed", projectIdPath: "project_id" },
   { eventType: "issue.approved_to_start", projectIdPath: "project_id" },
-  { eventType: "issue.approved_to_merge", projectIdPath: "project_id" },
 ];
 
 function getNestedValue(obj: AnyData, path: string): unknown {
@@ -258,19 +238,6 @@ export function startMonitorForProject(projectId: string): void {
 
   const unsubscribe = createProjectHandlers(projectId);
   projectSubscriptions.set(projectId, unsubscribe);
-
-  // Emit startup.scan event with a small delay to ensure recovery cleanup completes first
-  setTimeout(() => {
-    const event: CaptainEvent = {
-      type: "startup.scan",
-      projectId,
-      timestamp: new Date(),
-      data: {},
-    };
-    queueAndProcess(event).catch((err) => {
-      logger.error({ err, projectId }, "Monitor: Startup scan failed");
-    });
-  }, RECOVERY_DELAY_MS + STARTUP_BUFFER_MS);
 
   logger.info({ projectId }, "Monitor service started for project");
 }
