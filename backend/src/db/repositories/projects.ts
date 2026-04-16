@@ -188,6 +188,7 @@ export async function deleteProject(id: string): Promise<void> {
     // ProjectKnowledge has ON DELETE CASCADE — no manual delete needed
     // AgentRun has ON DELETE CASCADE on project_id (migration 046) — no manual delete needed
     // AgentRunEvent has ON DELETE CASCADE on agent_run_id — no manual delete needed
+    db.prepare("DELETE FROM AgentSession WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM EnvironmentVariable WHERE project_id = ?").run(id);
     db.prepare("DELETE FROM ActivityLog WHERE project_id = ?").run(id);
     db.prepare(
