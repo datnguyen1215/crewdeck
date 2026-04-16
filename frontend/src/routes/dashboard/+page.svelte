@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, listGlobalActivity, getActiveAgents, listVCSAccounts, getAuthMe, listActiveRunsGlobal, listCaptainStatuses, getGlobalMonitorHistory, type ProjectWithStats, type ActivityLog, type VCSAccount, type GlobalActiveRun, type GlobalCaptainStatus } from '$lib/api/http.js';
+	import { listGlobalActivity, getActiveAgents, listVCSAccounts, getAuthMe, listActiveRunsGlobal, listCaptainStatuses, getGlobalMonitorHistory, type ProjectWithStats, type ActivityLog, type VCSAccount, type GlobalActiveRun, type GlobalCaptainStatus } from '$lib/api/http.js';
 	import { fetchEffect } from '$lib/utils/fetch-effect.svelte.js';
 	import { globalWs } from '$lib/api/global-ws.svelte.js';
+	import { projectsStore } from '$lib/stores/projects.svelte.js';
 	import { autoscroll } from '$lib/utils/autoscroll.js';
 	import { md } from '$lib/utils/markdown.js';
 	import { mapMessageToEntry } from '$lib/utils/monitor.js';
@@ -12,8 +13,8 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import ProjectForm from '$lib/components/ProjectForm.svelte';
 
-	let projects = $state<ProjectWithStats[]>([]);
-	let loading = $state(true);
+	let projects = $derived(projectsStore.items);
+	let loading = $derived(projectsStore.loading);
 	let activity = $state<ActivityLog[]>([]);
 	let activityLoading = $state(true);
 	let activeAgents = $state(0);
@@ -57,10 +58,6 @@
 		} catch {}
 	}
 
-	async function refreshProjects() {
-		try { projects = await listProjectsWithStats(); } catch {}
-	}
-
 	async function refreshActiveAgents() {
 		try {
 			const data = await getActiveAgents();
@@ -81,12 +78,6 @@
 	async function refreshCaptains() {
 		try { captains = await listCaptainStatuses(); } catch {}
 	}
-
-	fetchEffect(() => listProjectsWithStats(), {
-		onData: (data) => { projects = data; },
-		onError: 'Failed to load dashboard',
-		onLoading: (v) => { loading = v; },
-	});
 
 	fetchEffect(() => getActiveAgents(), {
 		onData: (data) => { activeAgents = data.activeAgents; maxConcurrency = data.maxConcurrency; },
@@ -118,7 +109,6 @@
 
 	loadGlobalMonitorHistory();
 
-	const STATS_EVENTS = ['run.started', 'run.completed', 'issue.status_changed', 'issue.paused', 'issue.resumed', 'issue.created', 'dispatch.queued', 'dispatch.dequeued'] as const;
 	const ACTIVITY_EVENTS = [
 		'issue.created', 'issue.status_changed', 'issue.paused', 'issue.resumed',
 		'comment.added', 'pr.created', 'mention.spawned', 'mention.completed',
@@ -135,7 +125,6 @@
 
 	onMount(async () => {
 		unsubs = [
-			...STATS_EVENTS.map((e) => globalWs.on(e, refreshProjects)),
 			...ACTIVITY_EVENTS.map((e) => globalWs.on(e, refreshActivity)),
 			...AGENT_EVENTS.map((e) => globalWs.on(e, refreshActiveAgents)),
 			...CAPTAIN_EVENTS.map((e) => globalWs.on(e, refreshCaptains)),
@@ -789,7 +778,7 @@
 	<h2 class="text-sm font-mono text-muted uppercase tracking-widest mb-4">Create Project</h2>
 	<ProjectForm
 		{githubAccounts}
-		onCreated={() => { showCreateModal = false; refreshProjects(); }}
+		onCreated={() => { showCreateModal = false; projectsStore.refresh(); }}
 		onCancel={() => showCreateModal = false}
 	/>
 </Modal>

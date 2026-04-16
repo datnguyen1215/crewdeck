@@ -34,7 +34,7 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
     "json",
     "--dangerously-skip-permissions",
     "--settings",
-    JSON.stringify({ attribution: { commit: "", pr: "" } }),
+    JSON.stringify({ attribution: { commit: "", pr: "" }, alwaysThinkingEnabled: false }),
   ];
   if (opts.model) args.push("--model", opts.model);
   if (opts.maxTurns != null) args.push("--max-turns", String(opts.maxTurns));
@@ -143,7 +143,7 @@ export async function spawnClaudeStream(
     "stream-json",
     "--dangerously-skip-permissions",
     "--settings",
-    JSON.stringify({ attribution: { commit: "", pr: "" } }),
+    JSON.stringify({ attribution: { commit: "", pr: "" }, alwaysThinkingEnabled: false }),
   ];
   if (opts.model) args.push("--model", opts.model);
 

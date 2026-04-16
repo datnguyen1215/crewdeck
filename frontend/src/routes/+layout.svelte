@@ -5,6 +5,7 @@
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import Toast from '$lib/components/Toast.svelte';
 	import { globalWs } from '$lib/api/global-ws.svelte.js';
+	import { projectsStore } from '$lib/stores/projects.svelte.js';
 
 	let { children } = $props();
 
@@ -18,13 +19,16 @@
 	$effect(() => {
 		if (!isAuthPage) {
 			globalWs.connect();
+			projectsStore.init();
 		} else {
 			globalWs.disconnect();
+			projectsStore.destroy();
 		}
 	});
 
 	onDestroy(() => {
 		globalWs.disconnect();
+		projectsStore.destroy();
 	});
 </script>
 

@@ -275,7 +275,7 @@ function buildClaudeArgs(sessionId: string | null, model: string): string[] {
     "--system-prompt-file", "PLACEHOLDER", // replaced per-call
     "--output-format", "stream-json",
     "--dangerously-skip-permissions",
-    "--settings", JSON.stringify({ attribution: { commit: "", pr: "" } }),
+    "--settings", JSON.stringify({ attribution: { commit: "", pr: "" }, alwaysThinkingEnabled: false }),
     "--model", model,
   ];
   if (sessionId) {

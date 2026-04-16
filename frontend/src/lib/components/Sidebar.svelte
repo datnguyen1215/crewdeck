@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { listProjectsWithStats, logout, type ProjectWithStats } from '$lib/api/http.js';
+	import { logout, type ProjectWithStats } from '$lib/api/http.js';
 	import { onMount } from 'svelte';
-	import { globalWs } from '$lib/api/global-ws.svelte.js';
+	import { projectsStore } from '$lib/stores/projects.svelte.js';
 	import ProjectNavItem from './ProjectNavItem.svelte';
 	import { icons } from './icons.js';
 
@@ -16,7 +16,7 @@
 	const LEGACY_PROJECTS_COLLAPSED_KEY = 'sidebar-projects-collapsed';
 	const MOBILE_BREAKPOINT = 768;
 
-	let projects = $state<ProjectWithStats[]>([]);
+	let projects = $derived(projectsStore.items);
 	let expandedProjects = $state<Set<string>>(new Set());
 	let collapsed = $state(false);
 	let mobileOpen = $state(false);
@@ -48,12 +48,6 @@
 		}
 	});
 
-	const fetchProjects = () => {
-		listProjectsWithStats()
-			.then((data) => { projects = data; })
-			.catch(() => {});
-	};
-
 	onMount(() => {
 		// Check for mobile on mount and window resize
 		const checkMobile = () => {
@@ -84,25 +78,9 @@
 		const projectsStored = migrateKey(PROJECTS_COLLAPSED_KEY, LEGACY_PROJECTS_COLLAPSED_KEY);
 		if (projectsStored !== null) projectsSectionCollapsed = projectsStored === 'true';
 
-		fetchProjects();
-
-		// Subscribe to WebSocket events for real-time project count updates
-		const STATS_EVENTS = [
-			'issue.status_changed', 'issue.created', 'run.started', 'run.completed',
-			'dispatch.queued', 'dispatch.dequeued', 'issue.paused', 'issue.resumed',
-			'project.created', 'project.deleted',
-		] as const;
-		const unsubs = STATS_EVENTS.map((e) => globalWs.on(e, fetchProjects));
-
 		return () => {
 			window.removeEventListener('resize', checkMobile);
-			unsubs.forEach((fn) => fn());
 		};
-	});
-
-	// Refresh projects on reconnect to catch missed events
-	$effect(() => {
-		if (globalWs.state === 'connected') fetchProjects();
 	});
 
 	function toggleSidebar() {
