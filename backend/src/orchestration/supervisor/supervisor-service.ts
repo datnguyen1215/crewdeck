@@ -179,15 +179,37 @@ function subscribeToIssueEvents(issueId: string, projectId: string): () => void 
     eventBus.on(eventType as keyof EventMap, handler as any);
   }
 
-  makeHandler("run.completed", (d) => (d as AnyData).issue_id as string | null);
+  // run.completed triggers for all agent completions on this issue (engineer, inspector, docs,
+  // librarian) — this is intentional, Supervisor decides what to do next based on which agent
+  // completed. Filter out captain and supervisor self-completions to prevent loops.
+  makeHandler(
+    "run.completed",
+    (d) => (d as AnyData).issue_id as string | null,
+    (d) => {
+      const agentId = (d as AnyData).agent_id as string;
+      return agentId !== "captain" && agentId !== "supervisor";
+    },
+  );
   // pr.status_changed does not carry issue_id — skip if we can't correlate to this issue.
   // The event payload only has pr_id and project_id; without a PR→issue lookup we cannot
   // reliably route it to the correct Supervisor. Leave unhandled until the event carries
   // issue_id or a lookup is added.
+  // When an issue transitions to done, stop the Supervisor to clean up the subscription.
+  const doneHandler = (data: AnyData) => {
+    if ((data.issue_id as string) !== issueId) return;
+    if ((data.to as string) === "done") {
+      logger.info({ issueId }, "Supervisor: Issue done, stopping Supervisor");
+      stopSupervisorForIssue(issueId);
+    }
+  };
+  handlers.push({ eventType: "issue.status_changed", handler: doneHandler });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  eventBus.on("issue.status_changed" as keyof EventMap, doneHandler as any);
+
   makeHandler(
     "issue.status_changed",
     (d) => (d as AnyData).issue_id as string | null,
-    // Only non-done status changes
+    // Only non-done status changes trigger the LLM
     (d) => {
       const to = (d as AnyData).to as string;
       return NON_DONE_STATUSES.has(to);
