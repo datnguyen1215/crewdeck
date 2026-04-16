@@ -4,6 +4,7 @@ import { eventBus } from "./bus.js";
 import { getIssue, updateIssue } from "../db/repositories/issues.js";
 import { getRepo } from "../db/repositories/repos.js";
 import { cleanupWorktree } from "../orchestration/worktree.js";
+import { deleteByIssue } from "../db/repositories/agent-sessions.js";
 
 export function initWorktreeCleanup(): void {
   eventBus.on("issue.status_changed", async ({ issue_id, to }) => {
@@ -13,6 +14,10 @@ export function initWorktreeCleanup(): void {
     if (!issue) return;
 
     const { worktree_path, branch_name, repo_id } = issue;
+
+    // Always clean up agent sessions when issue is done
+    deleteByIssue(issue_id);
+
     if (!worktree_path || !branch_name || !repo_id) return;
 
     const repo = getRepo(repo_id);

@@ -147,6 +147,15 @@ export interface AgentRun {
   created_at: string;
 }
 
+export interface AgentSession {
+  project_id: string;
+  issue_id: string;
+  agent_id: string;
+  session_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type AgentRunEventType = string;
 
 export interface AgentRunEvent {
