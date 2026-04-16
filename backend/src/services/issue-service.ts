@@ -193,9 +193,12 @@ export function resumeIssue(issue: Issue): void {
     project_id: issue.project_id,
   });
 
-  // Re-use issue.approved_to_start to trigger Captain to spawn a fresh Supervisor.
-  // issue.resumed is not in Captain's HANDLER_CONFIGS; approved_to_start is already
-  // handled and causes Captain to start a Supervisor for the issue.
+  // Workaround: reuse issue.approved_to_start to trigger Captain to spawn a fresh
+  // Supervisor on resume. issue.resumed is not in Captain's HANDLER_CONFIGS, so it
+  // would be silently ignored. We call approveStart() first so Captain's state
+  // snapshot correctly shows the issue as (approved-to-start). Remove this once
+  // issue.resumed is wired into Captain's event subscriptions.
+  approveStart(issue.id);
   eventBus.emit("issue.approved_to_start", {
     issue_id: issue.id,
     project_id: issue.project_id,
