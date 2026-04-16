@@ -430,6 +430,7 @@ When an issue is deleted via `DELETE /issues/:issueId`, cleanup runs synchronous
 **Implementation guarantees:**
 
 - `AgentSession` rows are always deleted when status reaches `done`, before the worktree guard check
+- `AgentSession` rows are always deleted when an issue is paused (all agents: Engineer, Inspector, Docs, Librarian, Supervisor) — ensuring a clean slate on resume
 - Database fields are always cleared when status reaches `done`, even if git cleanup fails
 - This prevents DB from pointing to broken or partially-cleaned worktree state
 - Early exit optimization when path already gone (no unnecessary git operations)

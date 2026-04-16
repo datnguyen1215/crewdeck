@@ -595,6 +595,16 @@ Worktrees are automatically cleaned up via event-driven and synchronous mechanis
   4. **Always clears** `worktree_path` and `branch_name` DB fields (via `finally` block), regardless of cleanup success
   5. Logs warnings on failure but continues (cleanup errors are non-fatal)
 
+- **Pause cleanup (`pauseIssue()`)** — When an issue is paused:
+  1. Kills all active agent processes for the issue (iterates `activeProcesses` map)
+  2. Purges all queued dispatches for the issue
+  3. Clears batch tracking for the issue
+  4. Calls `stopSupervisorForIssue(issueId)` to kill the Supervisor's `claude -p` process, cancel any pending Supervisor batch timer, and remove the Supervisor from event routing
+  5. Calls `agentSessionRepo.deleteByIssue(issueId)` to remove all session records (Engineer, Inspector, Docs, Librarian, Supervisor) — ensuring a clean slate when the issue is resumed
+  6. Persists to DB and emits `issue.paused` event
+
+- **Resume (`resumeIssue()`)** — When an issue is unpaused, `resumeIssue()` calls `approveStart(issueId)` and emits `issue.approved_to_start` so Captain spawns a fresh Supervisor. Captain's `HANDLER_CONFIGS` does not subscribe to `issue.resumed`, so `issue.approved_to_start` is reused as a workaround to trigger Captain's orchestration cycle. The call to `approveStart()` ensures Captain's state snapshot correctly marks the issue as `(approved-to-start)`. All prior agent sessions were cleared on pause, so the fresh Supervisor and any subsequently spawned agents will start with new sessions.
+
 - **Event-driven dependency cleanup (`initDependencyCleanup()`)** — Listens for `issue.status_changed` events with `to === "done"`. When triggered, removes all `IssueDependency` rows where other issues depend on the resolved issue. This uses `listDependents(issue_id)` to find blocked issues, then `removeDependency()` for each. Removal is idempotent. Issue deletion is handled separately by `ON DELETE CASCADE` on the `IssueDependency` table.
 
 - **Synchronous cleanup on deletion** — DELETE `/issues/:issueId` and POST `/issues/:issueId/discard` routes call cleanup before deleting database records to prevent worktree leaks
