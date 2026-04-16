@@ -252,10 +252,11 @@ Persists Claude Code session IDs per agent per issue to enable session reuse acr
 
 **Automatic cleanup:**
 
-Session rows are removed in two cases:
+Session rows are removed in three cases:
 
 1. **Issue reaches `done` status** — `initWorktreeCleanup()` calls `deleteByIssue(issue_id)` before the worktree guard check, so sessions are always cleaned up even for issues without a worktree.
 2. **Project is deleted** — `deleteProject()` calls `DELETE FROM AgentSession WHERE project_id = ?` inside its transaction before removing the `Project` row.
+3. **Resume failure** — if `--resume <sessionId>` fails at spawn time, `deleteSession(projectId, issueId, agentId)` removes only the specific agent's session row. The spawner then retries with a fresh session and stores a new session ID on success.
 
 ---
 
