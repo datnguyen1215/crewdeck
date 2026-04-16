@@ -72,7 +72,7 @@ Each agent receives a prompt built from:
 - The repository name and worktree path
 - All previous comments on the issue (in order)
 
-The agent's system prompt is passed via `--system-prompt-file`. The backend does not rely on Claude's session management — every invocation gets a complete, self-contained prompt built from CrewDeck's database.
+The agent's system prompt is passed via `--system-prompt-file` on the first spawn. When resuming an existing session (`resumeSessionId` is set), `--system-prompt-file` is omitted and `--resume <id>` is passed instead — the session already carries the system prompt. By default, every invocation gets a complete, self-contained prompt built from CrewDeck's database; session reuse is opt-in via the `sessionId`/`resumeSessionId` fields on `SpawnOpts`.
 
 ## Worktree
 
