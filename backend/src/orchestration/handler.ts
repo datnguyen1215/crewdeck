@@ -65,21 +65,21 @@ export const initMentionHandler = (): void => {
 
     if (mentioned.length === 0) return;
 
-    // Guard: Only captain and user can dispatch agents
+    // Guard: Only captain, supervisor, and user can dispatch agents
     // Block dispatches from engineer, inspector, docs, librarian to prevent unauthorized agent spawning
-    if (authorAgentId && authorAgentId !== "captain") {
+    if (authorAgentId && authorAgentId !== "captain" && authorAgentId !== "supervisor") {
       log.logger.warn(
         {
           authorAgentId,
           issueId: comment.issue_id,
           mentionedAgents: mentioned.map((a) => a.id),
         },
-        "Blocked dispatch from non-captain agent",
+        "Blocked dispatch from non-captain/supervisor agent",
       );
       postSystemComment(
         comment.issue_id,
         project_id,
-        `⚠️ Agent "${authorAgentId}" attempted to dispatch agents, but only captain has dispatch permission. Dispatches blocked.`,
+        `⚠️ Agent "${authorAgentId}" attempted to dispatch agents, but only captain and supervisor have dispatch permission. Dispatches blocked.`,
       );
       return;
     }

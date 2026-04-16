@@ -29,10 +29,13 @@ import type {
   CreatePRAction,
   SkipAction,
   SetDependenciesAction,
+  SpawnSupervisorAction,
 } from "./action-schema.js";
 import * as issueDepsRepo from "../../db/repositories/issue-dependencies.js";
+import * as agentSessionRepo from "../../db/repositories/agent-sessions.js";
 import { clearStartApproval, clearMergeApproval } from "../approval-store.js";
 import { resolveIssueId } from "../issue-resolver.js";
+import { startSupervisorForIssue } from "../supervisor/supervisor-service.js";
 
 export interface ActionResult {
   action: Action;
@@ -228,6 +231,24 @@ async function executeCreatePR(
 }
 
 /**
+ * Execute a spawn-supervisor action.
+ * Starts a Supervisor for the given issue if one doesn't exist yet.
+ */
+async function executeSpawnSupervisor(
+  projectId: string,
+  action: SpawnSupervisorAction,
+): Promise<ActionResult> {
+  return withIssueGuard(projectId, action.issue_id, action, (issue) => {
+    const existing = agentSessionRepo.getSession(projectId, issue.id, "supervisor");
+    if (existing) {
+      return { action, success: true, message: "Supervisor already running for this issue" };
+    }
+    startSupervisorForIssue(issue.id, projectId);
+    return { action, success: true, message: `Supervisor started for issue ${issue.id}` };
+  });
+}
+
+/**
  * Execute a skip action (no-op, logged for observability).
  */
 function executeSkip(action: SkipAction): ActionResult {
@@ -322,6 +343,8 @@ async function executeAction(
       return executeSkip(action);
     case "set-dependencies":
       return executeSetDependencies(projectId, action);
+    case "spawn-supervisor":
+      return executeSpawnSupervisor(projectId, action);
     default:
       return {
         action,
