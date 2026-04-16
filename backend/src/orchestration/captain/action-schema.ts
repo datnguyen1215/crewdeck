@@ -9,7 +9,7 @@ import { logger } from "../../logger.js";
 export const dispatchActionSchema = z.object({
   type: z.literal("dispatch"),
   issue_id: z.string(),
-  agent_id: z.enum(["engineer", "inspector", "docs", "librarian"]),
+  agent_id: z.enum(["engineer", "inspector", "docs", "librarian", "supervisor"]),
   instructions: z.string().optional(),
 });
 

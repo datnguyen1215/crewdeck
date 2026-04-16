@@ -26,14 +26,14 @@ A project represents a body of work tied to one or more GitHub repositories. Eac
 - A name and description.
 - Knowledge entries for project context (conventions, structure notes, gotchas) injected into agent prompts.
 - One or more linked GitHub repositories.
-- A shared roster of 5 fixed agents (defined globally, not per-project; all are dispatchable).
+- A shared roster of 6 fixed agents (defined globally, not per-project). Most are dispatchable; Captain and Supervisor are non-dispatchable (Captain-managed).
 - Agent model preferences are configured globally via the `/crew` page (not per-project).
 
 ### Agent
 
-The crew is a fixed set of 5 immutable agents defined in code (Engineer, Inspector, Docs, Librarian, Captain). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
+The crew is a fixed set of 6 immutable agents defined in code (Engineer, Inspector, Docs, Librarian, Captain, Supervisor). Each has a name, title, description, and system prompt. They are not stored in the database and cannot be created, modified, or deleted.
 
-Agent names are used for `/dispatch` command matching. All crew agents, including Captain, are dispatchable via `/dispatch`.
+Agent names are used for `/dispatch` command matching. Engineer, Inspector, Docs, Librarian, and Captain are dispatchable via `/dispatch`. Supervisor is non-dispatchable — only Captain spawns Supervisors directly.
 
 ### Orchestration via /dispatch Commands
 
