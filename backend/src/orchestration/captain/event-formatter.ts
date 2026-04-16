@@ -131,7 +131,7 @@ export const formatEvents = (events: CaptainEvent[]): string => {
           const data = e.data as { issue_id: string };
           const issue = getIssue(data.issue_id);
           const title = issue ? ` "${issue.title}"` : "";
-          return `[${ts}] Issue ${data.issue_id}${title} APPROVED TO START by user — dispatch engineer now`;
+          return `[${ts}] Issue ${data.issue_id}${title} APPROVED TO START by user — spawn a Supervisor now`;
         }
         case "issue.approved_to_merge": {
           const data = e.data as { issue_id: string };

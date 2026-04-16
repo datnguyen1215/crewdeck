@@ -15,6 +15,7 @@ export type CaptainEventType =
   | "pr.status_changed"
   | "comment.added"
   | "idle.check"
+  // startup.scan is emitted by Supervisor for its own recovery; kept here as Captain shares the CaptainEvent type
   | "startup.scan"
   | "project.settings_changed";
 
