@@ -276,6 +276,9 @@ comment.added event
     ├── parse /dispatch commands from comment.content
     │       (only /dispatch at start of line triggers spawns; @mentions are ignored)
     │
+    ├── guard: only captain, supervisor, and user may dispatch agents
+    │       └── other agent authors (engineer, inspector, docs, librarian) are blocked
+    │
     ├── if multiple agents dispatched by an agent author:
     │       └── create batch (originator = comment.author_type, members = dispatched agents)
     │
@@ -476,6 +479,8 @@ Entries are filtered by category. Only `workflows` and `conventions` categories 
 ## Startup and Shutdown
 
 **Startup:** `recoverOnStartup()` queries the `AgentRun` table for any runs still in `running` status (orphaned by a previous crash or restart). It marks them as `failed` and posts a system comment on each affected issue. `recoverQueue()` is then called to restore queued runs — it counts and logs the number of queued runs awaiting execution.
+
+`initSupervisorService()` is called after the Captain monitor is initialized. It queries the `agent_sessions` table for all rows with `agent_id = 'supervisor'`, then calls `startSupervisorForIssue()` for each, resuming Supervisors for any non-done issues that had an active session before the server restarted. If the Supervisor fails to resume (e.g., the issue is now done), the session is cleared.
 
 **Spawn failure handling:** If `spawnClaudeStream()` throws during `spawnAndTrack()` (e.g., process cannot be created), the `AgentRun` record is immediately marked `failed` with a `completed_at` timestamp, `onComplete()` is called for cleanup (e.g., SSH key removal), and the error is re-thrown. This prevents runs from being permanently stuck in `running` with a null PID, which would block further work on the issue.
 

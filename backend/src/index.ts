@@ -16,6 +16,10 @@ import {
   initMonitorService as initCaptain,
   shutdownMonitorService as shutdownCaptain,
 } from "./orchestration/captain/monitor-service.js";
+import {
+  initSupervisorService,
+  shutdownSupervisorService,
+} from "./orchestration/supervisor/supervisor-service.js";
 import { recoverOnStartup } from "./orchestration/recovery.js";
 import { createApp } from "./app.js";
 import { initPRDetector } from "./pr/detector.js";
@@ -35,6 +39,7 @@ async function main(): Promise<void> {
   initEventCommenter();
   initMentionHandler();
   initCaptain();
+  initSupervisorService();
   initializePausedState();
   recoverOnStartup();
 
@@ -74,6 +79,7 @@ async function main(): Promise<void> {
     shutdownWebSocket(wss);
     shutdownTerminalWs();
     shutdownCaptain();
+    shutdownSupervisorService();
     shutdownMentionHandler();
     await shutdownPtyService();
     stopPRPoller();
