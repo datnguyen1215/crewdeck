@@ -246,17 +246,14 @@ Commands are parsed from captain's comment output and executed sequentially. Onl
 
 **Manual Approval Workflow:**
 
-When `auto_start` or `auto_merge` settings are disabled, users can manually approve specific issues:
+When `auto_start` is disabled, users can manually approve specific issues for work:
 
-- **Play button** → `POST /issues/:id/approve-start` → `issue.approved_to_start` event → Captain dispatches engineer
-- **Merge button** → `POST /issues/:id/approve-merge` → `issue.approved_to_merge` event → Captain merges PR
+- **Play button** → `POST /issues/:id/approve-start` → `issue.approved_to_start` event → Captain spawns a Supervisor
+- **Merge button** → `POST /issues/:id/approve-merge` → `issue.approved_to_merge` event → Supervisor merges PR
 
-The approval flags are checked in `handleDispatchAgent()` and `handleMergePR()`:
+The `canStart` flag is checked by Captain (`canStart = approvedToStart.has(issueId) || project.auto_start`). The `canMerge` flag is checked by Supervisor (`canMerge = approvedToMerge.has(issueId) || project.auto_merge`).
 
-- `canStart = approvedToStart.has(issueId) || project.auto_start`
-- `canMerge = approvedToMerge.has(issueId) || project.auto_merge`
-
-Flags are cleared after successful dispatch/merge and stored in-memory (reset on server restart).
+Flags are cleared after successful action and stored in-memory (reset on server restart).
 
 `handleMergePR()` also enforces a hard paused-issue gate and a hard CI gate: it rejects the merge with an error if the issue is paused or `issue.status !== 'pr_ready_to_merge'`, regardless of approval or auto_merge settings. The issue only reaches `pr_ready_to_merge` once the PR poller confirms CI has passed and the PR is mergeable.
 

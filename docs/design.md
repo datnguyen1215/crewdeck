@@ -280,7 +280,7 @@ The frontend and backend are separate directories. Each has its own `package.jso
   - **Merge conflicts** — via the `mergeable` field. If `false`, transitions issue to `pr_conflict`.
   - **CI status** — checks all configured CI systems. If any check failed, transitions issue to `pr_failed_actions`. If all checks pass and mergeable, transitions to `pr_ready_to_merge`.
 - Issues in intermediate states (`pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`) are transitioned back to `pr_created` when conditions become pending (e.g., new commits pushed).
-- **Only processes issues in PR-related statuses** (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`). Issues in `in_progress` are skipped. When an agent is dispatched to fix a conflict or CI failure, the spawner regresses the issue to `in_progress` — the captain monitor restores it back to `pr_created` after the agent completes, so the poller picks it up again.
+- **Only processes issues in PR-related statuses** (`pr_created`, `pr_conflict`, `pr_failed_actions`, `pr_ready_to_merge`). Issues in `in_progress` are skipped. When an agent is dispatched to fix a conflict or CI failure, the spawner regresses the issue to `in_progress` — the Supervisor restores it back to `pr_created` after the agent completes, so the poller picks it up again.
 - Emits `pr.status_changed` and `issue.status_changed` events accordingly.
 - Exports `pollPRs()` for external callers to trigger immediate polling.
 
@@ -301,15 +301,23 @@ The frontend and backend are separate directories. Each has its own `package.jso
 
 **Captain**
 
-Captain is a dispatchable agent invoked via `/dispatch captain` in issue comments. When invoked, Captain reads the issue context and all comments to understand project state, then outputs orchestration commands.
+Captain is the lifecycle orchestrator. It subscribes to lifecycle events (issue created, issue done, settings changed, approved-to-start) and spawns Supervisors for issues. Captain does NOT manage the code review loop, PR lifecycle, or individual agent dispatching — that is Supervisor's responsibility.
 
-**Commands**:
+**Action Plan Actions** (Captain's available actions in the JSON action plan):
+
+- `spawn-supervisor` — Spawn a Supervisor for an issue to manage its full lifecycle
+- `create-issue` — Create a new issue
+- `set-dependencies` — Set issue dependencies
+- `scan` — Trigger librarian codebase scan
+- `comment` — Add a comment to an issue
+- `skip` — Skip an issue (logged for observability)
+
+**Commands** (when Captain is also invoked as a dispatchable agent via `/dispatch captain`):
 
 - `/dispatch <agent>` — Dispatch an agent to work on the current issue
 - `/merge <issue_id>` — Merge a PR for an issue (only works on `pr_ready_to_merge` status)
 - `/create-pr <issue_id>` — Create a PR for an issue (after engineer has pushed code)
 - `/create-issue <title>` — Create a new issue
-- `spawn-supervisor <issue_id>` — Spawn a Supervisor for the given issue (action plan action, not a `/dispatch` command)
 
 **Captain Monitor Modules** (`backend/src/orchestration/captain/`)
 
@@ -319,8 +327,8 @@ The captain monitor is split into focused modules:
 | -------------------------- | --------------------------------------------------------------------- |
 | `monitor-agent.ts`         | Orchestrator — calls the other modules, spawns LLM, executes plan; dual-writes events/responses to the project's monitor chat thread and emits `chat.*` WebSocket events alongside `monitor.*` events |
 | `prompt-builder.ts`        | Builds the system prompt (project config + state snapshot + capacity) |
-| `state-snapshot.ts`        | Queries DB for issues, runs, knowledge; returns formatted markdown    |
-| `event-formatter.ts`       | Formats raw events with enriched DB context (PR info, agent reports)  |
+| `state-snapshot.ts`        | Queries DB for issues, knowledge, and active Supervisors; returns formatted markdown |
+| `event-formatter.ts`       | Formats raw lifecycle events with enriched DB context                 |
 | `monitor-history.ts`       | Retrieves the last 10 monitor conversation turns from DB              |
 | `action-plan-extractor.ts` | Parses action plan JSON from stream events or result text             |
 
@@ -347,34 +355,31 @@ This context enables Captain to make informed orchestration decisions based on c
 
 **Captain Monitor State Snapshot** (`backend/src/orchestration/captain/state-snapshot.ts`)
 
-The captain monitor builds a state snapshot for each LLM call via `buildStateSnapshot()`. For each non-closed issue the snapshot includes the issue ID, status, paused flag, manual approval flags (`(approved-to-start)`, `(approved-to-merge)`), running agent (if any), title, and — if the issue has an open PR — the PR number and URL in the format `[PR: #<number> <url>]`. This lets the captain see which `in_progress` issues already have open PRs, even when the issue was regressed from a PR-related status.
+The captain monitor builds a state snapshot for each LLM call via `buildStateSnapshot()`. For each non-closed issue the snapshot includes the issue ID, status, paused flag, `(approved-to-start)` flag, `[supervisor]` indicator (when a Supervisor is active for the issue), dependency info, title, and summary. PR details and active agent runs are omitted — the Supervisor tracks those per-issue. Issues with `[supervisor]` in the snapshot have an active Supervisor managing their lifecycle.
 
 **Manual Approval System** (`backend/src/orchestration/approval-store.ts`)
 
-When `auto_start` and `auto_merge` project settings are OFF, users can manually approve specific issues for work or merge using the UI:
+When `auto_start` is OFF, users can manually approve specific issues for work using the UI:
 
 - **Play button** adds the issue ID to `approvedToStart` Set and emits `issue.approved_to_start` event
-- **Merge button** adds the issue ID to `approvedToMerge` Set and emits `issue.approved_to_merge` event
 
-Captain's decision logic:
+Captain's decision logic for spawning Supervisors:
 
 - `canStart = approvedToStart.has(issueId) || project.auto_start`
-- `canMerge = approvedToMerge.has(issueId) || project.auto_merge`
 
-Approval flags are cleared after successful dispatch/merge and are stored in-memory (cleared on server restart).
+The `approved_to_merge` flag is handled by the Supervisor (not Captain). Approval flags are cleared after successful action and are stored in-memory (cleared on server restart).
 
 **Captain Monitor Event Response Rules**
 
-When the captain monitor handles a `run.completed` event, it routes based on **which agent** completed:
+Captain only receives lifecycle events. Its event routing rules:
 
-- **Engineer completed**: Always dispatches inspector for code review, regardless of whether a PR already exists for the issue. The engineer's full report is passed as context in the dispatch instructions.
-- **Inspector completed**: If the inspector reported issues/findings, dispatches engineer with those findings as instructions (starting a fix cycle). If the inspector reported no issues ("looks good"), dispatches docs.
-- **Docs completed**: Creates the PR, then sets the issue status to `pr_created`.
-- **Librarian completed**: Checks for newly unblocked issues and dispatches if ready.
+- **issue.created**: If `auto_start` is enabled, spawn a Supervisor for the new issue. Check description for dependency keywords and call `set-dependencies` if needed.
+- **issue.approved_to_start**: Spawn a Supervisor immediately, regardless of `auto_start` setting.
+- **issue.status_changed → done**: Check for issues that were blocked by the completed issue and are now unblocked. Spawn Supervisors for any newly unblocked issues without active Supervisors.
+- **project.settings_changed**: Acknowledge and adjust behavior.
+- **idle.check**: Check the snapshot for issues with no active Supervisor and spawn Supervisors for any that should be active.
 
-Inspector review is mandatory — the monitor never skips it, even when a PR already exists. The fix cycle (engineer → inspector → engineer → inspector) can repeat until the inspector approves. Only after inspector approval does docs get dispatched, followed by PR creation.
-
-After a PR is created or updated, the captain sets status to `pr_created` and **waits** — it does NOT issue a merge action immediately. The PR poller transitions the issue to `pr_ready_to_merge` once CI passes. The captain only merges after receiving a `status_changed → pr_ready_to_merge` event.
+Per-issue events (`run.completed`, `pr.status_changed`, `comment.added`, `issue.approved_to_merge`) are routed to the Supervisor, not Captain. The code review loop (Engineer → Inspector → fix cycle → Docs → PR) is managed entirely by the Supervisor.
 
 **Command Execution** (`backend/src/orchestration/command-handlers.ts`)
 
