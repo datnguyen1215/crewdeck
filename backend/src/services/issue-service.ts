@@ -14,8 +14,10 @@ import {
   hasActiveProcesses,
 } from "../orchestration/processes.js";
 import * as agentRunRepo from "../db/repositories/agent-runs.js";
+import * as agentSessionRepo from "../db/repositories/agent-sessions.js";
 import * as batch from "../orchestration/batch.js";
 import { approveStart, approveMerge } from "../orchestration/approval-store.js";
+import { stopSupervisorForIssue } from "../orchestration/supervisor/supervisor-service.js";
 import { IssueStatus, TRANSITIONS } from "../constants/statuses.js";
 import {
   InvalidTransitionError,
@@ -157,6 +159,12 @@ export function pauseIssue(issue: Issue): void {
     batch.issueBatches.delete(issue.id);
   }
 
+  // Stop the Supervisor for this issue and cancel any pending batch timer
+  stopSupervisorForIssue(issue.id);
+
+  // Clear all agent sessions so a fresh start occurs on resume
+  agentSessionRepo.deleteByIssue(issue.id);
+
   // Persist to DB
   pauseIssueRepo(issue.id);
 
@@ -181,6 +189,14 @@ export function resumeIssue(issue: Issue): void {
   resumeIssueRepo(issue.id);
 
   eventBus.emit("issue.resumed", {
+    issue_id: issue.id,
+    project_id: issue.project_id,
+  });
+
+  // Re-use issue.approved_to_start to trigger Captain to spawn a fresh Supervisor.
+  // issue.resumed is not in Captain's HANDLER_CONFIGS; approved_to_start is already
+  // handled and causes Captain to start a Supervisor for the issue.
+  eventBus.emit("issue.approved_to_start", {
     issue_id: issue.id,
     project_id: issue.project_id,
   });
