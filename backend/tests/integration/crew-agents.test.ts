@@ -17,7 +17,7 @@ describe("GET /api/v1/crew", () => {
     expect(res.body.map((a: { id: string }) => a.id).sort()).toEqual([
       "docs",
       "engineer",
-      "lead",
+      "inspector",
       "librarian",
     ]);
   });

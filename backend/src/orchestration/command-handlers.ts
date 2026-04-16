@@ -258,7 +258,7 @@ export const handleCreatePR = async (
 };
 
 /** Valid agent IDs for dispatch-agent */
-const DISPATCHABLE_AGENTS = ["engineer", "lead", "docs", "librarian"] as const;
+const DISPATCHABLE_AGENTS = ["engineer", "inspector", "docs", "librarian"] as const;
 type DispatchableAgent = (typeof DISPATCHABLE_AGENTS)[number];
 
 /**

@@ -23,7 +23,7 @@ Agents are triggered by **`/dispatch` commands** in issue comments. When a user 
 ## /dispatch Rules
 
 - `/dispatch` must appear at the start of a line (leading whitespace is allowed).
-- Multiple agents can be dispatched on one line: `/dispatch engineer lead`.
+- Multiple agents can be dispatched on one line: `/dispatch engineer inspector`.
 - Matching is case-insensitive.
 - Dispatches inside fenced code blocks or inline backticks are ignored.
 - Agents cannot dispatch themselves (self-dispatches are skipped).

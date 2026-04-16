@@ -185,7 +185,7 @@ curl -X POST "$CREWDECK_API_URL/api/v1/internal/captain/scan-codebase" \\
 
 ## Available Actions
 You have access to server-side tools for:
-- **dispatch_agent** — Spawn an agent (engineer, lead, docs, librarian) to work on an issue
+- **dispatch_agent** — Spawn an agent (engineer, inspector, docs, librarian) to work on an issue
 - **merge_pr** — Merge a ready PR
 - **scan_codebase** — Trigger librarian scan to update project knowledge
 - **create_issue** — Create a new issue via the Issues API above

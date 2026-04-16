@@ -74,7 +74,7 @@ After gathering information, output a JSON action plan wrapped in <action> tags.
   "reasoning": "Brief explanation of your decisions",
   "actions": [
     { "type": "dispatch", "issue_id": "<id>", "agent_id": "engineer", "instructions": "optional instructions" },
-    { "type": "dispatch", "issue_id": "<id>", "agent_id": "lead" },
+    { "type": "dispatch", "issue_id": "<id>", "agent_id": "inspector" },
     { "type": "merge", "issue_id": "<id>" },
     { "type": "create-pr", "issue_id": "<id>" },
     { "type": "comment", "issue_id": "<id>", "content": "Comment text" },
@@ -94,7 +94,7 @@ You can include reasoning text before the <action> tags, but the tags MUST be pr
 ### Action Types
 | Type | Required Fields | Description |
 |------|-----------------|-------------|
-| dispatch | issue_id, agent_id | Dispatch agent (engineer/lead/docs/librarian) to work on issue |
+| dispatch | issue_id, agent_id | Dispatch agent (engineer/inspector/docs/librarian) to work on issue |
 | merge | issue_id | Merge the PR for an issue |
 | create-pr | issue_id | Create a GitHub PR for the issue (uses issue branch_name, base_branch, repo_id). Optional \`body\` field for a custom PR description. |
 | comment | issue_id, content | Add a comment to an issue |
@@ -123,8 +123,8 @@ Events include full context (issue title, status, PR info, agent reports). Use t
 - **issue.approved_to_start**: User manually approved this issue for work. Dispatch engineer immediately, regardless of auto_start setting.
 - **issue.approved_to_merge**: User manually approved this issue for merge. Merge the PR immediately, regardless of auto_merge setting.
 - **run.completed**: The agent's report is included in the event. Route based on WHICH agent completed:
-  - **engineer completed**: ALWAYS dispatch lead for code review. Pass the engineer's full report as context in dispatch instructions. Do NOT skip lead review even if a PR already exists for this issue.
-  - **lead completed**: Read the lead's report. If the lead reported issues/findings, dispatch engineer with the findings as instructions (this starts a fix cycle). If the lead said "no issues" or "looks good", dispatch docs.
+  - **engineer completed**: ALWAYS dispatch inspector for code review. Pass the engineer's full report as context in dispatch instructions. Do NOT skip inspector review even if a PR already exists for this issue.
+  - **inspector completed**: Read the inspector's report. If the inspector reported issues/findings, dispatch engineer with the findings as instructions (this starts a fix cycle). If the inspector said "no issues" or "looks good", dispatch docs.
   - **docs completed**: Create PR, then set status to \`pr_created\`.
   - **librarian completed**: Check for newly unblocked issues and dispatch if ready. Consider if a scan is needed.
   After a PR is created or updated, set status to \`pr_created\` and wait — the PR poller will transition to \`pr_ready_to_merge\` once CI passes. Do NOT issue a merge action until you see a \`status_changed → pr_ready_to_merge\` event.
@@ -175,7 +175,7 @@ export const buildSystemPrompt = (projectId: string): string => {
     buildActionSchema(),
     `## Golden Rule\n**Use the pre-fetched snapshot above for initial decisions.** It contains the current issues, active runs, and knowledge titles. Only curl for detailed information (full issue description, comments, run events) when needed for a specific decision.\n\n**An issue being \`in_progress\` does NOT mean an agent is running.** Check the Active Runs section in the snapshot to verify.`,
     buildEventRules(canAutoStart, canMerge),
-    `## Code Review Loop (MANDATORY)\nEngineer → Lead review → (fix cycle if needed) → Docs → Create PR.\n\nLead review is MANDATORY after every engineer run. Never skip it — not even if a PR already exists.\n- After engineer completes: always dispatch lead.\n- After lead completes: read the report. If issues found, dispatch engineer (fix cycle). If clean, dispatch docs.\n- The fix cycle can repeat (engineer → lead → engineer → lead) until the lead approves.\n- Only after the lead approves should docs be dispatched, followed by PR creation.`,
+    `## Code Review Loop (MANDATORY)\nEngineer → Inspector review → (fix cycle if needed) → Docs → Create PR.\n\nInspector review is MANDATORY after every engineer run. Never skip it — not even if a PR already exists.\n- After engineer completes: always dispatch inspector.\n- After inspector completes: read the report. If issues found, dispatch engineer (fix cycle). If clean, dispatch docs.\n- The fix cycle can repeat (engineer → inspector → engineer → inspector) until the inspector approves.\n- Only after the inspector approves should docs be dispatched, followed by PR creation.`,
     `## Dispatch Rules\n- Don't dispatch if an agent is already running on that issue (check current state first)\n- Paused issues (marked with '(paused)' in the snapshot): Do not dispatch, create PRs, or merge PRs. Skip them with reason 'issue is paused'.\n- Dependencies: If an issue shows \`depends:[id1,id2]\` in the snapshot, it is BLOCKED. Do not dispatch it. Skip it and work on other unblocked issues instead. When a blocking issue completes, its dependency is auto-removed and you will see an \`issue.status_changed\` event — re-check previously blocked issues at that point.\n- When you first see a new issue, check its description for dependency keywords ("depends on", "blocked by", "after") and use \`set-dependencies\` action to persist them.\n- List ALL needed dispatches — the system handles capacity and parallel execution\n- ${canMerge ? "Merge ready PRs before starting new work" : "Report ready PRs — auto-merge is disabled"}`,
     buildConstraints(canAutoStart, canMerge),
   ].join("\n\n");

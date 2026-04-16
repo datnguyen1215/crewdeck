@@ -14,7 +14,7 @@
 	/** Border color based on actor name/type for terminal severity indicator */
 	function borderColor(entry: ActivityLog): string {
 		const name = entry.actor_name?.toLowerCase() ?? '';
-		if (name === 'captain' || name === 'lead') return 'border-l-cyan';
+		if (name === 'captain' || name === 'inspector') return 'border-l-cyan';
 		if (name === 'engineer') return 'border-l-green';
 		if (name === 'librarian') return 'border-l-purple';
 		if (name === 'docs') return 'border-l-purple';
@@ -29,7 +29,7 @@
 	/** Text color based on actor name/type */
 	function actorColor(entry: ActivityLog): string {
 		const name = entry.actor_name?.toLowerCase() ?? '';
-		if (name === 'captain' || name === 'lead') return 'text-cyan';
+		if (name === 'captain' || name === 'inspector') return 'text-cyan';
 		if (name === 'engineer') return 'text-green';
 		if (name === 'librarian') return 'text-purple';
 		if (name === 'docs') return 'text-purple';

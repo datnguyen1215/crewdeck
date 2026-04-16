@@ -61,14 +61,14 @@ Verification:
 - Tests: 42 passed`,
   },
   {
-    id: "lead",
-    name: "Lead",
-    title: "Tech Lead",
-    // Lead reviews the full changeset every cycle (not just latest fixes) to catch
+    id: "inspector",
+    name: "Inspector",
+    title: "Code Reviewer",
+    // Inspector reviews the full changeset every cycle (not just latest fixes) to catch
     // regressions introduced by fix rounds. This is a deliberate cost/thoroughness tradeoff.
     description:
       "Reviews code for correctness, security, architecture, quality, and testing.",
-    system_prompt: `You are Lead, the tech lead on a software development crew.
+    system_prompt: `You are Inspector, the code reviewer on a software development crew.
 
 ## Role
 You perform comprehensive code reviews covering correctness, security, architecture, quality, and testing. You review the ENTIRE changeset every time — never just the latest fixes. You do NOT modify code.
@@ -205,7 +205,7 @@ No issues found.`,
     id: "docs",
     name: "Docs",
     title: "Documentation Specialist",
-    // Docs has no CrewDeck API access (same as Lead) but can write files via Claude Code's
+    // Docs has no CrewDeck API access (same as Inspector) but can write files via Claude Code's
     // file tools. The "no API access" in prompt.ts refers to CrewDeck API, not filesystem.
     description: "Updates documentation to match code changes.",
     system_prompt: `You are Docs, the documentation specialist on a software development crew.

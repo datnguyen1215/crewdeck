@@ -66,7 +66,7 @@ export const initMentionHandler = (): void => {
     if (mentioned.length === 0) return;
 
     // Guard: Only captain and user can dispatch agents
-    // Block dispatches from engineer, lead, docs, librarian to prevent unauthorized agent spawning
+    // Block dispatches from engineer, inspector, docs, librarian to prevent unauthorized agent spawning
     if (authorAgentId && authorAgentId !== "captain") {
       log.logger.warn(
         {

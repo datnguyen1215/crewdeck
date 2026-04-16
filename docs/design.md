@@ -41,7 +41,7 @@ Orchestration is driven by `/dispatch` commands in issue comments. When a user o
 
 `@mentions` are cosmetic references only — they do NOT trigger agent spawns. This prevents duplicate spawns when agents reference each other in summaries or feedback.
 
-A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch engineer lead`. When multiple agents are dispatched, they are grouped as a batch and spawned immediately.
+A single `/dispatch` line can list multiple agents (space-separated), e.g., `/dispatch engineer inspector`. When multiple agents are dispatched, they are grouped as a batch and spawned immediately.
 
 The chain depth is tracked per issue (capped at the global `max_chain_depth` setting, default 20) to prevent infinite loops. Concurrency is bounded by the global `max_concurrency` setting.
 
@@ -356,12 +356,12 @@ Approval flags are cleared after successful dispatch/merge and are stored in-mem
 
 When the captain monitor handles a `run.completed` event, it routes based on **which agent** completed:
 
-- **Engineer completed**: Always dispatches lead for code review, regardless of whether a PR already exists for the issue. The engineer's full report is passed as context in the dispatch instructions.
-- **Lead completed**: If the lead reported issues/findings, dispatches engineer with those findings as instructions (starting a fix cycle). If the lead reported no issues ("looks good"), dispatches docs.
+- **Engineer completed**: Always dispatches inspector for code review, regardless of whether a PR already exists for the issue. The engineer's full report is passed as context in the dispatch instructions.
+- **Inspector completed**: If the inspector reported issues/findings, dispatches engineer with those findings as instructions (starting a fix cycle). If the inspector reported no issues ("looks good"), dispatches docs.
 - **Docs completed**: Creates the PR, then sets the issue status to `pr_created`.
 - **Librarian completed**: Checks for newly unblocked issues and dispatches if ready.
 
-Lead review is mandatory — the monitor never skips it, even when a PR already exists. The fix cycle (engineer → lead → engineer → lead) can repeat until the lead approves. Only after lead approval does docs get dispatched, followed by PR creation.
+Inspector review is mandatory — the monitor never skips it, even when a PR already exists. The fix cycle (engineer → inspector → engineer → inspector) can repeat until the inspector approves. Only after inspector approval does docs get dispatched, followed by PR creation.
 
 After a PR is created or updated, the captain sets status to `pr_created` and **waits** — it does NOT issue a merge action immediately. The PR poller transitions the issue to `pr_ready_to_merge` once CI passes. The captain only merges after receiving a `status_changed → pr_ready_to_merge` event.
 

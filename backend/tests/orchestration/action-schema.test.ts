@@ -27,7 +27,7 @@ describe("action-schema", () => {
           {
             type: "dispatch",
             issue_id: "abc",
-            agent_id: "lead",
+            agent_id: "inspector",
             instructions: "Review the code changes",
           },
         ],
@@ -51,7 +51,7 @@ describe("action-schema", () => {
         reasoning: "Full test",
         actions: [
           { type: "dispatch", issue_id: "1", agent_id: "engineer" },
-          { type: "dispatch", issue_id: "2", agent_id: "lead" },
+          { type: "dispatch", issue_id: "2", agent_id: "inspector" },
           { type: "dispatch", issue_id: "3", agent_id: "docs" },
           { type: "dispatch", issue_id: "4", agent_id: "librarian" },
           { type: "merge", issue_id: "5" },

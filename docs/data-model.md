@@ -140,7 +140,7 @@ The fundamental unit of work.
 | worktree_path | TEXT        | NULLABLE                            | Absolute path to the git worktree.                                                                                                                                                                                                                                 |
 | base_branch   | TEXT        | NULLABLE                            | The branch this issue's PR targets. Resolved once at creation time: explicit value → `project.default_base_branch` → `"main"`. Backfilled to `"main"` for pre-existing issues. Editable while status is `open`; locked once work starts (`in_progress` or beyond). |
 | repo_id       | TEXT        | FOREIGN KEY → Repo.id, NULLABLE     | The repo this issue is being worked on in.                                                                                                                                                                                                                         |
-| agent_id      | TEXT        | NULLABLE                            | The agent currently assigned to this issue. One of the fixed agent IDs (engineer, lead, docs, librarian) or NULL if unassigned.                                                                                                                                    |
+| agent_id      | TEXT        | NULLABLE                            | The agent currently assigned to this issue. One of the fixed agent IDs (engineer, inspector, docs, librarian) or NULL if unassigned.                                                                                                                                    |
 | created_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                                                                                                                                                    |
 | updated_at    | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                                                                                                                                                                                                    |
 
@@ -154,7 +154,7 @@ A message on an issue from an agent, the system, or a human.
 | ----------- | ----------- | ----------------------------------- | -------------------------------------------------------------------------------------------- |
 | id          | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                           |
 | issue_id    | TEXT        | NOT NULL, FOREIGN KEY → Issue.id    | The issue this comment belongs to.                                                           |
-| author_type | TEXT        | NOT NULL                            | Who posted it. One of: `user`, `system`, `captain`, `engineer`, `lead`, `docs`, `librarian`. |
+| author_type | TEXT        | NOT NULL                            | Who posted it. One of: `user`, `system`, `captain`, `engineer`, `inspector`, `docs`, `librarian`. |
 | content     | TEXT        | NOT NULL                            | Comment body (Markdown supported).                                                           |
 | created_at  | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                              |
 
@@ -386,7 +386,7 @@ Global per-agent model configuration. Applies machine-wide regardless of project
 | Field    | Type        | Constraints                | Description                                                                                                                                        |
 | -------- | ----------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | id       | TEXT (UUID) | PRIMARY KEY                | Unique identifier.                                                                                                                                 |
-| agent_id | TEXT        | NOT NULL                   | Agent identifier (e.g., `engineer`, `lead`, `captain`).                                                                                            |
+| agent_id | TEXT        | NOT NULL                   | Agent identifier (e.g., `engineer`, `inspector`, `captain`).                                                                                            |
 | provider | TEXT        | NOT NULL, DEFAULT 'claude' | AI provider for this config. One of: `claude`, `glm` (Z.AI).                                                                                       |
 | model    | TEXT        | NULLABLE                   | Model override. For `claude`: `sonnet`, `opus`, `haiku`. For `glm`: `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`. NULL means use provider default. |
 
