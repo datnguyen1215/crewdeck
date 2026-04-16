@@ -158,7 +158,7 @@ A message on an issue from an agent, the system, or a human.
 | ----------- | ----------- | ----------------------------------- | -------------------------------------------------------------------------------------------- |
 | id          | TEXT (UUID) | PRIMARY KEY                         | Unique identifier.                                                                           |
 | issue_id    | TEXT        | NOT NULL, FOREIGN KEY → Issue.id    | The issue this comment belongs to.                                                           |
-| author_type | TEXT        | NOT NULL                            | Who posted it. One of: `user`, `system`, `captain`, `engineer`, `inspector`, `docs`, `librarian`. |
+| author_type | TEXT        | NOT NULL                            | Who posted it. One of: `user`, `system`, `captain`, `supervisor`, `engineer`, `inspector`, `docs`, `librarian`. |
 | content     | TEXT        | NOT NULL                            | Comment body (Markdown supported).                                                           |
 | created_at  | DATETIME    | NOT NULL, DEFAULT CURRENT_TIMESTAMP |                                                                                              |
 

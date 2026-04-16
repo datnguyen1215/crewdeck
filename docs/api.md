@@ -492,7 +492,7 @@ DELETE /projects/:projectId/repos/:repoId
 
 ### Crew / Agents
 
-The crew is a fixed set of 5 global agents (engineer, inspector, docs, librarian, captain). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, including all dispatchable agents.
+The crew is a fixed set of 6 global agents (engineer, inspector, docs, librarian, captain, supervisor). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data — only the 4 dispatchable agents (engineer, inspector, docs, librarian). Captain and Supervisor are non-dispatchable and excluded from this endpoint.
 
 #### List Crew
 
@@ -501,7 +501,7 @@ GET /crew
 GET /agents
 ```
 
-Both paths return all dispatchable agents (5 agents, including captain). The `/crew` path is canonical; `/agents` is kept for compatibility.
+Both paths return all dispatchable agents (4 agents: engineer, inspector, docs, librarian). Captain and Supervisor are excluded — both are non-dispatchable and Captain-managed. The `/crew` path is canonical; `/agents` is kept for compatibility.
 
 **Response:** `200 OK` — Array of agent objects.
 
@@ -525,7 +525,7 @@ Both paths return all dispatchable agents (5 agents, including captain). The `/c
 | title         | TEXT    | Agent role title.                                                                                      |
 | description   | TEXT    | Brief description of the agent's purpose.                                                              |
 | system_prompt | TEXT    | System prompt injected into agent processes.                                                           |
-| dispatchable  | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. All crew agents are dispatchable. |
+| dispatchable  | BOOLEAN | Whether this agent can be dispatched via `/dispatch`. Default: true. Captain and Supervisor are `false` — both are non-dispatchable and Captain-managed. |
 
 ---
 
@@ -849,7 +849,7 @@ GET /projects/:projectId/issues/:issueId/comments
   {
     "id": "uuid",
     "issue_id": "uuid",
-    "author_type": "user | system | captain | engineer | inspector | docs | librarian",
+    "author_type": "user | system | captain | supervisor | engineer | inspector | docs | librarian",
     "content": "I've identified the root cause...",
     "created_at": "ISO 8601"
   }
