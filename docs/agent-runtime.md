@@ -274,7 +274,7 @@ comment.added event
 
 ### Batch Tracking
 
-When a single comment dispatches multiple agents (e.g., `/dispatch engineer lead`), the handler groups them into a **batch**:
+When a single comment dispatches multiple agents (e.g., `/dispatch engineer inspector`), the handler groups them into a **batch**:
 
 - The dispatched agents become **batch members** and are spawned immediately.
 - Batches time out after the `ORCHESTRATION_BATCH_TIMEOUT_MS` duration (default 30 min). A cleanup interval (`ORCHESTRATION_BATCH_CLEANUP_INTERVAL_MS`, default every 5 min) fires `handleBatchComplete` on any stale batch, preventing orphaned state.

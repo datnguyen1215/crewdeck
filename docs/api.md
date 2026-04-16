@@ -492,7 +492,7 @@ DELETE /projects/:projectId/repos/:repoId
 
 ### Crew / Agents
 
-The crew is a fixed set of 5 global agents (engineer, lead, docs, librarian, captain). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, including all dispatchable agents.
+The crew is a fixed set of 5 global agents (engineer, inspector, docs, librarian, captain). These are hardcoded and immutable. Both `/crew` and `/agents` return the same data, including all dispatchable agents.
 
 #### List Crew
 
@@ -648,7 +648,7 @@ POST /projects/:projectId/issues
 | ----------- | -------- | ------- | ------------------------------------------------------------ |
 | title       | Yes      | —       | Issue title.                                                 |
 | description | Yes      | —       | Issue description.                                           |
-| agent_id    | No       | null    | Assigned agent ID (one of: engineer, lead, docs, librarian). |
+| agent_id    | No       | null    | Assigned agent ID (one of: engineer, inspector, docs, librarian). |
 
 **Response:** `201 Created` — The created issue object with status `open` and `created_by: "user"`.
 
@@ -849,7 +849,7 @@ GET /projects/:projectId/issues/:issueId/comments
   {
     "id": "uuid",
     "issue_id": "uuid",
-    "author_type": "user | system | captain | engineer | lead | docs | librarian",
+    "author_type": "user | system | captain | engineer | inspector | docs | librarian",
     "content": "I've identified the root cause...",
     "created_at": "ISO 8601"
   }
@@ -1333,7 +1333,7 @@ GET /agent-config
   },
   {
     "id": "uuid",
-    "agent_id": "lead",
+    "agent_id": "inspector",
     "model": "glm-5.1"
   }
 ]
@@ -2283,7 +2283,7 @@ Agent posts a comment on an issue.
 | ---------- | -------- | -------------------------------------------------------------------------- |
 | issue_id   | Yes      | The issue to comment on.                                                   |
 | project_id | Yes      | The owning project.                                                        |
-| agent_id   | No       | The agent's ID (e.g., `engineer`, `lead`). Used directly as `author_type`. |
+| agent_id   | No       | The agent's ID (e.g., `engineer`, `inspector`). Used directly as `author_type`. |
 | content    | Yes      | Comment body.                                                              |
 
 **Response:** `201 Created`
@@ -2544,7 +2544,7 @@ Dispatches an agent to work on an issue. Used by the Captain chat to spawn agent
 | ------------ | -------- | --------------------------------------------------- |
 | project_id   | Yes      | The project the issue belongs to.                   |
 | issue_id     | Yes      | The issue to dispatch the agent on.                 |
-| agent_id     | Yes      | The agent to spawn (e.g., `engineer`, `lead`, `docs`). |
+| agent_id     | Yes      | The agent to spawn (e.g., `engineer`, `inspector`, `docs`). |
 | instructions | No       | Optional custom instructions appended to the prompt. |
 
 **Response:** `200 OK`

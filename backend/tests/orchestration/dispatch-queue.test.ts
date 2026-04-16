@@ -52,7 +52,7 @@ describe("dispatch-queue", () => {
 
     it("returns different run IDs for multiple enqueues", () => {
       const runId1 = enqueueRun(PROJECT_ID, ISSUE_ID, "engineer");
-      const runId2 = enqueueRun(PROJECT_ID, ISSUE_ID, "lead");
+      const runId2 = enqueueRun(PROJECT_ID, ISSUE_ID, "inspector");
 
       expect(runId1).not.toBe(runId2);
     });
@@ -102,7 +102,7 @@ describe("dispatch-queue", () => {
       enqueueRun(PROJECT_ID, ISSUE_ID, "engineer");
 
       expect(isAgentActive(PROJECT_ID, ISSUE_ID, "engineer")).toBe(true);
-      expect(isAgentActive(PROJECT_ID, ISSUE_ID, "lead")).toBe(false);
+      expect(isAgentActive(PROJECT_ID, ISSUE_ID, "inspector")).toBe(false);
     });
 
     it("distinguishes between same agent on different issues", () => {
@@ -125,11 +125,11 @@ describe("dispatch-queue", () => {
 
     it("returns correct position in FIFO order", () => {
       enqueueRun(PROJECT_ID, ISSUE_ID, "engineer");
-      enqueueRun(PROJECT_ID, ISSUE_ID_2, "lead");
+      enqueueRun(PROJECT_ID, ISSUE_ID_2, "inspector");
       enqueueRun(PROJECT_ID, ISSUE_ID, "docs");
 
       expect(getQueuePosition(PROJECT_ID, ISSUE_ID, "engineer")).toBe(0);
-      expect(getQueuePosition(PROJECT_ID, ISSUE_ID_2, "lead")).toBe(1);
+      expect(getQueuePosition(PROJECT_ID, ISSUE_ID_2, "inspector")).toBe(1);
       expect(getQueuePosition(PROJECT_ID, ISSUE_ID, "docs")).toBe(2);
     });
   });
@@ -143,7 +143,7 @@ describe("dispatch-queue", () => {
       enqueueRun(PROJECT_ID, ISSUE_ID, "engineer");
       expect(getQueueLength(PROJECT_ID)).toBe(1);
 
-      enqueueRun(PROJECT_ID, ISSUE_ID, "lead");
+      enqueueRun(PROJECT_ID, ISSUE_ID, "inspector");
       expect(getQueueLength(PROJECT_ID)).toBe(2);
     });
 
@@ -155,7 +155,7 @@ describe("dispatch-queue", () => {
       const runningRun = agentRunRepo.createAgentRun({
         project_id: PROJECT_ID,
         issue_id: ISSUE_ID,
-        agent_id: "lead",
+        agent_id: "inspector",
         status: "running",
       });
       agentRunRepo.updateAgentRun(runningRun.id, {
@@ -196,7 +196,7 @@ describe("dispatch-queue", () => {
       const run2 = agentRunRepo.createAgentRun({
         project_id: PROJECT_ID,
         issue_id: ISSUE_ID,
-        agent_id: "lead",
+        agent_id: "inspector",
         status: "running",
       });
       agentRunRepo.updateAgentRun(run2.id, {
@@ -247,7 +247,7 @@ describe("dispatch-queue", () => {
       const runningRun2 = agentRunRepo.createAgentRun({
         project_id: PROJECT_ID,
         issue_id: ISSUE_ID,
-        agent_id: "lead",
+        agent_id: "inspector",
         status: "running",
       });
       agentRunRepo.updateAgentRun(runningRun2.id, {

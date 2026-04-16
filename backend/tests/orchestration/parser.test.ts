@@ -8,7 +8,7 @@ function makeAgent(id: string, name: string): Agent {
 
 const agents: Agent[] = [
   makeAgent("1", "engineer"),
-  makeAgent("2", "lead"),
+  makeAgent("2", "inspector"),
   makeAgent("3", "docs"),
   makeAgent("4", "captain"),
   makeAgent("5", "code-reviewer"),
@@ -23,18 +23,18 @@ describe("parseDispatches", () => {
   });
 
   it("extracts multiple agents from single dispatch", () => {
-    const result = parseDispatches("/dispatch engineer lead docs", agents);
+    const result = parseDispatches("/dispatch engineer inspector docs", agents);
     expect(result).toHaveLength(3);
     expect(result[0].name).toBe("engineer");
-    expect(result[1].name).toBe("lead");
+    expect(result[1].name).toBe("inspector");
     expect(result[2].name).toBe("docs");
   });
 
   it("extracts agents from multiple dispatch lines", () => {
-    const result = parseDispatches("/dispatch engineer\n/dispatch lead", agents);
+    const result = parseDispatches("/dispatch engineer\n/dispatch inspector", agents);
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe("engineer");
-    expect(result[1].name).toBe("lead");
+    expect(result[1].name).toBe("inspector");
   });
 
   it("deduplicates dispatches", () => {
@@ -44,7 +44,7 @@ describe("parseDispatches", () => {
   });
 
   it("matches case-insensitively", () => {
-    const result = parseDispatches("/dispatch Engineer LEAD Docs", agents);
+    const result = parseDispatches("/dispatch Engineer INSPECTOR Docs", agents);
     expect(result).toHaveLength(3);
   });
 
@@ -65,22 +65,22 @@ describe("parseDispatches", () => {
   });
 
   it("ignores @mentions mixed with text", () => {
-    const result = parseDispatches("@engineer and @lead should review this", agents);
+    const result = parseDispatches("@engineer and @inspector should review this", agents);
     expect(result).toEqual([]);
   });
 
   it("skips dispatch inside fenced code blocks", () => {
-    const text = "Check this:\n```\n/dispatch engineer\n```\n/dispatch lead";
+    const text = "Check this:\n```\n/dispatch engineer\n```\n/dispatch inspector";
     const result = parseDispatches(text, agents);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("lead");
+    expect(result[0].name).toBe("inspector");
   });
 
   it("skips dispatch inside inline backticks", () => {
-    const text = "Use `/dispatch engineer` for help\n/dispatch lead";
+    const text = "Use `/dispatch engineer` for help\n/dispatch inspector";
     const result = parseDispatches(text, agents);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe("lead");
+    expect(result[0].name).toBe("inspector");
   });
 
   it("handles dispatch at start of line with leading whitespace", () => {
@@ -96,17 +96,17 @@ describe("parseDispatches", () => {
 
   it("handles multiline content with dispatch", () => {
     const content = `Please review:
-/dispatch engineer lead docs
+/dispatch engineer inspector docs
 Some other text here`;
     const result = parseDispatches(content, agents);
     expect(result).toHaveLength(3);
   });
 
   it("ignores unknown agent names in dispatch", () => {
-    const result = parseDispatches("/dispatch engineer unknown-agent lead", agents);
+    const result = parseDispatches("/dispatch engineer unknown-agent inspector", agents);
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe("engineer");
-    expect(result[1].name).toBe("lead");
+    expect(result[1].name).toBe("inspector");
   });
 
   it("handles dispatch followed by text content", () => {
