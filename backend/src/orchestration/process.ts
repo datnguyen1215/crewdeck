@@ -14,6 +14,8 @@ export interface SpawnOpts {
   env?: Record<string, string>;
   model?: string;
   maxTurns?: number;
+  sessionId?: string;        // set on first spawn, passed as --session-id
+  resumeSessionId?: string;  // set on subsequent spawns, passed as --resume
 }
 
 export interface SpawnResult {
@@ -23,19 +25,24 @@ export interface SpawnResult {
 }
 
 export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
-  const tmpFile = join(tmpdir(), `crewdeck-${randomUUID()}.txt`);
-  await writeFile(tmpFile, opts.systemPrompt, "utf-8");
+  const isResume = !!opts.resumeSessionId;
+  const tmpFile = isResume ? null : join(tmpdir(), `crewdeck-${randomUUID()}.txt`);
+  if (tmpFile) await writeFile(tmpFile, opts.systemPrompt, "utf-8");
 
-  const args = [
-    "-p",
-    "--system-prompt-file",
-    tmpFile,
+  const args = ["-p"];
+  if (isResume) {
+    args.push("--resume", opts.resumeSessionId!);
+  } else {
+    args.push("--system-prompt-file", tmpFile!);
+    if (opts.sessionId) args.push("--session-id", opts.sessionId);
+  }
+  args.push(
     "--output-format",
     "json",
     "--dangerously-skip-permissions",
     "--settings",
     JSON.stringify({ attribution: { commit: "", pr: "" } }),
-  ];
+  );
   if (opts.model) args.push("--model", opts.model);
   if (opts.maxTurns != null) args.push("--max-turns", String(opts.maxTurns));
 
@@ -68,13 +75,15 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
     (resolve) => {
       child.on("close", async (code) => {
         // Clean up temp file
-        try {
-          await unlink(tmpFile);
-        } catch {
-          logger.debug(
-            { tmpFile },
-            "Failed to unlink temp prompt file on close",
-          );
+        if (tmpFile) {
+          try {
+            await unlink(tmpFile);
+          } catch {
+            logger.debug(
+              { tmpFile },
+              "Failed to unlink temp prompt file on close",
+            );
+          }
         }
         if (stderr) {
           logger.warn(
@@ -87,13 +96,15 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
 
       child.on("error", async (err) => {
         // Handle spawn/pipe failures (e.g., ENOENT if claude binary not found)
-        try {
-          await unlink(tmpFile);
-        } catch {
-          logger.debug(
-            { tmpFile },
-            "Failed to unlink temp prompt file on error",
-          );
+        if (tmpFile) {
+          try {
+            await unlink(tmpFile);
+          } catch {
+            logger.debug(
+              { tmpFile },
+              "Failed to unlink temp prompt file on error",
+            );
+          }
         }
         logger.error({ pid: child.pid, err }, "claude process error");
         resolve({ code: 1, stdout: `Spawn error: ${err.message}` });
@@ -131,20 +142,24 @@ export interface StreamSpawnResult {
 export async function spawnClaudeStream(
   opts: SpawnOpts,
 ): Promise<StreamSpawnResult> {
-  const tmpFile = join(tmpdir(), `crewdeck-${randomUUID()}.txt`);
-  await writeFile(tmpFile, opts.systemPrompt, "utf-8");
+  const isResume = !!opts.resumeSessionId;
+  const tmpFile = isResume ? null : join(tmpdir(), `crewdeck-${randomUUID()}.txt`);
+  if (tmpFile) await writeFile(tmpFile, opts.systemPrompt, "utf-8");
 
-  const args = [
-    "-p",
-    "--verbose",
-    "--system-prompt-file",
-    tmpFile,
+  const args = ["-p", "--verbose"];
+  if (isResume) {
+    args.push("--resume", opts.resumeSessionId!);
+  } else {
+    args.push("--system-prompt-file", tmpFile!);
+    if (opts.sessionId) args.push("--session-id", opts.sessionId);
+  }
+  args.push(
     "--output-format",
     "stream-json",
     "--dangerously-skip-permissions",
     "--settings",
     JSON.stringify({ attribution: { commit: "", pr: "" } }),
-  ];
+  );
   if (opts.model) args.push("--model", opts.model);
 
   const child = spawn("claude", args, {
@@ -202,13 +217,15 @@ export async function spawnClaudeStream(
 
   const exitPromise = new Promise<{ code: number }>((resolve) => {
     child.on("close", async (code) => {
-      try {
-        await unlink(tmpFile);
-      } catch {
-        logger.debug(
-          { tmpFile },
-          "Failed to unlink temp prompt file on stream close",
-        );
+      if (tmpFile) {
+        try {
+          await unlink(tmpFile);
+        } catch {
+          logger.debug(
+            { tmpFile },
+            "Failed to unlink temp prompt file on stream close",
+          );
+        }
       }
       if (stderr) {
         logger.warn(

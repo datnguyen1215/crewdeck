@@ -24,14 +24,16 @@ spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 
 **SpawnOpts:**
 
-| Field        | Type                   | Required | Description                                                                                                          |
-| ------------ | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| prompt       | string                 | Yes      | The task prompt (issue context + comments).                                                                          |
-| systemPrompt | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file`.                             |
-| workdir      | string                 | Yes      | Absolute path to the git worktree.                                                                                   |
-| env          | Record<string, string> | No       | Additional environment variables.                                                                                    |
-| model        | string                 | No       | Model to use. Resolved via AgentConfig override → global default (`sonnet`). Passed as `--model <model>` to the CLI. |
-| maxTurns     | number                 | No       | Max number of Claude turns. Passed as `--max-turns <n>` to the CLI. Used to prevent multi-turn/tool-use behavior.  |
+| Field           | Type                   | Required | Description                                                                                                          |
+| --------------- | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| prompt          | string                 | Yes      | The task prompt (issue context + comments).                                                                          |
+| systemPrompt    | string                 | Yes      | The agent's system prompt. Written to a temp file and passed via `--system-prompt-file` (skipped when resuming).     |
+| workdir         | string                 | Yes      | Absolute path to the git worktree.                                                                                   |
+| env             | Record<string, string> | No       | Additional environment variables.                                                                                    |
+| model           | string                 | No       | Model to use. Resolved via AgentConfig override → global default (`sonnet`). Passed as `--model <model>` to the CLI. |
+| maxTurns        | number                 | No       | Max number of Claude turns. Passed as `--max-turns <n>` to the CLI. Used to prevent multi-turn/tool-use behavior.   |
+| sessionId       | string                 | No       | Set on first spawn to create a named session. Passed as `--session-id <id>` to the CLI.                              |
+| resumeSessionId | string                 | No       | Set on subsequent spawns to resume an existing session. Passed as `--resume <id>`. When set, `--system-prompt-file` is skipped entirely (the session already has the system prompt). Takes priority over `sessionId` — if both are set, only `--resume` is used. |
 
 **SpawnResult:**
 
@@ -41,11 +43,24 @@ spawnClaude(opts: SpawnOpts) → Promise<SpawnResult>
 | process     | ChildProcess            | The spawned child process.       |
 | exitPromise | Promise<{code, stdout}> | Resolves when the process exits. |
 
-**Command constructed:**
+**Command constructed (fresh spawn):**
 
 ```
 claude -p <prompt> \
        --system-prompt-file <tmpfile> \
+       [--session-id <id>] \
+       --output-format json \
+       --model <model> \
+       --dangerously-skip-permissions \
+       --settings '{"attribution":{"commit":"","pr":""}}' \
+       [--max-turns <n>]
+```
+
+**Command constructed (resume spawn):**
+
+```
+claude -p <prompt> \
+       --resume <resumeSessionId> \
        --output-format json \
        --model <model> \
        --dangerously-skip-permissions \
@@ -54,7 +69,9 @@ claude -p <prompt> \
 ```
 
 - `--output-format json` causes Claude to return a JSON array of stream events (e.g., `init`, `assistant`, `result`). Consumers extract the response text from the `assistant` event's `message.content[].text` field.
-- The system prompt is written to a temp file and cleaned up after the process exits.
+- The system prompt is written to a temp file and cleaned up after the process exits. When `resumeSessionId` is set, no temp file is created and `--system-prompt-file` is not added to the args (the session already carries the system prompt).
+- `--session-id <id>` is included only on the first spawn when `sessionId` is set, creating a named Claude session for later resumption.
+- `--resume <id>` is included when `resumeSessionId` is set, resuming an existing Claude session. This takes priority — if both `resumeSessionId` and `sessionId` are provided, only `--resume` is used.
 - `--dangerously-skip-permissions` allows the agent to operate autonomously.
 - `--model <model>` is included when a model is specified (resolved via AgentConfig override → global default model → `"sonnet"`).
 - `--max-turns <n>` is included when `maxTurns` is set in `SpawnOpts`, limiting the number of Claude turns (used for title generation to prevent tool use or multi-turn behavior).
@@ -87,12 +104,25 @@ spawnClaudeStream(opts: SpawnOpts) → Promise<StreamSpawnResult>
 | events      | AsyncIterable<ClaudeStreamEvent> | Async iterator of parsed stream-json events. |
 | exitPromise | Promise<{code, stdout}>          | Resolves when the process exits.             |
 
-**Command constructed:**
+**Command constructed (fresh spawn):**
 
 ```
 claude -p <prompt via stdin> \
        --verbose \
        --system-prompt-file <tmpfile> \
+       [--session-id <id>] \
+       --output-format stream-json \
+       --model <model> \
+       --dangerously-skip-permissions \
+       --settings '{"attribution":{"commit":"","pr":""}}'
+```
+
+**Command constructed (resume spawn):**
+
+```
+claude -p <prompt via stdin> \
+       --verbose \
+       --resume <resumeSessionId> \
        --output-format stream-json \
        --model <model> \
        --dangerously-skip-permissions \
@@ -101,6 +131,8 @@ claude -p <prompt via stdin> \
 
 - `--output-format stream-json` causes Claude to emit newline-delimited JSON events as they occur (content deltas, tool calls, result).
 - The prompt is written to stdin to avoid exceeding `ARG_MAX` for large prompts.
+- `--session-id <id>` is included only on the first spawn when `sessionId` is set.
+- `--resume <id>` is included when `resumeSessionId` is set, and causes `--system-prompt-file` to be skipped entirely (no temp file is created).
 - `--settings '{"attribution":{"commit":"","pr":""}}'` disables AI attribution in commits and PRs.
 
 ## Chat Service

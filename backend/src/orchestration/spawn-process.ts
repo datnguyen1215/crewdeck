@@ -192,6 +192,8 @@ export async function spawnAndTrack(opts: {
   model?: string;
   existingRunId?: string;
   onComplete?: () => void;
+  sessionId?: string;
+  resumeSessionId?: string;
 }): Promise<string> {
   const {
     agent,
@@ -205,6 +207,8 @@ export async function spawnAndTrack(opts: {
     model,
     existingRunId,
     onComplete,
+    sessionId,
+    resumeSessionId,
   } = opts;
 
   // Use existing run record or create a new one
@@ -228,6 +232,8 @@ export async function spawnAndTrack(opts: {
       workdir,
       env,
       model,
+      sessionId,
+      resumeSessionId,
     });
   } catch (err) {
     agentRunRepo.updateAgentRun(agentRun.id, {
