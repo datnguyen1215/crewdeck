@@ -17,9 +17,11 @@ import { clearPendingSpawn } from "./processes.js";
 import { cleanupSshKey } from "../utils/git-auth.js";
 import * as agentConfigRepo from "../db/repositories/agent-config.js";
 import * as globalConfigRepo from "../db/repositories/global-config.js";
+import * as agentSessionRepo from "../db/repositories/agent-sessions.js";
 import { isIssuePaused } from "../services/issue-service.js";
 import type { Agent, AgentRun } from "../types/entities.js";
 import { postSystemComment, spawnAndTrack } from "./spawn-process.js";
+import { randomUUID } from "crypto";
 import {
   validateCanSpawn,
   validateNoMergedPR,
@@ -44,6 +46,7 @@ export const spawnAgent = async (
   projectId: string,
   commentAuthorAgentId?: string,
   options?: { batchTriggered?: boolean; isRetry?: boolean },
+  instructions?: string,
 ): Promise<void> => {
   if (validateCanSpawn(agent, issueId, projectId)) return;
 
@@ -111,23 +114,73 @@ export const spawnAgent = async (
     creds,
   );
 
-  const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
-
   const timeoutMinutes = globalConfigRepo.getAgentTimeoutMinutes();
   const model = agentConfigRepo.resolveModel(agent.id);
 
-  await spawnAndTrack({
-    agent,
-    projectId,
-    issueId,
-    prompt,
-    workdir: worktreePath ?? ".",
-    env,
-    timeoutMinutes,
-    logLabel: "Agent",
-    model,
-    onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
-  });
+  const existingSession = agentSessionRepo.getSession(projectId, issueId, agent.id);
+
+  if (existingSession) {
+    // Resume existing session — pass only the instructions as the prompt
+    const resumePrompt =
+      instructions ??
+      "Continue working on this issue. Check the current state and proceed.";
+    try {
+      await spawnAndTrack({
+        agent,
+        projectId,
+        issueId,
+        prompt: resumePrompt,
+        workdir: worktreePath ?? ".",
+        env,
+        timeoutMinutes,
+        logLabel: "Agent",
+        model,
+        resumeSessionId: existingSession.session_id,
+        onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
+      });
+    } catch (err) {
+      // Resume failed — clear the stale session and retry with a fresh one
+      log.logger.warn(
+        { err, agentId: agent.id, issueId },
+        "Session resume failed, clearing session and retrying fresh",
+      );
+      agentSessionRepo.deleteByIssue(issueId);
+      const sessionId = randomUUID();
+      const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
+      await spawnAndTrack({
+        agent,
+        projectId,
+        issueId,
+        prompt,
+        workdir: worktreePath ?? ".",
+        env,
+        timeoutMinutes,
+        logLabel: "Agent",
+        model,
+        sessionId,
+        onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
+      });
+      agentSessionRepo.upsertSession(projectId, issueId, agent.id, sessionId);
+    }
+  } else {
+    // First spawn — build full prompt and create a new session
+    const sessionId = randomUUID();
+    const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
+    await spawnAndTrack({
+      agent,
+      projectId,
+      issueId,
+      prompt,
+      workdir: worktreePath ?? ".",
+      env,
+      timeoutMinutes,
+      logLabel: "Agent",
+      model,
+      sessionId,
+      onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
+    });
+    agentSessionRepo.upsertSession(projectId, issueId, agent.id, sessionId);
+  }
 };
 
 /**
@@ -210,23 +263,72 @@ export const executeQueuedRun = async (run: AgentRun): Promise<void> => {
     creds,
   );
 
-  const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
   const timeoutMinutes = globalConfigRepo.getAgentTimeoutMinutes();
   const model = agentConfigRepo.resolveModel(agent.id);
 
-  await spawnAndTrack({
-    agent,
-    projectId,
-    issueId,
-    prompt,
-    workdir: worktreePath ?? ".",
-    env,
-    timeoutMinutes,
-    logLabel: "Queued agent",
-    model,
-    existingRunId: run.id,
-    onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
-  });
+  const existingSession = agentSessionRepo.getSession(projectId, issueId, agent.id);
+
+  if (existingSession) {
+    const resumePrompt =
+      "Continue working on this issue. Check the current state and proceed.";
+    try {
+      await spawnAndTrack({
+        agent,
+        projectId,
+        issueId,
+        prompt: resumePrompt,
+        workdir: worktreePath ?? ".",
+        env,
+        timeoutMinutes,
+        logLabel: "Queued agent",
+        model,
+        existingRunId: run.id,
+        resumeSessionId: existingSession.session_id,
+        onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
+      });
+    } catch (err) {
+      log.logger.warn(
+        { err, agentId: agent.id, issueId },
+        "Queued session resume failed, clearing session and retrying fresh",
+      );
+      agentSessionRepo.deleteByIssue(issueId);
+      const sessionId = randomUUID();
+      const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
+      await spawnAndTrack({
+        agent,
+        projectId,
+        issueId,
+        prompt,
+        workdir: worktreePath ?? ".",
+        env,
+        timeoutMinutes,
+        logLabel: "Queued agent",
+        model,
+        existingRunId: run.id,
+        sessionId,
+        onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
+      });
+      agentSessionRepo.upsertSession(projectId, issueId, agent.id, sessionId);
+    }
+  } else {
+    const sessionId = randomUUID();
+    const prompt = buildAgentPrompt(issueId, projectId, worktreePath, agent.id);
+    await spawnAndTrack({
+      agent,
+      projectId,
+      issueId,
+      prompt,
+      workdir: worktreePath ?? ".",
+      env,
+      timeoutMinutes,
+      logLabel: "Queued agent",
+      model,
+      existingRunId: run.id,
+      sessionId,
+      onComplete: sshKeyPath ? () => cleanupSshKey(sshKeyPath!) : undefined,
+    });
+    agentSessionRepo.upsertSession(projectId, issueId, agent.id, sessionId);
+  }
 };
 
 /**
