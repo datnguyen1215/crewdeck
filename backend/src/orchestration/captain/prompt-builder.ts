@@ -6,6 +6,7 @@ import { getProject } from "../../db/repositories/projects.js";
 import * as globalConfigRepo from "../../db/repositories/global-config.js";
 import * as agentRunRepo from "../../db/repositories/agent-runs.js";
 import { buildStateSnapshot } from "./state-snapshot.js";
+import { CAVEMAN_TONE } from "../caveman-tone.js";
 
 type Project = ReturnType<typeof getProject> & NonNullable<ReturnType<typeof getProject>>;
 
@@ -178,5 +179,6 @@ export const buildSystemPrompt = (projectId: string): string => {
     `## Code Review Loop (MANDATORY)\nEngineer → Lead review → (fix cycle if needed) → Docs → Create PR.\n\nLead review is MANDATORY after every engineer run. Never skip it — not even if a PR already exists.\n- After engineer completes: always dispatch lead.\n- After lead completes: read the report. If issues found, dispatch engineer (fix cycle). If clean, dispatch docs.\n- The fix cycle can repeat (engineer → lead → engineer → lead) until the lead approves.\n- Only after the lead approves should docs be dispatched, followed by PR creation.`,
     `## Dispatch Rules\n- Don't dispatch if an agent is already running on that issue (check current state first)\n- Paused issues (marked with '(paused)' in the snapshot): Do not dispatch, create PRs, or merge PRs. Skip them with reason 'issue is paused'.\n- Dependencies: If an issue shows \`depends:[id1,id2]\` in the snapshot, it is BLOCKED. Do not dispatch it. Skip it and work on other unblocked issues instead. When a blocking issue completes, its dependency is auto-removed and you will see an \`issue.status_changed\` event — re-check previously blocked issues at that point.\n- When you first see a new issue, check its description for dependency keywords ("depends on", "blocked by", "after") and use \`set-dependencies\` action to persist them.\n- List ALL needed dispatches — the system handles capacity and parallel execution\n- ${canMerge ? "Merge ready PRs before starting new work" : "Report ready PRs — auto-merge is disabled"}`,
     buildConstraints(canAutoStart, canMerge),
+    CAVEMAN_TONE,
   ].join("\n\n");
 };
