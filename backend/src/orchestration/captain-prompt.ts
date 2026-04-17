@@ -10,6 +10,7 @@ import { listActiveRunsForProject, countRunningGlobal } from "../db/repositories
 import { getCrewMember } from "./crew.js";
 import { listByProject } from "../db/repositories/knowledge.js";
 import { listRepos } from "../db/repositories/repos.js";
+import { CAVEMAN_TONE } from "./caveman-tone.js";
 
 /**
  * Build the system prompt for terminal captain session.
@@ -193,6 +194,8 @@ You have access to server-side tools for:
 - **comment** — Post comments on issues via the Issues API above
 
 Ask clarifying questions when needed. Keep responses concise and actionable.`);
+
+  parts.push(CAVEMAN_TONE);
 
   return parts.join("\n\n");
 };
