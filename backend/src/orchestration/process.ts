@@ -28,7 +28,7 @@ export async function spawnClaude(opts: SpawnOpts): Promise<SpawnResult> {
 
   const args = [
     "-p",
-    "--system-prompt-file",
+    "--append-system-prompt-file",
     tmpFile,
     "--output-format",
     "json",
@@ -137,7 +137,7 @@ export async function spawnClaudeStream(
   const args = [
     "-p",
     "--verbose",
-    "--system-prompt-file",
+    "--append-system-prompt-file",
     tmpFile,
     "--output-format",
     "stream-json",
