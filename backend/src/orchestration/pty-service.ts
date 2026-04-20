@@ -155,7 +155,7 @@ export async function createTerminalSession(
     "claude",
     "--model",
     captainModel,
-    "--system-prompt-file",
+    "--append-system-prompt-file",
     systemPromptPath,
     "--dangerously-skip-permissions",
   ];

@@ -5,6 +5,7 @@ import type {
   ProjectKnowledge,
 } from "../types/entities.js";
 import { escapeXml } from "../utils/xml.js";
+import { CAVEMAN_TONE } from "./caveman-tone.js";
 
 /** Max characters for truncated older agent comments. */
 const AGENT_COMMENT_TRUNCATE = 200;
@@ -110,6 +111,8 @@ export function buildPrompt(opts: BuildPromptOptions): string {
     opts;
   const parts: string[] = [];
 
+  parts.push(CAVEMAN_TONE);
+
   parts.push(
     `## Issue\n<issue_title>\n${escapeXml(issue.title)}\n</issue_title>\n\n<issue_description>\n${escapeXml(issue.description ?? "")}\n</issue_description>`,
   );
@@ -167,6 +170,8 @@ Do your best work.`);
 export function buildScanPrompt(opts: BuildScanPromptOptions): string {
   const { repo, repoPath, projectKnowledge } = opts;
   const parts: string[] = [];
+
+  parts.push(CAVEMAN_TONE);
 
   parts.push(
     "## Task\nScan the codebase and update knowledge entries for this project.",

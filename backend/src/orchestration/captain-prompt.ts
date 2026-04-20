@@ -10,7 +10,6 @@ import { listActiveRunsForProject, countRunningGlobal } from "../db/repositories
 import { getCrewMember } from "./crew.js";
 import { listByProject } from "../db/repositories/knowledge.js";
 import { listRepos } from "../db/repositories/repos.js";
-import { CAVEMAN_TONE } from "./caveman-tone.js";
 
 /**
  * Build the system prompt for terminal captain session.
@@ -33,8 +32,6 @@ export const buildSystemPrompt = async (
   const repo = repos.length > 0 ? repos[0] : null;
 
   const parts: string[] = [];
-
-  parts.push(CAVEMAN_TONE);
 
   parts.push(`You are Captain, the project assistant for CrewDeck.
 

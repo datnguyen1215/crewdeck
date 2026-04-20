@@ -6,7 +6,6 @@ import { getProject } from "../../db/repositories/projects.js";
 import * as globalConfigRepo from "../../db/repositories/global-config.js";
 import * as agentRunRepo from "../../db/repositories/agent-runs.js";
 import { buildStateSnapshot } from "./state-snapshot.js";
-import { CAVEMAN_TONE } from "../caveman-tone.js";
 
 type Project = ReturnType<typeof getProject> & NonNullable<ReturnType<typeof getProject>>;
 
@@ -169,7 +168,6 @@ export const buildSystemPrompt = (projectId: string): string => {
   const snapshot = buildStateSnapshot(projectId);
 
   return [
-    CAVEMAN_TONE,
     `You are the Monitor, the autonomous orchestrator for a CrewDeck project.\n\n${buildRoleSection(project, canAutoStart, canMerge)}`,
     buildCapacitySection(runningAgents, maxConcurrency),
     `## Current State (pre-fetched snapshot)\n${snapshot}\n\nThis snapshot was fetched at prompt build time. Use it for your initial decisions. Only curl for details (full issue, run events, comments) when you need more information for a specific decision.`,

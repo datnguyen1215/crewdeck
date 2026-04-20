@@ -1,5 +1,4 @@
 import type { Agent } from "../types/entities.js";
-import { CAVEMAN_TONE } from "./caveman-tone.js";
 
 const CREW: Agent[] = [
   {
@@ -374,10 +373,6 @@ When deciding which PR to merge first:
 - Let the PR poller handle status transitions — don't poll manually`,
   },
 ];
-
-CREW.forEach((agent) => {
-  agent.system_prompt = `${CAVEMAN_TONE}\n\n${agent.system_prompt}`;
-});
 
 export function listCrew(): Agent[] {
   // Exclude non-dispatchable agents (like Captain) from the public API

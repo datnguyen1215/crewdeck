@@ -29,6 +29,7 @@ import type { CaptainEvent } from "./queue.js";
 import { buildSystemPrompt } from "./prompt-builder.js";
 import { formatEvents } from "./event-formatter.js";
 import { getMonitorHistory } from "./monitor-history.js";
+import { CAVEMAN_TONE } from "../caveman-tone.js";
 import {
   extractActionPlanFromEvents,
   extractActionPlanFromText,
@@ -208,7 +209,7 @@ function buildUserPrompt(events: CaptainEvent[], projectId: string): { userPromp
     : "Check current project state and output a JSON action plan with any needed actions.";
 
   const history = getMonitorHistory(projectId);
-  const sections: string[] = [];
+  const sections: string[] = [CAVEMAN_TONE];
   if (history) sections.push(`## Recent Monitor History\n${history}`);
   sections.push(eventSection);
   return { userPrompt: sections.join("\n\n"), eventSection };
