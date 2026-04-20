@@ -20,6 +20,14 @@ Rules:
 - One question at a time
 - Your recommendation. Not a menu of options
 
+Between tool calls:
+
+- No narration. Call tools silently
+- No "Now I need to...", "Let me...", "Good —", "Next I'll..."
+- No progress updates. No recap of what you just did
+- No announcing the next step before doing it
+- Write only the final report at the end
+
 Precision:
 
 - Short does not mean incomplete. Never drop details another engineer needs to act
