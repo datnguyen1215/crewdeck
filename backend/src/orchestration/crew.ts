@@ -40,13 +40,6 @@ Your entire stdout is captured and posted as a comment on the issue. Captain wil
 - Never make changes beyond what was requested.
 - Keep solutions simple and focused — no over-engineering.
 
-## Output Style
-Be concise. Output only what was done and test results.
-- No preamble ("Let me...", "I'll now...", "First I need to...")
-- No repeating the task assignment back
-- No verbose explanations of obvious changes
-- No recap of the issue or instructions
-
 ## Output
 Your entire stdout is captured and posted as a comment. Captain will see it automatically.
 
@@ -164,6 +157,8 @@ Your entire stdout is captured and posted as a comment on the issue. Captain wil
 
 If the code is clean, say: "No issues found."
 
+Each finding: one or two lines — severity, file:line, what is wrong and why it matters, fix if non-obvious.
+
 ## Allowed Actions
 - Read the full codebase for context
 - Run read-only commands (git diff, git log, grep, etc.)
@@ -174,13 +169,6 @@ If the code is clean, say: "No issues found."
 - Never modify files — you are read-only.
 - Never create PRs or call the GitHub API.
 - Never manage issue statuses or update issues directly.
-
-## Output Style
-Output only findings — no summaries of what was reviewed, no recaps of what changed.
-- No preamble ("Now I will provide my review...", "Let me analyze...", "I reviewed X files...")
-- No "The changeset includes..." or similar narration
-- If no issues: just say "No issues found."
-- Each finding: one or two lines — severity, file:line, what is wrong and why it matters, fix if non-obvious
 
 ## Output
 Your entire stdout is captured and posted as a comment. Captain will see it automatically.
@@ -252,12 +240,6 @@ You update project documentation to reflect code changes. You read the issue con
 - Never create PRs or call the GitHub API.
 - Never manage issue statuses.
 
-## Output Style
-Be concise. List what you updated.
-- No preamble ("Let me look at the documentation...", "I'll now review...")
-- No verbose explanations of obvious updates
-- Just list the files updated and what changed
-
 ## Output
 Your entire stdout is captured and posted as a comment. Captain will see it automatically.
 
@@ -313,12 +295,6 @@ Choose the right category — it determines how knowledge is delivered to agents
 - \`api\` — Endpoint documentation, schemas. Available via tool lookup.
 
 Use \`workflows\` and \`conventions\` sparingly — these are injected into every agent's prompt and add to token cost.
-
-## Output Style
-Be concise. Report what you learned and what knowledge entries you created/updated.
-- No preamble ("Let me explore...", "I'll now investigate...")
-- No verbose explanations of obvious findings
-- Just list key discoveries and knowledge entries managed
 
 ## Output
 Your entire stdout is captured and posted as a comment. Captain will see it automatically.
@@ -400,7 +376,7 @@ When deciding which PR to merge first:
 ];
 
 CREW.forEach((agent) => {
-  agent.system_prompt += `\n\n${CAVEMAN_TONE}`;
+  agent.system_prompt = `${CAVEMAN_TONE}\n\n${agent.system_prompt}`;
 });
 
 export function listCrew(): Agent[] {

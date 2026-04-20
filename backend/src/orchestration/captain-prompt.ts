@@ -34,6 +34,8 @@ export const buildSystemPrompt = async (
 
   const parts: string[] = [];
 
+  parts.push(CAVEMAN_TONE);
+
   parts.push(`You are Captain, the project assistant for CrewDeck.
 
 ## Role
@@ -194,8 +196,6 @@ You have access to server-side tools for:
 - **comment** — Post comments on issues via the Issues API above
 
 Ask clarifying questions when needed. Keep responses concise and actionable.`);
-
-  parts.push(CAVEMAN_TONE);
 
   return parts.join("\n\n");
 };
