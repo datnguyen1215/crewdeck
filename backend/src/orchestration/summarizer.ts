@@ -3,10 +3,13 @@ import { spawnClaude } from "./process.js";
 import { getDefaultModel } from "../db/repositories/global-config.js";
 import { updateIssue } from "../db/repositories/issues.js";
 
+const MAX_SUMMARY_CHARS = 300;
+
 const SYSTEM_PROMPT =
-  "You are a summarizer. Given an issue title and description, output a 1-2 sentence summary inside <summary> tags.\n" +
-  "Example: <summary>Add retry logic to the webhook dispatcher to handle transient failures.</summary>\n" +
-  "Nothing outside the tags.";
+  "Summarize issue. One short sentence. Caveman tone — fragments, blunt, no filler.\n" +
+  "Output ONLY <summary>...</summary> tags. No code. No quotes of description. No preamble.\n" +
+  "Max 200 characters inside tags. If cannot summarize, output <summary></summary>.\n" +
+  "Example: <summary>Retry webhook dispatcher on transient fail.</summary>";
 
 /**
  * Fire-and-forget: spawn a lightweight Claude call to summarize an issue.
@@ -54,17 +57,23 @@ export function summarizeIssueAsync(
       }
 
       const summaryMatch = text.match(/<summary>(.*?)<\/summary>/s);
-      if (summaryMatch) text = summaryMatch[1].trim();
-
-      text = text.trim();
-      if (!text || text.length < 5) {
+      if (!summaryMatch) {
         logger.warn(
-          { issueId, text: text.slice(0, 100) },
-          "Summarizer returned empty/short result, falling back to title",
+          { issueId, textPreview: text.slice(0, 100) },
+          "Summarizer: no <summary> tag, falling back to title",
         );
         updateIssue(issueId, { summary: title });
         return;
       }
+
+      text = summaryMatch[1].trim();
+      if (text.length < 5) {
+        logger.warn({ issueId, len: text.length }, "Summarizer: empty/short, falling back to title");
+        updateIssue(issueId, { summary: title });
+        return;
+      }
+
+      if (text.length > MAX_SUMMARY_CHARS) text = text.slice(0, MAX_SUMMARY_CHARS);
 
       updateIssue(issueId, { summary: text });
       logger.info({ issueId, summaryLen: text.length }, "Issue summarized");
